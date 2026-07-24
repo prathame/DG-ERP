@@ -7,14 +7,16 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { pool } from '../pg-db';
-import { uid } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { authMiddleware, superAdminMiddleware } from '../middleware/auth';
 import { normalizePermissions } from '../middleware/permissions';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { encryptSecret } from '../utils/secret-crypto';
+import { clearUserSession } from '../utils/userSessions';
 
 const router = Router();
 
@@ -93,7 +95,10 @@ async function getSeatsPayload(tenantId: string) {
   const users = (
     await pool.query(
       `SELECT id, email, name, role, created_at, whatsapp_api_allowed, whatsapp_phone_number_id, whatsapp_access_token
-       FROM users WHERE tenant_id=$1 ORDER BY created_at`,
+       FROM users
+       WHERE tenant_id=$1
+         AND email NOT LIKE 'deleted-%@invalid.local'
+       ORDER BY created_at`,
       [tenantId],
     )
   ).rows as Record<string, unknown>[];
@@ -320,6 +325,62 @@ router.put('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdmi
   } catch (err) {
     const msg = err instanceof Error ? err.message : '';
     if (msg.includes('Cannot reduce')) return res.status(400).json({ error: msg });
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Soft-delete (anonymize) a seat user — keeps FK integrity on sales/audit. */
+router.delete('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id: tenantId, userId } = req.params;
+    const tenant = await assertCloudTenant(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const target = (await pool.query(`SELECT id, role FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId]))
+      .rows[0] as { id: string; role: string } | undefined;
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    if (target.role === 'Admin' || target.role === 'Super Admin') {
+      const admins = (
+        await pool.query(
+          `SELECT COUNT(*)::int AS c FROM users
+             WHERE tenant_id = $1
+               AND role IN ('Admin', 'Super Admin')
+               AND id <> $2
+               AND email NOT LIKE 'deleted-%@invalid.local'`,
+          [tenantId, userId],
+        )
+      ).rows[0] as { c: number };
+      if (admins.c < 1) {
+        return res.status(400).json({ error: 'Cannot delete the last admin' });
+      }
+    }
+
+    const anonEmail = `deleted-${userId.toLowerCase()}@invalid.local`;
+    await pool.query(
+      `UPDATE users SET
+           email = $1,
+           name = 'Deleted User',
+           phone = NULL,
+           address = NULL,
+           gst_number = NULL,
+           password_hash = $2,
+           password_changed_at = NOW(),
+           vendor_id = NULL,
+           whatsapp_api_allowed = FALSE,
+           whatsapp_phone_number_id = NULL,
+           whatsapp_access_token = NULL
+         WHERE id = $3 AND tenant_id = $4`,
+      [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), userId, tenantId],
+    );
+    await pool.query(`DELETE FROM service_cloud_device_slots WHERE tenant_id=$1 AND user_id=$2`, [tenantId, userId]);
+    await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND user_id=$2`, [tenantId, userId]);
+    await clearUserSession(userId, tenantId);
+    const sa = (req as unknown as Record<string, unknown>).user as { userId?: string } | undefined;
+    await logAudit(pool, tenantId, 'DELETE', 'user', userId, 'SA anonymized seat user', sa?.userId, 'Super Admin');
+    logger.info('SA deleted seat user', { tenantId, userId });
+    res.json({ ok: true, message: 'User deleted', ...(await getSeatsPayload(tenantId)) });
+  } catch (err) {
     return handleApiError(req, res, err);
   }
 });

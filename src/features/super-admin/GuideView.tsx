@@ -381,7 +381,7 @@ export function GuideView() {
               </p>
               <p>
                 Per user card: credentials, <strong>Mobile</strong> + <strong>Laptop/Desktop</strong> slots, Share reset
-                link, Notify (that user only), Unbind
+                link, Notify (that user only), Delete, Unbind
               </p>
               <p>Service only: one live session company-wide. Other types: multi-user (no company freeze).</p>
             </div>
