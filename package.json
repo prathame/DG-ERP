@@ -96,7 +96,7 @@
     "@capacitor/ios": "^8.4.2",
     "@eslint/js": "^9.39.2",
     "@types/bcrypt": "^6.0.0",
-    "@types/bcryptjs": "^2.4.6",
+    "@types/bcryptjs": "^3.0.0",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.20.1",
