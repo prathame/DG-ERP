@@ -475,7 +475,10 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
     ).rows[0] as Record<string, unknown> | undefined;
     if (existing) {
       if (existing.user_id === user.userId) {
-        await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [existing.id]);
+        await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1 AND tenant_id=$2`, [
+          existing.id,
+          user.tenantId,
+        ]);
         return res.json({ ok: true, slotId: existing.id, deviceKind: existing.device_kind, alreadyBound: true });
       }
       // Same install, different user (e.g. Test then Raju on one Electron): transfer the machine
@@ -585,7 +588,10 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
     ).rows[0];
     if (!slot) return res.status(403).json({ error: 'Device not claimed — call claim-device first' });
 
-    await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [slot.id]);
+    await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1 AND tenant_id=$2`, [
+      slot.id,
+      user.tenantId,
+    ]);
 
     // Non-service: multi-user ERP — no company-wide session freeze
     if (!usesCompanySessionLock(tenant)) {
@@ -660,7 +666,10 @@ router.post('/api/service-cloud/session/heartbeat', authMiddleware, publicLimite
         )
       ).rows[0];
       if (!slot) return res.status(403).json({ error: 'Device not claimed' });
-      await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [slot.id]);
+      await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1 AND tenant_id=$2`, [
+        slot.id,
+        user.tenantId,
+      ]);
       return res.json({ ok: true, busy: false, companySessionLock: false, expiresAt: null });
     }
 

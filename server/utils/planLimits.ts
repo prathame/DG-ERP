@@ -1,5 +1,6 @@
 import { pool } from '../pg-db';
 import { logger } from './logger';
+import { ACTIVE_USER_SQL } from './activeUsers';
 
 type Resource = 'products' | 'vendors' | 'users' | 'barcodes';
 
@@ -30,7 +31,9 @@ export async function checkPlanLimit(tenantId: string, resource: Resource): Prom
     if (limit === -1) return null; // -1 = unlimited
 
     // Vendors: exclude the built-in OWNER row
-    const whereExtra = resource === 'vendors' ? " AND id != 'OWNER'" : '';
+    // Users: exclude soft-deleted rows so deletes free seats
+    const whereExtra =
+      resource === 'vendors' ? " AND id != 'OWNER'" : resource === 'users' ? ` AND ${ACTIVE_USER_SQL}` : '';
     const countRow = await pool.query(
       `SELECT COUNT(*) AS c FROM ${RESOURCE_TABLE[resource]} WHERE tenant_id = $1${whereExtra}`,
       [tenantId],

@@ -275,6 +275,38 @@ describe('utils/planLimits', () => {
     await cleanupTestData(tid);
   });
 
+  it('user limit excludes soft-deleted rows', async () => {
+    const tid = 'T-TEST-PLAN-USERS';
+    await cleanupTestData(tid);
+    await pool.query(
+      `INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
+       VALUES ('plan-users-test', 'Users Cap', 100, 100, 1, 1000, '[]', 0, 0)
+       ON CONFLICT (id) DO UPDATE SET max_users = 1`,
+    );
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, plan_id)
+       VALUES ($1, 'Users Co', 'test-plan-users', 'users@test.com', 'U', 'active', 'plan-users-test')
+       ON CONFLICT (id) DO UPDATE SET plan_id = 'plan-users-test'`,
+      [tid],
+    );
+    const deadId = 'U-PLAN-DEAD';
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1, $2, $3, 'x', 'Dead', 'User')`,
+      [deadId, tid, `deleted-${deadId.toLowerCase()}@invalid.local`],
+    );
+    // Soft-deleted row must not consume the seat — new user allowed
+    expect(await checkPlanLimit(tid, 'users')).toBeNull();
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ('U-PLAN-LIVE', $1, 'live@test.com', 'x', 'Live', 'Admin')`,
+      [tid],
+    );
+    const blocked = await checkPlanLimit(tid, 'users');
+    expect(blocked?.error).toMatch(/Plan limit reached/i);
+    await cleanupTestData(tid);
+  });
+
   it('fails closed when limit query throws', async () => {
     const spy = vi.spyOn(pool, 'query').mockRejectedValueOnce(new Error('db'));
     const r = await checkPlanLimit(TENANT, 'products');
