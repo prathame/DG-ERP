@@ -40,6 +40,7 @@ import { getAccountsTabVisiblePref } from './platforms/service-mobile/tabPrefs';
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
+  ServiceCloudConfigRefresh,
   isServiceCloudClient,
   isServiceCloudDesktop,
   isServiceCloudMobile,
@@ -1144,6 +1145,18 @@ export default function App() {
   /** Emergent phone IA: Offline Mobile + online Service Cloud Capacitor (not manufacturer cloud). */
   const servicePhoneUx = isServicePhoneUx(userConfig?.businessType as string | undefined);
   const desktopGlass = isDesktopGlassUi(userConfig?.businessType as string | undefined);
+  /** Cap non-service glass header (Analytics / Accounts mock) — denser Live · search · notify · refresh · avatar */
+  const capGlassHeader = isMobileAppShell() && !servicePhoneUx;
+  const avatarInitials = (() => {
+    const name = user?.name?.trim();
+    if (!name) return '?';
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (capGlassHeader && parts.length >= 2) {
+      return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
+    }
+    if (capGlassHeader) return name.slice(0, 2).toUpperCase();
+    return (name.charAt(0) || '?').toUpperCase();
+  })();
   const mobileNavIds = servicePhoneUx
     ? user?.role === 'Vendor'
       ? ['analytics', 'distribution', 'finance', 'inventory']
@@ -1419,43 +1432,56 @@ export default function App() {
             <header
               className={cn(
                 'sticky top-0 z-30 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe',
-                desktopGlass ? 'dg-glass-header' : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
+                desktopGlass
+                  ? 'dg-glass-header'
+                  : capGlassHeader
+                    ? 'dg-mobile-glass border-b border-[var(--dg-card-border)] bg-[color-mix(in_srgb,var(--dg-bg)_92%,white)]'
+                    : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
               )}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors lg:hidden shrink-0"
+                  className={cn(
+                    'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors lg:hidden shrink-0',
+                    capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100',
+                  )}
                   aria-label="Open menu"
                 >
                   <Menu size={20} />
                 </button>
                 <div className="min-w-0">
-                  <h1 className="text-sm sm:text-2xl font-bold truncate leading-tight tracking-tight">
+                  <h1
+                    className={cn(
+                      'text-sm sm:text-2xl font-bold truncate leading-tight tracking-tight',
+                      capGlassHeader && 'dg-m-ink',
+                    )}
+                  >
                     {t(`nav.${activeTab}`)}
                   </h1>
-                  <p className="text-[9px] text-gray-400 truncate sm:hidden leading-tight mt-0.5">
+                  <p
+                    className={cn(
+                      'text-[9px] truncate sm:hidden leading-tight mt-0.5',
+                      capGlassHeader ? 'dg-m-faint' : 'text-gray-400',
+                    )}
+                  >
                     {user?.companyName}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-                {/* Non-service Online Cap: Live + Refresh in top header (Analytics mock); reuse real navigator.onLine + config refresh */}
+              <div className="flex items-center gap-0.5 sm:gap-3 shrink-0">
+                {/* Cap Online non-service: Live → search → notify → refresh → avatar (Accounts mock denser chrome) */}
                 {isServiceCloudMobile() && user && !servicePhoneUx && (
-                  <ServiceCloudLiveBadge
-                    variant="header"
-                    userId={user.id}
-                    companySessionLock={false}
-                    onConfigRefreshed={merged => {
-                      setUser(merged as typeof user);
-                    }}
-                  />
+                  <ServiceCloudLiveBadge variant="header" userId={user.id} companySessionLock={false} />
                 )}
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
-                  className="sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500"
+                  className={cn(
+                    'sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg',
+                    capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100 text-gray-500',
+                  )}
                   aria-label="Search"
                 >
                   <Search size={18} />
@@ -1514,11 +1540,22 @@ export default function App() {
                   }}
                   canAccessTab={canAccess}
                 />
+                {isServiceCloudMobile() && user && !servicePhoneUx && (
+                  <ServiceCloudConfigRefresh
+                    userId={user.id}
+                    onConfigRefreshed={merged => {
+                      setUser(merged as typeof user);
+                    }}
+                  />
+                )}
                 <div className="relative flex items-center gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setUserMenuOpen(o => !o)}
-                    className="flex items-center gap-3 rounded-xl p-1 hover:bg-gray-100 transition-colors"
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl p-1 transition-colors',
+                      capGlassHeader ? 'hover:bg-[var(--dg-input)]' : 'hover:bg-gray-100',
+                    )}
                     aria-label="Account menu"
                     aria-expanded={userMenuOpen}
                     aria-haspopup="menu"
@@ -1530,13 +1567,13 @@ export default function App() {
                     </div>
                     <div
                       className={cn(
-                        'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-xs sm:text-sm',
-                        desktopGlass
+                        'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-[11px] sm:text-sm',
+                        desktopGlass || capGlassHeader
                           ? 'dg-bg-primary border-[var(--dg-card-border)]'
                           : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
                       )}
                     >
-                      {user?.name?.charAt(0) ?? '?'}
+                      {avatarInitials}
                     </div>
                   </button>
                   {userMenuOpen && (
