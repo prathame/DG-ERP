@@ -275,9 +275,9 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       [JSON.stringify(tabConfig), bType, accessMode, JSON.stringify(mobileFeatures), result.tenantId],
     );
     // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
-    // mode=desktop → 1 desktop; mode=both → 1 mobile + 1 desktop; mode=mobile → 1 mobile.
-    // Earlier bug: needMobile non-service set mode=both but only seeded mobile, so Electron
-    // claim-device failed with "No free desktop device slots".
+    // Create path sets mode to desktop (no mobile) or both (needMobile) — always seed desktop;
+    // seed mobile when companions are enabled. Fixes Electron "No free desktop device slots"
+    // for Cap Online (mode=both) tenants that previously only got a mobile seat.
     {
       const adminRow = (
         await pool.query(`SELECT id FROM users WHERE tenant_id=$1 AND LOWER(email)=LOWER($2) LIMIT 1`, [
@@ -286,20 +286,18 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         ])
       ).rows[0] as { id: string } | undefined;
       if (adminRow?.id) {
-        if (accessMode === 'mobile' || accessMode === 'both') {
+        if (needMobile) {
           await pool.query(
             `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
              VALUES ($1,$2,$3,'mobile')`,
             [uid('SCS'), result.tenantId, adminRow.id],
           );
         }
-        if (accessMode === 'desktop' || accessMode === 'both') {
-          await pool.query(
-            `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
-             VALUES ($1,$2,$3,'desktop')`,
-            [uid('SCS'), result.tenantId, adminRow.id],
-          );
-        }
+        await pool.query(
+          `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
+           VALUES ($1,$2,$3,'desktop')`,
+          [uid('SCS'), result.tenantId, adminRow.id],
+        );
       }
     }
     await logAudit(
