@@ -1353,7 +1353,9 @@ export function SettingsView({
         )}
         <div
           className={cn(
-            desktopGlass ? 'flex-1 min-w-0 min-h-[560px] dg-glass-card rounded-2xl p-6 sm:p-8 space-y-6' : 'contents',
+            desktopGlass && 'flex-1 min-w-0 min-h-[560px] dg-glass-card rounded-2xl p-6 sm:p-8 space-y-6',
+            // Cap open sheet: omit `contents` so fixed/z-50 apply (else panels sit under backdrop).
+            !desktopGlass && !(capMobileSettings && mobileSheet) && 'contents',
             capMobileSettings && !mobileSheet && 'hidden',
             capMobileSettings &&
               mobileSheet &&
