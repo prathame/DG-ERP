@@ -1341,8 +1341,8 @@ export default function App() {
                   <OnlineStatus collapsed={!isSidebarOpen} adapter={serviceMobile ? smOnlineAdapter : undefined} />
                 </div>
               )}
-              {/* Online Cap — Live + Refresh config (mobile_features / access mode); not data sync */}
-              {isServiceCloudMobile() && user && (
+              {/* Service Cap Online — Live + Refresh stay in drawer (Emergent chrome). Non-service: App header. */}
+              {isServiceCloudMobile() && user && servicePhoneUx && (
                 <div className="px-2.5 lg:px-3 pt-2">
                   <ServiceCloudLiveBadge
                     collapsed={!isSidebarOpen}
@@ -1441,6 +1441,17 @@ export default function App() {
                 </div>
               </div>
               <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+                {/* Non-service Online Cap: Live + Refresh in top header (Analytics mock); reuse real navigator.onLine + config refresh */}
+                {isServiceCloudMobile() && user && !servicePhoneUx && (
+                  <ServiceCloudLiveBadge
+                    variant="header"
+                    userId={user.id}
+                    companySessionLock={false}
+                    onConfigRefreshed={merged => {
+                      setUser(merged as typeof user);
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
