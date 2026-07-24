@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { ToastProvider } from '../../components/ui';
+import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { SuperAdminAuditLog } from './SuperAdminAuditLog';
 import { SuperAdminBilling } from './SuperAdminBilling';
@@ -46,6 +47,7 @@ interface SuperAdminAppProps {
 export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [viewKey, setViewKey] = useState(0);
   /** Desktop rail expanded (lg+) — unchanged desktop behavior */
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   /** Phone/tablet drawer */
@@ -247,7 +249,9 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
             className="p-4 sm:p-6 lg:p-8 overflow-x-hidden"
             style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
           >
-            {renderContent()}
+            <ErrorBoundary key={viewKey} onReset={() => setViewKey(k => k + 1)}>
+              {renderContent()}
+            </ErrorBoundary>
           </div>
         </main>
       </div>

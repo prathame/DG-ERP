@@ -638,7 +638,10 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">Users</h2>
-          <p className="text-sm text-gray-500">{(tenant.users ?? []).length} users in this tenant</p>
+          <p className="text-sm text-gray-500">
+            {(tenant.users ?? []).filter(u => u?.id && !(u.email || '').toLowerCase().startsWith('deleted-')).length}{' '}
+            users in this tenant
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -659,38 +662,42 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                   </td>
                 </tr>
               )}
-              {(tenant.users ?? []).map(u => (
-                <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{u.role}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleResetToken(u.email)}
-                        disabled={resetLoading === u.email || deleteLoading === u.id}
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-60"
-                      >
-                        <KeyRound size={12} /> {resetLoading === u.email ? 'Generating...' : 'Reset Password'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteUser(u)}
-                        disabled={deleteLoading === u.id || resetLoading === u.email}
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-60"
-                      >
-                        <Trash2 size={12} /> {deleteLoading === u.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {(tenant.users ?? [])
+                .filter(u => u?.id && !(u.email || '').toLowerCase().startsWith('deleted-'))
+                .map(u => (
+                  <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-gray-900">{u.name || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{u.email || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                        {u.role || 'Staff'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => u.email && handleResetToken(u.email)}
+                          disabled={!u.email || resetLoading === u.email || deleteLoading === u.id}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-60"
+                        >
+                          <KeyRound size={12} /> {resetLoading === u.email ? 'Generating...' : 'Reset Password'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteUser(u)}
+                          disabled={deleteLoading === u.id || resetLoading === u.email}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-60"
+                        >
+                          <Trash2 size={12} /> {deleteLoading === u.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
@@ -1250,7 +1257,7 @@ function TabCustomization({
                 <td className="px-6 py-3">
                   <input
                     type="text"
-                    value={config[key]?.label ?? DEFAULT_TAB_CONFIG[key].label}
+                    value={config[key]?.label ?? DEFAULT_TAB_CONFIG[key]?.label ?? key}
                     onChange={e => updateLabel(key, e.target.value)}
                     className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full max-w-[200px] focus:ring-2 focus:ring-brand"
                   />

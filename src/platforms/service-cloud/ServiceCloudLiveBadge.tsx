@@ -38,7 +38,12 @@ function useOnlineFlag() {
 async function refreshProfileConfig(userId: string, onConfigRefreshed?: (merged: Record<string, unknown>) => void) {
   const fresh = await api.settings.getProfile(userId);
   const prev = (session.getUser() || {}) as Record<string, unknown>;
-  const merged = { ...prev, ...fresh };
+  const merged = {
+    ...prev,
+    ...fresh,
+    name: (fresh as { name?: string }).name || (prev.name as string) || 'User',
+    email: (fresh as { email?: string }).email || (prev.email as string) || '',
+  };
   session.setUser(merged);
   onConfigRefreshed?.(merged);
 }

@@ -623,7 +623,12 @@ export default function App() {
       api.settings
         .getProfile(user.id)
         .then(fresh => {
-          const merged = { ...user, ...fresh };
+          const merged = {
+            ...user,
+            ...fresh,
+            name: fresh.name || user.name || 'User',
+            email: fresh.email || user.email || '',
+          };
           session.setUser(merged);
           setUser(merged);
         })

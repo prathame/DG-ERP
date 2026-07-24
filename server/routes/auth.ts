@@ -284,6 +284,9 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       )
     ).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
+    if (isSoftDeletedEmail(row.email as string)) {
+      return res.status(401).json({ error: 'Account deleted', code: 'ACCOUNT_DELETED' });
+    }
 
     const rawPerms = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
     const normalizedPerms = (() => {
