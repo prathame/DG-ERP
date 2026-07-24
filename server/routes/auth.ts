@@ -508,12 +508,14 @@ router.post('/api/auth/forgot-password', async (req, res) => {
         : '';
     const user = (
       await pool.query(
-        `SELECT u.id, u.email, u.name, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE LOWER(u.email) = LOWER($1) ${resetSlugClause} LIMIT 1`,
+        `SELECT u.id, u.email, u.name, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id
+         WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL} ${resetSlugClause} LIMIT 1`,
         resetParams,
       )
     ).rows[0] as { id: string; email: string; name: string; tenant_id: string } | undefined;
-    // Always return success to prevent email enumeration
-    if (!user) return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
+    // Always return success to prevent email enumeration (includes soft-deleted)
+    if (!user || isSoftDeletedEmail(user.email))
+      return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
@@ -560,14 +562,25 @@ router.post('/api/auth/reset-password', async (req, res) => {
 
     if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
 
+    if (isSoftDeletedEmail(resetToken.email)) {
+      await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
     const newHash = bcrypt.hashSync(newPassword, 12);
     const resetUser = (
       await pool.query(
-        'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE LOWER(email) = LOWER($2) AND tenant_id = $3 RETURNING id',
+        `UPDATE users SET password_hash = $1, password_changed_at = NOW()
+         WHERE LOWER(email) = LOWER($2) AND tenant_id = $3 AND ${ACTIVE_USER_SQL}
+         RETURNING id`,
         [newHash, resetToken.email, resetToken.tenant_id],
       )
     ).rows[0] as { id: string } | undefined;
-    if (resetUser) await clearUserSession(resetUser.id, resetToken.tenant_id as string);
+    if (!resetUser) {
+      await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+    await clearUserSession(resetUser.id, resetToken.tenant_id as string);
     await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
     await pool.query('DELETE FROM password_reset_tokens WHERE used = true OR expires_at < NOW()');
 
@@ -594,13 +607,17 @@ router.put('/api/admin/reset-user-password', authMiddleware, async (req: AuthReq
     if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const user = (
-      await pool.query('SELECT id, email, name FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId])
+      await pool.query(`SELECT id, email, name FROM users WHERE id = $1 AND tenant_id = $2 AND ${ACTIVE_USER_SQL}`, [
+        userId,
+        tenantId,
+      ])
     ).rows[0] as { id: string; email: string; name: string } | undefined;
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const newHash = bcrypt.hashSync(newPassword, 12);
     await pool.query(
-      'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3',
+      `UPDATE users SET password_hash = $1, password_changed_at = NOW()
+       WHERE id = $2 AND tenant_id = $3 AND ${ACTIVE_USER_SQL}`,
       [newHash, userId, tenantId],
     );
     await clearUserSession(userId, tenantId);

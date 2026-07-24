@@ -608,7 +608,10 @@ router.post('/api/super-admin/tenants/:id/reset-token', superAdminMiddleware, as
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
     const user = (
-      await pool.query('SELECT id, email, name FROM users WHERE email = $1 AND tenant_id = $2', [email, id])
+      await pool.query(`SELECT id, email, name FROM users WHERE email = $1 AND tenant_id = $2 AND ${ACTIVE_USER_SQL}`, [
+        email,
+        id,
+      ])
     ).rows[0] as { id: string; email: string; name: string } | undefined;
     if (!user) return res.status(404).json({ error: 'User not found in this tenant' });
 
@@ -651,7 +654,9 @@ router.post('/api/super-admin/tenants/:id/impersonate', superAdminMiddleware, as
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
     const admin = (
       await pool.query(
-        "SELECT id, email, name, role FROM users WHERE tenant_id = $1 AND role IN ('Super Admin', 'Admin') ORDER BY created_at LIMIT 1",
+        `SELECT id, email, name, role FROM users
+         WHERE tenant_id = $1 AND role IN ('Super Admin', 'Admin') AND ${ACTIVE_USER_SQL}
+         ORDER BY created_at LIMIT 1`,
         [id],
       )
     ).rows[0] as { id: string; email: string; name: string; role: string } | undefined;
@@ -1627,13 +1632,15 @@ router.post('/api/super-admin/users/:userId/reset-password', superAdminMiddlewar
     const { newPassword } = req.body;
     if (!newPassword || newPassword.length < 8)
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    const user = (await pool.query('SELECT id, email, tenant_id FROM users WHERE id = $1', [userId])).rows[0] as
-      { id: string; email: string; tenant_id: string } | undefined;
+    const user = (
+      await pool.query(`SELECT id, email, tenant_id FROM users WHERE id = $1 AND ${ACTIVE_USER_SQL}`, [userId])
+    ).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
     if (!user) return res.status(404).json({ error: 'User not found' });
     const bcrypt = await import('bcrypt');
     const hash = await bcrypt.hash(newPassword, 12);
     await pool.query(
-      'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3',
+      `UPDATE users SET password_hash = $1, password_changed_at = NOW()
+       WHERE id = $2 AND tenant_id = $3 AND ${ACTIVE_USER_SQL}`,
       [hash, userId, user.tenant_id],
     );
     await clearUserSession(userId, user.tenant_id);
