@@ -66,6 +66,7 @@ import {
   type CompanyReminderSettings,
 } from '../../lib/paymentReminders';
 import { DesktopSettingsTabNav, type DesktopSettingsTab, type DesktopSettingsTabId } from './DesktopSettingsPanel';
+import { MobileSettingsHub, MobileSettingsSheetChrome, moduleBlurb } from './MobileSettingsHub';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
@@ -941,6 +942,8 @@ export function SettingsView({
     serviceMobile ? getAccountsTabVisiblePref() : true,
   );
   const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');
+  /** Cap phone module sheet (incl. service) — null = hub */
+  const [mobileSheet, setMobileSheet] = useState<DesktopSettingsTabId | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
   const [authError, setAuthError] = useState('');
@@ -1248,11 +1251,13 @@ export function SettingsView({
   };
 
   const desktopGlass = settingsGlass();
+  const capMobileSettings = mobileApp && !desktopGlass;
 
   const showTab = (id: DesktopSettingsTabId | DesktopSettingsTabId[]) => {
-    if (!desktopGlass) return true;
     const ids = Array.isArray(id) ? id : [id];
-    return ids.includes(desktopTab);
+    if (desktopGlass) return ids.includes(desktopTab);
+    if (capMobileSettings) return mobileSheet != null && ids.includes(mobileSheet);
+    return true;
   };
 
   const desktopTabs: DesktopSettingsTab[] = [
@@ -1265,6 +1270,25 @@ export function SettingsView({
     { id: 'users', label: 'Users', icon: UserCog, hidden: !user || !isAdmin || serviceMobile },
   ];
 
+  const mobileModules = desktopTabs.map(t => ({
+    id: t.id,
+    label:
+      t.id === 'personal'
+        ? 'Account Settings'
+        : t.id === 'company'
+          ? 'Business Identity'
+          : t.id === 'gst'
+            ? 'GST & Tax'
+            : t.id === 'bill'
+              ? 'Invoice Styling'
+              : t.id === 'data'
+                ? 'Data Resilience'
+                : t.label,
+    blurb: moduleBlurb(t.id),
+    icon: t.icon,
+    hidden: t.hidden,
+  }));
+
   useEffect(() => {
     if (!desktopGlass) return;
     const visible = desktopTabs.filter(t => !t.hidden);
@@ -1273,11 +1297,17 @@ export function SettingsView({
     }
   }, [desktopGlass, desktopTab, user, isAdmin]);
 
+  const sheetMeta = mobileSheet ? mobileModules.find(m => m.id === mobileSheet) : null;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={cn(!desktopGlass && 'space-y-8', desktopGlass && 'w-full max-w-none')}
+      className={cn(
+        !desktopGlass && !capMobileSettings && 'space-y-8',
+        desktopGlass && 'w-full max-w-none',
+        capMobileSettings && 'min-h-0',
+      )}
     >
       {desktopGlass ? (
         <div className="mb-8">
@@ -1286,12 +1316,33 @@ export function SettingsView({
             Configure your workspace identity, tax compliance, and automated data workflows.
           </p>
         </div>
+      ) : capMobileSettings ? (
+        !mobileSheet ? (
+          <MobileSettingsHub
+            userName={user?.name}
+            userEmail={user?.email}
+            userRole={user?.role ?? undefined}
+            modules={mobileModules}
+            onOpen={setMobileSheet}
+          />
+        ) : null
       ) : (
         <div>
           <h2 className="text-xl font-bold">Settings</h2>
           <p className="text-sm text-gray-500">Manage your account and preferences</p>
         </div>
       )}
+
+      {capMobileSettings && mobileSheet && sheetMeta ? (
+        <>
+          <div className="fixed inset-0 z-40 bg-[var(--dg-bg,#f7f9fb)]" aria-hidden />
+          <MobileSettingsSheetChrome
+            title={sheetMeta.label}
+            subtitle={sheetMeta.blurb}
+            onClose={() => setMobileSheet(null)}
+          />
+        </>
+      ) : null}
 
       <div className={cn(desktopGlass ? 'flex gap-8 items-start' : 'contents')}>
         {desktopGlass && (
@@ -1300,6 +1351,10 @@ export function SettingsView({
         <div
           className={cn(
             desktopGlass ? 'flex-1 min-w-0 min-h-[560px] dg-glass-card rounded-2xl p-6 sm:p-8 space-y-6' : 'contents',
+            capMobileSettings && !mobileSheet && 'hidden',
+            capMobileSettings &&
+              mobileSheet &&
+              'fixed z-50 inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] bottom-0 overflow-y-auto px-3 pb-6 space-y-4 dg-mobile-glass bg-transparent',
           )}
         >
           {/* Auth Section */}
@@ -3095,7 +3150,7 @@ export function SettingsView({
         )}
       </AnimatePresence>
 
-      {!user && !desktopGlass && (
+      {!user && !desktopGlass && !capMobileSettings && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
           <p className="text-amber-800 font-medium">
             Sign in to view and edit your personal information, contact details and company settings.

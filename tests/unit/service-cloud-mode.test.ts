@@ -42,12 +42,12 @@ describe('service-cloud mode detection', () => {
     __resetPhoneModeForTests();
   });
 
-  it('detects ?desktop=1 as cloud desktop', () => {
+  it('ignores ?desktop=1 in plain browser (no Electron preload)', () => {
     stubWindow({ search: '?desktop=1' });
-    expect(isServiceCloudDesktop()).toBe(true);
-    expect(serviceCloudClientKind()).toBe('desktop');
-    expect(serviceCloudClientHeader()).toBe('electron-cloud');
-    expect(isServiceCloudClient()).toBe(true);
+    expect(isServiceCloudDesktop()).toBe(false);
+    expect(serviceCloudClientKind()).toBe(null);
+    expect(serviceCloudClientHeader()).toBe(null);
+    expect(isServiceCloudClient()).toBe(false);
   });
 
   it('detects electron cloud bridge', () => {

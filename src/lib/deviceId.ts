@@ -36,7 +36,7 @@ export async function getOrCreateDeviceId(): Promise<string> {
 
 export type ClientPlatform = 'desktop' | 'mobile' | 'web';
 
-/** Best-effort client kind for session metadata. */
+/** Best-effort client kind for session metadata. Electron / Cap only — no browser query bypass. */
 export function detectClientPlatform(): ClientPlatform {
   try {
     const ea = (window as unknown as { electronAPI?: { isElectron?: boolean; deploymentMode?: string } }).electronAPI;
@@ -52,15 +52,10 @@ export function detectClientPlatform(): ClientPlatform {
   } catch {
     /* ignore */
   }
-  try {
-    if (new URLSearchParams(window.location.search).get('desktop') === '1') return 'desktop';
-  } catch {
-    /* ignore */
-  }
   return 'web';
 }
 
-/** True when running inside Electron or Capacitor (or ?desktop=1 local test). */
+/** True when running inside Electron or Capacitor (not plain browser). */
 export function isErpAppShell(): boolean {
   return detectClientPlatform() !== 'web';
 }
@@ -80,6 +75,5 @@ export function appClientHeader(): string | null {
   } catch {
     /* ignore */
   }
-  if (detectClientPlatform() === 'desktop') return 'electron-cloud';
   return null;
 }

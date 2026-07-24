@@ -64,7 +64,7 @@ Tenant ERP is **desktop + mobile apps only**:
 | `POST /api/auth/login` | `403 APP_ONLY` unless `platform` is `desktop`/`mobile` | Allowed |
 | Authenticated tenant APIs | `403 APP_ONLY` unless `X-DG-Client` is an app shell | Allowed |
 
-`X-DG-Client` allowlist: `electron-cloud`, `electron-onprem`, `capacitor`, `capacitor-cloud`. Super-admin impersonation skips the client check. Local UI test: `?desktop=1`.
+`X-DG-Client` allowlist: `electron-cloud`, `electron-onprem`, `capacitor`, `capacitor-cloud`. Super-admin impersonation skips the client check. Plain browser (including `?desktop=1`) is not an app shell — use Electron or Capacitor.
 
 ## Single-device sessions (one user → one machine)
 

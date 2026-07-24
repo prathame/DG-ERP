@@ -15,7 +15,7 @@ export function isMobileAppShell(): boolean {
   }
 }
 
-/** Cloud or Offline Electron (includes `?desktop=1` local testing). */
+/** Cloud or Offline Electron (preload bridge). */
 export function isElectronAppShell(): boolean {
   try {
     const ea = (window as unknown as { electronAPI?: { isElectron?: boolean } }).electronAPI;

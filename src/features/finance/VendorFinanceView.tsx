@@ -35,7 +35,10 @@ import {
 } from '../../lib/paymentReminders';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { isMobileAppShell } from '../../lib/mobileAppShell';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { DesktopVendorFinance } from './DesktopVendorFinance';
+import { MobileVendorFinance, type MobileFinanceChip } from './MobileVendorFinance';
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -56,8 +59,12 @@ export function VendorFinanceView({
   const { confirm, ConfirmRenderer } = useConfirm();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
+  const servicePhoneUx = isServicePhoneUx(cfg.type);
+  /** Cap non-service card list — service uses InvoiceFinanceView at App level */
+  const capMobileGlass = isMobileAppShell() && !servicePhoneUx;
   const isAdmin = ['Admin', 'Super Admin'].includes(user?.role ?? '');
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
+  const [mobileChip, setMobileChip] = useState<MobileFinanceChip>('all');
   const [summaryData, setSummaryData] = useState<
     {
       vendorId: string;
@@ -941,6 +948,38 @@ export function VendorFinanceView({
           onBankFile={file => void handleBankFile(file)}
           onRemindAll={remindAllEligible.eligible.length ? () => void handleRemindAll() : null}
           remindAllCount={remindAllEligible.eligible.length}
+        />
+        {financeModals}
+      </motion.div>
+    );
+  }
+
+  if (capMobileGlass && !(selectedVendorId && detail) && !isVendor) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <MobileVendorFinance
+          isAdmin={isAdmin}
+          loading={loading}
+          summaryData={summaryData}
+          chip={mobileChip}
+          onChip={c => {
+            setMobileChip(c);
+            setSelectedVendorId(null);
+            setDetail(null);
+          }}
+          finSearch={finSearch}
+          onFinSearch={setFinSearch}
+          reminderSettings={reminderSettings}
+          onDetails={id => {
+            setSelectedVendorId(id);
+            loadDetail(id);
+          }}
+          onPay={id => {
+            setSelectedVendorId(id);
+            loadDetail(id);
+            setTimeout(openPaymentModal, 300);
+          }}
+          onSendReminder={handleSendReminder}
         />
         {financeModals}
       </motion.div>

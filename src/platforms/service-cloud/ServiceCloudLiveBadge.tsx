@@ -1,22 +1,34 @@
 /**
  * Online Capacitor only — Live status + Refresh config (no N‑min polling).
  * Reloads SA mobile_features / access mode / tabs / permissions into session.
+ *
+ * - sidebar: service Cap (existing Emergent chrome)
+ * - header: non-service Cap Online top bar (Analytics mock placement)
  */
 import React, { useEffect, useState } from 'react';
 import { Cloud, WifiOff, RefreshCw } from 'lucide-react';
 import { isServiceCloudMobile } from './mode';
 import { api } from '../../api';
 import { session } from '../../lib/session';
+import { cn } from '../../lib/utils';
 
 type Props = {
   collapsed?: boolean;
+  /** sidebar = drawer (service); header = App top bar (non-service Online Cap) */
+  variant?: 'sidebar' | 'header';
   userId?: string;
   /** When true, hint mentions company-wide session lock (service tenants). */
   companySessionLock?: boolean;
   onConfigRefreshed?: (merged: Record<string, unknown>) => void;
 };
 
-export function ServiceCloudLiveBadge({ collapsed, userId, companySessionLock = false, onConfigRefreshed }: Props) {
+export function ServiceCloudLiveBadge({
+  collapsed,
+  variant = 'sidebar',
+  userId,
+  companySessionLock = false,
+  onConfigRefreshed,
+}: Props) {
   const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [hintOpen, setHintOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,6 +65,51 @@ export function ServiceCloudLiveBadge({ collapsed, userId, companySessionLock = 
       setRefreshing(false);
     }
   };
+
+  if (variant === 'header') {
+    return (
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div
+          className={cn(
+            'flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] sm:text-[11px] font-semibold',
+            'bg-[var(--dg-input,#f3f4f6)] border-[var(--dg-card-border,rgba(0,0,0,0.08))]',
+            online ? 'text-gray-600' : 'text-rose-700',
+          )}
+          title={online ? 'Live · Online' : 'No internet'}
+          aria-live="polite"
+        >
+          <span
+            className={cn('w-2 h-2 rounded-full shrink-0', online ? 'bg-[var(--dg-success,#4CAF50)]' : 'bg-rose-500')}
+            aria-hidden
+          />
+          <span className="truncate max-w-[5.5rem] sm:max-w-none">{online ? 'Live · Online' : 'Offline'}</span>
+        </div>
+        {userId ? (
+          <button
+            type="button"
+            onClick={() => void refreshConfig()}
+            disabled={refreshing || !online}
+            className={cn(
+              'inline-flex items-center gap-1 h-9 min-h-[36px] px-2.5 sm:px-3 rounded-full border text-[11px] font-semibold',
+              'border-[var(--dg-primary,#994700)] text-[var(--dg-primary,#994700)]',
+              'hover:bg-[color-mix(in_srgb,var(--dg-primary,#994700)_6%,transparent)]',
+              'disabled:opacity-40 active:scale-95 transition-transform',
+            )}
+            title="Refresh config"
+            aria-label={refreshing ? 'Refreshing config' : 'Refresh config'}
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden />
+            <span>{refreshing ? '…' : 'Refresh'}</span>
+          </button>
+        ) : null}
+        {refreshMsg ? (
+          <span className="sr-only" role="status">
+            {refreshMsg}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
 
   if (collapsed) {
     return (

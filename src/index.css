@@ -856,3 +856,46 @@ html.dark .dg-desktop-glass textarea {
   color: var(--dg-ink) !important;
   border-color: var(--dg-card-border) !important;
 }
+
+/* ── Cap mobile glass (phone shells only; not desktop .dg-desktop-glass) ── */
+.dg-mobile-glass {
+  --dg-primary: #994700;
+  --dg-primary-bright: #ff7a00;
+  --dg-success: #00c853;
+  --dg-error: #d50000;
+  --dg-bg: #f7f9fb;
+  --dg-card: rgba(255, 255, 255, 0.82);
+  --dg-card-border: rgba(25, 28, 30, 0.08);
+  --dg-ink: #191c1e;
+  --dg-muted: #565e74;
+  --dg-faint: rgba(25, 28, 30, 0.22);
+  --dg-input: #eceef0;
+  --dg-shadow: 0 8px 28px rgba(25, 28, 30, 0.08);
+  --dg-font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--dg-font-family);
+  color: var(--dg-ink);
+  background-color: var(--dg-bg);
+}
+.dg-mobile-glass .dg-m-glass-card {
+  background: var(--dg-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--dg-card-border);
+  box-shadow: var(--dg-shadow);
+  color: var(--dg-ink);
+}
+.dg-mobile-glass .dg-m-ink { color: var(--dg-ink); }
+.dg-mobile-glass .dg-m-muted { color: var(--dg-muted); }
+.dg-mobile-glass .dg-m-faint { color: var(--dg-faint); }
+.dg-mobile-glass .dg-m-primary { color: var(--dg-primary); }
+.dg-mobile-glass .dg-m-bright { color: var(--dg-primary-bright); }
+.dg-mobile-glass .dg-m-success { color: var(--dg-success); }
+.dg-mobile-glass .dg-m-error { color: var(--dg-error); }
+.dg-mobile-glass .dg-m-bg-primary {
+  background: var(--dg-primary-bright);
+  color: #fff;
+}
+.dg-mobile-glass .dg-m-chip-active {
+  background: var(--dg-primary-bright);
+  color: #fff;
+}
