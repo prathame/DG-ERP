@@ -56,9 +56,11 @@ type ResetModal = {
 
 interface Props {
   tenantId: string;
+  /** Refresh parent tenant Users table after create/delete. */
+  onUsersChanged?: () => void;
 }
 
-export function ServiceCloudSeatsPanel({ tenantId }: Props) {
+export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
   const { toast } = useToast();
   const [data, setData] = useState<SeatsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +175,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       setShowAdd(false);
       setForm({ name: '', email: '', password: '', mobileSlots: 1, desktopSlots: 1 });
       load();
+      onUsersChanged?.();
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -315,6 +318,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       toast('User deleted', 'success');
       load();
+      onUsersChanged?.();
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {

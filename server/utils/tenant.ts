@@ -1,5 +1,6 @@
 import { pool, setTenantContext } from '../pg-db';
 import bcrypt from 'bcrypt';
+import { ACTIVE_USER_SQL } from './activeUsers';
 
 function slugify(input: string): string {
   return input
@@ -195,7 +196,7 @@ export async function getTenantStats(tenantId: string) {
   const [products, vendors, users, sales, revenue, barcodes] = await Promise.all([
     pool.query('SELECT COUNT(*) as c FROM products WHERE tenant_id = $1', [tenantId]),
     pool.query("SELECT COUNT(*) as c FROM vendors WHERE tenant_id = $1 AND id != 'OWNER'", [tenantId]),
-    pool.query('SELECT COUNT(*) as c FROM users WHERE tenant_id = $1', [tenantId]),
+    pool.query(`SELECT COUNT(*) as c FROM users WHERE tenant_id = $1 AND ${ACTIVE_USER_SQL}`, [tenantId]),
     pool.query('SELECT COUNT(*) as c FROM product_sales WHERE tenant_id = $1', [tenantId]),
     pool.query('SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE tenant_id = $1', [tenantId]),
     pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE tenant_id = $1', [tenantId]),

@@ -101,6 +101,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
     expiresAt: string;
   } | null>(null);
   const [resetLoading, setResetLoading] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [activity, setActivity] = useState<{
     loginHistory: Record<string, unknown>[];
@@ -171,6 +172,28 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       toast((err as Error).message, 'error');
     } finally {
       setResetLoading(null);
+    }
+  };
+
+  const handleDeleteUser = async (u: { id: string; name: string }) => {
+    if (
+      !confirm(`Delete ${u.name}? They will be anonymized and cannot log in. Device slots for this user are removed.`)
+    )
+      return;
+    setDeleteLoading(u.id);
+    try {
+      const token = session.getToken();
+      const res = await fetch(`/api/super-admin/tenants/${tenantId}/service-cloud/users/${u.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      toast('User deleted', 'success');
+      fetchTenant();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -609,7 +632,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         onSaved={fetchTenant}
       />
 
-      <ServiceCloudSeatsPanel tenantId={tenantId} />
+      <ServiceCloudSeatsPanel tenantId={tenantId} onUsersChanged={fetchTenant} />
 
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -647,14 +670,24 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => handleResetToken(u.email)}
-                      disabled={resetLoading === u.email}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-60"
-                    >
-                      <KeyRound size={12} /> {resetLoading === u.email ? 'Generating...' : 'Reset Password'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleResetToken(u.email)}
+                        disabled={resetLoading === u.email || deleteLoading === u.id}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-60"
+                      >
+                        <KeyRound size={12} /> {resetLoading === u.email ? 'Generating...' : 'Reset Password'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteUser(u)}
+                        disabled={deleteLoading === u.id || resetLoading === u.email}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-60"
+                      >
+                        <Trash2 size={12} /> {deleteLoading === u.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
