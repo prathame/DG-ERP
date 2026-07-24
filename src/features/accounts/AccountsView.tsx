@@ -29,10 +29,13 @@ import {
 } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { isMobileAppShell } from '../../lib/mobileAppShell';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
+import { MobileAccountsPanel } from './MobileAccountsPanel';
 
 type AccountTab =
   | 'pnl'
@@ -59,6 +62,8 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   const { toast } = useToast();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
+  /** Cap non-service immersive accounts — leave service phone layout alone */
+  const capMobileGlass = isMobileAppShell() && !isServicePhoneUx(cfg.type);
   const ds = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const partySingular = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
   const businessType = cfg.type;
@@ -247,6 +252,65 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     </>
   );
 
+  const gstr1Button = (className: string) =>
+    tab === 'gst' ? (
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
+            const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            alert((e as Error).message);
+          }
+        }}
+        className={className}
+      >
+        <Download size={15} /> GSTR-1 JSON
+      </button>
+    ) : null;
+
+  if (capMobileGlass) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <MobileAccountsPanel
+          accountTabs={accountTabs}
+          reportTabs={reportTabs}
+          tab={tab}
+          onSelectTab={selectTab}
+          from={from}
+          to={to}
+          onFrom={setFrom}
+          onTo={setTo}
+          showDateRange={showDateRange && tab !== 'gstr3b'}
+          ledgerFilter={ledgerFilter}
+          onLedgerFilter={setLedgerFilter}
+          gstMonth={gstMonth}
+          gstYear={gstYear}
+          onGstMonth={setGstMonth}
+          onGstYear={setGstYear}
+          loading={loading}
+          onGenerate={loadData}
+          onExport={data ? exportRows : undefined}
+          canExport={canExport}
+          onPrint={data ? handlePrint : undefined}
+          gstr1Slot={gstr1Button(
+            'w-full h-10 rounded-xl text-[13px] font-bold text-white inline-flex items-center justify-center gap-1.5 bg-[var(--dg-success)]',
+          )}
+          showEmpty={!loading && !data && tab !== 'gstr2b'}
+        >
+          {reportBody}
+        </MobileAccountsPanel>
+      </motion.div>
+    );
+  }
+
   if (desktopGlass) {
     const complianceTabs = reportTabs.map(t => ({
       key: t.key,
@@ -288,30 +352,9 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           onGenerate={loadData}
           onExport={exportRows}
           canExport={canExport}
-          gstr1Slot={
-            tab === 'gst' ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
-                    const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  } catch (e) {
-                    alert((e as Error).message);
-                  }
-                }}
-                className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg text-sm font-bold text-white bg-[var(--dg-success)] hover:opacity-90"
-              >
-                <Download size={15} /> GSTR-1 JSON
-              </button>
-            ) : null
-          }
+          gstr1Slot={gstr1Button(
+            'col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg text-sm font-bold text-white bg-[var(--dg-success)] hover:opacity-90',
+          )}
           showEmpty={!loading && !data && tab !== 'gstr2b'}
         >
           {data && (

@@ -82,7 +82,9 @@ function settingsPanel(extra = ''): string {
     settingsGlass()
       ? // Inside the desktop tab sheet — flat blocks, not nested glass cards
         'rounded-xl overflow-hidden border border-[var(--dg-card-border)]'
-      : 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
+      : mobileApp
+        ? 'dg-m-glass-card rounded-2xl overflow-hidden'
+        : 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
     extra,
   );
 }
@@ -93,7 +95,9 @@ function settingsPanelHead(extra = '', compact = false): string {
     pad,
     settingsGlass()
       ? 'bg-[var(--dg-input)]/60 border-b border-[var(--dg-card-border)]'
-      : 'bg-gray-50 border-b border-gray-100',
+      : mobileApp
+        ? 'bg-[var(--dg-input)] border-b border-[var(--dg-card-border)]'
+        : 'bg-gray-50 border-b border-gray-100',
     extra,
   );
 }
@@ -1359,7 +1363,7 @@ export function SettingsView({
             capMobileSettings && !mobileSheet && 'hidden',
             capMobileSettings &&
               mobileSheet &&
-              'fixed z-50 inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] bottom-0 overflow-y-auto px-3 pb-6 space-y-4 dg-mobile-glass bg-transparent',
+              'fixed z-50 inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] bottom-0 overflow-y-auto px-3 pb-6 space-y-4 dg-mobile-glass',
           )}
         >
           {/* Auth Section */}

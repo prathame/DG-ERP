@@ -3,7 +3,7 @@
  * Reloads SA mobile_features / access mode / tabs / permissions into session.
  *
  * - sidebar: service Cap (existing Emergent chrome)
- * - header: non-service Cap Online top bar (Analytics mock placement)
+ * - header: non-service Cap Online top bar (Analytics / Accounts mock placement)
  */
 import React, { useEffect, useState } from 'react';
 import { Cloud, WifiOff, RefreshCw } from 'lucide-react';
@@ -12,9 +12,118 @@ import { api } from '../../api';
 import { session } from '../../lib/session';
 import { cn } from '../../lib/utils';
 
+type RefreshProps = {
+  userId?: string;
+  onConfigRefreshed?: (merged: Record<string, unknown>) => void;
+  /** icon = denser Cap header; labeled = drawer / legacy */
+  appearance?: 'icon' | 'labeled';
+  className?: string;
+};
+
+function useOnlineFlag() {
+  const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+  return online;
+}
+
+async function refreshProfileConfig(userId: string, onConfigRefreshed?: (merged: Record<string, unknown>) => void) {
+  const fresh = await api.settings.getProfile(userId);
+  const prev = (session.getUser() || {}) as Record<string, unknown>;
+  const merged = { ...prev, ...fresh };
+  session.setUser(merged);
+  onConfigRefreshed?.(merged);
+}
+
+/** Icon-only (or labeled) Refresh config — wire next to Live in Cap Online header. */
+export function ServiceCloudConfigRefresh({ userId, onConfigRefreshed, appearance = 'icon', className }: RefreshProps) {
+  const online = useOnlineFlag();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+
+  if (!isServiceCloudMobile() || !userId) return null;
+
+  const onClick = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      await refreshProfileConfig(userId, onConfigRefreshed);
+      setRefreshMsg('Config updated');
+      setTimeout(() => setRefreshMsg(null), 2500);
+    } catch (err) {
+      setRefreshMsg(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (appearance === 'labeled') {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => void onClick()}
+          disabled={refreshing || !online}
+          className={cn(
+            'inline-flex items-center gap-1 h-9 min-h-[36px] px-2.5 sm:px-3 rounded-full border text-[11px] font-semibold',
+            'border-[var(--dg-primary,#994700)] text-[var(--dg-primary,#994700)]',
+            'hover:bg-[color-mix(in_srgb,var(--dg-primary,#994700)_6%,transparent)]',
+            'disabled:opacity-40 active:scale-95 transition-transform',
+            className,
+          )}
+          title="Refresh config"
+          aria-label={refreshing ? 'Refreshing config' : 'Refresh config'}
+        >
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden />
+          <span>{refreshing ? '…' : 'Refresh'}</span>
+        </button>
+        {refreshMsg ? (
+          <span className="sr-only" role="status">
+            {refreshMsg}
+          </span>
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void onClick()}
+        disabled={refreshing || !online}
+        className={cn(
+          'flex items-center justify-center w-8 h-8 rounded-lg',
+          'text-[var(--dg-muted,#6b7280)] hover:bg-[var(--dg-input,#f3f4f6)] hover:text-[var(--dg-primary-bright,#ff7a00)]',
+          'disabled:opacity-40 active:scale-95 transition-all',
+          className,
+        )}
+        title="Refresh config"
+        aria-label={refreshing ? 'Refreshing config' : 'Refresh config'}
+      >
+        <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} aria-hidden />
+      </button>
+      {refreshMsg ? (
+        <span className="sr-only" role="status">
+          {refreshMsg}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 type Props = {
   collapsed?: boolean;
-  /** sidebar = drawer (service); header = App top bar (non-service Online Cap) */
+  /** sidebar = drawer (service); header = App top bar Live pill only (refresh is separate) */
   variant?: 'sidebar' | 'header';
   userId?: string;
   /** When true, hint mentions company-wide session lock (service tenants). */
@@ -29,21 +138,10 @@ export function ServiceCloudLiveBadge({
   companySessionLock = false,
   onConfigRefreshed,
 }: Props) {
-  const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const online = useOnlineFlag();
   const [hintOpen, setHintOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-    window.addEventListener('online', on);
-    window.addEventListener('offline', off);
-    return () => {
-      window.removeEventListener('online', on);
-      window.removeEventListener('offline', off);
-    };
-  }, []);
 
   if (!isServiceCloudMobile()) return null;
 
@@ -52,11 +150,7 @@ export function ServiceCloudLiveBadge({
     setRefreshing(true);
     setRefreshMsg(null);
     try {
-      const fresh = await api.settings.getProfile(userId);
-      const prev = (session.getUser() || {}) as Record<string, unknown>;
-      const merged = { ...prev, ...fresh };
-      session.setUser(merged);
-      onConfigRefreshed?.(merged);
+      await refreshProfileConfig(userId, onConfigRefreshed);
       setRefreshMsg('Config updated');
       setTimeout(() => setRefreshMsg(null), 2500);
     } catch (err) {
@@ -68,45 +162,24 @@ export function ServiceCloudLiveBadge({
 
   if (variant === 'header') {
     return (
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <div
-          className={cn(
-            'flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] sm:text-[11px] font-semibold',
-            'bg-[var(--dg-input,#f3f4f6)] border-[var(--dg-card-border,rgba(0,0,0,0.08))]',
-            online ? 'text-gray-600' : 'text-rose-700',
-          )}
-          title={online ? 'Live · Online' : 'No internet'}
-          aria-live="polite"
-        >
+      <div
+        className={cn(
+          'flex items-center gap-1 px-2 py-0.5 rounded-full border shrink-0',
+          'bg-[var(--dg-input,#f3f4f6)] border-[var(--dg-card-border,rgba(0,0,0,0.08))]',
+          online ? 'text-[var(--dg-muted,#565e74)]' : 'text-rose-700',
+        )}
+        title={online ? 'Live · Online' : 'No internet'}
+        aria-live="polite"
+      >
+        <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+          {online ? (
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+          ) : null}
           <span
-            className={cn('w-2 h-2 rounded-full shrink-0', online ? 'bg-[var(--dg-success,#4CAF50)]' : 'bg-rose-500')}
-            aria-hidden
+            className={cn('relative inline-flex rounded-full h-1.5 w-1.5', online ? 'bg-emerald-500' : 'bg-rose-500')}
           />
-          <span className="truncate max-w-[5.5rem] sm:max-w-none">{online ? 'Live · Online' : 'Offline'}</span>
-        </div>
-        {userId ? (
-          <button
-            type="button"
-            onClick={() => void refreshConfig()}
-            disabled={refreshing || !online}
-            className={cn(
-              'inline-flex items-center gap-1 h-9 min-h-[36px] px-2.5 sm:px-3 rounded-full border text-[11px] font-semibold',
-              'border-[var(--dg-primary,#994700)] text-[var(--dg-primary,#994700)]',
-              'hover:bg-[color-mix(in_srgb,var(--dg-primary,#994700)_6%,transparent)]',
-              'disabled:opacity-40 active:scale-95 transition-transform',
-            )}
-            title="Refresh config"
-            aria-label={refreshing ? 'Refreshing config' : 'Refresh config'}
-          >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden />
-            <span>{refreshing ? '…' : 'Refresh'}</span>
-          </button>
-        ) : null}
-        {refreshMsg ? (
-          <span className="sr-only" role="status">
-            {refreshMsg}
-          </span>
-        ) : null}
+        </span>
+        <span className="text-[10px] font-medium uppercase tracking-wider">{online ? 'Live' : 'Off'}</span>
       </div>
     );
   }

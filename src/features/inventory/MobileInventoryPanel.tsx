@@ -120,7 +120,7 @@ export function MobileInventoryPanel({
             <button
               type="button"
               onClick={onImportCsv}
-              className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] bg-white/80 flex items-center justify-center dg-m-muted"
+              className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-muted"
               aria-label="Import CSV"
             >
               <Upload size={16} />
@@ -130,7 +130,7 @@ export function MobileInventoryPanel({
             <button
               type="button"
               onClick={onMetalIntake}
-              className="h-9 w-9 rounded-full border border-[color-mix(in_srgb,var(--dg-primary-bright)_40%,transparent)] bg-white/80 flex items-center justify-center dg-m-bright"
+              className="h-9 w-9 rounded-full border border-[color-mix(in_srgb,var(--dg-primary-bright)_40%,transparent)] dg-m-surface flex items-center justify-center dg-m-bright"
               aria-label="Metal Intake"
             >
               <Scale size={16} />
@@ -156,7 +156,7 @@ export function MobileInventoryPanel({
           value={barcodeSearch}
           onChange={e => onBarcodeSearch(e.target.value)}
           placeholder="Scan or search barcode / name…"
-          className="w-full h-10 pl-9 pr-9 rounded-xl bg-white/80 border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
+          className="w-full h-10 pl-9 pr-9 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
         />
       </div>
 
@@ -171,7 +171,7 @@ export function MobileInventoryPanel({
                 'dg-pill-tab shrink-0 h-8 px-3 rounded-full text-[11px] font-bold border border-solid',
                 stockFilter === f.id
                   ? 'dg-m-chip-active border-transparent'
-                  : 'bg-white/70 dg-m-muted border-[var(--dg-card-border)]',
+                  : 'dg-m-surface dg-m-muted border-[var(--dg-card-border)]',
               )}
             >
               {f.label}
@@ -192,7 +192,7 @@ export function MobileInventoryPanel({
                 'dg-pill-tab shrink-0 h-7 px-2.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1',
                 sortBy === item.key
                   ? 'border-[color-mix(in_srgb,var(--dg-primary-bright)_40%,transparent)] dg-m-bright bg-[color-mix(in_srgb,var(--dg-primary-bright)_12%,transparent)]'
-                  : 'border-[var(--dg-card-border)] dg-m-muted bg-white/60',
+                  : 'border-[var(--dg-card-border)] dg-m-muted dg-m-surface-muted',
               )}
             >
               {item.label}
@@ -316,7 +316,7 @@ export function MobileInventoryPanel({
                   <button
                     type="button"
                     onClick={() => onBarcodeDetails(p)}
-                    className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] bg-white/80 flex items-center justify-center dg-m-bright"
+                    className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-bright"
                     aria-label="Barcode details"
                   >
                     <Barcode size={16} />
@@ -325,7 +325,7 @@ export function MobileInventoryPanel({
                     <button
                       type="button"
                       onClick={() => onAddStock(p)}
-                      className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] bg-white/80 flex items-center justify-center dg-m-primary"
+                      className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-primary"
                       aria-label="Add stock"
                     >
                       <Plus size={16} />
@@ -335,7 +335,7 @@ export function MobileInventoryPanel({
                     <button
                       type="button"
                       onClick={() => onDelete(p)}
-                      className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] bg-white/80 flex items-center justify-center dg-m-error ml-auto"
+                      className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-error ml-auto"
                       aria-label="Delete product"
                     >
                       <Trash2 size={16} />
