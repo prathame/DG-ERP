@@ -7,6 +7,7 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 import { clearUserSession, replaceUserSession, SESSION_REPLACED_BODY, touchUserSession } from '../utils/userSessions';
+import { ACTIVE_USER_SQL, isSoftDeletedEmail } from '../utils/activeUsers';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 
 const router = Router();
@@ -44,7 +45,8 @@ router.post('/api/auth/login', async (req, res) => {
       const cnt = Number(
         (
           await pool.query(
-            `SELECT COUNT(*) AS c FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE LOWER(u.email) = LOWER($1)`,
+            `SELECT COUNT(*) AS c FROM users u JOIN tenants t ON u.tenant_id = t.id
+             WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL}`,
             [email.trim()],
           )
         ).rows[0]?.c ?? 0,
@@ -69,13 +71,13 @@ router.post('/api/auth/login', async (req, res) => {
              t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
-      WHERE LOWER(u.email) = LOWER($1) ${slugClause} LIMIT 1
+      WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL} ${slugClause} LIMIT 1
     `,
         loginParams,
       )
     ).rows[0] as Record<string, unknown> | undefined;
 
-    if (!row) {
+    if (!row || isSoftDeletedEmail(row.email as string)) {
       logAuthEvent(
         'Login failed',
         req,
@@ -282,6 +284,9 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       )
     ).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
+    if (isSoftDeletedEmail(row.email as string)) {
+      return res.status(401).json({ error: 'Account deleted', code: 'ACCOUNT_DELETED' });
+    }
 
     const rawPerms = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
     const normalizedPerms = (() => {
@@ -638,7 +643,8 @@ router.delete('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
     if (row.role === 'Admin' || row.role === 'Super Admin') {
       const admins = (
         await pool.query(
-          `SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin') AND id <> $2`,
+          `SELECT COUNT(*)::int AS c FROM users
+           WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin') AND id <> $2 AND ${ACTIVE_USER_SQL}`,
           [tenantId, userId],
         )
       ).rows[0] as { c: number };

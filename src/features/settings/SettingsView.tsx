@@ -73,6 +73,12 @@ const serviceMobile = isServiceMobileMode();
 const mobileApp = isMobileAppShell();
 const showBugReport = offersBugReportShare();
 
+/** Soft-deleted (anonymized) rows — hide from Settings Users even if API lags. */
+function isSoftDeletedUser(u: { email?: string | null; name?: string | null }): boolean {
+  const email = (u.email || '').toLowerCase();
+  return email.startsWith('deleted-') && email.endsWith('@invalid.local');
+}
+
 function settingsGlass(): boolean {
   return isDesktopGlassUi(getBusinessConfig().type);
 }
@@ -1064,7 +1070,7 @@ export function SettingsView({
       .getProfile(user.id)
       .then(fresh => {
         setProfileForm({
-          name: fresh.name,
+          name: fresh.name || user.name || '',
           phone: fresh.phone ?? '',
           address: fresh.address ?? '',
           role: fresh.role ?? 'Admin',
@@ -1072,7 +1078,13 @@ export function SettingsView({
           gstNumber: fresh.gstNumber ?? '',
           defaultGstRate: Number(fresh.defaultGstRate) || 18,
         });
-        const merged = { ...user, ...fresh };
+        // Never let null API fields wipe session identity (crashes avatar .charAt).
+        const merged = {
+          ...user,
+          ...fresh,
+          name: fresh.name || user.name || 'User',
+          email: fresh.email || user.email || '',
+        };
         session.setUser(merged);
         onUserChange(merged);
       })
@@ -1096,7 +1108,7 @@ export function SettingsView({
       setUsersLoading(true);
       api.admin
         .listUsers(user.id)
-        .then(setUsers)
+        .then(rows => setUsers(Array.isArray(rows) ? rows.filter(u => !isSoftDeletedUser(u)) : []))
         .catch(() => setUsers([]))
         .finally(() => setUsersLoading(false));
     }
@@ -1226,7 +1238,9 @@ export function SettingsView({
         permissions: { ...ROLE_PRESETS.Staff },
         vendorId: '',
       });
-      api.admin.listUsers(user.id).then(setUsers);
+      api.admin
+        .listUsers(user.id)
+        .then(rows => setUsers(Array.isArray(rows) ? rows.filter(u => !isSoftDeletedUser(u)) : []));
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to create user', 'error');
     } finally {
@@ -1249,7 +1263,9 @@ export function SettingsView({
         vendorId: editUserForm.role === 'Vendor' ? editUserForm.vendorId : undefined,
       });
       setEditUserTarget(null);
-      api.admin.listUsers(user.id).then(setUsers);
+      api.admin
+        .listUsers(user.id)
+        .then(rows => setUsers(Array.isArray(rows) ? rows.filter(u => !isSoftDeletedUser(u)) : []));
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to update user', 'error');
     } finally {
@@ -1377,11 +1393,11 @@ export function SettingsView({
               {user ? (
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">
-                    {user.name.charAt(0)}
+                    {(user.name || user.email || '?').charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-bold text-lg">{user.name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
+                    <p className="font-bold text-lg">{user.name || 'User'}</p>
+                    <p className="text-sm text-gray-500">{user.email || '—'}</p>
                     <p className="text-xs text-amber-600 font-medium">{user.role ?? 'Admin'}</p>
                   </div>
                 </div>
@@ -2814,71 +2830,73 @@ export function SettingsView({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
-                            {users.map(u => (
-                              <tr key={u.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-medium">{u.name}</td>
-                                <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
-                                <td className="px-4 py-3">
-                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                    {u.role ?? 'Staff'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  {u.id === user?.id ? (
-                                    <span className="text-xs text-gray-400">You</span>
-                                  ) : (
-                                    <div className="flex items-center gap-3">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditUserTarget(u);
-                                          setEditUserForm({
-                                            role: u.role ?? 'Staff',
-                                            permissions: (u.permissions &&
-                                            typeof u.permissions === 'object' &&
-                                            !Array.isArray(u.permissions)
-                                              ? u.permissions
-                                              : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<
-                                              string,
-                                              string
-                                            >,
-                                            vendorId: ((u as Record<string, unknown>).vendorId as string) ?? '',
-                                          });
-                                        }}
-                                        className="text-sm font-bold text-brand hover:underline flex items-center gap-1"
-                                      >
-                                        <Shield size={14} /> Permissions
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={async () => {
-                                          if (
-                                            !(await confirm({
-                                              title: 'Delete user?',
-                                              message: `${u.name} will be anonymized and cannot log in.`,
-                                              confirmLabel: 'Delete',
-                                              variant: 'danger',
-                                            }))
-                                          )
-                                            return;
-                                          try {
-                                            await api.admin.deleteUser(u.id);
-                                            setUsers(prev => prev.filter(x => x.id !== u.id));
-                                            toast('User deleted', 'success');
-                                          } catch (err) {
-                                            toast(err instanceof Error ? err.message : 'Failed', 'error');
-                                          }
-                                        }}
-                                        className="text-sm font-bold text-rose-600 hover:underline flex items-center gap-1"
-                                      >
-                                        <Trash2 size={14} /> Delete
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
+                            {users
+                              .filter(u => u && !isSoftDeletedUser(u))
+                              .map(u => (
+                                <tr key={u.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 font-medium">{u.name || '—'}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{u.email || '—'}</td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                      {u.role ?? 'Staff'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {u.id === user?.id ? (
+                                      <span className="text-xs text-gray-400">You</span>
+                                    ) : (
+                                      <div className="flex items-center gap-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditUserTarget(u);
+                                            setEditUserForm({
+                                              role: u.role ?? 'Staff',
+                                              permissions: (u.permissions &&
+                                              typeof u.permissions === 'object' &&
+                                              !Array.isArray(u.permissions)
+                                                ? u.permissions
+                                                : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<
+                                                string,
+                                                string
+                                              >,
+                                              vendorId: ((u as Record<string, unknown>).vendorId as string) ?? '',
+                                            });
+                                          }}
+                                          className="text-sm font-bold text-brand hover:underline flex items-center gap-1"
+                                        >
+                                          <Shield size={14} /> Permissions
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            if (
+                                              !(await confirm({
+                                                title: 'Delete user?',
+                                                message: `${u.name || 'This user'} will be anonymized and cannot log in.`,
+                                                confirmLabel: 'Delete',
+                                                variant: 'danger',
+                                              }))
+                                            )
+                                              return;
+                                            try {
+                                              await api.admin.deleteUser(u.id);
+                                              setUsers(prev => prev.filter(x => x.id !== u.id));
+                                              toast('User deleted', 'success');
+                                            } catch (err) {
+                                              toast(err instanceof Error ? err.message : 'Failed', 'error');
+                                            }
+                                          }}
+                                          className="text-sm font-bold text-rose-600 hover:underline flex items-center gap-1"
+                                        >
+                                          <Trash2 size={14} /> Delete
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>{' '}
                         </table>
                       </div>
                     )}

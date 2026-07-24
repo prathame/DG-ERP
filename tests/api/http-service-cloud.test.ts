@@ -479,6 +479,16 @@ describe('HTTP: service-cloud seats', () => {
     expect(lastAdmin.status).toBe(400);
     expect(lastAdmin.body.error).toMatch(/last admin/i);
 
+    const tenantDetail = await api()
+      .get(`/api/super-admin/tenants/${tid}`)
+      .set({ Authorization: `Bearer ${saToken()}` });
+    expect(tenantDetail.status).toBe(200);
+    const listed = tenantDetail.body.users as { id: string; name: string }[];
+    expect(listed.find(u => u.id === staffId)).toBeUndefined();
+    expect(listed).toHaveLength(1);
+    expect(listed[0].id).toBe(adminId);
+    expect(Number(tenantDetail.body.stats.users)).toBe(1);
+
     await cleanupTestData(tid);
   });
 });

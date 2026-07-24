@@ -7,6 +7,7 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { clearSuperAdminSession, clearUserSession, replaceSuperAdminSession } from '../utils/userSessions';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
+import { ACTIVE_USER_SQL } from '../utils/activeUsers';
 import {
   DEFAULT_SERVICE_CLOUD_APP_URL,
   DEFAULT_SERVICE_CLOUD_IOS_URL,
@@ -168,7 +169,7 @@ router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =>
   try {
     const { status, search } = req.query;
     let sql = `SELECT t.*, p.name as plan_name, p.price_monthly,
-      (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count,
+      (SELECT COUNT(*) FROM users WHERE tenant_id = t.id AND ${ACTIVE_USER_SQL}) as user_count,
       (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as product_count,
       (SELECT COUNT(*) FROM vendors WHERE tenant_id = t.id AND id != 'OWNER') as vendor_count,
       (SELECT COUNT(*) FROM product_sales WHERE tenant_id = t.id) as sale_count,
@@ -346,7 +347,9 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     const stats = await getTenantStats(id);
     const users = (
       await pool.query(
-        'SELECT id, email, name, role, vendor_id, created_at FROM users WHERE tenant_id = $1 ORDER BY created_at',
+        `SELECT id, email, name, role, vendor_id, created_at FROM users
+         WHERE tenant_id = $1 AND ${ACTIVE_USER_SQL}
+         ORDER BY created_at`,
         [id],
       )
     ).rows;
@@ -1151,7 +1154,7 @@ router.get('/api/super-admin/cloud-analytics', superAdminMiddleware, async (req,
       // Top 5 tenants by revenue
       pool.query(`SELECT t.company_name, t.plan_id, t.status, t.business_type,
         COALESCE((SELECT SUM(sale_price) FROM product_sales WHERE tenant_id=t.id),0) as revenue,
-        COALESCE((SELECT COUNT(*) FROM users WHERE tenant_id=t.id),0) as users,
+        COALESCE((SELECT COUNT(*) FROM users WHERE tenant_id=t.id AND ${ACTIVE_USER_SQL}),0) as users,
         t.created_at
         FROM tenants t ORDER BY revenue DESC LIMIT 10`),
       // Status breakdown
@@ -1352,7 +1355,7 @@ router.get('/api/super-admin/tenants/:id/activity', superAdminMiddleware, async 
           (SELECT COUNT(*) FROM customers WHERE tenant_id=$1) as customers,
           (SELECT COUNT(*) FROM product_sales WHERE tenant_id=$1) as sales,
           (SELECT COUNT(*) FROM product_distribution WHERE tenant_id=$1) as distributions,
-          (SELECT COUNT(*) FROM users WHERE tenant_id=$1) as users,
+          (SELECT COUNT(*) FROM users WHERE tenant_id=$1 AND ${ACTIVE_USER_SQL}) as users,
           (SELECT COUNT(*) FROM expenses WHERE tenant_id=$1) as expenses`,
         [id],
       ),

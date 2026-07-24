@@ -56,9 +56,11 @@ type ResetModal = {
 
 interface Props {
   tenantId: string;
+  /** Refresh parent tenant Users table after create/delete. */
+  onUsersChanged?: () => void;
 }
 
-export function ServiceCloudSeatsPanel({ tenantId }: Props) {
+export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
   const { toast } = useToast();
   const [data, setData] = useState<SeatsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +175,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       setShowAdd(false);
       setForm({ name: '', email: '', password: '', mobileSlots: 1, desktopSlots: 1 });
       load();
+      onUsersChanged?.();
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -315,6 +318,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       toast('User deleted', 'success');
       load();
+      onUsersChanged?.();
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -493,7 +497,11 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
 
         <div className="space-y-4">
           {(data?.users ?? []).map(u => {
-            const slots = editSlots[u.id] || { mobile: u.mobileSlots, desktop: u.desktopSlots };
+            const devices = Array.isArray(u.devices) ? u.devices : [];
+            const slots = editSlots[u.id] || {
+              mobile: Number(u.mobileSlots) || 0,
+              desktop: Number(u.desktopSlots) || 0,
+            };
             const dirty = slots.mobile !== u.mobileSlots || slots.desktop !== u.desktopSlots;
             const wa = waEdit[u.id] || {
               allowed: !!u.whatsappApiAllowed,
@@ -512,7 +520,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-gray-900 flex items-center gap-2">
-                      {u.name}
+                      {u.name || 'User'}
                       {isLive && (
                         <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
                           Live
@@ -520,7 +528,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                       )}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {u.email} · {u.role}
+                      {u.email || '—'} · {u.role || 'Staff'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -671,13 +679,13 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                   </div>
                 )}
 
-                {u.devices.length === 0 ? (
+                {devices.length === 0 ? (
                   <p className="text-xs text-gray-400">No device slots yet — set counts above and save.</p>
                 ) : (
                   <div className="space-y-2">
                     {(() => {
-                      const mobile = u.devices.filter(d => d.deviceKind === 'mobile');
-                      const desktop = u.devices.filter(d => d.deviceKind === 'desktop');
+                      const mobile = devices.filter(d => d.deviceKind === 'mobile');
+                      const desktop = devices.filter(d => d.deviceKind === 'desktop');
                       const boundOf = (list: DeviceSlot[]) => list.filter(d => d.machineId).length;
                       const parts: string[] = [];
                       if (mobile.length) parts.push(`Mobile ${boundOf(mobile)} of ${mobile.length} bound`);
@@ -687,7 +695,7 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                       ) : null;
                     })()}
                     <ul className="space-y-2">
-                      {u.devices.map(d => {
+                      {devices.map(d => {
                         const kindLabel = d.deviceKind === 'mobile' ? 'Mobile' : 'Laptop / Desktop';
                         const bound = !!d.machineId;
                         const deviceName = d.label || (d.machineId ? `${d.machineId.slice(0, 12)}…` : null);

@@ -17,6 +17,7 @@ import { normalizePermissions } from '../middleware/permissions';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { encryptSecret } from '../utils/secret-crypto';
 import { clearUserSession } from '../utils/userSessions';
+import { ACTIVE_USER_SQL } from '../utils/activeUsers';
 
 const router = Router();
 
@@ -96,8 +97,7 @@ async function getSeatsPayload(tenantId: string) {
     await pool.query(
       `SELECT id, email, name, role, created_at, whatsapp_api_allowed, whatsapp_phone_number_id, whatsapp_access_token
        FROM users
-       WHERE tenant_id=$1
-         AND email NOT LIKE 'deleted-%@invalid.local'
+       WHERE tenant_id=$1 AND ${ACTIVE_USER_SQL}
        ORDER BY created_at`,
       [tenantId],
     )
@@ -347,7 +347,7 @@ router.delete('/api/super-admin/tenants/:id/service-cloud/users/:userId', superA
              WHERE tenant_id = $1
                AND role IN ('Admin', 'Super Admin')
                AND id <> $2
-               AND email NOT LIKE 'deleted-%@invalid.local'`,
+               AND ${ACTIVE_USER_SQL}`,
           [tenantId, userId],
         )
       ).rows[0] as { c: number };

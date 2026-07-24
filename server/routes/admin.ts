@@ -7,6 +7,7 @@ import { handleApiError } from '../utils/http-error';
 import { checkPlanLimit } from '../utils/planLimits';
 import { clearUserSession } from '../utils/userSessions';
 import { invalidateAuthCache } from '../utils/authCache';
+import { ACTIVE_USER_SQL } from '../utils/activeUsers';
 
 const router = Router();
 
@@ -92,7 +93,9 @@ router.get('/api/admin/users', async (req, res) => {
     // Minimal fields for user management UI — no phone/address in list
     const rows = (
       await pool.query(
-        'SELECT id, email, name, role, company_name, permissions, vendor_id FROM users WHERE tenant_id = $1 ORDER BY name',
+        `SELECT id, email, name, role, company_name, permissions, vendor_id FROM users
+         WHERE tenant_id = $1 AND ${ACTIVE_USER_SQL}
+         ORDER BY name`,
         [tenantId],
       )
     ).rows as Record<string, unknown>[];
@@ -333,7 +336,8 @@ router.delete('/api/admin/users/:id', async (req, res) => {
     if (target.role === 'Admin' || target.role === 'Super Admin') {
       const admins = (
         await pool.query(
-          `SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin') AND id <> $2`,
+          `SELECT COUNT(*)::int AS c FROM users
+           WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin') AND id <> $2 AND ${ACTIVE_USER_SQL}`,
           [tenantId, id],
         )
       ).rows[0] as { c: number };
