@@ -71,7 +71,7 @@ Password reset is **online/cloud only** (shareable link per user). Tenant-wide n
 
 **API origin:** Hosted web uses same-origin `/api` (no hardcoded `dhandho.app`). Cap Offline/Online builds set `VITE_API_ORIGIN` (see `.env.service-phone.example` → live `https://dhandho-2kdx.onrender.com`). Shared resolver: `src/platforms/shared/apiBase.ts` (`CLOUD_ORIGIN_FALLBACK`). Runtime remaps broken `dhandho.app` and legacy `dg-erp.onrender.com` / `dhandho.onrender.com` to that host; Cap WebView with unset env also falls back there — never relative `/api` on Cap. Electron Cloud uses `DG_CLOUD_URL` or the same default (`electron/shared/constants.ts`). Slug entry UI shows the public app host (`dhandho-2kdx.onrender.com/` on Cap today; `dhandho.app/` only when that is the live page host), preflights `GET /api/tenant/by-slug/:slug`, and reports blocks/failures via `reportActionBlocked` / `reportActionFailed` so Cap bug reports include breadcrumbs. Reserved path slugs: `admin`, `privacy`, `terms`, `download`, `api`, `assets` — `test` is a normal tenant slug.
 
-**Ops note:** Cap/Electron default to `https://dhandho-2kdx.onrender.com`. Set Render `PUBLIC_APP_URL` / `ALLOWED_ORIGINS` to that URL — see [Render](./render.md).
+**Ops note:** Cap/Electron default to `https://dhandho-2kdx.onrender.com`. Set Render `ALLOWED_ORIGINS` to that URL — see [Render](./render.md).
 
 - Online Cap + `businessType=service` → Emergent IA via `isServicePhoneUx()` (Analytics · Masters · Invoice · Quotes · More; Masters Prices-not-Products).
 - `ServiceCloudGate` wraps **all** cloud Cap + Cloud Electron clients (not browser). Service = company-wide Netflix session lock; non-service = device claim only (multi-user, no company freeze).

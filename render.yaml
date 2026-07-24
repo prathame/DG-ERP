@@ -4,10 +4,7 @@
 
 services:
   - type: web
-    # Live service: https://dhandho-2kdx.onrender.com (srv-d9fmf3gk1i2s73b4flgg).
-    # Render assigned the `-2kdx` suffix because plain `dhandho` was taken or the
-    # service was created with that name. Subdomains are fixed at create time and
-    # cannot be renamed — do not fight for `dhandho.onrender.com`; use this URL.
+    # Live: https://dhandho-2kdx.onrender.com (srv-d9fmf3gk1i2s73b4flgg).
     # `name` must match the existing Dashboard service for Blueprint sync.
     name: dhandho-2kdx
     # Launch: upgrade off free for production SLA (sleep on free).
@@ -23,7 +20,6 @@ services:
       # Paste Neon (or any Postgres) URI in Render Dashboard — not fromDatabase
       - key: DATABASE_URL
         sync: false
-      # Fresh Blueprint gets a random secret; for cutover from dg-erp, overwrite with the old JWT_SECRET
       - key: JWT_SECRET
         generateValue: true
       - key: NODE_ENV
@@ -43,13 +39,10 @@ services:
         sync: false
       - key: SUPER_ADMIN_PASSWORD
         sync: false
-      # Same-origin browser + hosted web. Extend in Dashboard for extra hosts / Cap allowlists if needed.
+      # Same-origin browser + hosted web. Extend in Dashboard for Cap allowlists if needed.
       - key: ALLOWED_ORIGINS
         value: https://dhandho-2kdx.onrender.com
       - key: LOGTAIL_TOKEN
         sync: false
       - key: SECRETS_ENCRYPTION_KEY
         sync: false
-      # Canonical product domain later: https://dhandho.app (DNS not live yet)
-      - key: PUBLIC_APP_URL
-        value: https://dhandho-2kdx.onrender.com

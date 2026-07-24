@@ -46,10 +46,8 @@ This scans the connection string itself for obviously-default passwords and **re
 | Variable | Default | Read by | Effect |
 |---|---|---|---|
 | `PORT` | `3001` | `server/index.ts` | Express listen port |
-| `JWT_EXPIRES_IN` | `24h` (hardcoded default in `generateToken`) | `server/middleware/auth.ts` | Token lifetime |
 | `DATABASE_POOL_SIZE` | `10` (prod) / `20` (dev) | `server/pg-db.ts` | Max concurrent Postgres connections — see [SRE → Golden Signals](/sre/golden-signals) saturation discussion |
 | `TRUST_PROXY` | unset | `server/app.ts` | Set to `1` to trust `X-Forwarded-For` outside of auto-detected production (Render sets this automatically via the `isProduction` check) |
-| `PUBLIC_APP_URL` | unset | Used wherever an absolute URL must be constructed server-side (invite links, PDF footers) | Falls back to relative/best-guess URLs if unset |
 | `REQUIRE_ELECTRON` | `false` | `server/app.ts` | When `true`, browser requests (non-API, non-Electron, non-on-prem) are shown a "download the desktop app" splash instead of the SPA |
 | `DEPLOYMENT_MODE` | unset (cloud behavior) | `server/pg-db.ts`, `server/app.ts` | Set to `onprem` to activate on-prem-specific branches (skip TLS, skip `ALLOWED_ORIGINS` requirement, silence pool errors on shutdown) |
 | `LOGTAIL_TOKEN` | unset | `server/utils/logger.ts` | Enables centralized logging via Logtail; logging works fine (console-only) without it |
