@@ -19,6 +19,13 @@ export type DesktopVendorSummaryRow = {
   reminder: { enabled: boolean; days: number; lastSent: string | null };
 };
 
+/** Never distributed / no payments / no balance — hide from finance lists (not the same as Settled). */
+export function isEmptyVendorFinanceRow(
+  v: Pick<DesktopVendorSummaryRow, 'totalDistributedValue' | 'totalPaid' | 'balance'>,
+) {
+  return v.totalDistributedValue === 0 && v.totalPaid === 0 && v.balance === 0;
+}
+
 export type DesktopVendorDetail = {
   vendor: { id: string; name: string; phone?: string; email?: string; address?: string; contactPerson?: string };
   totalDistributedValue: number;
@@ -103,6 +110,7 @@ export function DesktopVendorFinance({
   remindAllCount,
 }: Props) {
   const filtered = summaryData.filter(v => {
+    if (isEmptyVendorFinanceRow(v)) return false;
     const isPaid = v.balance <= 0;
     if (paymentFilter === 'paid' ? !isPaid : isPaid) return false;
     if (finSearch && !v.vendorName.toLowerCase().includes(finSearch.toLowerCase())) return false;

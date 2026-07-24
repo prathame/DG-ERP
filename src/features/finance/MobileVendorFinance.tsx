@@ -7,7 +7,11 @@ import { ArrowLeft, MessageCircle, Plus, Search } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
 import { canSendPaymentReminder, type CompanyReminderSettings } from '../../lib/paymentReminders';
-import type { DesktopVendorDetail, DesktopVendorSummaryRow } from './DesktopVendorFinance';
+import {
+  isEmptyVendorFinanceRow,
+  type DesktopVendorDetail,
+  type DesktopVendorSummaryRow,
+} from './DesktopVendorFinance';
 
 export type MobileFinanceChip = 'all' | 'unpaid' | 'paid';
 
@@ -248,6 +252,8 @@ export function MobileVendorFinance({
   }
 
   let rows = summaryData.filter(v => {
+    // Truly empty: ₹0 distributed, ₹0 paid, ₹0 outstanding (Settled with history still shows)
+    if (isEmptyVendorFinanceRow(v)) return false;
     const isPaid = v.balance <= 0;
     if (chip === 'paid' && !isPaid) return false;
     if (chip === 'unpaid' && isPaid) return false;
