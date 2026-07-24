@@ -52,7 +52,7 @@ services:
         value: "0"       # skip git hooks install on the build server
       - key: DATABASE_SSL
         value: "true"
-      - key: PUBLIC_APP_URL
+      - key: ALLOWED_ORIGINS
         value: https://dhandho-2kdx.onrender.com
 ```
 
