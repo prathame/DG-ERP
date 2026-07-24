@@ -3,7 +3,7 @@ import { Smartphone, Monitor, Plus, Unlink, RefreshCw, KeyRound, Bell, Copy, Che
 import { session } from '../../lib/session';
 import { useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
-import { MOBILE_FEATURE_KEYS, MOBILE_FEATURE_LABELS, type MobileFeatures } from '../../../shared/mobileFeatures';
+import { mobileFeatureOptions, type MobileFeatures } from '../../../shared/mobileFeatures';
 
 type AccessMode = 'mobile' | 'desktop' | 'both';
 
@@ -385,9 +385,12 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
 
         {!isService && data?.mobileFeatures && (mode === 'mobile' || mode === 'both') && (
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase mb-2">Cap Online features</p>
+            <p className="text-xs font-bold text-gray-500 uppercase mb-2">Cap / mobile tabs</p>
+            <p className="text-[11px] text-gray-400 mb-2">
+              Grant or deny each tab on Cap Online for this company. Settings stays available on device.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {MOBILE_FEATURE_KEYS.map(key => (
+              {mobileFeatureOptions(data.businessType).map(({ key, label }) => (
                 <label
                   key={key}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm cursor-pointer hover:border-gray-300"
@@ -402,7 +405,7 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
                     }}
                     className="rounded border-gray-300 text-brand focus:ring-brand"
                   />
-                  {MOBILE_FEATURE_LABELS[key]}
+                  {label}
                 </label>
               ))}
             </div>

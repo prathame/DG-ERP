@@ -1345,14 +1345,7 @@ export const api = {
         defaultGstRate?: number;
         businessType?: string;
         clientAccessMode?: string | null;
-        mobileFeatures?: {
-          stock: boolean;
-          sales: boolean;
-          quotations: boolean;
-          collections: boolean;
-          reports: boolean;
-          chatbot: boolean;
-        };
+        mobileFeatures?: Record<string, boolean>;
         tabConfig?: Record<string, { label?: string; visible?: boolean }> | null;
         vendorPortalEnabled?: boolean;
         barcodeSystemEnabled?: boolean;
