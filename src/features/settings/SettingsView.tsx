@@ -944,6 +944,9 @@ export function SettingsView({
   const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');
   /** Cap phone module sheet (incl. service) — null = hub */
   const [mobileSheet, setMobileSheet] = useState<DesktopSettingsTabId | null>(null);
+  useEffect(() => {
+    if (!user) setMobileSheet(null);
+  }, [user]);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
   const [authError, setAuthError] = useState('');

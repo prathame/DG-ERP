@@ -273,6 +273,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           loading={loading}
           canEdit={canEdit}
           inventoryTrackingEnabled={inventoryTrackingEnabled}
+          metalMode={metalMode}
           barcodeSearch={barcodeSearch}
           onBarcodeSearch={setBarcodeSearch}
           stockFilter={stockFilter}
@@ -281,6 +282,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           sortOrder={sortOrder}
           onToggleSort={field => toggleSort(field)}
           onImportCsv={() => setCsvImportOpen(true)}
+          onMetalIntake={() => setMetalIntakeOpen(true)}
           onAddProduct={() => setAddModalOpen(true)}
           onBarcodeDetails={p =>
             api.products
