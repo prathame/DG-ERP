@@ -10,12 +10,11 @@ function electronAPI(): ElectronBridge | undefined {
   return (window as unknown as { electronAPI?: ElectronBridge }).electronAPI;
 }
 
-/** Cloud Electron shell (or ?desktop=1 during local testing). */
+/** Cloud Electron shell (requires preload bridge — not a browser query flag). */
 export function isServiceCloudDesktop(): boolean {
   const ea = electronAPI();
   if (ea?.deploymentMode === 'onprem') return false;
-  if (ea?.deploymentMode === 'cloud') return true;
-  return new URLSearchParams(window.location.search).get('desktop') === '1';
+  return ea?.deploymentMode === 'cloud' || ea?.isElectron === true;
 }
 
 /**
