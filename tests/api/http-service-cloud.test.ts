@@ -351,4 +351,89 @@ describe('HTTP: service-cloud seats', () => {
 
     await cleanupTestData(mid);
   });
+
+  it('transfers desktop bind when second user claims same machine', async () => {
+    const tid = 'T-SC-XFER';
+    const u1 = 'U-SC-X1';
+    const u2 = 'U-SC-X2';
+    const shared = '10101010101010101010101010101010';
+    await cleanupTestData(tid);
+    const hash = bcrypt.hashSync('password12', 4);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, status, business_type, admin_email, admin_name, client_access_mode)
+       VALUES ($1, 'Xfer Co', 'sc-xfer', 'active', 'manufacturer', 'x1@t.com', 'X1', 'both')`,
+      [tid],
+    );
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1,$2,'x1@t.com',$3,'X1','Admin'), ($4,$2,'x2@t.com',$3,'X2','Admin')`,
+      [u1, tid, hash, u2],
+    );
+    await api()
+      .put(`/api/super-admin/tenants/${tid}/service-cloud/users/${u1}`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ mobileSlots: 0, desktopSlots: 1 });
+    await api()
+      .put(`/api/super-admin/tenants/${tid}/service-cloud/users/${u2}`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ mobileSlots: 0, desktopSlots: 1 });
+
+    const tok1 = () => createTestToken({ userId: u1, tenantId: tid, email: 'x1@t.com', role: 'Admin', name: 'X1' });
+    const tok2 = () => createTestToken({ userId: u2, tenantId: tid, email: 'x2@t.com', role: 'Admin', name: 'X2' });
+
+    const c1 = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tok1()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: shared, label: 'Shared PC' });
+    expect(c1.status).toBe(200);
+
+    const seatsBefore = await api()
+      .get(`/api/super-admin/tenants/${tid}/service-cloud`)
+      .set({ Authorization: `Bearer ${saToken()}` });
+    const x1Before = (
+      seatsBefore.body.users as { id: string; devices: { machineId: string | null; label: string | null }[] }[]
+    ).find(u => u.id === u1);
+    expect(x1Before?.devices.some(d => d.machineId === shared && d.label === 'Shared PC')).toBe(true);
+
+    const c2 = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tok2()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: shared, label: 'Shared PC' });
+    expect(c2.status).toBe(200);
+    expect(c2.body.transferred).toBe(true);
+
+    const seatsAfter = await api()
+      .get(`/api/super-admin/tenants/${tid}/service-cloud`)
+      .set({ Authorization: `Bearer ${saToken()}` });
+    const users = seatsAfter.body.users as {
+      id: string;
+      devices: { machineId: string | null; label: string | null }[];
+    }[];
+    const x1 = users.find(u => u.id === u1);
+    const x2 = users.find(u => u.id === u2);
+    expect(x1?.devices.every(d => !d.machineId)).toBe(true);
+    expect(x2?.devices.some(d => d.machineId === shared)).toBe(true);
+
+    await cleanupTestData(tid);
+  });
+
+  it('seats payload reports unbound vs bound occupancy', async () => {
+    const seats = await api()
+      .get(`/api/super-admin/tenants/${TENANT}/service-cloud`)
+      .set({ Authorization: `Bearer ${saToken()}` });
+    expect(seats.status).toBe(200);
+    const alice = (
+      seats.body.users as {
+        id: string;
+        mobileSlots: number;
+        desktopSlots: number;
+        devices: { deviceKind: string; machineId: string | null }[];
+      }[]
+    ).find(u => u.id === USER_A);
+    expect(alice).toBeTruthy();
+    expect(alice!.mobileSlots + alice!.desktopSlots).toBe(alice!.devices.length);
+    const unbound = alice!.devices.filter(d => !d.machineId).length;
+    const bound = alice!.devices.filter(d => !!d.machineId).length;
+    expect(unbound + bound).toBe(alice!.devices.length);
+  });
 });

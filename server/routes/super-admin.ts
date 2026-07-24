@@ -72,8 +72,8 @@ router.post('/api/super-admin/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
     const { rows } = await pool.query(
-      'SELECT id, email, name, password_hash, role FROM super_admins WHERE email = $1',
-      [email],
+      'SELECT id, email, name, password_hash, role FROM super_admins WHERE LOWER(email) = LOWER($1)',
+      [String(email).trim()],
     );
     const admin = rows[0] as
       { id: string; email: string; name: string; password_hash: string; role: string } | undefined;
@@ -275,9 +275,9 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       [JSON.stringify(tabConfig), bType, accessMode, JSON.stringify(mobileFeatures), result.tenantId],
     );
     // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
-    // Desktop-only tenants (needMobile=false → mode=desktop) must get 1 desktop slot —
-    // otherwise Cloud Electron claim-device fails with "No free desktop device slots".
-    // Cap companions (needMobile): 1 mobile; service also gets 1 desktop (mode=both).
+    // mode=desktop → 1 desktop; mode=both → 1 mobile + 1 desktop; mode=mobile → 1 mobile.
+    // Earlier bug: needMobile non-service set mode=both but only seeded mobile, so Electron
+    // claim-device failed with "No free desktop device slots".
     {
       const adminRow = (
         await pool.query(`SELECT id FROM users WHERE tenant_id=$1 AND LOWER(email)=LOWER($2) LIMIT 1`, [
@@ -286,15 +286,14 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         ])
       ).rows[0] as { id: string } | undefined;
       if (adminRow?.id) {
-        if (needMobile) {
+        if (accessMode === 'mobile' || accessMode === 'both') {
           await pool.query(
             `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
              VALUES ($1,$2,$3,'mobile')`,
             [uid('SCS'), result.tenantId, adminRow.id],
           );
         }
-        const seedDesktop = accessMode === 'desktop' || (needMobile && bType === 'service');
-        if (seedDesktop) {
+        if (accessMode === 'desktop' || accessMode === 'both') {
           await pool.query(
             `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
              VALUES ($1,$2,$3,'desktop')`,

@@ -645,36 +645,60 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                 {u.devices.length === 0 ? (
                   <p className="text-xs text-gray-400">No device slots yet — set counts above and save.</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {u.devices.map(d => (
-                      <li
-                        key={d.id}
-                        className="flex items-center justify-between gap-2 text-xs bg-gray-50 rounded-lg px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <span className="font-semibold text-gray-700">
-                            {d.deviceKind === 'mobile' ? 'Mobile' : 'Laptop / Desktop'}
-                          </span>
-                          {d.machineId ? (
-                            <span className="ml-2 font-mono text-gray-500 truncate">
-                              {d.label || `${d.machineId.slice(0, 12)}…`}
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-gray-400">Unbound</span>
-                          )}
-                        </div>
-                        {d.machineId && (
-                          <button
-                            type="button"
-                            onClick={() => unbind(d.id)}
-                            className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 font-semibold shrink-0"
+                  <div className="space-y-2">
+                    {(() => {
+                      const mobile = u.devices.filter(d => d.deviceKind === 'mobile');
+                      const desktop = u.devices.filter(d => d.deviceKind === 'desktop');
+                      const boundOf = (list: DeviceSlot[]) => list.filter(d => d.machineId).length;
+                      const parts: string[] = [];
+                      if (mobile.length) parts.push(`Mobile ${boundOf(mobile)} of ${mobile.length} bound`);
+                      if (desktop.length) parts.push(`Laptop / Desktop ${boundOf(desktop)} of ${desktop.length} bound`);
+                      return parts.length ? (
+                        <p className="text-[11px] text-gray-500 font-medium">{parts.join(' · ')}</p>
+                      ) : null;
+                    })()}
+                    <ul className="space-y-2">
+                      {u.devices.map(d => {
+                        const kindLabel = d.deviceKind === 'mobile' ? 'Mobile' : 'Laptop / Desktop';
+                        const bound = !!d.machineId;
+                        const deviceName = d.label || (d.machineId ? `${d.machineId.slice(0, 12)}…` : null);
+                        return (
+                          <li
+                            key={d.id}
+                            className="flex items-center justify-between gap-2 text-xs bg-gray-50 rounded-lg px-3 py-2"
                           >
-                            <Unlink size={12} /> Unbind
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                            <div className="min-w-0">
+                              <span className="font-semibold text-gray-700">{kindLabel}</span>
+                              {bound ? (
+                                <>
+                                  <span className="ml-2 inline-flex items-center rounded bg-emerald-50 text-emerald-800 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                                    Bound
+                                  </span>
+                                  {deviceName && (
+                                    <span className="ml-2 font-mono text-gray-500 truncate">{deviceName}</span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="ml-2 text-gray-500">
+                                  Unbound seat
+                                  <span className="text-gray-400"> · available to claim on login</span>
+                                </span>
+                              )}
+                            </div>
+                            {bound && (
+                              <button
+                                type="button"
+                                onClick={() => unbind(d.id)}
+                                className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 font-semibold shrink-0"
+                              >
+                                <Unlink size={12} /> Unbind
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
               </div>
             );
