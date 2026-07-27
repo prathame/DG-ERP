@@ -6,8 +6,10 @@ import { seedHospitalityCatalog } from '../../server/utils/hospitalitySeed';
 
 const HOSP_TENANT = 'T-TEST-HOSP';
 const MFG_TENANT = 'T-TEST-HOSP-MFG';
+const CSV_TENANT = 'T-TEST-HOSP-CSV';
 const HOSP_USER = 'U-TEST-HOSP';
 const MFG_USER = 'U-TEST-HOSP-MFG';
+const CSV_USER = 'U-TEST-HOSP-CSV';
 
 function token(tenantId: string, userId: string) {
   return createTestToken({
@@ -39,13 +41,16 @@ describe('HTTP Hospitality', () => {
   beforeAll(async () => {
     await cleanupTestData(HOSP_TENANT);
     await cleanupTestData(MFG_TENANT);
+    await cleanupTestData(CSV_TENANT);
     await seedTenant(HOSP_TENANT, 'hotel_restaurant', HOSP_USER);
     await seedTenant(MFG_TENANT, 'manufacturer', MFG_USER);
+    await seedTenant(CSV_TENANT, 'hotel_restaurant', CSV_USER);
   });
 
   afterAll(async () => {
     await cleanupTestData(HOSP_TENANT);
     await cleanupTestData(MFG_TENANT);
+    await cleanupTestData(CSV_TENANT);
   });
 
   it('seedHospitalityCatalog creates floor + menu and is idempotent', async () => {
@@ -689,7 +694,7 @@ describe('HTTP Hospitality', () => {
   });
 
   it('veg sample CSV: modifiers then dishes resolves Spice Level', async () => {
-    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const headers = authHeaders(token(CSV_TENANT, CSV_USER), CSV_TENANT);
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
 
@@ -707,21 +712,6 @@ describe('HTTP Hospitality', () => {
       });
     };
 
-    // Clear catalog so this test owns modifiers → dishes (seed may have run earlier).
-    await pool.query(
-      `DELETE FROM hosp_item_modifier_groups WHERE menu_item_id IN (
-         SELECT id FROM hosp_menu_items WHERE tenant_id = $1)`,
-      [HOSP_TENANT],
-    );
-    await pool.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1`, [HOSP_TENANT]);
-    await pool.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1`, [HOSP_TENANT]);
-    await pool.query(
-      `DELETE FROM hosp_modifiers WHERE group_id IN (
-         SELECT id FROM hosp_modifier_groups WHERE tenant_id = $1)`,
-      [HOSP_TENANT],
-    );
-    await pool.query(`DELETE FROM hosp_modifier_groups WHERE tenant_id = $1`, [HOSP_TENANT]);
-
     const beforeDishes = await api()
       .post('/api/hospitality/menu-items/batch')
       .set(headers)
@@ -738,7 +728,7 @@ describe('HTTP Hospitality', () => {
     expect(mods.body.success).toBeGreaterThanOrEqual(10);
 
     const groups = await pool.query(`SELECT name FROM hosp_modifier_groups WHERE tenant_id = $1 ORDER BY name`, [
-      HOSP_TENANT,
+      CSV_TENANT,
     ]);
     expect(groups.rows.map((r: { name: string }) => r.name)).toEqual(
       expect.arrayContaining(['Cheese', 'Extra Toppings', 'Spice Level']),
@@ -762,8 +752,13 @@ describe('HTTP Hospitality', () => {
       });
     expect(caseOk.status).toBe(201);
     expect(caseOk.body.success).toBe(1);
-    await pool.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1 AND name = 'Case Probe'`, [HOSP_TENANT]);
-    await pool.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1 AND name = 'Test Cat'`, [HOSP_TENANT]);
+    await pool.query(
+      `DELETE FROM hosp_item_modifier_groups WHERE menu_item_id IN (
+       SELECT id FROM hosp_menu_items WHERE tenant_id = $1 AND name = 'Case Probe')`,
+      [CSV_TENANT],
+    );
+    await pool.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1 AND name = 'Case Probe'`, [CSV_TENANT]);
+    await pool.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1 AND name = 'Test Cat'`, [CSV_TENANT]);
 
     const dishes = await api()
       .post('/api/hospitality/menu-items/batch')
@@ -776,7 +771,7 @@ describe('HTTP Hospitality', () => {
       `SELECT COUNT(*)::int AS c FROM hosp_item_modifier_groups l
        JOIN hosp_menu_items i ON i.id = l.menu_item_id
        WHERE i.tenant_id = $1`,
-      [HOSP_TENANT],
+      [CSV_TENANT],
     );
     expect(linked.rows[0].c).toBeGreaterThanOrEqual(8);
   });
