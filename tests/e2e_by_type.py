@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 DG ERP — Business Type E2E Test Suite
-Creates one tenant per type (manufacturer, dealer, retail, service, silver_casting),
-runs type-specific tests, reports failures per type.
+Creates one tenant per type (manufacturer, dealer, retail, service, silver_casting,
+hotel_restaurant), runs type-specific tests, reports failures per type.
 
 Usage: python3 tests/e2e_by_type.py [--base http://localhost:3001]
 """
@@ -595,6 +595,65 @@ def test_silver_casting(tok, tid, ids, email=""):
     s, wars = req("GET", "/api/warranties", headers=D)
     ok("Warranties list still reachable", s == 200)
 
+# ── Hotel / Restaurant-specific tests ─────────────────────────────────────────
+def test_hotel_restaurant(tok, tid, ids, email=""):
+    D = h(tok, tid)
+    sec("Hospitality seed + floor")
+    s, seeded = req("POST", "/api/hospitality/seed", {}, D)
+    ok("Seed hospitality → 200", s == 200, str(seeded)[:120])
+    s, tables = req("GET", "/api/hospitality/tables", headers=D)
+    ok("List tables → 200", s == 200, str(tables)[:120])
+    table_list = tables.get("tables") if isinstance(tables, dict) else []
+    ok("Tables seeded", isinstance(table_list, list) and len(table_list) >= 1, str(len(table_list) if isinstance(table_list, list) else 0))
+    table_id = table_list[0].get("id") if table_list else ""
+
+    sec("Menu + order + KOT")
+    s, menu = req("GET", "/api/hospitality/menu", headers=D)
+    ok("Menu → 200", s == 200)
+    items = menu.get("items") if isinstance(menu, dict) else []
+    ok("Menu has items", isinstance(items, list) and len(items) >= 1)
+    item_id = items[0].get("id") if items else ""
+    if table_id and item_id:
+        s, opened = req("POST", f"/api/hospitality/tables/{table_id}/open", {}, D)
+        ok("Open table → 200", s == 200, str(opened)[:120])
+        order_id = (opened.get("order") or {}).get("id", "")
+        s, added = req("POST", f"/api/hospitality/orders/{order_id}/items", {
+            "menuItemId": item_id, "qty": 1, "notes": "e2e", "modifierIds": []
+        }, D)
+        ok("Add order item → 200", s == 200, str(added)[:120])
+        line_id = ((added.get("items") or [{}])[0]).get("id", "")
+        s, kit = req("GET", "/api/hospitality/kitchen", headers=D)
+        ok("Kitchen → 200", s == 200)
+        if line_id:
+            s, st = req("PATCH", f"/api/hospitality/order-items/{line_id}/status", {"status": "preparing"}, D)
+            ok("KOT start preparing → 200", s == 200, str(st)[:80])
+        if order_id:
+            s, billed = req("POST", f"/api/hospitality/orders/{order_id}/bill", {}, D)
+            ok("Bill order → 200", s == 200, str(billed)[:80])
+            s, closed = req("POST", f"/api/hospitality/orders/{order_id}/close", {}, D)
+            ok("Close order → 200", s == 200, str(closed)[:80])
+            s, cleared = req("POST", f"/api/hospitality/tables/{table_id}/clear", {}, D)
+            ok("Clear table → 200", s == 200, str(cleared)[:80])
+    else:
+        ok("Open/add order", False, "missing table or menu item")
+
+    sec("Entry queue")
+    s, q = req("POST", "/api/hospitality/queue", {"guestName": "E2E Guest", "partySize": 2}, D)
+    ok("Issue queue token → 200", s == 200, str(q)[:120])
+    s, nxt = req("POST", "/api/hospitality/queue/call-next", {}, D)
+    ok("Call next → 200", s == 200, str(nxt)[:80])
+
+    sec("Invoice finance + tabs")
+    s, fin = req("GET", "/api/invoice-finance/summary", headers=D)
+    ok("Invoice finance summary → 200", s == 200)
+    if email:
+        s, login = req("POST", "/api/auth/login",
+                       {"email": email, "password": "Test@123", "platform": "desktop"},
+                       {"x-tenant-id": tid})
+        tc = login.get("tabConfig") or {}
+        ok("hosp_floor visible", (tc.get("hosp_floor") or {}).get("visible") is True, str(tc.get("hosp_floor")))
+        ok("inventory hidden", (tc.get("inventory") or {}).get("visible") is False, str(tc.get("inventory")))
+
 # ── Service-specific tests ────────────────────────────────────────────────────
 def test_service(tok, tid, ids):
     D = h(tok, tid)
@@ -1084,6 +1143,7 @@ if __name__ == "__main__":
         ("retail",         f"r{ts}",  f"admin@r{ts}.com"),
         ("service",        f"s{ts}",  f"admin@s{ts}.com"),
         ("silver_casting", f"ag{ts}", f"admin@ag{ts}.com"),
+        ("hotel_restaurant", f"ht{ts}", f"admin@ht{ts}.com"),
     ]
 
     print("\n⚙  Creating tenants...")
@@ -1124,6 +1184,7 @@ if __name__ == "__main__":
         elif btype == "retail":     test_retail(tok, tid, ids)
         elif btype == "service":    test_service(tok, tid, ids)
         elif btype == "silver_casting": test_silver_casting(tok, tid, ids, email)
+        elif btype == "hotel_restaurant": test_hotel_restaurant(tok, tid, ids, email)
 
     # ── On-Prem API tests (super admin scope, no Electron needed)
     test_onprem(sa_h)
@@ -1137,7 +1198,7 @@ if __name__ == "__main__":
     print(f"{'═'*60}")
 
     grand_pass = grand_fail = 0
-    for btype in ["manufacturer","dealer","retail","service","silver_casting","on-prem","gst-api"]:
+    for btype in ["manufacturer","dealer","retail","service","silver_casting","hotel_restaurant","on-prem","gst-api"]:
         r = RESULTS.get(btype, {"pass":[],"fail":[],"skip":[]})
         p,f,sk = len(r["pass"]),len(r["fail"]),len(r["skip"])
         grand_pass += p; grand_fail += f

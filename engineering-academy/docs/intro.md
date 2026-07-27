@@ -15,8 +15,9 @@ This portal exists so you never need to ask the original author: *“Where does 
 </div>
 
 **Product:** [Dhandho](https://dhandho.app) (repo: [prathame/DG-ERP](https://github.com/prathame/DG-ERP), npm name `splendor-erp`)  
-**Domain:** GST-aware business management for Indian SMEs — inventory, distribution, sales, accounts, payroll, warranties, rewards.  
-**Surfaces:** Web SPA · Electron cloud · Electron on-prem · Service Cloud seats (online) · Service Mobile (offline Capacitor, service type only). Phone layout for the cloud SPA: [Cloud Mobile UX](/frontend/cloud-mobile).
+**Domain:** GST-aware business management for Indian SMEs — inventory, distribution, sales, accounts, payroll, warranties, rewards, **silver casting (metal)**, and **hotel/restaurant hospitality** (floor, waiter, kitchen KOT, entry queue).  
+**Named business types:** `manufacturer` · `dealer` · `retail` · `service` · `silver_casting` · `hotel_restaurant` · `custom` — see [Product Domain](/overview/product-domain).  
+**Surfaces:** Web SPA · Electron cloud · Electron on-prem · Cap Online (any cloud type; companion `mobile_features`) · Service phone UX (Offline Mobile **or** Cap Online + `service`) · Service Mobile offline Capacitor (`service` only). Phone layout notes: [Cloud Mobile UX](/frontend/cloud-mobile).
 
 :::tip How to use this academy
 Treat chapters like a **bootcamp**, not a wiki dump. Do the labs. Fail the quizzes. Trace one request from browser to Postgres with the debugger. That is how ownership sticks.
@@ -52,9 +53,10 @@ flowchart LR
 6. **[Auth](./security/authentication.md)** + **[AuthZ](./security/authorization.md)**  
 7. **[Database ERD](./database/erd.md)**  
 8. **[API Overview](./api/overview.md)**  
-9. **[Frontend App Shell](./frontend/app-shell.md)**  
-10. **[Security Threat Model](./security/threat-model.md)** + **[Quiz: Security](./quizzes/quiz-security.md)**  
-11. **[Deployment Overview](./deployment/overview.md)**  
+9. **[Frontend App Shell](./frontend/app-shell.md)** + **[Features Catalog](./frontend/features-catalog.md)**  
+10. Pick a vertical deep-dive: **[Metal / Silver Casting](./api/metal-silver-casting.md)** or **[Hospitality](./api/hospitality.md)** (skip if your tenants are goods-only)  
+11. **[Security Threat Model](./security/threat-model.md)** + **[Quiz: Security](./quizzes/quiz-security.md)**  
+12. **[Deployment Overview](./deployment/overview.md)**  
 
 :::info Deferred
 **SRE** and **Labs** tracks are skipped for now (sidebar collapsed). Come back later.
@@ -82,6 +84,13 @@ flowchart LR
 
 ### 03–05 Engineering
 [Backend](./backend/overview.md) · [Frontend](./frontend/overview.md) · [Database](./database/schema-overview.md)
+
+</div>
+
+<div className="academy-card">
+
+### Verticals
+[Silver Casting](./api/metal-silver-casting.md) · [Hospitality](./api/hospitality.md) · [Service Mobile](./deployment/service-mobile.md)
 
 </div>
 

@@ -28,7 +28,7 @@ flowchart TB
 ```
 
 :::warning Two sources of truth, on purpose
-`tab_config` (backend, per-tenant, mutable by Super Admin) and `BusinessConfig` (frontend, keyed only by `businessType`) are **not the same object** and can drift. `tab_config` decides *whether a tab exists at all*; `BusinessConfig` decides *how it's labeled and which sub-features inside it are visible*. A Custom tenant can have a `tab_config` that doesn't match any of the four `BusinessConfig` presets — the frontend then falls back to the `manufacturer` config. This is a deliberate simplification, not a bug — but it is exactly the kind of "two configs that can disagree" trap covered in [AI Origin Assumptions](./ai-origin-assumptions.md).
+`tab_config` (backend, per-tenant, mutable by Super Admin) and `BusinessConfig` (frontend, keyed only by `businessType`) are **not the same object** and can drift. `tab_config` decides *whether a tab exists at all*; `BusinessConfig` decides *how it's labeled and which sub-features inside it are visible*. A Custom tenant can have a `tab_config` that doesn't match any named `BusinessConfig` — the frontend then falls back to the `manufacturer` config. This is a deliberate simplification, not a bug — but it is exactly the kind of "two configs that can disagree" trap covered in [AI Origin Assumptions](./ai-origin-assumptions.md).
 :::
 
 ### 1. Manufacturer
@@ -99,7 +99,24 @@ Jewellery / silver casting vertical on the same piece-barcode spine. Products ar
 
 **Phase 2+ (not yet built):** casting/melting jobs, bullion, sauda / bhav-cut / havala, thermal ZPL printers.
 
-### 6. Custom
+### 6. Hotel / Restaurant
+
+Hospitality vertical on the **same** Express + Postgres tenant — not a separate product binary. SA onboarding picks **Hotel / Restaurant**; `seedHospitalityCatalog` creates demo tables + menu. Ops tabs: Floor, Waiter Orders, Kitchen, Entry Queue (`hosp_*` tables / `/api/hospitality/*`).
+
+| Aspect | Value |
+|---|---|
+| Vendor label | "Guests" (UI copy; guest flow is queue + tables, not the goods vendor ledger) |
+| Finance view | `invoice` (`App.tsx` renders `InvoiceFinanceView` for `hotel_restaurant`) |
+| Feature flags | `hospitality: true`; inventory / distribution / barcodes / warranty / rewards ❌ |
+| Tabs | `hosp_floor`, `hosp_waiter`, `hosp_kitchen`, `hosp_queue` visible; supply-chain tabs hidden by preset |
+
+**MVP flow:** Seat or open table → waiter adds menu lines + modifiers → kitchen KOT (`queued`→`served`) → bill → close → clear table. Host desk: FIFO queue token → call → seat free table.
+
+**Isolation:** API `requireHospitality` rejects non-hotel tenants. Permissions module key is `hospitality` (maps `/api/hospitality`); frontend tab ids are `hosp_*` — see [AuthZ / tabAccess](/security/authorization) if a permission map grants the module but tabs stay hidden.
+
+Deep dive: [Hospitality API](/api/hospitality).
+
+### 7. Custom
 
 Not a `BusinessConfig` preset at all — it's the escape hatch. Super Admin builds a bespoke `tab_config` per tenant (`CUSTOM_TAB_PRESET` in `shared/tabPresets.ts`) and the tenant is displayed as **`Custom (CompanyName)`** via `bizTypeLabel(type, companyName)` in `src/lib/utils.ts`. Multiple Custom tenants each render their own company name — there is no single generic "Custom" label. Frontend `BusinessConfig` falls back to **manufacturer** for Custom unless a named type is used.
 
@@ -133,6 +150,7 @@ Every module below is a `src/features/<name>/` folder on the frontend and one or
 | **Replacements** | `features/replacements` | `replacements.ts` | `product_replacements` | Old barcode → new barcode swap under warranty, preserves warranty chain |
 | **Analytics** | `features/analytics` | `dashboard.ts` | cross-table aggregates | Revenue, collections, distribution, expenses, vendor balances, date-filtered |
 | **Bank Statements** | `features/settings` | `banks.ts`, `mapping.ts` | `banks` | Upload ICICI/HDFC/SBI XLS/XLSX, auto-parse, match UPI IDs to vendors |
+| **Hospitality** | `features/hospitality` | `hospitality.ts` | `hosp_*` | Hotel/restaurant only: floor tiles, waiter orders + modifiers, kitchen KOT, FIFO entry queue |
 
 ## Data model at a glance
 
@@ -149,6 +167,8 @@ erDiagram
 ```
 
 Service tenants skip the entire left half of this diagram and go straight to `standalone_invoices` → `invoice_payments`. Invoice Finance groups those invoices by **party link** when present (`party_type` + `party_id`), so renaming a client on a later invoice does not split their ledger — see [Business Workflows → Service invoice ledger](/architecture/business-workflows#workflow-5-service-invoice--party-linked-ledger).
+
+Hotel / Restaurant tenants use a parallel `hosp_*` model (tables → orders → kitchen items → queue) instead of barcodes — see [Workflow 7](/architecture/business-workflows#workflow-7-hospitality-floor--kot--queue).
 
 ## Key concepts
 

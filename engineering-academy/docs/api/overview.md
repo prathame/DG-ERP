@@ -24,6 +24,7 @@ Every endpoint is `/api/{resource}` (or a nested variant), JSON in and out, auth
 | Mobile device lifecycle | `/api/mobile/*` | `mobile.ts` |
 | Catalog | `/api/products`, `/api/categories`, `/api/price-lists` | `products.ts`, `price-lists.ts` |
 | Metal / Silver Casting | `/api/metal/*` | `metal.ts` (business type `silver_casting` only) |
+| Hospitality | `/api/hospitality/*` | `hospitality.ts` (business type `hotel_restaurant` only) |
 | Masters / config | `/api/masters/*`, `/api/mapping/*`, `/api/admin/*` | `masters.ts`, `mapping.ts`, `admin.ts` |
 | Distribution | `/api/distribution/*`, `/api/vendors/*` | `distribution.ts`, `vendors.ts` |
 | Sales | `/api/sales/*`, `/api/customers/*`, `/api/invoices/*` | `sales.ts`, `customers.ts`, `invoices.ts` |
@@ -38,7 +39,7 @@ Every endpoint is `/api/{resource}` (or a nested variant), JSON in and out, auth
 | Chatbot | `/api/chatbot` | `chatbot.ts` |
 | Bill branding | `/api/settings/bill/*` | `bill-settings.ts` |
 
-See [Backend Overview](/backend/overview) for the same information organized by mount order rather than by domain, and [Permissions](/backend/permissions) for how each base path maps to one of the 13 authorization modules.
+See [Backend Overview](/backend/overview) for the same information organized by mount order rather than by domain, and [Permissions](/backend/permissions) for how each base path maps to one of the authorization modules (`hospitality` included).
 
 ## 3. Request/response shape, in brief
 

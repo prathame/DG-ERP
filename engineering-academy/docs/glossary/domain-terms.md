@@ -66,6 +66,10 @@ When a support ticket, a product spec, or a stakeholder conversation uses one of
 | "Store"/"Shop" | `tenant` | The whole tenant *is* the shop in the simplest case; larger tenants have multiple `vendors` under one tenant |
 | "Return"/"Exchange" | `replacements` | No separate refund-tracking table; a replacement swaps the physical unit and adjusts inventory |
 | "Points"/"Loyalty" | `rewards` | Computed, not manually entered, per `reward_rules` configuration |
+| "Silver casting" / "metal stock" | `business_type=silver_casting`, `/api/metal/*` | Piece barcodes carry weight/purity/fine; not a separate ERP binary |
+| "Hotel" / "restaurant floor" | `business_type=hotel_restaurant`, `hosp_*` tables | Floor tiles, waiter orders, kitchen KOT, entry queue — see [Hospitality API](/api/hospitality) |
+| "KOT" | `hosp_order_items.kitchen_status` | Kitchen Order Ticket line: `queued` → `preparing` → `ready` → `served` |
+| "Hospitality permission" | module `hospitality` vs tabs `hosp_*` | API path maps to module; nav tabs resolve via `resolveTabAccess` fallback to `hospitality` |
 
 ## Hands-on exercise
 

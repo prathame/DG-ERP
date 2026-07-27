@@ -23,7 +23,9 @@ export function resolveTabAccess(
     } else {
       const level = (map[tabId] ??
         (tabId === 'analytics' ? map.dashboard : undefined) ??
-        (tabId === 'dashboard' ? map.analytics : undefined)) as string | undefined;
+        (tabId === 'dashboard' ? map.analytics : undefined) ??
+        // API RBAC module key → hospitality nav tabs
+        (tabId.startsWith('hosp_') ? map.hospitality : undefined)) as string | undefined;
       if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
       return 'hidden';
     }
@@ -35,6 +37,7 @@ export function resolveTabAccess(
       if (perms.includes(tabId)) return 'full';
       if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
       if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
+      if (tabId.startsWith('hosp_') && perms.includes('hospitality')) return 'full';
       return 'hidden';
     }
   }

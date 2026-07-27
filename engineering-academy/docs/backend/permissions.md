@@ -19,16 +19,21 @@ const RANK: Record<AccessLevel, number> = { hidden: 0, view: 1, print: 2, full: 
 
 Levels are **ordered**, not just labels — `RANK` lets `enforceModulePermissions` compare "does the caller have at least X" with a simple integer comparison, rather than a big switch statement. `print` sits between `view` and `full` — it exists specifically for the Vendor persona: a vendor might need to **print** a distribution challan (a physical document) without being allowed to edit the underlying record.
 
-## 2. The 13 modules
+## 2. The modules (14)
 
 ```ts
 const ALL_MODULES = [
   'dashboard', 'sales', 'distribution', 'inventory', 'purchases', 'quotations',
   'orders', 'finance', 'accounts', 'warranty', 'replacements', 'rewards', 'settings',
+  'hospitality',
 ] as const;
 ```
 
-Notice this list doesn't 1:1 match the 34 route files or the frontend's `tab_config` keys exactly — several routes map to the *same* module (see the path table below). Modules are a **coarser** grouping than routes, deliberately, because permission granularity at the route level would be unmanageable for a small admin-configured permissions UI.
+Notice this list doesn't 1:1 match the route files or the frontend's `tab_config` keys exactly — several routes map to the *same* module (see the path table below). Modules are a **coarser** grouping than routes, deliberately, because permission granularity at the route level would be unmanageable for a small admin-configured permissions UI.
+
+:::tip Hospitality vs `hosp_*` tabs
+API RBAC uses the module key **`hospitality`**. Nav tab ids are **`hosp_floor` / `hosp_waiter` / `hosp_kitchen` / `hosp_queue`**. `resolveTabAccess` (`src/lib/tabAccess.ts`) falls back to `map.hospitality` for any `hosp_*` tab, so Cap Online / admin grants of `{ hospitality: 'full' }` unlock Floor/Waiter/Kitchen/Queue. Staff role presets also give hospitality API `full` and role-default full access for `hosp_*` when permissions are unset.
+:::
 
 ## 3. Role presets — the default, before any custom override
 
@@ -37,7 +42,7 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
   Admin: /* full on everything */,
   'Super Admin': /* full on everything */,
   Manager: /* full on everything except settings: view */,
-  Staff: /* view on everything */,
+  Staff: /* view on everything except hospitality: full */,
   Warehouse: { dashboard: 'view', distribution: 'print', inventory: 'view', /* rest: hidden */ },
   Vendor: { dashboard: 'view', distribution: 'view', finance: 'view', /* rest: hidden */ },
 };
@@ -47,7 +52,7 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
 |---|---|
 | Admin / Super Admin | Full trust — owns the tenant |
 | Manager | Full operational trust, but can't reconfigure the business (`settings: view`) |
-| Staff | Read-only everywhere by default — a common starting point that admins then customize per-user |
+| Staff | Read-only everywhere by default, **except hospitality is `full`** so waiters/kitchen can mutate KOTs without an Admin account |
 | Warehouse | Extremely narrow — dashboard visibility, print-only distribution challans, view-only inventory; everything money/sales/warranty/rewards/settings is `hidden` |
 | Vendor | Sees their own dashboard/distribution/finance at `view` level; everything else `hidden` (blockVendors handles the write-side separately for finance) |
 
@@ -67,6 +72,7 @@ A curated list of `[prefix, module]` pairs, checked in order, **first match wins
 | `/invoices`, `/customers`, `/mapping`, `/sales` | `sales` | Standalone invoicing lives under `sales`, not `accounts` |
 | `/vendors` | `distribution` | Vendor master data is gated by the distribution module, since vendors are primarily a distribution concept |
 | `/admin`, `/backup`, `/masters`, `/settings/bill` | `settings` | Admin console + backups + master data config all gated as one "settings" surface |
+| `/hospitality` | `hospitality` | Hotel/restaurant floor, orders, kitchen, queue — also gated by `business_type === 'hotel_restaurant'` inside the router |
 
 If a path prefix isn't in the table at all (e.g. `/api/health`, `/api/tenant/by-slug`), `moduleForPath` returns `null` and `enforceModulePermissions` calls `next()` unconditionally — **ungated paths exist by design** for public/health endpoints, but this is also the sharpest edge of this system: forgetting to add a new route's prefix to `PATH_MODULE` silently makes it **permission-unchecked**, not permission-denied.
 

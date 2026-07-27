@@ -96,6 +96,7 @@ const sidebars: SidebarsConfig = {
         'api/auth',
         'api/products-inventory',
         'api/metal-silver-casting',
+        'api/hospitality',
         'api/sales-distribution',
         'api/finance-accounts',
         'api/gst',
@@ -259,6 +260,7 @@ const sidebars: SidebarsConfig = {
         'quizzes/quiz-security',
         'quizzes/quiz-database',
         'quizzes/quiz-frontend',
+        'quizzes/quiz-hospitality',
       ],
     },
     {

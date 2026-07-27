@@ -14,6 +14,7 @@ Use these after reading the matching track. Answer on paper first.
 | [Security](/quizzes/quiz-security) | After threat model + authn/z |
 | [Database](/quizzes/quiz-database) | After ERD + RLS + fragments |
 | [Frontend](/quizzes/quiz-frontend) | After app shell + api client + platforms |
+| [Hospitality](/quizzes/quiz-hospitality) | After hospitality API + hotel product domain |
 
 :::info Labs deferred
 Hands-on labs are paused. Quizzes + Day-1 tutorial are the active practice path.

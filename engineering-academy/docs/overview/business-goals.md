@@ -29,7 +29,7 @@ The product name itself — "Dhandho" (धंधा, Gujarati/Hindi for "busines
 | Convert trial users into paying tenants without a sales call | Self-serve signup disabled in favor of controlled provisioning + trial timers | `server/routes/super-admin.ts`, `provisionTenant()` in `server/utils/tenant.ts` |
 | Prove compliance and defend against disputes | `audit_log` table on every sensitive mutation | `server/utils/helpers.ts` (`logAudit`), used across nearly every route |
 
-## 3. The four "faces" of one product
+## 3. The faces of one product (not one app per business type)
 
 ```mermaid
 flowchart LR
@@ -37,14 +37,15 @@ flowchart LR
     W[Web SPA<br/>any browser]
     EC[Electron Cloud<br/>desktop shell → dhandho.app]
     EO[Electron On-Prem<br/>desktop + embedded Postgres]
+    CAP[Cap phone<br/>Online latch or Offline service]
   end
   W --> API[server/app.ts]
   EC --> API
-  M --> API
+  CAP --> API
   EO --> LOCAL[Local Express + local Postgres]
 ```
 
-This is a deliberate cost decision: one team, one React app, one Express API, four delivery mechanisms. See [Design Decisions](/architecture/design-decisions) for the trade-offs this creates.
+This is a deliberate cost decision: one team, one React app, one Express API, shared Desktop + Mobile shells. **Business types** (manufacturer, dealer, retail, service, silver casting, hotel/restaurant, custom) are tenant presets — not separate installers. See [Design Decisions](/architecture/design-decisions) and [Product Domain](/overview/product-domain).
 
 ## 4. Revenue model, encoded
 
@@ -65,7 +66,7 @@ Notice `checkPlanLimit` and `enforceModulePermissions` sit at the same architect
 
 ## 5. What Dhandho explicitly does *not* try to be
 
-- **Not a generic ERP framework.** No plugin marketplace, no BPMN workflow engine. Modules (`sales`, `distribution`, `warranty`, `rewards`, `finance`, `accounts`, `payroll`...) are hard-coded business verticals for manufacturer/distributor SMEs.
+- **Not a generic ERP framework.** No plugin marketplace, no BPMN workflow engine. Modules (`sales`, `distribution`, `warranty`, `rewards`, `finance`, `accounts`, `payroll`, `hospitality`, metal intake…) are hard-coded verticals for Indian SMEs — goods, services, silver casting, and hospitality — not a blank workflow builder.
 - **Not multi-currency, not multi-country.** GST, HSN codes, IRN/EWB are India-specific. There is no currency field on money columns — `NUMERIC(12,2)` is implicitly ₹.
 - **Not eventually-consistent / event-sourced.** Every mutation is a synchronous SQL statement inside a request. No message queue, no CQRS. This is intentional simplicity for a team that needs to ship features weekly, not a distributed systems trophy.
 - **Not "move fast and skip compliance."** GST math (`gst-helpers.test.ts`), audit logging, and RLS exist because a wrong invoice or a leaked competitor's sales data is an existential risk for an SME-facing product — this is trust-critical software wearing a "friendly small biz tool" costume.

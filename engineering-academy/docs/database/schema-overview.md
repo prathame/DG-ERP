@@ -139,7 +139,7 @@ await client.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
 
 | Table.column | Contents | Why JSONB here |
 |---|---|---|
-| `tenants.tab_config` | Per-tab visibility/labels (`{ dashboard: { label, visible }, ... }`) | Varies per business-type preset (`manufacturer`/`dealer`/`retail`/`service`/`custom`) and per-tenant customization pushed from Super Admin |
+| `tenants.tab_config` | Per-tab visibility/labels (`{ dashboard: { label, visible }, ... }`) | Varies per business-type preset (`manufacturer`/`dealer`/`retail`/`service`/`silver_casting`/`hotel_restaurant`/`custom`) and per-tenant customization pushed from Super Admin |
 | `users.permissions` | Per-user module access overrides (`view`/`print`/`full`/`hidden` per module) | Optional override layered on top of role presets — see [Backend → Permissions](/backend/permissions) |
 | `plans.features` | Feature flags per subscription plan | New feature flags ship without a schema migration |
 | `quotations.items`, `orders.items`, `standalone_invoices.items`, `credit_debit_notes.items` | Line-item arrays (`[{ productId, qty, price, gstRate, ... }]`) | Document-shaped, read/displayed as a whole |

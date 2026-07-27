@@ -122,9 +122,9 @@ fi
 - Watch the Render dashboard's deploy logs for the `npm ci --include=dev` step specifically if a build fails right after a dependency change — it's the first thing to check.
 - After deploy, hit `https://dhandho-2kdx.onrender.com/api/health` to confirm `{"ok":true,"db":"up"}`. Do not use `dhandho.app` until that DNS is live.
 
-## Hostname cutover (`dg-erp` → `dhandho-2kdx`) {#recreate-web-service-as-dhandho}
+## Hostname cutover (dg-erp to dhandho-2kdx)
 
-**How Render hostnames work:** the web service **name** chosen at create time becomes `https://<name>.onrender.com`. That subdomain is **not** renamable later ([Render feedback](https://feedback.render.com/features/p/ability-to-change-onrendercom-sub-domain)) — changing the display name in the Dashboard does not move the URL.
+**How Render hostnames work:** the web service **name** chosen at create time becomes `https://&lt;name&gt;.onrender.com`. That subdomain is **not** renamable later ([Render feedback](https://feedback.render.com/features/p/ability-to-change-onrendercom-sub-domain)) — changing the display name in the Dashboard does not move the URL.
 
 **Live production today:** service **`dhandho-2kdx`** → `https://dhandho-2kdx.onrender.com` (id `srv-d9fmf3gk1i2s73b4flgg`). Render assigned the `-2kdx` suffix because plain `dhandho` was taken or the service was created under that name. Do **not** try to rename onto `dhandho.onrender.com` — set `ALLOWED_ORIGINS` (and Cap/Electron defaults) to the real URL. Root `render.yaml` `name:` matches `dhandho-2kdx` so Blueprint sync updates this service. Legacy `dg-erp` / duplicate `dhandho*` services were retired.
 
