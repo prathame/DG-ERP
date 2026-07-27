@@ -1,0 +1,4 @@
+name,period,fee,discountPercent,useMemberPrices,active
+Silver Monthly,monthly,199,5,N,Y
+Gold Monthly,monthly,499,0,Y,Y
+Gold Yearly,yearly,4999,0,Y,Y

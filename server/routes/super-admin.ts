@@ -7,7 +7,6 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { clearSuperAdminSession, clearUserSession, replaceSuperAdminSession } from '../utils/userSessions';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
-import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
 import { ACTIVE_USER_SQL } from '../utils/activeUsers';
 import {
   DEFAULT_SERVICE_CLOUD_APP_URL,
@@ -308,10 +307,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         result.tenantId,
       ],
     );
-    // Cloud hotel only: seed floor + menu into our Postgres. BYO / local_server keep ops data off-cloud.
-    if (bType === 'hotel_restaurant' && hotelDeployment === 'cloud') {
-      await seedHospitalityCatalog(result.tenantId);
-    }
     // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
     // Create path sets mode to desktop (no mobile) or both (needMobile) — always seed desktop;
     // seed mobile when companions are enabled. Fixes Electron "No free desktop device slots"
@@ -659,11 +654,6 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
-    const effectiveType = (tenant.business_type as string) || 'manufacturer';
-    const effectiveDeploy = (tenant.hotel_deployment as string) || 'cloud';
-    if (effectiveType === 'hotel_restaurant' && effectiveDeploy === 'cloud') {
-      await seedHospitalityCatalog(id);
-    }
     await logAudit(
       pool,
       id,

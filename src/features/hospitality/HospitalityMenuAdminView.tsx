@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Download, Plus, Pencil, Trash2, RefreshCw, Upload } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { CsvImport } from '../../components/ui/CsvImport';
+import { cn, exportToCsv } from '../../lib/utils';
 import { hospApi, type HospMenuItem } from './hospApi';
 import {
   useHospShell,
@@ -17,7 +19,6 @@ import {
   hospChipActive,
   hospChipIdle,
 } from './hospUi';
-import { cn } from '../../lib/utils';
 
 type AdminTab = 'menu' | 'modifiers';
 
@@ -64,6 +65,7 @@ export function HospitalityMenuAdminView() {
     name: string;
     priceDelta: string;
   } | null>(null);
+  const [csvKind, setCsvKind] = useState<'menu' | 'modifiers' | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,10 +100,70 @@ export function HospitalityMenuAdminView() {
           <h1 className={hospTitleClass(shell)}>Menu</h1>
           <p className={hospSubClass(shell)}>Dishes, prices, and toppings — tables are managed on Floor</p>
         </div>
-        <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={14} className="mr-1.5" />
-          Refresh
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          {tab === 'menu' ? (
+            <>
+              <button type="button" className={hospSecondaryBtn(shell)} onClick={() => setCsvKind('menu')}>
+                <Upload size={14} className="mr-1" /> Import dishes
+              </button>
+              <button
+                type="button"
+                className={hospSecondaryBtn(shell)}
+                disabled={!items.length}
+                onClick={() =>
+                  exportToCsv(
+                    items.map(it => ({
+                      category: catName(it.category_id),
+                      name: it.name,
+                      description: it.description || '',
+                      price: it.price,
+                      memberPrice: it.member_price ?? '',
+                      available: it.available === false ? 'N' : 'Y',
+                      modifierGroups: (it.modifierGroups || [])
+                        .map(g => g.name)
+                        .filter(Boolean)
+                        .join('|'),
+                    })),
+                    'hotel-menu-items',
+                  )
+                }
+              >
+                <Download size={14} className="mr-1" /> Export dishes
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className={hospSecondaryBtn(shell)} onClick={() => setCsvKind('modifiers')}>
+                <Upload size={14} className="mr-1" /> Import modifiers
+              </button>
+              <button
+                type="button"
+                className={hospSecondaryBtn(shell)}
+                disabled={!groups.length}
+                onClick={() =>
+                  exportToCsv(
+                    groups.flatMap(g =>
+                      (g.modifiers.length ? g.modifiers : [{ id: '', name: '', price_delta: 0 }]).map(m => ({
+                        groupName: g.name,
+                        required: g.required ? 'Y' : 'N',
+                        maxSelect: g.max_select,
+                        modifierName: m.name,
+                        priceDelta: m.price_delta,
+                      })),
+                    ),
+                    'hotel-modifiers',
+                  )
+                }
+              >
+                <Download size={14} className="mr-1" /> Export modifiers
+              </button>
+            </>
+          )}
+          <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={14} className="mr-1.5" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -673,6 +735,66 @@ export function HospitalityMenuAdminView() {
             setConfirm(null);
           }}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {csvKind === 'menu' && (
+        <CsvImport
+          itemLabel="dishes"
+          templateName="hotel-menu-items"
+          columns={[
+            { key: 'category', label: 'Category', required: true },
+            { key: 'name', label: 'Dish name', required: true },
+            { key: 'description', label: 'Description' },
+            { key: 'price', label: 'Price', required: true },
+            { key: 'memberPrice', label: 'Member price' },
+            { key: 'available', label: 'Available (Y/N)' },
+            { key: 'modifierGroups', label: 'Modifier groups (pipe-separated)' },
+          ]}
+          onClose={() => {
+            setCsvKind(null);
+            void load();
+          }}
+          onImport={async rows => {
+            try {
+              const result = await hospApi.importMenuItemsBatch(rows);
+              return { success: result.success, errors: result.errors || [] };
+            } catch (err) {
+              return {
+                success: 0,
+                errors: [err instanceof Error ? err.message : 'Import failed — no dishes were added'],
+              };
+            }
+          }}
+        />
+      )}
+
+      {csvKind === 'modifiers' && (
+        <CsvImport
+          itemLabel="modifiers"
+          templateName="hotel-modifiers"
+          columns={[
+            { key: 'groupName', label: 'Group name', required: true },
+            { key: 'required', label: 'Required (Y/N)' },
+            { key: 'maxSelect', label: 'Max select' },
+            { key: 'modifierName', label: 'Option name', required: true },
+            { key: 'priceDelta', label: 'Price delta' },
+          ]}
+          onClose={() => {
+            setCsvKind(null);
+            void load();
+          }}
+          onImport={async rows => {
+            try {
+              const result = await hospApi.importModifiersBatch(rows);
+              return { success: result.success, errors: result.errors || [] };
+            } catch (err) {
+              return {
+                success: 0,
+                errors: [err instanceof Error ? err.message : 'Import failed — no modifiers were added'],
+              };
+            }
+          }}
         />
       )}
     </div>

@@ -8,6 +8,7 @@
 | products.csv | 10 products | Mix of pesticides/seeds/fertilizers/equipment, GST Y/N, Box/Bag/Piece, 5%/18% GST |
 | banks.csv | 3 banks | Valid account numbers, IFSC codes |
 | distribution.csv | 6 rows | Valid product names, with/without custom price, with discount |
+| hotel-veg-restaurant/*.csv | veg restaurant | Tables, modifiers, menu dishes, membership plans (vegetarian only) |
 
 ## `invalid/` — All should FAIL with clear error messages
 | File | Errors | What it tests |

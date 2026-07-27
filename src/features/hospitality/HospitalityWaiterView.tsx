@@ -10,7 +10,6 @@ import {
   hospEyebrowClass,
   hospInputClass,
   hospPageClass,
-  hospPrimaryBtn,
   hospSecondaryBtn,
   hospSubClass,
   hospTitleClass,
@@ -140,18 +139,6 @@ export function HospitalityWaiterView() {
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
-            {empty && (
-              <button
-                type="button"
-                className={hospPrimaryBtn(shell)}
-                onClick={async () => {
-                  await hospApi.seed();
-                  await load();
-                }}
-              >
-                Seed demo floor
-              </button>
-            )}
             <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()} aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
               <span className="ml-1.5 hidden sm:inline">Refresh</span>

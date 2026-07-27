@@ -86,7 +86,7 @@ describe('HTTP Hospitality', () => {
 
   it('returns hospitality analytics snapshot for hotel tenants', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
-    await api().post('/api/hospitality/seed').set(headers).send({});
+    await seedHospitalityCatalog(HOSP_TENANT);
 
     const res = await api().get('/api/hospitality/analytics?period=today').set(headers);
     expect(res.status).toBe(200);
@@ -155,7 +155,7 @@ describe('HTTP Hospitality', () => {
 
   it('saves optional guest fields and looks up member by phone', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
-    await api().post('/api/hospitality/seed').set(headers).send({});
+    await seedHospitalityCatalog(HOSP_TENANT);
 
     const plan = await api().post('/api/hospitality/membership-plans').set(headers).send({
       name: 'Guest Lookup Plan',
@@ -222,8 +222,7 @@ describe('HTTP Hospitality', () => {
   it('covers order lifecycle: open → add item → kitchen → bill → payment done (available)', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
 
-    const seedRes = await api().post('/api/hospitality/seed').set(headers).send({});
-    expect(seedRes.status).toBe(200);
+    await seedHospitalityCatalog(HOSP_TENANT);
 
     const tablesRes = await api().get('/api/hospitality/tables').set(headers);
     expect(tablesRes.status).toBe(200);
@@ -284,7 +283,7 @@ describe('HTTP Hospitality', () => {
     );
     const waiterHeaders = authHeaders(token(HOSP_TENANT, waiterId), HOSP_TENANT);
 
-    await api().post('/api/hospitality/seed').set(adminHeaders).send({});
+    await seedHospitalityCatalog(HOSP_TENANT);
     const tables = await api().get('/api/hospitality/tables').set(adminHeaders);
     const free = (tables.body.tables as Array<{ id: string; status: string }>).find(t => t.status === 'available');
     expect(free).toBeTruthy();
@@ -437,7 +436,7 @@ describe('HTTP Hospitality', () => {
 
   it('parcel lifecycle: create → add item → kitchen label → bill → close', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
-    await api().post('/api/hospitality/seed').set(headers).send({});
+    await seedHospitalityCatalog(HOSP_TENANT);
 
     const created = await api()
       .post('/api/hospitality/parcels')
@@ -486,7 +485,7 @@ describe('HTTP Hospitality', () => {
 
   it('membership pricing: member_price / % off for active; list for expired; order discount', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
-    await api().post('/api/hospitality/seed').set(headers).send({});
+    await seedHospitalityCatalog(HOSP_TENANT);
 
     const planMp = await api().post('/api/hospitality/membership-plans').set(headers).send({
       name: 'Gold MP',

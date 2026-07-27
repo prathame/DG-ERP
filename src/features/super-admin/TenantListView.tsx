@@ -894,7 +894,8 @@ function CreateTenantModal({
                 )}
                 {form.hotelDeployment === 'cloud' && (
                   <p className="text-[11px] text-gray-400 mt-2">
-                    Seeds demo floor + menu into Dhandho cloud Postgres for this tenant.
+                    Cloud Postgres for this tenant. Floor/menu start empty — import CSV from Menu / Floor (samples in
+                    test-data/valid/hotel-veg-restaurant).
                   </p>
                 )}
               </div>

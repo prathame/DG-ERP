@@ -3,7 +3,6 @@ import { AuthRequest, blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
 import { computeOrderDiscount, isMemberCurrentlyActive, resolveMemberUnitPrice } from '../../shared/hospPricing';
 import { hospAnalyticsPeriodStart, hospOrderPayable, parseHospAnalyticsPeriod } from '../../shared/hospAnalytics';
 
@@ -29,19 +28,6 @@ function requireHotelPaymentAdmin(req: AuthRequest): string | null {
 function tenantOf(req: AuthRequest): string | null {
   return (req.headers['x-tenant-id'] as string) || null;
 }
-
-router.post('/api/hospitality/seed', blockVendors, async (req: AuthRequest, res) => {
-  try {
-    const tenantId = tenantOf(req);
-    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const err = await requireHospitality(tenantId);
-    if (err) return res.status(403).json({ error: err });
-    await seedHospitalityCatalog(tenantId);
-    res.json({ ok: true });
-  } catch (e) {
-    handleApiError(req, res, e);
-  }
-});
 
 router.get('/api/hospitality/tables', blockVendors, async (req: AuthRequest, res) => {
   try {

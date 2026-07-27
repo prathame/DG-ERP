@@ -1,0 +1,11 @@
+groupName,required,maxSelect,modifierName,priceDelta
+Spice Level,Y,1,Mild,0
+Spice Level,Y,1,Medium,0
+Spice Level,Y,1,Extra Hot,0
+Extra Toppings,N,5,Extra Paneer,40
+Extra Toppings,N,5,Mushrooms,30
+Extra Toppings,N,5,Jalapeños,20
+Extra Toppings,N,5,Olives,25
+Extra Toppings,N,5,Corn,25
+Cheese,N,2,Extra Cheese,40
+Cheese,N,2,No Cheese,0

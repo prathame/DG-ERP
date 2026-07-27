@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, RefreshCw, RotateCcw } from 'lucide-react';
+import { Download, Plus, Pencil, RefreshCw, RotateCcw, Upload } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { CsvImport } from '../../components/ui/CsvImport';
 import { hospApi, type HospMember, type HospMembershipPlan } from './hospApi';
 import {
   useHospShell,
@@ -16,7 +17,7 @@ import {
   hospChipActive,
   hospChipIdle,
 } from './hospUi';
-import { cn } from '../../lib/utils';
+import { cn, exportToCsv } from '../../lib/utils';
 
 type Section = 'members' | 'plans';
 
@@ -46,6 +47,7 @@ export function HospitalityMembersView() {
     planId: string;
     status: 'active' | 'expired' | 'cancelled';
   } | null>(null);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,22 +83,47 @@ export function HospitalityMembersView() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {section === 'plans' ? (
-            <button
-              type="button"
-              className={hospPrimaryBtn(shell)}
-              onClick={() =>
-                setPlanForm({
-                  name: '',
-                  period: 'monthly',
-                  fee: '0',
-                  discountPercent: '0',
-                  useMemberPrices: false,
-                  active: true,
-                })
-              }
-            >
-              <Plus size={14} className="mr-1" /> Add plan
-            </button>
+            <>
+              <button
+                type="button"
+                className={hospPrimaryBtn(shell)}
+                onClick={() =>
+                  setPlanForm({
+                    name: '',
+                    period: 'monthly',
+                    fee: '0',
+                    discountPercent: '0',
+                    useMemberPrices: false,
+                    active: true,
+                  })
+                }
+              >
+                <Plus size={14} className="mr-1" /> Add plan
+              </button>
+              <button type="button" className={hospSecondaryBtn(shell)} onClick={() => setCsvImportOpen(true)}>
+                <Upload size={14} className="mr-1" /> Import
+              </button>
+              <button
+                type="button"
+                className={hospSecondaryBtn(shell)}
+                disabled={!plans.length}
+                onClick={() =>
+                  exportToCsv(
+                    plans.map(p => ({
+                      name: p.name,
+                      period: p.period,
+                      fee: p.fee,
+                      discountPercent: p.discount_percent,
+                      useMemberPrices: p.use_member_prices ? 'Y' : 'N',
+                      active: p.active === false ? 'N' : 'Y',
+                    })),
+                    'hotel-membership-plans',
+                  )
+                }
+              >
+                <Download size={14} className="mr-1" /> Export
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -513,6 +540,36 @@ export function HospitalityMembersView() {
             setConfirm(null);
           }}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {csvImportOpen && (
+        <CsvImport
+          itemLabel="plans"
+          templateName="hotel-membership-plans"
+          columns={[
+            { key: 'name', label: 'Plan name', required: true },
+            { key: 'period', label: 'Period (monthly/yearly)' },
+            { key: 'fee', label: 'Fee', required: true },
+            { key: 'discountPercent', label: 'Discount %' },
+            { key: 'useMemberPrices', label: 'Use member prices (Y/N)' },
+            { key: 'active', label: 'Active (Y/N)' },
+          ]}
+          onClose={() => {
+            setCsvImportOpen(false);
+            void load();
+          }}
+          onImport={async rows => {
+            try {
+              const result = await hospApi.importPlansBatch(rows);
+              return { success: result.success, errors: result.errors || [] };
+            } catch (err) {
+              return {
+                success: 0,
+                errors: [err instanceof Error ? err.message : 'Import failed — no plans were added'],
+              };
+            }
+          }}
         />
       )}
     </div>

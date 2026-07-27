@@ -187,7 +187,6 @@ export const hospApi = {
     }),
   noShow: (id: string) => fetchApi(`/hospitality/queue/${id}/no-show`, { method: 'POST', body: '{}' }),
   leave: (id: string) => fetchApi(`/hospitality/queue/${id}/leave`, { method: 'POST', body: '{}' }),
-  seed: () => fetchApi('/hospitality/seed', { method: 'POST', body: '{}' }),
 
   parcels: () => fetchApi<{ parcels: HospParcel[] }>('/hospitality/parcels'),
   createParcel: (body: { customerName?: string; customerPhone?: string }) =>
@@ -265,6 +264,26 @@ export const hospApi = {
       body: JSON.stringify(body),
     }),
   deleteTable: (id: string) => fetchApi<{ ok: boolean }>(`/hospitality/tables/${id}`, { method: 'DELETE' }),
+  importTablesBatch: (items: Array<{ name: string; seats?: number | string; zone?: string }>) =>
+    fetchApi<{ success: number; errors: string[] }>('/hospitality/tables/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+  importMenuItemsBatch: (items: Record<string, string | number | boolean | null | undefined>[]) =>
+    fetchApi<{ success: number; errors: string[] }>('/hospitality/menu-items/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+  importModifiersBatch: (items: Record<string, string | number | boolean | null | undefined>[]) =>
+    fetchApi<{ success: number; errors: string[] }>('/hospitality/modifiers/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+  importPlansBatch: (items: Record<string, string | number | boolean | null | undefined>[]) =>
+    fetchApi<{ success: number; errors: string[] }>('/hospitality/membership-plans/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
 
   categories: () =>
     fetchApi<{ categories: Array<{ id: string; name: string; sort_order: number }> }>('/hospitality/menu-categories'),
