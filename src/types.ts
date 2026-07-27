@@ -174,8 +174,13 @@ export interface BillSettings {
   /** Invoice / tax-invoice PDF layout style */
   invoiceTemplateStyle: InvoiceTemplateStyle;
   /**
-   * Hotel/restaurant thermal guest bill: menu prices include GST (break out CGST/SGST)
-   * vs exclude GST (add CGST/SGST on subtotal). Default true for India restaurants.
+   * Hotel/restaurant thermal guest bill: charge GST at all (CGST/SGST). Default false —
+   * many small restaurants want simple bills; owner enables when ready.
+   */
+  hospChargeGst?: boolean;
+  /**
+   * When hospChargeGst is on: menu prices include GST (break out) vs exclude (add on).
+   * Default true (tax-inclusive) for India restaurants.
    */
   hospPricesIncludeGst?: boolean;
   /** FSSAI license number printed on hospitality guest bills when set. */

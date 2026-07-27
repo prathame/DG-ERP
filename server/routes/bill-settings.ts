@@ -27,6 +27,8 @@ const DEFAULTS = {
   showHsnSac: true, // deprecated alias of showGst
   footerText: 'Powered by Dhandho Management',
   invoiceTemplateStyle: 'modern' as const,
+  /** Restaurant guest bills: GST off by default until owner enables. */
+  hospChargeGst: false,
   hospPricesIncludeGst: true,
   fssaiLicense: null as string | null,
 };
@@ -72,6 +74,7 @@ function rowToResponse(row: Record<string, unknown>) {
     showHsnSac: row.show_hsn_sac !== false,
     footerText: (row.footer_text as string) || 'Powered by Dhandho Management',
     invoiceTemplateStyle: normalizeInvoiceTemplateStyle(row.invoice_template_style),
+    hospChargeGst: row.hosp_charge_gst === true,
     hospPricesIncludeGst: row.hosp_prices_include_gst !== false,
     fssaiLicense: (row.fssai_license as string) || null,
   };
@@ -149,6 +152,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     }
 
     const invoiceTemplateStyle = normalizeInvoiceTemplateStyle(requestBody.invoiceTemplateStyle);
+    const hospChargeGst = requestBody.hospChargeGst === true;
     const hospPricesIncludeGst =
       typeof requestBody.hospPricesIncludeGst === 'boolean' ? requestBody.hospPricesIncludeGst : true;
     const fssaiLicense =
@@ -162,8 +166,8 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         bank_account_name, bank_account_number, bank_name, bank_branch, bank_ifsc, bank_upi_id,
         terms_and_conditions, signatory_name, signatory_designation, signature_base64,
         show_rewards, show_barcode, show_warranty, show_hsn_sac, footer_text, invoice_template_style,
-        hosp_prices_include_gst, fssai_license, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24, NOW())
+        hosp_charge_gst, hosp_prices_include_gst, fssai_license, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25, NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         logo_base64 = $2, primary_color = $3, tagline = $4,
         invoice_prefix = $5, challan_prefix = $6,
@@ -171,8 +175,9 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         terms_and_conditions = $13, signatory_name = $14, signatory_designation = $15, signature_base64 = $16,
         show_rewards = $17, show_barcode = $18, show_warranty = $19, show_hsn_sac = $20, footer_text = $21,
         invoice_template_style = $22,
-        hosp_prices_include_gst = $23,
-        fssai_license = CASE WHEN $25::boolean THEN $24 ELSE bill_settings.fssai_license END,
+        hosp_charge_gst = $23,
+        hosp_prices_include_gst = $24,
+        fssai_license = CASE WHEN $26::boolean THEN $25 ELSE bill_settings.fssai_license END,
         updated_at = NOW()
       RETURNING *
     `,
@@ -199,6 +204,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         resolveShowGst(requestBody, true),
         requestBody.footerText || 'Powered by Dhandho Management',
         invoiceTemplateStyle,
+        hospChargeGst,
         hospPricesIncludeGst,
         fssaiLicense,
         requestBody.fssaiLicense !== undefined,

@@ -130,6 +130,36 @@ describe('generateTableBillHtml', () => {
     expect(html).toContain('&quot;&gt;&lt;img src=x&gt;');
   });
 
+  it('GST off (no gstRate): no CGST/SGST; grand equals post-discount total; GSTIN/FSSAI still print', () => {
+    const html = generateTableBillHtml(
+      baseDetail({
+        total: 450,
+        subtotal: 500,
+        discount_value: 50,
+        order: {
+          id: 'o1',
+          table_id: 't1',
+          status: 'open',
+          discount_percent: 10,
+          discount_amount: 0,
+        },
+        items: [],
+      }),
+      'T1',
+      'Shop',
+      { gstin: '27AABCU9603R1ZM', fssaiLicense: '12345678901234' },
+    );
+    expect(html).not.toContain('CGST');
+    expect(html).not.toContain('SGST');
+    expect(html).not.toContain('Taxable Value');
+    expect(html).not.toContain('Prices include GST');
+    expect(html).toContain('Discount');
+    expect(html).toContain('GRAND TOTAL');
+    expect(html).toContain('Rs. 450');
+    expect(html).toContain('GSTIN: 27AABCU9603R1ZM');
+    expect(html).toContain('FSSAI: 12345678901234');
+  });
+
   it('inclusive GST: shows Taxable Value, does not inflate grand past menu total', () => {
     const html = generateTableBillHtml(baseDetail({ total: 105, items: [] }), 'T1', 'Shop', {
       gstRate: 5,

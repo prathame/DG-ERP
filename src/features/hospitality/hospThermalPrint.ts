@@ -1,5 +1,5 @@
 import { api } from '../../api';
-import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
+import { isHospGstEnabled } from '../../lib/billSettingsFlags';
 import { session } from '../../lib/session';
 import type { HospOrderDetail } from './hospApi';
 
@@ -125,8 +125,9 @@ export async function loadBillHeaderMeta(): Promise<BillHeaderMeta> {
     const fssai = String(billSettings?.fssaiLicense || '').trim();
     if (fssai) meta.fssaiLicense = fssai;
     meta.pricesIncludeGst = billSettings?.hospPricesIncludeGst !== false;
+    // Restaurant GST is optional (hospChargeGst); independent of invoice showGst.
     const rate = Number(profile?.defaultGstRate);
-    if (isGstBillingEnabled(billSettings) && Number.isFinite(rate) && rate > 0) {
+    if (isHospGstEnabled(billSettings) && Number.isFinite(rate) && rate > 0) {
       meta.gstRate = rate;
     }
   } catch {

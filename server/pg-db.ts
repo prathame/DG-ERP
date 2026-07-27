@@ -465,6 +465,10 @@ export async function initSchema() {
     await client.query(
       `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_prices_include_gst BOOLEAN DEFAULT true`,
     );
+    // Hotel guest bills: GST optional (off by default for small restaurants)
+    await client.query(
+      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_charge_gst BOOLEAN DEFAULT false`,
+    );
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS fssai_license TEXT`);
 
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
