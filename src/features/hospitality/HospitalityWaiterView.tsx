@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Loader2, RefreshCw, Search } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { hospApi, type HospTable } from './hospApi';
+import { compareHospTableName, hospApi, type HospTable } from './hospApi';
 import { TableOrderDrawer } from './TableOrderDrawer';
 import {
   hospCardClass,
@@ -98,7 +98,9 @@ export function HospitalityWaiterView() {
       .sort((a, b) => {
         const byStatus = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
         if (byStatus !== 0) return byStatus;
-        return a.name.localeCompare(b.name, undefined, { numeric: true });
+        const byZone = (a.zone || '').localeCompare(b.zone || '', undefined, { sensitivity: 'base' });
+        if (byZone !== 0) return byZone;
+        return compareHospTableName(a.name, b.name);
       });
   }, [tables, filter, query]);
 
@@ -194,7 +196,7 @@ export function HospitalityWaiterView() {
 
       {filtered.length === 0 ? (
         <div className={cn(hospCardClass(shell), 'p-8 text-center', hospSubClass(shell))}>
-          {empty ? 'No tables yet' : 'No tables match'}
+          {empty ? 'No tables yet — hotel owner adds them in Menu → Tables (any numbering).' : 'No tables match'}
         </div>
       ) : (
         <ul className="space-y-2">

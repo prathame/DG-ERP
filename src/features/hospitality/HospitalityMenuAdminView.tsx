@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { hospApi, type HospMenuItem, type HospTable } from './hospApi';
+import { compareHospTablesByZoneThenName, hospApi, type HospMenuItem, type HospTable } from './hospApi';
 import {
   useHospShell,
   hospPageClass,
@@ -95,6 +95,8 @@ export function HospitalityMenuAdminView() {
     [items, activeCat],
   );
 
+  const sortedTables = useMemo(() => [...tables].sort(compareHospTablesByZoneThenName), [tables]);
+
   const catName = (id: string) => categories.find(c => c.id === id)?.name || '—';
 
   return (
@@ -103,7 +105,9 @@ export function HospitalityMenuAdminView() {
         <div>
           <p className={hospEyebrowClass(shell)}>Hospitality</p>
           <h1 className={hospTitleClass(shell)}>Menu</h1>
-          <p className={hospSubClass(shell)}>Restaurant catalog — dishes, prices, toppings, and tables</p>
+          <p className={hospSubClass(shell)}>
+            Restaurant catalog — dishes, prices, toppings, and floor tables (hotel owner sets numbering)
+          </p>
         </div>
         <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()} disabled={loading}>
           <RefreshCw size={14} className="mr-1.5" />
@@ -431,8 +435,14 @@ export function HospitalityMenuAdminView() {
 
           {tab === 'tables' && (
             <section className={cn(hospCardClass(shell), 'p-4 space-y-4')}>
-              <div className="flex justify-between items-center">
-                <h2 className="font-bold text-sm">Dining tables</h2>
+              <div className="flex flex-wrap justify-between items-start gap-3">
+                <div>
+                  <h2 className="font-bold text-sm">Dining tables</h2>
+                  <p className={cn('text-xs mt-1 max-w-md', hospSubClass(shell))}>
+                    Hotel owner sets each table’s name/number, seats, and zone. Floor and Waiter show these exactly —
+                    use any scheme (T1, A1, Window-1, Garden-2). Rename, add, or remove anytime.
+                  </p>
+                </div>
                 <button
                   type="button"
                   className={hospPrimaryBtn(shell)}
@@ -442,7 +452,7 @@ export function HospitalityMenuAdminView() {
                 </button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {tables.map(t => (
+                {sortedTables.map(t => (
                   <article key={t.id} className={cn(hospCardClass(shell), 'p-3 space-y-2')}>
                     <div className="flex justify-between items-start">
                       <div>
@@ -493,7 +503,15 @@ export function HospitalityMenuAdminView() {
                   </article>
                 ))}
               </div>
-              {!tables.length && <p className="text-sm opacity-50 text-center py-6">No tables yet</p>}
+              {!tables.length && (
+                <div className="text-center py-8 space-y-1">
+                  <p className="text-sm font-semibold opacity-70">No tables yet</p>
+                  <p className={cn('text-xs max-w-sm mx-auto', hospSubClass(shell))}>
+                    Add tables with your own numbers (e.g. T1, Garden-2). Seed demo data only creates starters — the
+                    hotel owner can rename or replace them freely.
+                  </p>
+                </div>
+              )}
             </section>
           )}
         </>
@@ -633,13 +651,14 @@ export function HospitalityMenuAdminView() {
 
       {tableForm && (
         <Modal title={tableForm.id ? 'Edit table' : 'Add table'} onClose={() => setTableForm(null)}>
-          <label className="block text-xs font-bold opacity-60 mb-1">Name</label>
+          <label className="block text-xs font-bold opacity-60 mb-1">Name / number</label>
           <input
             className={hospInputClass(shell)}
             value={tableForm.name}
             onChange={e => setTableForm({ ...tableForm, name: e.target.value })}
-            placeholder="T1"
+            placeholder="e.g. T1, A1, Window-1"
           />
+          <p className="text-[11px] opacity-50 mt-1">Shown on Floor and Waiter as typed — any numbering scheme.</p>
           <label className="block text-xs font-bold opacity-60 mb-1 mt-3">Seats</label>
           <input
             className={hospInputClass(shell)}
@@ -652,6 +671,7 @@ export function HospitalityMenuAdminView() {
             className={hospInputClass(shell)}
             value={tableForm.zone}
             onChange={e => setTableForm({ ...tableForm, zone: e.target.value })}
+            placeholder="e.g. Main, Garden, Bar"
           />
           <button
             type="button"

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { hospApi, type HospTable } from './hospApi';
+import { compareHospTablesByZoneThenName, hospApi, type HospTable } from './hospApi';
 import { TableOrderDrawer } from './TableOrderDrawer';
 import {
   hospCardClass,
@@ -65,7 +65,7 @@ export function HospitalityFloorView() {
 
   const byZone = useMemo(() => {
     const map = new Map<string, HospTable[]>();
-    for (const table of tables) {
+    for (const table of [...tables].sort(compareHospTablesByZoneThenName)) {
       const list = map.get(table.zone) || [];
       list.push(table);
       map.set(table.zone, list);
@@ -95,6 +95,7 @@ export function HospitalityFloorView() {
           <p className={hospSubClass(shell)}>
             {tables.filter(t => t.status === 'available').length} free ·{' '}
             {tables.filter(t => t.status === 'occupied').length} occupied
+            {empty ? ' · hotel owner adds tables in Menu → Tables' : ''}
           </p>
         </div>
         <div className="flex gap-2">
@@ -171,6 +172,15 @@ export function HospitalityFloorView() {
 
       {!empty && tables.length === 0 && (
         <div className={cn(hospCardClass(shell), 'p-8 text-center', hospSubClass(shell))}>No tables yet</div>
+      )}
+
+      {empty && (
+        <div className={cn(hospCardClass(shell), 'p-8 text-center space-y-2', hospSubClass(shell))}>
+          <p>No tables on the floor yet.</p>
+          <p className="text-xs opacity-80">
+            Ask the hotel owner to add tables in Menu → Tables (any names/numbers), or seed a demo floor to start.
+          </p>
+        </div>
       )}
 
       {selected && (
