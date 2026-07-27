@@ -66,6 +66,8 @@ export async function cleanupTestData(tenantId: string) {
     'user_sessions',
     'hosp_queue_entries',
     'hosp_orders',
+    'hosp_members',
+    'hosp_membership_plans',
     'hosp_menu_items',
     'hosp_menu_categories',
     'hosp_modifier_groups',

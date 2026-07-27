@@ -208,12 +208,20 @@ router.post('/api/hospitality/menu-items', blockVendors, async (req: AuthRequest
     const description = String(req.body?.description || '').trim();
     const price = Number(req.body?.price);
     const available = req.body?.available !== false;
+    const memberPriceRaw = req.body?.memberPrice ?? req.body?.member_price;
+    const memberPrice =
+      memberPriceRaw === null || memberPriceRaw === undefined || memberPriceRaw === ''
+        ? null
+        : Number(memberPriceRaw);
     const modifierGroupIds = Array.isArray(req.body?.modifierGroupIds)
       ? (req.body.modifierGroupIds as unknown[]).map(String)
       : [];
     if (!name) return res.status(400).json({ error: 'Item name is required' });
     if (!categoryId) return res.status(400).json({ error: 'Category is required' });
     if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: 'Valid price is required' });
+    if (memberPrice != null && (!Number.isFinite(memberPrice) || memberPrice < 0)) {
+      return res.status(400).json({ error: 'Valid member price is required' });
+    }
     const cat = (
       await pool.query(`SELECT id FROM hosp_menu_categories WHERE id = $1 AND tenant_id = $2`, [categoryId, tenantId])
     ).rows[0];
@@ -223,9 +231,9 @@ router.post('/api/hospitality/menu-items', blockVendors, async (req: AuthRequest
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO hosp_menu_items (id, tenant_id, category_id, name, description, price, available)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [id, tenantId, categoryId, name, description, price, available],
+        `INSERT INTO hosp_menu_items (id, tenant_id, category_id, name, description, price, available, member_price)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [id, tenantId, categoryId, name, description, price, available, memberPrice],
       );
       for (const gid of modifierGroupIds) {
         const g = (
@@ -261,12 +269,20 @@ router.put('/api/hospitality/menu-items/:id', blockVendors, async (req: AuthRequ
     const description = String(req.body?.description || '').trim();
     const price = Number(req.body?.price);
     const available = req.body?.available !== false;
+    const memberPriceRaw = req.body?.memberPrice ?? req.body?.member_price;
+    const memberPrice =
+      memberPriceRaw === null || memberPriceRaw === undefined || memberPriceRaw === ''
+        ? null
+        : Number(memberPriceRaw);
     const modifierGroupIds = Array.isArray(req.body?.modifierGroupIds)
       ? (req.body.modifierGroupIds as unknown[]).map(String)
       : null;
     if (!name) return res.status(400).json({ error: 'Item name is required' });
     if (!categoryId) return res.status(400).json({ error: 'Category is required' });
     if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: 'Valid price is required' });
+    if (memberPrice != null && (!Number.isFinite(memberPrice) || memberPrice < 0)) {
+      return res.status(400).json({ error: 'Valid member price is required' });
+    }
     const cat = (
       await pool.query(`SELECT id FROM hosp_menu_categories WHERE id = $1 AND tenant_id = $2`, [categoryId, tenantId])
     ).rows[0];
@@ -275,9 +291,10 @@ router.put('/api/hospitality/menu-items/:id', blockVendors, async (req: AuthRequ
     try {
       await client.query('BEGIN');
       const result = await client.query(
-        `UPDATE hosp_menu_items SET category_id = $1, name = $2, description = $3, price = $4, available = $5
-         WHERE id = $6 AND tenant_id = $7`,
-        [categoryId, name, description, price, available, req.params.id, tenantId],
+        `UPDATE hosp_menu_items
+         SET category_id = $1, name = $2, description = $3, price = $4, available = $5, member_price = $6
+         WHERE id = $7 AND tenant_id = $8`,
+        [categoryId, name, description, price, available, memberPrice, req.params.id, tenantId],
       );
       if (!result.rowCount) {
         await client.query('ROLLBACK');

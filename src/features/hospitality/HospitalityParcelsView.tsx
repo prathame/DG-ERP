@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { hospApi, type HospMenuItem, type HospOrderDetail, type HospParcel } from './hospApi';
+import { OrderMemberDiscountPanel } from './OrderMemberDiscountPanel';
 import {
   hospCardClass,
   hospChipActive,
@@ -204,6 +205,12 @@ export function HospitalityParcelsView() {
                 </div>
                 <p className="text-lg font-bold">₹{detail.total.toLocaleString('en-IN')}</p>
               </div>
+
+              <OrderMemberDiscountPanel
+                detail={detail}
+                onDetail={setDetail}
+                disabled={detail.order.status !== 'open'}
+              />
 
               <ul className="divide-y divide-black/5">
                 {detail.items.map(it => (

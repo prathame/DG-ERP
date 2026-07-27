@@ -40,6 +40,7 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_queue: { label: 'Entry Queue', visible: false },
   hosp_menu: { label: 'Menu & Tables', visible: false },
   hosp_parcels: { label: 'Parcels', visible: false },
+  hosp_members: { label: 'Members', visible: false },
   ...overrides,
 });
 
@@ -103,6 +104,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     hosp_queue: { label: 'Entry Queue', visible: true },
     hosp_parcels: { label: 'Parcels', visible: true },
     hosp_menu: { label: 'Menu', visible: true },
+    hosp_members: { label: 'Members', visible: true },
   }),
 };
 

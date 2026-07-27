@@ -22,7 +22,8 @@ export type Tab =
   | 'hosp_kitchen'
   | 'hosp_queue'
   | 'hosp_menu'
-  | 'hosp_parcels';
+  | 'hosp_parcels'
+  | 'hosp_members';
 
 export interface Product {
   id: string;
@@ -172,4 +173,11 @@ export interface BillSettings {
   footerText: string;
   /** Invoice / tax-invoice PDF layout style */
   invoiceTemplateStyle: InvoiceTemplateStyle;
+  /**
+   * Hotel/restaurant thermal guest bill: menu prices include GST (break out CGST/SGST)
+   * vs exclude GST (add CGST/SGST on subtotal). Default true for India restaurants.
+   */
+  hospPricesIncludeGst?: boolean;
+  /** FSSAI license number printed on hospitality guest bills when set. */
+  fssaiLicense?: string | null;
 }

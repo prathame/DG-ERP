@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -28,6 +27,8 @@ const DEFAULTS = {
   showHsnSac: true, // deprecated alias of showGst
   footerText: 'Powered by Dhandho Management',
   invoiceTemplateStyle: 'modern' as const,
+  hospPricesIncludeGst: true,
+  fssaiLicense: null as string | null,
 };
 
 /** Prefer showGst; legacy clients still send showHsnSac. */
@@ -39,6 +40,11 @@ function resolveShowGst(body: Record<string, unknown>, fallback = true): boolean
 
 function normalizeInvoiceTemplateStyle(v: unknown): 'modern' | 'classic' | 'minimal' {
   return v === 'classic' || v === 'minimal' || v === 'modern' ? v : 'modern';
+}
+
+function normalizeFssai(v: unknown): string | null {
+  const s = String(v ?? '').trim();
+  return s || null;
 }
 
 function rowToResponse(row: Record<string, unknown>) {
@@ -66,6 +72,8 @@ function rowToResponse(row: Record<string, unknown>) {
     showHsnSac: row.show_hsn_sac !== false,
     footerText: (row.footer_text as string) || 'Powered by Dhandho Management',
     invoiceTemplateStyle: normalizeInvoiceTemplateStyle(row.invoice_template_style),
+    hospPricesIncludeGst: row.hosp_prices_include_gst !== false,
+    fssaiLicense: (row.fssai_license as string) || null,
   };
 }
 
@@ -136,8 +144,15 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     if (requestBody.termsAndConditions && requestBody.termsAndConditions.length > 2000) {
       return res.status(400).json({ error: 'Terms & Conditions max 2000 characters' });
     }
+    if (requestBody.fssaiLicense != null && String(requestBody.fssaiLicense).length > 64) {
+      return res.status(400).json({ error: 'FSSAI license max 64 characters' });
+    }
 
     const invoiceTemplateStyle = normalizeInvoiceTemplateStyle(requestBody.invoiceTemplateStyle);
+    const hospPricesIncludeGst =
+      typeof requestBody.hospPricesIncludeGst === 'boolean' ? requestBody.hospPricesIncludeGst : true;
+    const fssaiLicense =
+      requestBody.fssaiLicense !== undefined ? normalizeFssai(requestBody.fssaiLicense) : null;
 
     const { rows } = await pool.query(
       `
@@ -146,15 +161,19 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         invoice_prefix, challan_prefix,
         bank_account_name, bank_account_number, bank_name, bank_branch, bank_ifsc, bank_upi_id,
         terms_and_conditions, signatory_name, signatory_designation, signature_base64,
-        show_rewards, show_barcode, show_warranty, show_hsn_sac, footer_text, invoice_template_style, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22, NOW())
+        show_rewards, show_barcode, show_warranty, show_hsn_sac, footer_text, invoice_template_style,
+        hosp_prices_include_gst, fssai_license, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24, NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         logo_base64 = $2, primary_color = $3, tagline = $4,
         invoice_prefix = $5, challan_prefix = $6,
         bank_account_name = $7, bank_account_number = $8, bank_name = $9, bank_branch = $10, bank_ifsc = $11, bank_upi_id = $12,
         terms_and_conditions = $13, signatory_name = $14, signatory_designation = $15, signature_base64 = $16,
         show_rewards = $17, show_barcode = $18, show_warranty = $19, show_hsn_sac = $20, footer_text = $21,
-        invoice_template_style = $22, updated_at = NOW()
+        invoice_template_style = $22,
+        hosp_prices_include_gst = $23,
+        fssai_license = CASE WHEN $25::boolean THEN $24 ELSE bill_settings.fssai_license END,
+        updated_at = NOW()
       RETURNING *
     `,
       [
@@ -180,6 +199,9 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         resolveShowGst(requestBody, true),
         requestBody.footerText || 'Powered by Dhandho Management',
         invoiceTemplateStyle,
+        hospPricesIncludeGst,
+        fssaiLicense,
+        requestBody.fssaiLicense !== undefined,
       ],
     );
 

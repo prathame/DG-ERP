@@ -47,6 +47,7 @@ export function HospitalityMenuAdminView() {
     name: string;
     categoryId: string;
     price: string;
+    memberPrice: string;
     description: string;
     available: boolean;
     modifierGroupIds: string[];
@@ -225,6 +226,7 @@ export function HospitalityMenuAdminView() {
                         name: '',
                         categoryId: activeCat !== 'all' ? activeCat : categories[0]?.id || '',
                         price: '',
+                        memberPrice: '',
                         description: '',
                         available: true,
                         modifierGroupIds: [],
@@ -270,6 +272,7 @@ export function HospitalityMenuAdminView() {
                               name: it.name,
                               categoryId: it.category_id,
                               price: String(it.price),
+                              memberPrice: it.member_price != null ? String(it.member_price) : '',
                               description: it.description || '',
                               available: it.available !== false,
                               modifierGroupIds: (it.modifierGroups || []).map(g => g.id),
@@ -544,6 +547,14 @@ export function HospitalityMenuAdminView() {
             value={itemForm.price}
             onChange={e => setItemForm({ ...itemForm, price: e.target.value })}
           />
+          <label className="block text-xs font-bold opacity-60 mb-1 mt-3">Member price (₹, optional)</label>
+          <input
+            className={hospInputClass(shell)}
+            inputMode="decimal"
+            value={itemForm.memberPrice}
+            onChange={e => setItemForm({ ...itemForm, memberPrice: e.target.value })}
+            placeholder="Leave blank to use plan % off"
+          />
           <label className="block text-xs font-bold opacity-60 mb-1 mt-3">Description</label>
           <input
             className={hospInputClass(shell)}
@@ -589,10 +600,18 @@ export function HospitalityMenuAdminView() {
                 toast('Name, category, and valid price are required', 'error');
                 return;
               }
+              const memberPriceRaw = itemForm.memberPrice.trim();
+              const memberPrice =
+                memberPriceRaw === '' ? null : Number(memberPriceRaw);
+              if (memberPrice != null && (!Number.isFinite(memberPrice) || memberPrice < 0)) {
+                toast('Member price must be a valid amount', 'error');
+                return;
+              }
               const body = {
                 name: itemForm.name.trim(),
                 categoryId: itemForm.categoryId,
                 price,
+                memberPrice,
                 description: itemForm.description,
                 available: itemForm.available,
                 modifierGroupIds: itemForm.modifierGroupIds,
