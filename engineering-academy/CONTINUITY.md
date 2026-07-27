@@ -15,34 +15,27 @@ This academy is designed to grow incrementally without losing the curriculum map
 | Diagrams | `diagrams/*.mmd` |
 | Generators | `scripts/generate-file-deepdives.mjs`, `scripts/ensure-stubs.mjs`, `scripts/enrich-stubs.mjs` |
 
-## Recently updated (product sync)
+## Recently completed (gap close-out)
 
-### 2026-07 — Hospitality + landing refresh (PR #172 era)
-
-Synced academy with `hotel_restaurant` and broader named-type drift:
-
-- Landing (`docs/intro.md`): business types, verticals card, Cap Online vs Service phone surfaces
-- `overview/product-domain` — type #6 Hotel / Restaurant + hospitality module row
-- `frontend/features-catalog` — Hospitality module + archetype list
-- `api/hospitality.md` (new) + `api/overview` + sidebar
-- `architecture/business-workflows` — Workflow 7; `design-decisions` — one-app-per-shell stance
-- `database/tenant-tables` — `hosp_*`; `schema-overview` / `testing/e2e` type lists
-- `backend/permissions` — 14th module `hospitality` + tab-id vs module-key tip
-
-### Earlier
-
-Party-linked standalone invoices + Invoice Finance `partyKey` + price-list bulk/PDF (PR #68): curated chapters in `overview/product-domain`, `frontend/features-catalog`, `api/finance-accounts`, `architecture/business-workflows` (workflows 5–6), `database/tenant-tables` + `erd`, `testing/api-integration`, `glossary/domain-terms`. Re-run `npm run generate:files` after pulling route changes.
-
-## Still missing / worth a follow-up (not blocking)
-
-| Gap | Notes |
+| Gap | Resolution |
 |---|---|
-| Product marketing `LandingPage.tsx` | Still lists only Retail / Dealer / Manufacturer / Service — no Silver Casting or Hotel cards (marketing, not academy) |
-| App Finance branch for hotels | `businessTypeConfig.financeView: 'invoice'` but `App.tsx` only swaps Invoice Finance for `service` — document/fix separately |
-| `tabAccess` ↔ `hospitality` module map | Documented tip; code fix optional |
-| Generated file deep-dives | Re-run `npm run generate:files` so `hospitality.ts` / `hospitalitySeed.ts` appear under `/files/generated` |
-| Glossary / quizzes | No hospitality terms or quiz questions yet |
-| Python E2E (`e2e_by_type.py`) | Still framed around 4 goods/service types; silver/hotel are Vitest/API-first |
+| Marketing landing missing Silver / Hotel | `LandingPage.tsx` TYPES + FEATURES updated; 3-col grid |
+| Hotel Finance showed Vendor Finance | `App.tsx` uses `InvoiceFinanceView` for `hotel_restaurant` (and `service` / service phone UX) |
+| `tabAccess` vs `hospitality` module | `resolveTabAccess` maps `hospitality` → `hosp_*`; unit tests added |
+| Hospitality glossary / quiz | `glossary/domain-terms` + `quizzes/quiz-hospitality` + sidebar |
+| Hospitality deep-dives | Generated pages under `docs/files/generated/*hospitality*` |
+| Python E2E | `tests/e2e_by_type.py` adds `hotel_restaurant` suite |
+
+### 2026-07 — Hospitality academy sync (earlier)
+
+Landing, product-domain, features-catalog, `api/hospitality.md`, workflow 7, permissions docs, tenant-tables, design-decisions / business-goals.
+
+## Optional follow-ups
+
+| Item | Notes |
+|---|---|
+| Full `generate:files` index refresh | Large churn; hospitality deep-dives already committed individually |
+| Marketing hero copy | Still goods-centric tagline; optional broaden later |
 
 ## How to continue in a new chat
 

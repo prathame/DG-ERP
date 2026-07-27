@@ -106,7 +106,7 @@ Hospitality vertical on the **same** Express + Postgres tenant — not a separat
 | Aspect | Value |
 |---|---|
 | Vendor label | "Guests" (UI copy; guest flow is queue + tables, not the goods vendor ledger) |
-| Finance view | `invoice` (configured; App Finance branch still needs care — goods Vendor Finance is wrong for pure hotels) |
+| Finance view | `invoice` (`App.tsx` renders `InvoiceFinanceView` for `hotel_restaurant`) |
 | Feature flags | `hospitality: true`; inventory / distribution / barcodes / warranty / rewards ❌ |
 | Tabs | `hosp_floor`, `hosp_waiter`, `hosp_kitchen`, `hosp_queue` visible; supply-chain tabs hidden by preset |
 

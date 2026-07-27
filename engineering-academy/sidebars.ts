@@ -260,6 +260,7 @@ const sidebars: SidebarsConfig = {
         'quizzes/quiz-security',
         'quizzes/quiz-database',
         'quizzes/quiz-frontend',
+        'quizzes/quiz-hospitality',
       ],
     },
     {

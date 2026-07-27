@@ -1744,8 +1744,10 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'invoices' && <InvoicesView />}
                     {canAccess(activeTab) &&
                       activeTab === 'finance' &&
-                      // Offline Mobile is always service; also honor businessType so Finance never opens Vendor Finance offline
-                      (servicePhoneUx || (userConfig?.businessType as string) === 'service' ? (
+                      // Offline Mobile / service phone UX always invoice finance; also hotel_restaurant (financeView: invoice)
+                      (servicePhoneUx ||
+                      (userConfig?.businessType as string) === 'service' ||
+                      (userConfig?.businessType as string) === 'hotel_restaurant' ? (
                         <InvoiceFinanceView accessLevel={getAccess('finance')} />
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />

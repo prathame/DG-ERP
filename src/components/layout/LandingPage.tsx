@@ -31,6 +31,8 @@ import {
   Factory,
   Warehouse,
   Briefcase,
+  Scale,
+  UtensilsCrossed,
   Zap,
   Shield,
   Globe,
@@ -414,6 +416,35 @@ export function LandingPage() {
         L('Accounts', 'Accounts', 'Accounts', 'Accounts'),
       ],
     },
+    {
+      icon: Scale,
+      title: L('Silver Casting', 'सिल्वर कास्टिंग', 'સિલ્વર કાસ્ટિંગ', 'सिल्व्हर कास्टिंग'),
+      color: 'from-amber-500/20 to-amber-500/5',
+      dot: 'bg-amber-500',
+      items: [
+        L('Metal intake & weigh', 'धातु वजन / intake', 'ધાતુ વજન / intake', 'धातू वजन / intake'),
+        L('Jewellery tags', 'ज्वेलरी tags', 'જ્વેલરી tags', 'ज्वेलरी tags'),
+        L('Rate × weight sale', 'Rate × weight sale', 'Rate × weight sale', 'Rate × weight sale'),
+        L('Fine metal ledger', 'Fine metal ledger', 'Fine metal ledger', 'Fine metal ledger'),
+      ],
+    },
+    {
+      icon: UtensilsCrossed,
+      title: L('Hotel / Restaurant', 'होटल / रेस्टोरेंट', 'હોટલ / રેસ્ટોરન્ટ', 'हॉटेल / रेस्टॉरंट'),
+      color: 'from-rose-500/20 to-rose-500/5',
+      dot: 'bg-rose-500',
+      items: [
+        L('Floor & table tiles', 'फ्लोर / टेबल', 'ફ્લોર / ટેબલ', 'फ्लोअर / टेबल'),
+        L(
+          'Waiter orders + toppings',
+          'Waiter orders + toppings',
+          'Waiter orders + toppings',
+          'Waiter orders + toppings',
+        ),
+        L('Kitchen KOT board', 'Kitchen KOT', 'Kitchen KOT', 'Kitchen KOT'),
+        L('Entry queue (FIFO)', 'Entry queue (FIFO)', 'Entry queue (FIFO)', 'Entry queue (FIFO)'),
+      ],
+    },
   ];
 
   const FEATURES = [
@@ -505,6 +536,24 @@ export function LandingPage() {
         'Customer reward points, QR redemption, serial-linked warranty with expiry alerts',
         'Customer reward points, QR redemption, warranty with expiry alerts',
         'Customer reward points, QR redemption, warranty with expiry alerts',
+      ),
+    },
+    {
+      icon: Scale,
+      title: L('Metal Stock', 'मेटल स्टॉक', 'મેટલ સ્ટોક'),
+      desc: L(
+        'Silver casting weigh-to-barcode intake, jewellery tags, weight-based sales, fine ledger',
+        'Silver casting weigh-to-barcode, jewellery tags, fine ledger',
+        'Silver casting weigh-to-barcode, jewellery tags, fine ledger',
+      ),
+    },
+    {
+      icon: UtensilsCrossed,
+      title: L('Hospitality', 'हॉस्पिटैलिटी', 'હોસ્પિટાલિટી'),
+      desc: L(
+        'Hotel/restaurant floor tiles, waiter orders with modifiers, kitchen KOT, entry queue',
+        'Floor, waiter orders, kitchen KOT, entry queue',
+        'Floor, waiter orders, kitchen KOT, entry queue',
       ),
     },
     {
@@ -850,7 +899,7 @@ export function LandingPage() {
               )}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {TYPES.map((t, i) => (
               <motion.div
                 key={t.title}

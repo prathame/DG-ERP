@@ -33,4 +33,26 @@ describe('resolveTabAccess', () => {
   it('denies when user is missing', () => {
     expect(resolveTabAccess('analytics', null)).toBe('hidden');
   });
+
+  it('maps hospitality module permission onto hosp_* tabs', () => {
+    const user = { role: 'Staff', permissions: { hospitality: 'full', inventory: 'view' } };
+    expect(resolveTabAccess('hosp_floor', user)).toBe('full');
+    expect(resolveTabAccess('hosp_waiter', user)).toBe('full');
+    expect(resolveTabAccess('hosp_kitchen', user)).toBe('full');
+    expect(resolveTabAccess('hosp_queue', user)).toBe('full');
+    expect(resolveTabAccess('inventory', user)).toBe('view');
+    expect(resolveTabAccess('masters', user)).toBe('hidden');
+  });
+
+  it('legacy permission arrays treat hospitality as full for hosp_* tabs', () => {
+    const user = { role: 'Staff', permissions: ['hospitality', 'dashboard'] };
+    expect(resolveTabAccess('hosp_floor', user)).toBe('full');
+    expect(resolveTabAccess('analytics', user)).toBe('full');
+    expect(resolveTabAccess('inventory', user)).toBe('hidden');
+  });
+
+  it('Staff role defaults grant full hospitality tabs when permissions unset', () => {
+    expect(resolveTabAccess('hosp_kitchen', { role: 'Staff', permissions: null })).toBe('full');
+    expect(resolveTabAccess('inventory', { role: 'Staff', permissions: null })).toBe('view');
+  });
 });

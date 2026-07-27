@@ -32,7 +32,7 @@ const ALL_MODULES = [
 Notice this list doesn't 1:1 match the route files or the frontend's `tab_config` keys exactly — several routes map to the *same* module (see the path table below). Modules are a **coarser** grouping than routes, deliberately, because permission granularity at the route level would be unmanageable for a small admin-configured permissions UI.
 
 :::tip Hospitality vs `hosp_*` tabs
-API RBAC uses the module key **`hospitality`**. Nav tab ids are **`hosp_floor` / `hosp_waiter` / `hosp_kitchen` / `hosp_queue`**. `resolveTabAccess` looks up the **tab id** in the permissions map (with role defaults for empty maps). A Cap Online / admin map that only sets `{ hospitality: 'full' }` does **not** unlock those tabs unless you also grant the `hosp_*` keys (or leave permissions empty so Staff/Admin role defaults apply). Staff role presets give hospitality API `full` and role-default tab access for `hosp_*`.
+API RBAC uses the module key **`hospitality`**. Nav tab ids are **`hosp_floor` / `hosp_waiter` / `hosp_kitchen` / `hosp_queue`**. `resolveTabAccess` (`src/lib/tabAccess.ts`) falls back to `map.hospitality` for any `hosp_*` tab, so Cap Online / admin grants of `{ hospitality: 'full' }` unlock Floor/Waiter/Kitchen/Queue. Staff role presets also give hospitality API `full` and role-default full access for `hosp_*` when permissions are unset.
 :::
 
 ## 3. Role presets — the default, before any custom override
