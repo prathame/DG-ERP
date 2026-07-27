@@ -67,10 +67,15 @@ describe('HTTP Hospitality', () => {
   });
 
   it('rejects hospitality APIs for non-hotel tenants', async () => {
-    const res = await api()
-      .get('/api/hospitality/tables')
-      .set(authHeaders(token(MFG_TENANT, MFG_USER), MFG_TENANT));
+    const headers = authHeaders(token(MFG_TENANT, MFG_USER), MFG_TENANT);
+    const res = await api().get('/api/hospitality/tables').set(headers);
     expect(res.status).toBe(403);
+
+    const catalog = await api().post('/api/hospitality/menu-categories').set(headers).send({ name: 'Nope' });
+    expect(catalog.status).toBe(403);
+
+    const parcels = await api().post('/api/hospitality/parcels').set(headers).send({ customerName: 'X' });
+    expect(parcels.status).toBe(403);
   });
 
   it('covers order lifecycle: open → add item → kitchen → bill → close → clear', async () => {
@@ -221,6 +226,28 @@ describe('HTTP Hospitality', () => {
     expect(delCat.status).toBe(200);
     const delTable = await api().delete(`/api/hospitality/tables/${tableId}`).set(headers);
     expect(delTable.status).toBe(200);
+  });
+
+  it('rejects DELETE table while an open order exists', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+
+    const table = await api()
+      .post('/api/hospitality/tables')
+      .set(headers)
+      .send({ name: 'Busy-Del-T', seats: 2, zone: 'Test' });
+    expect(table.status).toBe(201);
+    const tableId = table.body.table.id as string;
+
+    const open = await api().post(`/api/hospitality/tables/${tableId}/open`).set(headers).send({});
+    expect(open.status).toBe(200);
+
+    const blocked = await api().delete(`/api/hospitality/tables/${tableId}`).set(headers);
+    expect(blocked.status).toBe(400);
+    expect(String(blocked.body.error || '')).toMatch(/open order/i);
+
+    const close = await api().post(`/api/hospitality/orders/${open.body.order.id}/close`).set(headers).send({});
+    expect(close.status).toBe(200);
+    await api().post(`/api/hospitality/tables/${tableId}/clear`).set(headers).send({});
   });
 
   it('parcel lifecycle: create → add item → kitchen label → bill → close', async () => {
