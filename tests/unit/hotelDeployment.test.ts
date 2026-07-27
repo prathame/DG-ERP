@@ -20,6 +20,10 @@ describe('hotelDeployment', () => {
     expect(resolveHotelDeployment('retail', 'cloud')).toBe(null);
   });
 
+  it('rejects invalid hotel deployment strings', () => {
+    expect(() => resolveHotelDeployment('hotel_restaurant', 'saas')).toThrow(/hotelDeployment/);
+  });
+
   it('requires postgres URL only for byo_db', () => {
     expect(resolveHotelDatabaseUrl('cloud', undefined)).toBe(null);
     expect(resolveHotelDatabaseUrl('local_server', 'postgresql://x')).toBe(null);
