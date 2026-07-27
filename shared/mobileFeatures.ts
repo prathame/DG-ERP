@@ -141,6 +141,11 @@ export function normalizeMobileFeatures(raw: unknown, businessType?: string | nu
   for (const key of MOBILE_FEATURE_KEYS) {
     if (typeof obj[key] === 'boolean') out[key] = obj[key];
   }
+  // Hotel Cap: never grant Masters — hospitality Menu + Settings Users cover that IA.
+  // Clears stale mobile_features.masters:true from older grants.
+  if (businessType === 'hotel_restaurant') {
+    out.masters = false;
+  }
   return out;
 }
 

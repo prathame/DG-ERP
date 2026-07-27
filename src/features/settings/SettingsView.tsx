@@ -728,7 +728,9 @@ function BillCustomizationSection() {
             </div>
           ) : (
             <p className="text-sm text-gray-400">
-              No banks added yet. Go to Dashboard → Banks to add bank accounts first.
+              {isHospitality
+                ? 'No banks added yet. Enable Masters in Super Admin to add bank accounts (hotel Masters shows Banks + Staff only).'
+                : 'No banks added yet. Go to Dashboard → Banks to add bank accounts first.'}
             </p>
           )}
         </div>
@@ -829,8 +831,8 @@ function BillCustomizationSection() {
                   <div>
                     <p className="font-medium text-sm">Charge GST on restaurant bills</p>
                     <p className="text-xs text-gray-500">
-                      Off by default for simple guest bills (no CGST/SGST). Turn on to print tax on thermal
-                      receipts. Separate from invoice GST above.
+                      Off by default for simple guest bills (no CGST/SGST). Turn on to print tax on thermal receipts.
+                      Separate from invoice GST above.
                     </p>
                   </div>
                   <button
@@ -856,8 +858,7 @@ function BillCustomizationSection() {
                     <p className="font-medium text-sm mb-1">Restaurant menu prices</p>
                     <p className="text-xs text-gray-500 mb-2">
                       Tax-inclusive (common in India): menu rates already include GST — the guest bill breaks out
-                      taxable value + CGST/SGST without adding tax again. Tax-exclusive: GST is added on the
-                      subtotal.
+                      taxable value + CGST/SGST without adding tax again. Tax-exclusive: GST is added on the subtotal.
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -889,7 +890,9 @@ function BillCustomizationSection() {
                 )}
                 <div>
                   <label className="font-medium text-sm block mb-1">FSSAI license (guest bill)</label>
-                  <p className="text-xs text-gray-500 mb-2">Printed on thermal guest bills when set. Leave blank to hide.</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Printed on thermal guest bills when set. Leave blank to hide.
+                  </p>
                   <input
                     value={form.fssaiLicense ?? ''}
                     onChange={e => setForm(p => ({ ...p, fssaiLicense: e.target.value }))}

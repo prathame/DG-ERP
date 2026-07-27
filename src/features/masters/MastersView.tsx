@@ -26,6 +26,11 @@ import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptySt
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { DesktopMastersHub } from './DesktopMastersHub';
 import { MobileMastersHub } from './MobileMastersHub';
+import {
+  filterMastersForBusinessType,
+  isHotelRestaurantBusiness,
+  isMasterAllowedForHotel,
+} from '../../../shared/hotelMasters';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -142,6 +147,13 @@ export function MastersView({
   useEffect(() => {
     if (!launch?.master) return;
     const master = launch.master;
+    const biz = businessType ?? cfg.type;
+    // Hotel: only bank / staff are safe; everything else → Settings (Users / bill setup).
+    if (isHotelRestaurantBusiness(biz) && !isMasterAllowedForHotel(master)) {
+      setActiveTab('settings');
+      onLaunchConsumed?.();
+      return;
+    }
     if (master === 'item' && !servicePhoneUx) {
       setActiveTab('inventory');
       onLaunchConsumed?.();
@@ -169,7 +181,7 @@ export function MastersView({
       setSelectedMaster(master);
     }
     onLaunchConsumed?.();
-  }, [launch, servicePhoneUx, setActiveTab, onLaunchConsumed]);
+  }, [launch, servicePhoneUx, setActiveTab, onLaunchConsumed, businessType, cfg.type]);
 
   // Service phone UX: no stock Products pill — Price List (Catalog + Clients) is the sellable catalog.
   const productsMaster = !servicePhoneUx
@@ -272,8 +284,21 @@ export function MastersView({
         ]
       : []),
   ];
-  const masters = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
+  const roleFiltered = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
+  const masters = filterMastersForBusinessType(roleFiltered, businessType ?? cfg.type);
   const masterIdsKey = masters.map(m => m.id).join(',');
+
+  // Hotel deep-link / stale state: close disallowed detail panes.
+  useEffect(() => {
+    if (!selectedMaster) return;
+    if (!isHotelRestaurantBusiness(businessType ?? cfg.type)) return;
+    if (!isMasterAllowedForHotel(selectedMaster)) {
+      setSelectedMaster(null);
+      setFocusStaffId(null);
+      setFocusStaffName(null);
+      setFocusVendorId(null);
+    }
+  }, [selectedMaster, businessType, cfg.type]);
 
   // Sync: never treat a removed pill (e.g. Products Offline) as active — avoids first-paint crash
   // before the repair effect runs (HMR / preserved state after af26121).

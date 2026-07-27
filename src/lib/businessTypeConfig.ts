@@ -250,7 +250,8 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
   hotel_restaurant: {
     type: 'hotel_restaurant',
     labels: {
-      vendors: 'Guests',
+      // Invoice / party label — not dining “guests” (those live on hosp orders / queue).
+      vendors: 'Clients',
       distribution: 'Distribution',
       finance: 'Invoice Finance',
       purchaseCost: 'Purchase Cost',

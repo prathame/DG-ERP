@@ -37,6 +37,8 @@ export function CommandPalette({
   inventoryVisible = true,
   distributionVisible = true,
   serviceMobile = false,
+  businessType,
+  mastersVisible = true,
 }: {
   items: PaletteItem[];
   /** Page / nav tab select (existing behavior). */
@@ -47,6 +49,8 @@ export function CommandPalette({
   inventoryVisible?: boolean;
   distributionVisible?: boolean;
   serviceMobile?: boolean;
+  businessType?: string | null;
+  mastersVisible?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
@@ -84,6 +88,8 @@ export function CommandPalette({
             inventoryVisible,
             distributionVisible,
             serviceMobile,
+            businessType,
+            mastersVisible,
           }),
         });
       };

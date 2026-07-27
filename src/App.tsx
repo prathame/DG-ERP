@@ -1876,6 +1876,8 @@ export default function App() {
               inventoryVisible={tv('inventory')}
               distributionVisible={tv('distribution')}
               serviceMobile={servicePhoneUx}
+              businessType={(userConfig?.businessType as string) || undefined}
+              mastersVisible={tv('masters')}
             />
           </Suspense>
         )}
