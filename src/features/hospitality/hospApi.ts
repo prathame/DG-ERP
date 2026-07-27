@@ -28,6 +28,7 @@ export type HospMenuItem = {
   name: string;
   description: string;
   price: number;
+  member_price?: number | null;
   available?: boolean;
   modifierGroups: Array<{
     id: string;
@@ -36,6 +37,16 @@ export type HospMenuItem = {
     maxSelect: number;
     modifiers: Array<{ id: string; name: string; price_delta: number }>;
   }>;
+};
+
+export type HospMemberSummary = {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  plan_name?: string;
+  currently_active?: boolean;
+  valid_until?: string;
 };
 
 export type HospOrderDetail = {
@@ -47,6 +58,9 @@ export type HospOrderDetail = {
     customer_name?: string;
     customer_phone?: string;
     token?: string | null;
+    member_id?: string | null;
+    discount_percent?: number;
+    discount_amount?: number;
   };
   items: Array<{
     id: string;
@@ -58,9 +72,15 @@ export type HospOrderDetail = {
     modifiers: Array<{ name: string; price_delta: number }>;
     lineTotal: number;
   }>;
+  /** Sum of line totals before order discount */
+  subtotal?: number;
+  /** Computed order discount (₹) */
+  discount_value?: number;
+  /** Payable after order discount (before GST) */
   total: number;
   table: { id: string; name: string; seats: number; status: string; zone: string } | null;
   label?: string | null;
+  member?: HospMemberSummary | null;
 };
 
 export type HospParcel = {
@@ -75,6 +95,32 @@ export type HospParcel = {
   created_at?: string;
 };
 
+export type HospMembershipPlan = {
+  id: string;
+  name: string;
+  period: 'monthly' | 'yearly';
+  fee: number;
+  discount_percent: number;
+  use_member_prices: boolean;
+  active: boolean;
+};
+
+export type HospMember = {
+  id: string;
+  name: string;
+  phone: string;
+  plan_id: string;
+  status: 'active' | 'expired' | 'cancelled';
+  valid_from: string;
+  valid_until: string;
+  plan_name?: string;
+  period?: string;
+  fee?: number;
+  discount_percent?: number;
+  use_member_prices?: boolean;
+  currently_active?: boolean;
+};
+
 export const hospApi = {
   tables: () => fetchApi<{ tables: HospTable[] }>('/hospitality/tables'),
   menu: () => fetchApi<{ categories: Array<{ id: string; name: string }>; items: HospMenuItem[] }>('/hospitality/menu'),
@@ -83,6 +129,16 @@ export const hospApi = {
   addItem: (orderId: string, body: { menuItemId: string; qty: number; notes?: string; modifierIds?: string[] }) =>
     fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/items`, {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  setOrderMember: (orderId: string, memberId: string | null) =>
+    fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/member`, {
+      method: 'PUT',
+      body: JSON.stringify({ memberId }),
+    }),
+  setOrderDiscount: (orderId: string, body: { discountPercent: number; discountAmount: number }) =>
+    fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/discount`, {
+      method: 'PUT',
       body: JSON.stringify(body),
     }),
   bill: (orderId: string) =>
@@ -126,6 +182,60 @@ export const hospApi = {
     }),
   order: (id: string) => fetchApi<HospOrderDetail>(`/hospitality/orders/${id}`),
 
+  // Membership
+  membershipPlans: () => fetchApi<{ plans: HospMembershipPlan[] }>('/hospitality/membership-plans'),
+  createPlan: (body: {
+    name: string;
+    period: 'monthly' | 'yearly';
+    fee: number;
+    discountPercent: number;
+    useMemberPrices: boolean;
+    active?: boolean;
+  }) =>
+    fetchApi<{ plan: HospMembershipPlan }>('/hospitality/membership-plans', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updatePlan: (
+    id: string,
+    body: {
+      name: string;
+      period: 'monthly' | 'yearly';
+      fee: number;
+      discountPercent: number;
+      useMemberPrices: boolean;
+      active?: boolean;
+    },
+  ) =>
+    fetchApi<{ plan: HospMembershipPlan }>(`/hospitality/membership-plans/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deletePlan: (id: string) =>
+    fetchApi<{ ok: boolean }>(`/hospitality/membership-plans/${id}`, { method: 'DELETE' }),
+  members: (params?: { phone?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.phone) qs.set('phone', params.phone);
+    if (params?.q) qs.set('q', params.q);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return fetchApi<{ members: HospMember[] }>(`/hospitality/members${suffix}`);
+  },
+  createMember: (body: { name: string; phone: string; planId: string }) =>
+    fetchApi<{ member: HospMember }>('/hospitality/members', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateMember: (
+    id: string,
+    body: { name: string; phone: string; planId: string; status: 'active' | 'expired' | 'cancelled' },
+  ) =>
+    fetchApi<{ member: HospMember }>(`/hospitality/members/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  renewMember: (id: string) =>
+    fetchApi<{ member: HospMember }>(`/hospitality/members/${id}/renew`, { method: 'POST', body: '{}' }),
+
   // Catalog admin (Menu & Tables)
   createTable: (body: { name: string; seats?: number; zone?: string }) =>
     fetchApi<{ table: Record<string, unknown> }>('/hospitality/tables', {
@@ -157,6 +267,7 @@ export const hospApi = {
     name: string;
     categoryId: string;
     price: number;
+    memberPrice?: number | null;
     description?: string;
     available?: boolean;
     modifierGroupIds?: string[];
@@ -171,6 +282,7 @@ export const hospApi = {
       name: string;
       categoryId: string;
       price: number;
+      memberPrice?: number | null;
       description?: string;
       available?: boolean;
       modifierGroupIds?: string[];

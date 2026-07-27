@@ -25,6 +25,7 @@ import {
   ChefHat,
   ListOrdered,
   BookOpen,
+  IdCard,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
@@ -151,6 +152,9 @@ const HospitalityMenuAdminView = lazy(() =>
 );
 const HospitalityParcelsView = lazy(() =>
   import('./features/hospitality/HospitalityParcelsView').then(m => ({ default: m.HospitalityParcelsView })),
+);
+const HospitalityMembersView = lazy(() =>
+  import('./features/hospitality/HospitalityMembersView').then(m => ({ default: m.HospitalityMembersView })),
 );
 
 function slugEntryApiContext(slug: string): {
@@ -848,6 +852,12 @@ export default function App() {
           label: tc('hosp_menu', 'Menu'),
           icon: BookOpen,
           show: tv('hosp_menu'),
+        },
+        {
+          id: 'hosp_members',
+          label: tc('hosp_members', 'Members'),
+          icon: IdCard,
+          show: tv('hosp_members'),
         },
       ],
     },
@@ -1768,6 +1778,7 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'hosp_queue' && <HospitalityQueueView />}
                     {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
                     {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
+                    {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
                     {canAccess(activeTab) && activeTab === 'analytics' && (
                       <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
                     )}

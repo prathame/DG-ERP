@@ -1,5 +1,5 @@
 import { api } from '../../api';
-import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
+import { isHospGstEnabled } from '../../lib/billSettingsFlags';
 import { session } from '../../lib/session';
 import type { HospOrderDetail } from './hospApi';
 
@@ -22,9 +22,89 @@ export function sessionCompanyName(): string {
 export type BillHeaderMeta = {
   address?: string;
   phone?: string;
-  /** When set (>0) and GST billing is on, print CGST/SGST (added on subtotal). */
+  /** Seller GSTIN from company profile — printed on guest bill when present. */
+  gstin?: string;
+  /** FSSAI license from bill settings — printed when present. */
+  fssaiLicense?: string;
+  /** When set (>0) and GST billing is on, print CGST/SGST. */
   gstRate?: number;
+  /**
+   * true (default): menu prices include GST — break out taxable + CGST/SGST; grand = subtotal.
+   * false: menu prices exclude GST — add CGST/SGST on subtotal.
+   */
+  pricesIncludeGst?: boolean;
 };
+
+export type HospBillTaxTotals = {
+  taxable: number;
+  taxTotal: number;
+  cgst: number;
+  sgst: number;
+  grand: number;
+  halfPct: number;
+  pricesIncludeGst: boolean;
+};
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Hospitality guest-bill GST math.
+ * Inclusive: never adds GST on top of menu totals — extracts taxable + CGST/SGST from grand.
+ * Exclusive: adds CGST/SGST on the subtotal (menu prices are pre-tax).
+ */
+export function computeHospBillTaxTotals(
+  subtotal: number,
+  gstRate: number,
+  pricesIncludeGst = true,
+): HospBillTaxTotals {
+  const amount = Number(subtotal) || 0;
+  const rate = Number.isFinite(gstRate) && gstRate > 0 ? gstRate : 0;
+  const halfPct = rate > 0 ? rate / 2 : 0;
+  const inclusive = pricesIncludeGst !== false;
+
+  if (rate <= 0) {
+    return {
+      taxable: amount,
+      taxTotal: 0,
+      cgst: 0,
+      sgst: 0,
+      grand: amount,
+      halfPct: 0,
+      pricesIncludeGst: inclusive,
+    };
+  }
+
+  if (inclusive) {
+    const taxable = roundMoney(amount / (1 + rate / 100));
+    const taxTotal = roundMoney(amount - taxable);
+    const cgst = roundMoney(taxTotal / 2);
+    const sgst = roundMoney(taxTotal - cgst);
+    return {
+      taxable,
+      taxTotal,
+      cgst,
+      sgst,
+      grand: amount,
+      halfPct,
+      pricesIncludeGst: true,
+    };
+  }
+
+  const taxTotal = roundMoney((amount * rate) / 100);
+  const cgst = roundMoney(taxTotal / 2);
+  const sgst = roundMoney(taxTotal - cgst);
+  return {
+    taxable: amount,
+    taxTotal,
+    cgst,
+    sgst,
+    grand: roundMoney(amount + taxTotal),
+    halfPct,
+    pricesIncludeGst: false,
+  };
+}
 
 /** Best-effort profile / bill-settings — never invents address, phone, or tax. */
 export async function loadBillHeaderMeta(): Promise<BillHeaderMeta> {
@@ -38,10 +118,16 @@ export async function loadBillHeaderMeta(): Promise<BillHeaderMeta> {
     ]);
     const address = String(profile?.address || '').trim();
     const phone = String(profile?.phone || '').trim();
+    const gstin = String(profile?.gstNumber || '').trim();
     if (address) meta.address = address;
     if (phone) meta.phone = phone;
+    if (gstin) meta.gstin = gstin;
+    const fssai = String(billSettings?.fssaiLicense || '').trim();
+    if (fssai) meta.fssaiLicense = fssai;
+    meta.pricesIncludeGst = billSettings?.hospPricesIncludeGst !== false;
+    // Restaurant GST is optional (hospChargeGst); independent of invoice showGst.
     const rate = Number(profile?.defaultGstRate);
-    if (isGstBillingEnabled(billSettings) && Number.isFinite(rate) && rate > 0) {
+    if (isHospGstEnabled(billSettings) && Number.isFinite(rate) && rate > 0) {
       meta.gstRate = rate;
     }
   } catch {
@@ -105,13 +191,17 @@ export function generateTableBillHtml(
   const dateStr = now.toLocaleDateString('en-IN');
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const token = detail.order.token?.trim() || detail.label?.trim() || '';
-  const subtotal = Number(detail.total) || 0;
+  // Lines → order discount → GST (inclusive or exclusive). Prefer explicit fields.
+  const linesSubtotal =
+    detail.subtotal != null ? Number(detail.subtotal) || 0 : Number(detail.total) || 0;
+  const discountValue = Number(detail.discount_value) || 0;
+  const afterDiscount =
+    detail.subtotal != null
+      ? Math.max(0, Math.round((linesSubtotal - discountValue) * 100) / 100)
+      : Number(detail.total) || 0;
   const gstRate = header.gstRate && header.gstRate > 0 ? header.gstRate : 0;
-  const taxTotal = gstRate > 0 ? Math.round(((subtotal * gstRate) / 100) * 100) / 100 : 0;
-  const cgst = gstRate > 0 ? Math.round((taxTotal / 2) * 100) / 100 : 0;
-  const sgst = gstRate > 0 ? Math.round((taxTotal - cgst) * 100) / 100 : 0;
-  const grand = Math.round((subtotal + taxTotal) * 100) / 100;
-  const halfPct = gstRate > 0 ? gstRate / 2 : 0;
+  const pricesIncludeGst = header.pricesIncludeGst !== false;
+  const totals = computeHospBillTaxTotals(afterDiscount, gstRate, pricesIncludeGst);
 
   const itemBlocks = detail.items
     .map(item => {
@@ -136,19 +226,39 @@ export function generateTableBillHtml(
 
   const addrLine = header.address ? `<div class="sub">${escHtml(header.address)}</div>` : '';
   const phoneLine = header.phone ? `<div class="sub">Ph: ${escHtml(header.phone)}</div>` : '';
+  const gstinLine = header.gstin ? `<div class="sub">GSTIN: ${escHtml(header.gstin)}</div>` : '';
+  const fssaiLine = header.fssaiLicense ? `<div class="sub">FSSAI: ${escHtml(header.fssaiLicense)}</div>` : '';
   const tokenLine = token ? `<div>Token / Bill: <strong>${escHtml(token)}</strong></div>` : '';
 
-  const taxBlock =
-    gstRate > 0
-      ? `<div class="line"><span>Sub Total</span><span>Rs. ${fmtAmt(subtotal)}</span></div>
-<div class="line"><span>CGST @ ${fmtAmt(halfPct)}%</span><span>Rs. ${fmtAmt(cgst)}</span></div>
-<div class="line"><span>SGST @ ${fmtAmt(halfPct)}%</span><span>Rs. ${fmtAmt(sgst)}</span></div>`
-      : `<div class="line"><span>Sub Total</span><span>Rs. ${fmtAmt(subtotal)}</span></div>`;
+  const discPct = Number(detail.order.discount_percent) || 0;
+  const discFlat = Number(detail.order.discount_amount) || 0;
+  const discParts: string[] = [];
+  if (discPct > 0) discParts.push(`${fmtAmt(discPct)}%`);
+  if (discFlat > 0) discParts.push(`Rs. ${fmtAmt(discFlat)}`);
+  const discountLine =
+    discountValue > 0
+      ? `<div class="line"><span>Discount${discParts.length ? ` (${discParts.join(' + ')})` : ''}</span><span>- Rs. ${fmtAmt(discountValue)}</span></div>`
+      : '';
+
+  let taxBlock: string;
+  if (gstRate > 0) {
+    const subLabel = totals.pricesIncludeGst ? 'Taxable Value' : 'Amount';
+    const modeNote = totals.pricesIncludeGst
+      ? `<div class="sub" style="text-align:center;margin:2px 0 4px">Prices include GST</div>`
+      : '';
+    taxBlock = `<div class="line"><span>Sub Total</span><span>Rs. ${fmtAmt(linesSubtotal)}</span></div>
+${discountLine}${modeNote}<div class="line"><span>${subLabel}</span><span>Rs. ${fmtAmt(totals.taxable)}</span></div>
+<div class="line"><span>CGST @ ${fmtAmt(totals.halfPct)}%</span><span>Rs. ${fmtAmt(totals.cgst)}</span></div>
+<div class="line"><span>SGST @ ${fmtAmt(totals.halfPct)}%</span><span>Rs. ${fmtAmt(totals.sgst)}</span></div>`;
+  } else {
+    taxBlock = `<div class="line"><span>Sub Total</span><span>Rs. ${fmtAmt(linesSubtotal)}</span></div>
+${discountLine}`;
+  }
 
   const body = `
 <div class="center">
   <div class="name">${escHtml(companyName || 'Restaurant')}</div>
-  ${addrLine}${phoneLine}
+  ${addrLine}${phoneLine}${gstinLine}${fssaiLine}
 </div>
 <div class="sep">********************************</div>
 <div class="meta">
@@ -171,7 +281,7 @@ export function generateTableBillHtml(
 <div class="sep">--------------------------------</div>
 ${taxBlock}
 <div class="sep">================================</div>
-<div class="grand"><span>GRAND TOTAL</span><span>Rs. ${fmtAmt(grand)}</span></div>
+<div class="grand"><span>GRAND TOTAL</span><span>Rs. ${fmtAmt(totals.grand)}</span></div>
 <div class="sep">================================</div>
 <div class="footer">Thank you! Visit again</div>`;
 

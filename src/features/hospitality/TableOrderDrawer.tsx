@@ -3,6 +3,7 @@ import { useToast } from '../../components/ui/Toast';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { hospApi, type HospMenuItem, type HospOrderDetail, type HospTable } from './hospApi';
 import { generateTableBillHtml, loadBillHeaderMeta, sessionCompanyName } from './hospThermalPrint';
+import { OrderMemberDiscountPanel } from './OrderMemberDiscountPanel';
 import {
   hospCardClass,
   hospChipActive,
@@ -176,15 +177,12 @@ export function TableOrderDrawer({
                   </div>
                 ))
               )}
-              <div
-                className={cn(
-                  'flex justify-between font-bold mt-2',
-                  shell === 'desktopGlass' && 'dg-ink',
-                  shell === 'capGlass' && 'dg-m-ink',
-                )}
-              >
-                <span>Total</span>
-                <span>₹{detail.total.toFixed(0)}</span>
+              <div className="mt-3 pt-3 border-t border-dashed border-black/10">
+                <OrderMemberDiscountPanel
+                  detail={detail}
+                  onDetail={applyDetail}
+                  disabled={detail.order.status !== 'open'}
+                />
               </div>
               <div className="flex gap-2 mt-3 flex-wrap">
                 {detail.items.length > 0 && (

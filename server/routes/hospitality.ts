@@ -4,6 +4,11 @@ import { pool } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
+import {
+  computeOrderDiscount,
+  isMemberCurrentlyActive,
+  resolveMemberUnitPrice,
+} from '../../shared/hospPricing';
 
 const router = Router();
 
@@ -99,6 +104,7 @@ router.get('/api/hospitality/menu', blockVendors, async (req: AuthRequest, res) 
       name: string;
       description: string;
       price: number;
+      member_price: number | null;
       available: boolean;
     }>;
     const groups = (await pool.query(`SELECT * FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]))
@@ -125,6 +131,7 @@ router.get('/api/hospitality/menu', blockVendors, async (req: AuthRequest, res) 
       return {
         ...item,
         price: Number(item.price),
+        member_price: item.member_price != null ? Number(item.member_price) : null,
         modifierGroups: groups
           .filter(g => groupIds.includes(g.id))
           .map(g => ({
@@ -166,9 +173,23 @@ async function orderDetail(tenantId: string, orderId: string) {
         customer_name?: string;
         customer_phone?: string;
         token?: string | null;
+        member_id?: string | null;
+        discount_percent?: number;
+        discount_amount?: number;
       }
     | undefined;
-  if (!order) return { order: null, items: [], total: 0, table: null, label: null };
+  if (!order) {
+    return {
+      order: null,
+      items: [],
+      subtotal: 0,
+      discount_value: 0,
+      total: 0,
+      table: null,
+      label: null,
+      member: null,
+    };
+  }
 
   const table = order.table_id
     ? (
@@ -178,6 +199,28 @@ async function orderDetail(tenantId: string, orderId: string) {
         )
       ).rows[0]
     : null;
+
+  let member: Record<string, unknown> | null = null;
+  if (order.member_id) {
+    const m = (
+      await pool.query(
+        `SELECT m.id, m.name, m.phone, m.status, m.valid_from, m.valid_until, m.plan_id,
+                p.name AS plan_name, p.discount_percent, p.use_member_prices
+         FROM hosp_members m
+         JOIN hosp_membership_plans p ON p.id = m.plan_id
+         WHERE m.id = $1 AND m.tenant_id = $2`,
+        [order.member_id, tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
+    if (m) {
+      member = {
+        ...m,
+        discount_percent: Number(m.discount_percent) || 0,
+        use_member_prices: !!m.use_member_prices,
+        currently_active: isMemberCurrentlyActive(String(m.status), m.valid_until as string | Date),
+      };
+    }
+  }
 
   const items = (await pool.query(`SELECT * FROM hosp_order_items WHERE order_id = $1 ORDER BY created_at`, [orderId]))
     .rows as Array<{
@@ -207,12 +250,29 @@ async function orderDetail(tenantId: string, orderId: string) {
       lineTotal,
     };
   });
-  const total = withMods.reduce((s, i) => s + i.lineTotal, 0);
+  const subtotal = withMods.reduce((s, i) => s + i.lineTotal, 0);
+  const discountPercent = Number(order.discount_percent) || 0;
+  const discountAmount = Number(order.discount_amount) || 0;
+  const discount_value = computeOrderDiscount(subtotal, discountPercent, discountAmount);
+  const total = Math.round((subtotal - discount_value) * 100) / 100;
   const label =
     order.order_type === 'parcel'
       ? `Parcel · ${order.token || order.customer_name || 'Takeaway'}`
       : (table as { name?: string } | null)?.name || 'Table';
-  return { order, items: withMods, total, table: table || null, label };
+  return {
+    order: {
+      ...order,
+      discount_percent: discountPercent,
+      discount_amount: discountAmount,
+    },
+    items: withMods,
+    subtotal,
+    discount_value,
+    total,
+    table: table || null,
+    label,
+    member,
+  };
 }
 
 async function createOpenOrder(tenantId: string, tableId: string, waiterId: string | null) {
@@ -306,12 +366,45 @@ router.post('/api/hospitality/orders/:id/items', blockVendors, async (req: AuthR
 
     const item = (
       await pool.query(
-        `SELECT id, name, price FROM hosp_menu_items
+        `SELECT id, name, price, member_price FROM hosp_menu_items
          WHERE id = $1 AND tenant_id = $2 AND available = true`,
         [menuItemId, tenantId],
       )
-    ).rows[0] as { id: string; name: string; price: number } | undefined;
+    ).rows[0] as { id: string; name: string; price: number; member_price: number | null } | undefined;
     if (!item) return res.status(400).json({ error: 'Menu item not available' });
+
+    const orderRow = (
+      await pool.query(`SELECT member_id FROM hosp_orders WHERE id = $1 AND tenant_id = $2`, [orderId, tenantId])
+    ).rows[0] as { member_id: string | null } | undefined;
+
+    let unitPrice = Number(item.price);
+    if (orderRow?.member_id) {
+      const mem = (
+        await pool.query(
+          `SELECT m.status, m.valid_until, p.use_member_prices, p.discount_percent
+           FROM hosp_members m
+           JOIN hosp_membership_plans p ON p.id = m.plan_id
+           WHERE m.id = $1 AND m.tenant_id = $2`,
+          [orderRow.member_id, tenantId],
+        )
+      ).rows[0] as
+        | {
+            status: string;
+            valid_until: string | Date;
+            use_member_prices: boolean;
+            discount_percent: number;
+          }
+        | undefined;
+      if (mem) {
+        unitPrice = resolveMemberUnitPrice({
+          listPrice: Number(item.price),
+          memberPrice: item.member_price != null ? Number(item.member_price) : null,
+          memberActive: isMemberCurrentlyActive(mem.status, mem.valid_until),
+          useMemberPrices: !!mem.use_member_prices,
+          discountPercent: Number(mem.discount_percent) || 0,
+        });
+      }
+    }
 
     const mods: Array<{ id: string; name: string; price_delta: number }> = [];
     for (const mid of modifierIds as string[]) {
@@ -332,7 +425,7 @@ router.post('/api/hospitality/orders/:id/items', blockVendors, async (req: AuthR
       `INSERT INTO hosp_order_items
          (id, order_id, menu_item_id, name, qty, unit_price, notes, kitchen_status, fired_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'queued',NOW())`,
-      [orderItemId, orderId, item.id, item.name, safeQty, item.price, notes || ''],
+      [orderItemId, orderId, item.id, item.name, safeQty, unitPrice, notes || ''],
     );
     for (const m of mods) {
       await pool.query(
@@ -745,6 +838,74 @@ router.post('/api/hospitality/parcels', blockVendors, async (req: AuthRequest, r
       [id, tenantId, req.user?.userId || null, customerName, customerPhone, token],
     );
     res.status(201).json(await orderDetail(tenantId, id));
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Attach / clear membership on an open order (new lines only pick up member prices). */
+router.put('/api/hospitality/orders/:id/member', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+    const order = (
+      await pool.query(`SELECT id FROM hosp_orders WHERE id = $1 AND tenant_id = $2 AND status = 'open'`, [
+        req.params.id,
+        tenantId,
+      ])
+    ).rows[0];
+    if (!order) return res.status(404).json({ error: 'Open order not found' });
+
+    const raw = req.body?.memberId ?? req.body?.member_id;
+    if (raw === null || raw === '' || raw === undefined) {
+      await pool.query(`UPDATE hosp_orders SET member_id = NULL, updated_at = NOW() WHERE id = $1`, [req.params.id]);
+      return res.json(await orderDetail(tenantId, req.params.id));
+    }
+    const memberId = String(raw).trim();
+    const member = (
+      await pool.query(`SELECT id FROM hosp_members WHERE id = $1 AND tenant_id = $2`, [memberId, tenantId])
+    ).rows[0];
+    if (!member) return res.status(400).json({ error: 'Member not found' });
+    await pool.query(`UPDATE hosp_orders SET member_id = $1, updated_at = NOW() WHERE id = $2`, [
+      memberId,
+      req.params.id,
+    ]);
+    res.json(await orderDetail(tenantId, req.params.id));
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Order-level discount (% and/or flat ₹) on subtotal after lines. */
+router.put('/api/hospitality/orders/:id/discount', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+    const order = (
+      await pool.query(`SELECT id FROM hosp_orders WHERE id = $1 AND tenant_id = $2 AND status IN ('open','billed')`, [
+        req.params.id,
+        tenantId,
+      ])
+    ).rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const discountPercent = Number(req.body?.discountPercent ?? req.body?.discount_percent ?? 0);
+    const discountAmount = Number(req.body?.discountAmount ?? req.body?.discount_amount ?? 0);
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      return res.status(400).json({ error: 'discount_percent must be 0–100' });
+    }
+    if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+      return res.status(400).json({ error: 'discount_amount must be ≥ 0' });
+    }
+    await pool.query(
+      `UPDATE hosp_orders SET discount_percent = $1, discount_amount = $2, updated_at = NOW() WHERE id = $3`,
+      [discountPercent, discountAmount, req.params.id],
+    );
+    res.json(await orderDetail(tenantId, req.params.id));
   } catch (e) {
     handleApiError(req, res, e);
   }

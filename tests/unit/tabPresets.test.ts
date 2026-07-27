@@ -38,6 +38,7 @@ describe('tabPresets', () => {
     expect(p.hosp_queue.visible).toBe(true);
     expect(p.hosp_parcels.visible).toBe(true);
     expect(p.hosp_menu.visible).toBe(true);
+    expect(p.hosp_members.visible).toBe(true);
     expect(p.analytics.visible).toBe(false);
     expect(p.masters.visible).toBe(false);
     expect(p.inventory.visible).toBe(false);

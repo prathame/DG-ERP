@@ -38,3 +38,8 @@ export function quotationLineWithGst(gstBillingEnabled: boolean, isEditing: bool
   if (!gstBillingEnabled && !isEditing) return false;
   return lineWithGst;
 }
+
+/** Restaurant thermal guest bills: GST is opt-in (default off). Independent of invoice showGst. */
+export function isHospGstEnabled(settings?: { hospChargeGst?: boolean } | null): boolean {
+  return settings?.hospChargeGst === true;
+}

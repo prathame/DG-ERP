@@ -143,6 +143,9 @@ function billDefaults(): BillSettings {
     showHsnSac: !phoneBill,
     footerText: 'Powered by Dhandho Management',
     invoiceTemplateStyle: 'modern',
+    hospChargeGst: false,
+    hospPricesIncludeGst: true,
+    fssaiLicense: null,
   };
 }
 
@@ -354,6 +357,7 @@ function GstApiSection() {
 function BillCustomizationSection() {
   const { toast } = useToast();
   const phoneBillUx = isServicePhoneBillUx();
+  const isHospitality = getBusinessConfig().features.hospitality;
   const [form, setForm] = useState<BillSettings>(() => billDefaults());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -375,6 +379,9 @@ function BillCustomizationSection() {
           showGst: gstOn,
           showHsnSac: gstOn,
           invoiceTemplateStyle: style,
+          hospPricesIncludeGst: s?.hospPricesIncludeGst !== false,
+          hospChargeGst: s?.hospChargeGst === true,
+          fssaiLicense: s?.fssaiLicense ?? null,
         });
       })
       .catch(() => {})
@@ -816,6 +823,83 @@ function BillCustomizationSection() {
               </div>
               {toggleField('showGst')}
             </div>
+            {isHospitality && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Charge GST on restaurant bills</p>
+                    <p className="text-xs text-gray-500">
+                      Off by default for simple guest bills (no CGST/SGST). Turn on to print tax on thermal
+                      receipts. Separate from invoice GST above.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.hospChargeGst === true}
+                    onClick={() => setForm(p => ({ ...p, hospChargeGst: !p.hospChargeGst }))}
+                    className={cn(
+                      'relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors',
+                      form.hospChargeGst === true ? 'bg-green-500' : 'bg-gray-300',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform',
+                        form.hospChargeGst === true ? 'translate-x-5' : 'translate-x-0',
+                      )}
+                    />
+                  </button>
+                </div>
+                {form.hospChargeGst === true && (
+                  <div>
+                    <p className="font-medium text-sm mb-1">Restaurant menu prices</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Tax-inclusive (common in India): menu rates already include GST — the guest bill breaks out
+                      taxable value + CGST/SGST without adding tax again. Tax-exclusive: GST is added on the
+                      subtotal.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, hospPricesIncludeGst: true }))}
+                        className={cn(
+                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          form.hospPricesIncludeGst !== false
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Tax-inclusive
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, hospPricesIncludeGst: false }))}
+                        className={cn(
+                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          form.hospPricesIncludeGst === false
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Tax-exclusive
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="font-medium text-sm block mb-1">FSSAI license (guest bill)</label>
+                  <p className="text-xs text-gray-500 mb-2">Printed on thermal guest bills when set. Leave blank to hide.</p>
+                  <input
+                    value={form.fssaiLicense ?? ''}
+                    onChange={e => setForm(p => ({ ...p, fssaiLicense: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-brand"
+                    placeholder="e.g. 12345678901234"
+                    maxLength={64}
+                  />
+                </div>
+              </>
+            )}
             {!phoneBillUx && (
               <>
                 <div className="flex items-center justify-between">

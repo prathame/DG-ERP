@@ -42,6 +42,7 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_queue', user)).toBe('full');
     expect(resolveTabAccess('hosp_menu', user)).toBe('full');
     expect(resolveTabAccess('hosp_parcels', user)).toBe('full');
+    expect(resolveTabAccess('hosp_members', user)).toBe('hidden');
     expect(resolveTabAccess('inventory', user)).toBe('view');
     expect(resolveTabAccess('masters', user)).toBe('hidden');
   });
@@ -49,12 +50,14 @@ describe('resolveTabAccess', () => {
   it('legacy permission arrays treat hospitality as full for hosp_* tabs', () => {
     const user = { role: 'Staff', permissions: ['hospitality', 'dashboard'] };
     expect(resolveTabAccess('hosp_floor', user)).toBe('full');
+    expect(resolveTabAccess('hosp_members', user)).toBe('hidden');
     expect(resolveTabAccess('analytics', user)).toBe('full');
     expect(resolveTabAccess('inventory', user)).toBe('hidden');
   });
 
   it('Staff role defaults grant full hospitality tabs when permissions unset', () => {
     expect(resolveTabAccess('hosp_kitchen', { role: 'Staff', permissions: null })).toBe('full');
+    expect(resolveTabAccess('hosp_members', { role: 'Staff', permissions: null })).toBe('hidden');
     expect(resolveTabAccess('inventory', { role: 'Staff', permissions: null })).toBe('view');
   });
 
@@ -65,6 +68,7 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_kitchen', user)).toBe('hidden');
     expect(resolveTabAccess('hosp_floor', user)).toBe('hidden');
     expect(resolveTabAccess('hosp_menu', user)).toBe('hidden');
+    expect(resolveTabAccess('hosp_members', user)).toBe('hidden');
     expect(resolveTabAccess('settings', user)).toBe('hidden');
     expect(resolveTabAccess('invoices', user)).toBe('hidden');
   });
@@ -85,10 +89,11 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('inventory', user)).toBe('hidden');
   });
 
-  it('Admin with hospitality permission still sees all hosp_* tabs', () => {
+  it('Admin with hospitality permission still sees all hosp_* tabs including Members', () => {
     const user = { role: 'Admin', permissions: { hospitality: 'full', settings: 'full' } };
     expect(resolveTabAccess('hosp_floor', user)).toBe('full');
     expect(resolveTabAccess('hosp_menu', user)).toBe('full');
+    expect(resolveTabAccess('hosp_members', user)).toBe('full');
     expect(resolveTabAccess('settings', user)).toBe('full');
   });
 });

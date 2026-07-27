@@ -18,6 +18,7 @@ export const HOTEL_ROLE_TABS: Record<string, readonly string[]> = {
  * - object map → per-tab level; missing key is hidden (deny by default)
  * - string array (legacy) → full if listed
  * - Waiter / Host / Kitchen → allowlisted hosp_* tabs only (ignores coarse hospitality unlock)
+ * - hosp_members → Admin / Super Admin only (plans + registry); waiters attach via order UI
  */
 export function resolveTabAccess(
   tabId: string,
@@ -29,6 +30,11 @@ export function resolveTabAccess(
   const hotelAllow = HOTEL_ROLE_TABS[role];
   if (hotelAllow) {
     return hotelAllow.includes(tabId) ? 'full' : 'hidden';
+  }
+
+  // Members tab is Admin-managed even when hospitality module is unlocked for Staff
+  if (tabId === 'hosp_members' && !['Super Admin', 'Admin'].includes(role)) {
+    return 'hidden';
   }
 
   const perms = user.permissions;

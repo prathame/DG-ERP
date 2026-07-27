@@ -461,6 +461,15 @@ export async function initSchema() {
       `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS invoice_template_style TEXT DEFAULT 'modern'`,
     );
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS show_hsn_sac BOOLEAN DEFAULT true`);
+    // Hotel/restaurant thermal bills: menu prices usually include GST; FSSAI on guest receipt
+    await client.query(
+      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_prices_include_gst BOOLEAN DEFAULT true`,
+    );
+    // Hotel guest bills: GST optional (off by default for small restaurants)
+    await client.query(
+      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_charge_gst BOOLEAN DEFAULT false`,
+    );
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS fssai_license TEXT`);
 
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');
@@ -1146,6 +1155,46 @@ export async function initSchema() {
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_queue_tenant ON hosp_queue_entries(tenant_id, status)`);
+
+    // Hotel memberships + optional member price on dishes
+    await client.query(`ALTER TABLE hosp_menu_items ADD COLUMN IF NOT EXISTS member_price NUMERIC(14,2)`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_membership_plans (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        period TEXT NOT NULL DEFAULT 'monthly'
+          CHECK(period IN ('monthly','yearly')),
+        fee NUMERIC(14,2) NOT NULL DEFAULT 0,
+        discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0
+          CHECK(discount_percent >= 0 AND discount_percent <= 100),
+        use_member_prices BOOLEAN NOT NULL DEFAULT false,
+        active BOOLEAN NOT NULL DEFAULT true,
+        UNIQUE(tenant_id, name)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_plans_tenant ON hosp_membership_plans(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_members (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        plan_id TEXT NOT NULL REFERENCES hosp_membership_plans(id),
+        status TEXT NOT NULL DEFAULT 'active'
+          CHECK(status IN ('active','expired','cancelled')),
+        valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
+        valid_until DATE NOT NULL,
+        UNIQUE(tenant_id, phone)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_members_tenant ON hosp_members(tenant_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_members_phone ON hosp_members(tenant_id, phone)`);
+
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS member_id TEXT REFERENCES hosp_members(id) ON DELETE SET NULL`);
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0`);
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0`);
 
     // SA → on-prem Bell messages (delivered on heartbeat / hard sync)
     await client.query(`
