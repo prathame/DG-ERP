@@ -421,6 +421,10 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
     label: 'Silver Casting',
     desc: 'Weigh → piece barcode → jewellery tag → counter sale with fine metal tracking',
   },
+  hotel_restaurant: {
+    label: 'Hotel / Restaurant',
+    desc: 'Floor tables, waiter orders, kitchen KOT, and walk-in entry queue',
+  },
 };
 
 const BUSINESS_TYPE_CONFIGS: Record<
@@ -769,6 +773,7 @@ function CreateTenantModal({
                     { id: 'retail' as const, icon: '🏪' },
                     { id: 'service' as const, icon: '🔧' },
                     { id: 'silver_casting' as const, icon: '🥈' },
+                    { id: 'hotel_restaurant' as const, icon: '🏨' },
                     { id: 'custom' as const, icon: '⚙️' },
                   ] as const
                 ).map(bt => {

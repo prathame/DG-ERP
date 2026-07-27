@@ -20,6 +20,10 @@ import {
   Search,
   ReceiptIndianRupee,
   ChevronDown,
+  UtensilsCrossed,
+  ConciergeBell,
+  ChefHat,
+  ListOrdered,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
@@ -128,6 +132,18 @@ const SuperAdminApp = lazy(() =>
 );
 const SuperAdminLogin = lazy(() =>
   import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })),
+);
+const HospitalityFloorView = lazy(() =>
+  import('./features/hospitality/HospitalityFloorView').then(m => ({ default: m.HospitalityFloorView })),
+);
+const HospitalityWaiterView = lazy(() =>
+  import('./features/hospitality/HospitalityFloorView').then(m => ({ default: m.HospitalityWaiterView })),
+);
+const HospitalityKitchenView = lazy(() =>
+  import('./features/hospitality/HospitalityKitchenView').then(m => ({ default: m.HospitalityKitchenView })),
+);
+const HospitalityQueueView = lazy(() =>
+  import('./features/hospitality/HospitalityQueueView').then(m => ({ default: m.HospitalityQueueView })),
 );
 
 function slugEntryApiContext(slug: string): {
@@ -795,6 +811,35 @@ export default function App() {
           show: tv('replacements'),
         },
         { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
+      ],
+    },
+    {
+      label: 'Hospitality',
+      items: [
+        {
+          id: 'hosp_floor',
+          label: tc('hosp_floor', 'Floor'),
+          icon: UtensilsCrossed,
+          show: tv('hosp_floor'),
+        },
+        {
+          id: 'hosp_waiter',
+          label: tc('hosp_waiter', 'Waiter Orders'),
+          icon: ConciergeBell,
+          show: tv('hosp_waiter'),
+        },
+        {
+          id: 'hosp_kitchen',
+          label: tc('hosp_kitchen', 'Kitchen'),
+          icon: ChefHat,
+          show: tv('hosp_kitchen'),
+        },
+        {
+          id: 'hosp_queue',
+          label: tc('hosp_queue', 'Entry Queue'),
+          icon: ListOrdered,
+          show: tv('hosp_queue'),
+        },
       ],
     },
   ];
@@ -1705,6 +1750,10 @@ export default function App() {
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
                       ))}
+                    {canAccess(activeTab) && activeTab === 'hosp_floor' && <HospitalityFloorView />}
+                    {canAccess(activeTab) && activeTab === 'hosp_waiter' && <HospitalityWaiterView />}
+                    {canAccess(activeTab) && activeTab === 'hosp_kitchen' && <HospitalityKitchenView />}
+                    {canAccess(activeTab) && activeTab === 'hosp_queue' && <HospitalityQueueView />}
                     {canAccess(activeTab) && activeTab === 'analytics' && (
                       <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
                     )}

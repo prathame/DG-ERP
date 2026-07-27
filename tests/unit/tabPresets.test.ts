@@ -9,9 +9,11 @@ import {
 } from '../../shared/tabPresets';
 
 describe('tabPresets', () => {
-  it('includes silver_casting among named types', () => {
+  it('includes silver_casting and hotel_restaurant among named types', () => {
     expect(NAMED_BUSINESS_TYPES).toContain('silver_casting');
+    expect(NAMED_BUSINESS_TYPES).toContain('hotel_restaurant');
     expect(isNamedBusinessType('silver_casting')).toBe(true);
+    expect(isNamedBusinessType('hotel_restaurant')).toBe(true);
     expect(isBusinessTypeWithCustom('custom')).toBe(true);
     expect(isNamedBusinessType('custom')).toBe(false);
   });
@@ -26,6 +28,19 @@ describe('tabPresets', () => {
     expect(p.warranty.visible).toBe(false);
     expect(p.rewards.visible).toBe(false);
     expect(p.replacements.visible).toBe(false);
+  });
+
+  it('hotel_restaurant preset enables hospitality tabs and hides supply-chain tabs', () => {
+    const p = TAB_PRESETS.hotel_restaurant;
+    expect(p.hosp_floor.visible).toBe(true);
+    expect(p.hosp_waiter.visible).toBe(true);
+    expect(p.hosp_kitchen.visible).toBe(true);
+    expect(p.hosp_queue.visible).toBe(true);
+    expect(p.inventory.visible).toBe(false);
+    expect(p.distribution.visible).toBe(false);
+    expect(p.warranty.visible).toBe(false);
+    // other types keep hospitality tabs hidden by default
+    expect(TAB_PRESETS.manufacturer.hosp_floor.visible).toBe(false);
   });
 
   it('getTabPreset falls back to manufacturer and clones', () => {

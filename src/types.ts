@@ -16,7 +16,11 @@ export type Tab =
   | 'analytics'
   | 'payroll'
   | 'verification'
-  | 'settings';
+  | 'settings'
+  | 'hosp_floor'
+  | 'hosp_waiter'
+  | 'hosp_kitchen'
+  | 'hosp_queue';
 
 export interface Product {
   id: string;
