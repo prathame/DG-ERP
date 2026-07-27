@@ -744,6 +744,7 @@ export function HospitalityMenuAdminView() {
         <CsvImport
           itemLabel="dishes"
           templateName="hotel-menu-items"
+          hint="Missing modifier groups will be created automatically (you can add options later on the Modifiers tab)."
           columns={[
             { key: 'category', label: 'Category', required: true },
             { key: 'name', label: 'Dish name', required: true },
@@ -760,7 +761,13 @@ export function HospitalityMenuAdminView() {
           onImport={async rows => {
             try {
               const result = await hospApi.importMenuItemsBatch(rows);
-              return { success: result.success, errors: result.errors || [] };
+              return {
+                success: result.success,
+                errors: result.errors || [],
+                ...(result.createdModifierGroups?.length
+                  ? { createdModifierGroups: result.createdModifierGroups }
+                  : {}),
+              };
             } catch (err) {
               return {
                 success: 0,

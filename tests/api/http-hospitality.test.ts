@@ -693,7 +693,7 @@ describe('HTTP Hospitality', () => {
     await api().post(`/api/hospitality/orders/${e.orderId}/close`).set(headers).send({});
   });
 
-  it('veg sample CSV: modifiers then dishes resolves Spice Level', async () => {
+  it('veg sample CSV: dishes auto-create Spice Level when no modifiers exist', async () => {
     const headers = authHeaders(token(CSV_TENANT, CSV_USER), CSV_TENANT);
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
@@ -712,20 +712,20 @@ describe('HTTP Hospitality', () => {
       });
     };
 
-    const beforeDishes = await api()
+    const before = await pool.query(`SELECT COUNT(*)::int AS c FROM hosp_modifier_groups WHERE tenant_id = $1`, [
+      CSV_TENANT,
+    ]);
+    expect(before.rows[0].c).toBe(0);
+
+    const dishes = await api()
       .post('/api/hospitality/menu-items/batch')
       .set(headers)
       .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/menu-items.csv') });
-    expect(beforeDishes.status).toBe(400);
-    expect(String(beforeDishes.body.error)).toMatch(/Spice Level/i);
-    expect(String(beforeDishes.body.error)).toMatch(/import modifiers first/i);
-
-    const mods = await api()
-      .post('/api/hospitality/modifiers/batch')
-      .set(headers)
-      .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/modifiers.csv') });
-    expect(mods.status).toBe(201);
-    expect(mods.body.success).toBeGreaterThanOrEqual(10);
+    expect(dishes.status).toBe(201);
+    expect(dishes.body.success).toBe(14);
+    expect(dishes.body.createdModifierGroups).toEqual(
+      expect.arrayContaining(['Spice Level', 'Extra Toppings', 'Cheese']),
+    );
 
     const groups = await pool.query(`SELECT name FROM hosp_modifier_groups WHERE tenant_id = $1 ORDER BY name`, [
       CSV_TENANT,
@@ -734,7 +734,15 @@ describe('HTTP Hospitality', () => {
       expect.arrayContaining(['Cheese', 'Extra Toppings', 'Spice Level']),
     );
 
-    // Case / spacing tolerant lookup after modifiers exist
+    const linked = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM hosp_item_modifier_groups l
+       JOIN hosp_menu_items i ON i.id = l.menu_item_id
+       WHERE i.tenant_id = $1`,
+      [CSV_TENANT],
+    );
+    expect(linked.rows[0].c).toBeGreaterThanOrEqual(8);
+
+    // Case / spacing tolerant reuse of auto-created groups
     const caseOk = await api()
       .post('/api/hospitality/menu-items/batch')
       .set(headers)
@@ -752,27 +760,22 @@ describe('HTTP Hospitality', () => {
       });
     expect(caseOk.status).toBe(201);
     expect(caseOk.body.success).toBe(1);
-    await pool.query(
-      `DELETE FROM hosp_item_modifier_groups WHERE menu_item_id IN (
-       SELECT id FROM hosp_menu_items WHERE tenant_id = $1 AND name = 'Case Probe')`,
-      [CSV_TENANT],
-    );
-    await pool.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1 AND name = 'Case Probe'`, [CSV_TENANT]);
-    await pool.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1 AND name = 'Test Cat'`, [CSV_TENANT]);
+    expect(caseOk.body.createdModifierGroups).toBeUndefined();
 
-    const dishes = await api()
-      .post('/api/hospitality/menu-items/batch')
+    // Importing modifiers still fills options into the existing groups
+    const mods = await api()
+      .post('/api/hospitality/modifiers/batch')
       .set(headers)
-      .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/menu-items.csv') });
-    expect(dishes.status).toBe(201);
-    expect(dishes.body.success).toBe(14);
+      .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/modifiers.csv') });
+    expect(mods.status).toBe(201);
+    expect(mods.body.success).toBeGreaterThanOrEqual(10);
 
-    const linked = await pool.query(
-      `SELECT COUNT(*)::int AS c FROM hosp_item_modifier_groups l
-       JOIN hosp_menu_items i ON i.id = l.menu_item_id
-       WHERE i.tenant_id = $1`,
+    const optionCount = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM hosp_modifiers m
+       JOIN hosp_modifier_groups g ON g.id = m.group_id
+       WHERE g.tenant_id = $1`,
       [CSV_TENANT],
     );
-    expect(linked.rows[0].c).toBeGreaterThanOrEqual(8);
+    expect(optionCount.rows[0].c).toBeGreaterThanOrEqual(10);
   });
 });
