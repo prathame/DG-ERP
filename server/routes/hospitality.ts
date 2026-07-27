@@ -30,7 +30,7 @@ router.post('/api/hospitality/seed', blockVendors, async (req: AuthRequest, res)
     await seedHospitalityCatalog(tenantId);
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -56,7 +56,7 @@ router.get('/api/hospitality/tables', blockVendors, async (req: AuthRequest, res
     ).rows;
     res.json({ tables });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -78,7 +78,7 @@ router.patch('/api/hospitality/tables/:id/status', blockVendors, async (req: Aut
     if (!result.rowCount) return res.status(404).json({ error: 'Table not found' });
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -137,7 +137,7 @@ router.get('/api/hospitality/menu', blockVendors, async (req: AuthRequest, res) 
 
     res.json({ categories, items: menu });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -243,7 +243,7 @@ router.post('/api/hospitality/tables/:id/open', blockVendors, async (req: AuthRe
     }
     res.json(await orderDetail(tenantId, order.id));
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -257,7 +257,7 @@ router.get('/api/hospitality/orders/:id', blockVendors, async (req: AuthRequest,
     if (!detail.order) return res.status(404).json({ error: 'Order not found' });
     res.json(detail);
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -328,7 +328,7 @@ router.post('/api/hospitality/orders/:id/items', blockVendors, async (req: AuthR
 
     res.json(await orderDetail(tenantId, orderId));
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -351,7 +351,7 @@ router.patch('/api/hospitality/order-items/:id/status', blockVendors, async (req
     if (!result.rowCount) return res.status(404).json({ error: 'Order item not found' });
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -375,7 +375,7 @@ router.post('/api/hospitality/orders/:id/bill', blockVendors, async (req: AuthRe
     ]);
     res.json(await orderDetail(tenantId, order.id));
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -400,7 +400,7 @@ router.post('/api/hospitality/orders/:id/close', blockVendors, async (req: AuthR
     ]);
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -416,7 +416,7 @@ router.post('/api/hospitality/tables/:id/clear', blockVendors, async (req: AuthR
     ]);
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -457,7 +457,7 @@ router.get('/api/hospitality/kitchen', blockVendors, async (req: AuthRequest, re
       })),
     });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -492,7 +492,7 @@ router.get('/api/hospitality/queue', blockVendors, async (req: AuthRequest, res)
     ).rows[0] as { token: string } | undefined;
     res.json({ entries, nowServing: nowServing?.token ?? null });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -521,7 +521,7 @@ router.post('/api/hospitality/queue', blockVendors, async (req: AuthRequest, res
     );
     res.json({ id, token, guestName, partySize });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -547,7 +547,7 @@ router.post('/api/hospitality/queue/call-next', blockVendors, async (req: AuthRe
     );
     res.json({ ok: true, id: next.id });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -565,7 +565,7 @@ router.post('/api/hospitality/queue/:id/call', blockVendors, async (req: AuthReq
     if (!result.rowCount) return res.status(404).json({ error: 'Waiting entry not found' });
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -613,7 +613,7 @@ router.post('/api/hospitality/queue/:id/seat', blockVendors, async (req: AuthReq
     await createOpenOrder(tenantId, tableId, null);
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -629,7 +629,7 @@ router.post('/api/hospitality/queue/:id/no-show', blockVendors, async (req: Auth
     ]);
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
@@ -645,7 +645,7 @@ router.post('/api/hospitality/queue/:id/leave', blockVendors, async (req: AuthRe
     ]);
     res.json({ ok: true });
   } catch (e) {
-    handleApiError(res, e);
+    handleApiError(req, res, e);
   }
 });
 
