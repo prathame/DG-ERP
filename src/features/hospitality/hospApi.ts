@@ -10,6 +10,18 @@ export type HospTable = {
   open_items: number;
 };
 
+/** Natural sort for hotel-owner table names (T2 before T10). */
+export function compareHospTableName(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/** Zone then name — matches how Floor groups tiles. */
+export function compareHospTablesByZoneThenName(a: HospTable, b: HospTable): number {
+  const byZone = (a.zone || '').localeCompare(b.zone || '', undefined, { sensitivity: 'base' });
+  if (byZone !== 0) return byZone;
+  return compareHospTableName(a.name, b.name);
+}
+
 export type HospMenuItem = {
   id: string;
   category_id: string;

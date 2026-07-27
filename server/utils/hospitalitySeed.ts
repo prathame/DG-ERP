@@ -1,7 +1,9 @@
 import { pool } from '../pg-db';
 import { uid } from './helpers';
 
-/** Seed floor + starter menu when a hotel_restaurant tenant is onboarded. */
+/** Seed floor + starter menu when a hotel_restaurant tenant is onboarded.
+ * Demo table names (T1–T12) are starters only — the hotel owner renames/adds/removes
+ * freely in Menu → Tables; Floor and Waiter display whatever names they set. */
 export async function seedHospitalityCatalog(tenantId: string): Promise<void> {
   const existing = await pool.query(`SELECT id FROM hosp_dining_tables WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
   if (existing.rows[0]) return;
