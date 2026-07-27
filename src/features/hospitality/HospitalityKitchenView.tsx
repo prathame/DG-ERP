@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { useToast } from '../../components/ui/Toast';
+import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { hospApi } from './hospApi';
+import { generateKotHtml, sessionCompanyName, type KotTicket } from './hospThermalPrint';
 import {
   hospCardClass,
   hospEyebrowClass,
@@ -13,25 +15,24 @@ import {
   useHospShell,
 } from './hospUi';
 
-type Ticket = {
-  id: string;
-  name: string;
-  qty: number;
-  notes: string;
-  kitchen_status: string;
-  table_name: string;
-  label?: string;
-  order_type?: string;
-  waiter_name: string | null;
-  fired_at: string | null;
-  modifiers: Array<{ name: string }>;
-};
+type Ticket = KotTicket;
 
 export function HospitalityKitchenView() {
   const shell = useHospShell();
+  const { toast } = useToast();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  function printKot(ticket: Ticket) {
+    const w = openPrintWindow('Preparing KOT…');
+    if (!w) {
+      toast(PRINT_POPUP_BLOCKED, 'error');
+      return;
+    }
+    const place = ticket.label || ticket.table_name || 'KOT';
+    printBillInWindow(w, generateKotHtml(ticket, sessionCompanyName()), `KOT-${place}`);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -128,6 +129,9 @@ export function HospitalityKitchenView() {
               )}
               {t.notes && <p className={cn('text-sm', hospSubClass(shell))}>Note: {t.notes}</p>}
               <div className="flex gap-2 pt-1 flex-wrap">
+                <button type="button" className={hospSecondaryBtn(shell)} onClick={() => printKot(t)}>
+                  Print
+                </button>
                 {t.kitchen_status === 'queued' && (
                   <button
                     type="button"

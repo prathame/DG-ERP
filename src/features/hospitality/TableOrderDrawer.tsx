@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../components/ui/Toast';
-import { session } from '../../lib/session';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { hospApi, type HospMenuItem, type HospOrderDetail, type HospTable } from './hospApi';
+import { generateTableBillHtml, loadBillHeaderMeta, sessionCompanyName } from './hospThermalPrint';
 import {
   hospCardClass,
   hospChipActive,
@@ -14,76 +14,6 @@ import {
   hospTitleClass,
   useHospShell,
 } from './hospUi';
-
-function escHtml(s: unknown): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function sessionCompanyName(): string {
-  try {
-    return String((session.getUser() || {}).companyName || '');
-  } catch {
-    return '';
-  }
-}
-
-/** Simple table bill HTML for browser / overlay print (matches DG-ERP openPrintWindow flow). */
-function generateTableBillHtml(detail: HospOrderDetail, tableLabel: string, companyName: string): string {
-  const rows = detail.items
-    .map(item => {
-      const mods =
-        item.modifiers.length > 0
-          ? `<div style="font-size:11px;color:#666;margin-top:2px">${escHtml(
-              item.modifiers.map(m => m.name).join(', '),
-            )}</div>`
-          : '';
-      const notes = item.notes?.trim()
-        ? `<div style="font-size:11px;color:#888;margin-top:2px">${escHtml(item.notes.trim())}</div>`
-        : '';
-      return `<tr>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5e7eb;vertical-align:top">
-          <div style="font-weight:600">${escHtml(item.name)}</div>${mods}${notes}
-        </td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5e7eb;text-align:center;vertical-align:top">${item.qty}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5e7eb;text-align:right;vertical-align:top">₹${Number(item.lineTotal).toFixed(0)}</td>
-      </tr>`;
-    })
-    .join('');
-
-  const zone = detail.table?.zone ? ` · ${escHtml(detail.table.zone)}` : '';
-  const status = detail.order.status ? escHtml(detail.order.status) : '';
-  const when = new Date().toLocaleString();
-
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bill — ${escHtml(tableLabel)}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;padding:28px;max-width:420px;margin:auto;color:#111}
-.header{border-bottom:2px solid #151619;padding-bottom:12px;margin-bottom:16px}
-.company{font-size:18px;font-weight:800}
-.meta{font-size:12px;color:#666;margin-top:4px}
-table{width:100%;border-collapse:collapse;margin:12px 0}
-th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#666;text-align:left;padding:6px;border-bottom:1px solid #d1d5db}
-th.num,td.num{text-align:right}th.qty,td.qty{text-align:center}
-.total{display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-top:12px;padding-top:12px;border-top:2px solid #151619}
-.footer{margin-top:28px;font-size:11px;color:#999;text-align:center}
-@media print{body{padding:12px}}
-</style></head><body>
-<div class="header">
-  ${companyName ? `<div class="company">${escHtml(companyName)}</div>` : `<div class="company">Bill</div>`}
-  <div class="meta"><strong>${escHtml(tableLabel)}</strong>${zone}<br/>${when}${status ? ` · ${status}` : ''}</div>
-</div>
-<table>
-  <thead><tr><th>Item</th><th class="qty">Qty</th><th class="num">Amount</th></tr></thead>
-  <tbody>${rows}</tbody>
-</table>
-<div class="total"><span>Total</span><span>₹${Number(detail.total).toFixed(0)}</span></div>
-<div class="footer">Thank you</div>
-</body></html>`;
-}
 
 export function TableOrderDrawer({
   table,
@@ -160,7 +90,7 @@ export function TableOrderDrawer({
     }
   }
 
-  function printBill() {
+  async function printBill() {
     if (!detail || detail.items.length === 0) return;
     const tableLabel = detail.table?.name || table.name;
     const w = openPrintWindow('Preparing bill…');
@@ -168,7 +98,8 @@ export function TableOrderDrawer({
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
     }
-    printBillInWindow(w, generateTableBillHtml(detail, tableLabel, sessionCompanyName()), `Bill-${tableLabel}`);
+    const header = await loadBillHeaderMeta();
+    printBillInWindow(w, generateTableBillHtml(detail, tableLabel, sessionCompanyName(), header), `Bill-${tableLabel}`);
   }
 
   const sheetClass = cn(
