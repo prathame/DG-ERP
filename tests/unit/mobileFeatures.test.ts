@@ -100,7 +100,7 @@ describe('mobileFeatures', () => {
   it('hotel_restaurant Cap defaults hide Masters and unused supply-chain tabs', () => {
     const f = defaultMobileFeatures('hotel_restaurant');
     expect(f.masters).toBe(false);
-    expect(f.analytics).toBe(false);
+    expect(f.analytics).toBe(true);
     expect(f.inventory).toBe(false);
     expect(f.invoices).toBe(true);
     expect(f.finance).toBe(true);
@@ -112,10 +112,11 @@ describe('mobileFeatures', () => {
     expect(f.invoices).toBe(true);
   });
 
-  it('hotel SA Cap options omit Masters', () => {
+  it('hotel SA Cap options omit Masters but include Analytics', () => {
     const keys = mobileFeatureOptions('hotel_restaurant').map(o => o.key);
     expect(keys).not.toContain('masters');
     expect(keys).not.toContain('inventory');
+    expect(keys).toContain('analytics');
     expect(keys).toContain('invoices');
     expect(keys).toContain('finance');
     expect(keys).toContain('chatbot');

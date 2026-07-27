@@ -76,6 +76,31 @@ describe('HTTP Hospitality', () => {
 
     const parcels = await api().post('/api/hospitality/parcels').set(headers).send({ customerName: 'X' });
     expect(parcels.status).toBe(403);
+
+    const analytics = await api().get('/api/hospitality/analytics').set(headers);
+    expect(analytics.status).toBe(403);
+  });
+
+  it('returns hospitality analytics snapshot for hotel tenants', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    await api().post('/api/hospitality/seed').set(headers).send({});
+
+    const res = await api().get('/api/hospitality/analytics?period=today').set(headers);
+    expect(res.status).toBe(200);
+    expect(res.body.period).toBe('today');
+    expect(res.body.tables).toMatchObject({
+      total: expect.any(Number),
+      occupied: expect.any(Number),
+      available: expect.any(Number),
+    });
+    expect(res.body.orders).toMatchObject({
+      dineIn: expect.any(Number),
+      parcel: expect.any(Number),
+      total: expect.any(Number),
+      revenue: expect.any(Number),
+    });
+    expect(typeof res.body.kitchenQueueDepth).toBe('number');
+    expect(typeof res.body.parcelsOpen).toBe('number');
   });
 
   it('covers order lifecycle: open → add item → kitchen → bill → close → clear', async () => {
@@ -303,27 +328,21 @@ describe('HTTP Hospitality', () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
     await api().post('/api/hospitality/seed').set(headers).send({});
 
-    const planMp = await api()
-      .post('/api/hospitality/membership-plans')
-      .set(headers)
-      .send({
-        name: 'Gold MP',
-        period: 'monthly',
-        fee: 499,
-        discountPercent: 0,
-        useMemberPrices: true,
-      });
+    const planMp = await api().post('/api/hospitality/membership-plans').set(headers).send({
+      name: 'Gold MP',
+      period: 'monthly',
+      fee: 499,
+      discountPercent: 0,
+      useMemberPrices: true,
+    });
     expect(planMp.status).toBe(201);
-    const planPct = await api()
-      .post('/api/hospitality/membership-plans')
-      .set(headers)
-      .send({
-        name: 'Silver Pct',
-        period: 'monthly',
-        fee: 199,
-        discountPercent: 10,
-        useMemberPrices: false,
-      });
+    const planPct = await api().post('/api/hospitality/membership-plans').set(headers).send({
+      name: 'Silver Pct',
+      period: 'monthly',
+      fee: 199,
+      discountPercent: 10,
+      useMemberPrices: false,
+    });
     expect(planPct.status).toBe(201);
 
     const memActive = await api()
@@ -341,28 +360,22 @@ describe('HTTP Hospitality', () => {
       .set(headers)
       .send({ name: 'Exp Mem', phone: '9000000003', planId: planMp.body.plan.id });
     expect(memExp.status).toBe(201);
-    await api()
-      .put(`/api/hospitality/members/${memExp.body.member.id}`)
-      .set(headers)
-      .send({
-        name: 'Exp Mem',
-        phone: '9000000003',
-        planId: planMp.body.plan.id,
-        status: 'expired',
-      });
+    await api().put(`/api/hospitality/members/${memExp.body.member.id}`).set(headers).send({
+      name: 'Exp Mem',
+      phone: '9000000003',
+      planId: planMp.body.plan.id,
+      status: 'expired',
+    });
 
     const cats = await api().get('/api/hospitality/menu-categories').set(headers);
     const categoryId = cats.body.categories[0].id as string;
-    const dish = await api()
-      .post('/api/hospitality/menu-items')
-      .set(headers)
-      .send({
-        name: 'Member Dish',
-        categoryId,
-        price: 200,
-        memberPrice: 150,
-        available: true,
-      });
+    const dish = await api().post('/api/hospitality/menu-items').set(headers).send({
+      name: 'Member Dish',
+      categoryId,
+      price: 200,
+      memberPrice: 150,
+      available: true,
+    });
     expect(dish.status).toBe(201);
     const dishId = dish.body.item.id as string;
 

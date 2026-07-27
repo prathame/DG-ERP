@@ -84,7 +84,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     rewards: { label: 'Rewards', visible: false },
   }),
   hotel_restaurant: baseAllVisible({
-    analytics: { label: 'Analytics', visible: false },
+    analytics: { label: 'Analytics', visible: true },
     masters: { label: 'Masters', visible: false },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },

@@ -211,8 +211,7 @@ export const hospApi = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  deletePlan: (id: string) =>
-    fetchApi<{ ok: boolean }>(`/hospitality/membership-plans/${id}`, { method: 'DELETE' }),
+  deletePlan: (id: string) => fetchApi<{ ok: boolean }>(`/hospitality/membership-plans/${id}`, { method: 'DELETE' }),
   members: (params?: { phone?: string; q?: string }) => {
     const qs = new URLSearchParams();
     if (params?.phone) qs.set('phone', params.phone);
@@ -327,4 +326,21 @@ export const hospApi = {
       body: JSON.stringify(body),
     }),
   deleteModifier: (id: string) => fetchApi<{ ok: boolean }>(`/hospitality/modifiers/${id}`, { method: 'DELETE' }),
+
+  analytics: (period: 'today' | 'week' = 'today') =>
+    fetchApi<{
+      period: 'today' | 'week';
+      periodStart: string;
+      tables: {
+        total: number;
+        occupied: number;
+        billing: number;
+        available: number;
+        cleaning: number;
+      };
+      orders: { dineIn: number; parcel: number; total: number; revenue: number };
+      kitchenQueueDepth: number;
+      parcelsOpen: number;
+      queueWaiting: number;
+    }>(`/hospitality/analytics?period=${period}`),
 };

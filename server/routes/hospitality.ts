@@ -4,11 +4,8 @@ import { pool } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
-import {
-  computeOrderDiscount,
-  isMemberCurrentlyActive,
-  resolveMemberUnitPrice,
-} from '../../shared/hospPricing';
+import { computeOrderDiscount, isMemberCurrentlyActive, resolveMemberUnitPrice } from '../../shared/hospPricing';
+import { hospAnalyticsPeriodStart, hospOrderPayable, parseHospAnalyticsPeriod } from '../../shared/hospAnalytics';
 
 const router = Router();
 
@@ -60,6 +57,110 @@ router.get('/api/hospitality/tables', blockVendors, async (req: AuthRequest, res
       )
     ).rows;
     res.json({ tables });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Floor snapshot + billed/closed order stats for hotel Analytics tab. */
+router.get('/api/hospitality/analytics', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+
+    const period = parseHospAnalyticsPeriod(req.query?.period);
+    const start = hospAnalyticsPeriodStart(period);
+
+    const [tablesRow, kitchenRow, queueRow, parcelsOpenRow, orderRows] = await Promise.all([
+      pool.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE status = 'occupied')::int AS occupied,
+           COUNT(*) FILTER (WHERE status = 'billing')::int AS billing,
+           COUNT(*) FILTER (WHERE status = 'available')::int AS available,
+           COUNT(*) FILTER (WHERE status = 'cleaning')::int AS cleaning
+         FROM hosp_dining_tables WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS c
+         FROM hosp_order_items oi
+         JOIN hosp_orders o ON o.id = oi.order_id
+         WHERE o.tenant_id = $1 AND o.status = 'open'
+           AND oi.kitchen_status IN ('queued','preparing','ready')`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS c FROM hosp_queue_entries
+         WHERE tenant_id = $1 AND status IN ('waiting','called')`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS c FROM hosp_orders
+         WHERE tenant_id = $1 AND order_type = 'parcel' AND status IN ('open','billed')`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT o.id, o.order_type, o.discount_percent, o.discount_amount,
+           COALESCE(SUM(
+             (oi.unit_price + COALESCE((
+               SELECT SUM(m.price_delta) FROM hosp_order_item_modifiers m WHERE m.order_item_id = oi.id
+             ), 0)) * oi.qty
+           ), 0) AS subtotal
+         FROM hosp_orders o
+         LEFT JOIN hosp_order_items oi ON oi.order_id = o.id
+         WHERE o.tenant_id = $1
+           AND o.status IN ('billed','closed')
+           AND o.updated_at >= $2
+         GROUP BY o.id`,
+        [tenantId, start.toISOString()],
+      ),
+    ]);
+
+    const t = tablesRow.rows[0] as Record<string, number>;
+    let dineIn = 0;
+    let parcel = 0;
+    let revenue = 0;
+    for (const row of orderRows.rows as Array<{
+      order_type: string;
+      discount_percent: number;
+      discount_amount: number;
+      subtotal: string | number;
+    }>) {
+      const payable = hospOrderPayable(
+        Number(row.subtotal) || 0,
+        Number(row.discount_percent) || 0,
+        Number(row.discount_amount) || 0,
+        computeOrderDiscount,
+      );
+      revenue += payable;
+      if (row.order_type === 'parcel') parcel += 1;
+      else dineIn += 1;
+    }
+    revenue = Math.round(revenue * 100) / 100;
+
+    res.json({
+      period,
+      periodStart: start.toISOString(),
+      tables: {
+        total: Number(t.total) || 0,
+        occupied: Number(t.occupied) || 0,
+        billing: Number(t.billing) || 0,
+        available: Number(t.available) || 0,
+        cleaning: Number(t.cleaning) || 0,
+      },
+      orders: {
+        dineIn,
+        parcel,
+        total: dineIn + parcel,
+        revenue,
+      },
+      kitchenQueueDepth: Number((kitchenRow.rows[0] as { c: number })?.c) || 0,
+      parcelsOpen: Number((parcelsOpenRow.rows[0] as { c: number })?.c) || 0,
+      queueWaiting: Number((queueRow.rows[0] as { c: number })?.c) || 0,
+    });
   } catch (e) {
     handleApiError(req, res, e);
   }

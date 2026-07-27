@@ -156,6 +156,9 @@ const HospitalityParcelsView = lazy(() =>
 const HospitalityMembersView = lazy(() =>
   import('./features/hospitality/HospitalityMembersView').then(m => ({ default: m.HospitalityMembersView })),
 );
+const HospitalityAnalyticsView = lazy(() =>
+  import('./features/hospitality/HospitalityAnalyticsView').then(m => ({ default: m.HospitalityAnalyticsView })),
+);
 
 function slugEntryApiContext(slug: string): {
   slug: string;
@@ -1779,9 +1782,13 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
                     {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
                     {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
-                    {canAccess(activeTab) && activeTab === 'analytics' && (
-                      <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
-                    )}
+                    {canAccess(activeTab) &&
+                      activeTab === 'analytics' &&
+                      ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                        <HospitalityAnalyticsView />
+                      ) : (
+                        <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
+                      ))}
                     {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
                       <AccountsView accessLevel={getAccess('accounts')} />
                     )}
