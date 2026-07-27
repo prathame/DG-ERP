@@ -1237,6 +1237,11 @@ export async function initSchema() {
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_features JSONB`);
     // mobile_features: companion pack for Cap Online (non-service); NULL = defaults
 
+    // Hotel / restaurant data hosting (SA onboard): cloud | byo_db | local_server | NULL
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS hotel_deployment TEXT`);
+    // Encrypted BYO Postgres URL when hotel_deployment = byo_db
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS hotel_database_url TEXT`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS service_cloud_device_slots (
         id TEXT PRIMARY KEY,

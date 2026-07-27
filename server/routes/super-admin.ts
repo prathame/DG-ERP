@@ -23,6 +23,12 @@ import { getTabPreset, isBusinessTypeWithCustom, isNamedBusinessType } from '../
 import { defaultMobileFeatures, normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { encryptSecret } from '../utils/secret-crypto';
 import { isWhatsAppSendMode } from '../utils/whatsappBusiness';
+import {
+  type HotelDeployment,
+  isHotelDeployment,
+  resolveHotelDatabaseUrl,
+  resolveHotelDeployment,
+} from '../utils/hotelDeployment';
 
 const router = Router();
 
@@ -238,6 +244,19 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       return res.status(400).json({ error: 'Company name, admin email, and admin name are required' });
     const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
     if (existing) return res.status(400).json({ error: 'A tenant with this email already exists' });
+    const bType = isBusinessTypeWithCustom(req.body.businessType) ? (req.body.businessType as string) : 'manufacturer';
+    let hotelDeployment: HotelDeployment | null = null;
+    let hotelDbUrlPlain: string | null = null;
+    try {
+      hotelDeployment = resolveHotelDeployment(bType, req.body.hotelDeployment);
+      hotelDbUrlPlain = resolveHotelDatabaseUrl(hotelDeployment, req.body.databaseUrl ?? req.body.hotelDatabaseUrl);
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      if (err.code === 'INVALID_HOTEL_DEPLOYMENT' || err.code === 'INVALID_HOTEL_DB_URL') {
+        return res.status(400).json({ error: err.message });
+      }
+      throw e;
+    }
     // Fresh / wiped DBs: seed default plans before insert (same class of bug as on-prem LOCAL plan ensure)
     await ensureDefaultPlans();
     const selectedPlan = planId || plan || 'BASIC';
@@ -261,7 +280,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         result.tenantId,
       ]);
     }
-    const bType = isBusinessTypeWithCustom(req.body.businessType) ? (req.body.businessType as string) : 'manufacturer';
 
     // Business-type presets — shared/tabPresets.ts is the source of truth
     const tabConfig = getTabPreset(bType);
@@ -272,12 +290,21 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       ? normalizeMobileFeatures(req.body.mobileFeatures, bType)
       : defaultMobileFeatures(bType);
     await pool.query(
-      `UPDATE tenants SET tab_config = $1, business_type = $2, client_access_mode = $3, mobile_features = $4::jsonb
-       WHERE id = $5`,
-      [JSON.stringify(tabConfig), bType, accessMode, JSON.stringify(mobileFeatures), result.tenantId],
+      `UPDATE tenants SET tab_config = $1, business_type = $2, client_access_mode = $3, mobile_features = $4::jsonb,
+         hotel_deployment = $5, hotel_database_url = $6
+       WHERE id = $7`,
+      [
+        JSON.stringify(tabConfig),
+        bType,
+        accessMode,
+        JSON.stringify(mobileFeatures),
+        hotelDeployment,
+        hotelDbUrlPlain ? encryptSecret(hotelDbUrlPlain) : null,
+        result.tenantId,
+      ],
     );
-    // Hotel / restaurant: seed floor tables + starter menu into the same DG-ERP DB
-    if (bType === 'hotel_restaurant') {
+    // Cloud hotel only: seed floor + menu into our Postgres. BYO / local_server keep ops data off-cloud.
+    if (bType === 'hotel_restaurant' && hotelDeployment === 'cloud') {
       await seedHospitalityCatalog(result.tenantId);
     }
     // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
@@ -326,6 +353,8 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       needMobile,
       clientAccessMode: accessMode,
       mobileFeatures,
+      hotelDeployment,
+      hotelDatabaseUrlConfigured: !!hotelDbUrlPlain,
     });
   } catch (err) {
     const e = err as Error & { code?: string };
@@ -392,6 +421,9 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         lastActiveAt: tenant.last_active_at,
         tabConfig: tenant.tab_config ?? null,
         businessType: tenant.business_type || 'manufacturer',
+        hotelDeployment: (tenant.hotel_deployment as string) || null,
+        hotelDatabaseUrlConfigured: !!(tenant.hotel_database_url as string),
+        hotelDatabaseUrl: tenant.hotel_database_url ? '••••••••' : '',
       },
       stats,
       users: users.map((u: Record<string, unknown>) => ({
@@ -534,19 +566,96 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       params.push(String(requestBody.whatsappDisplayPhone || '').trim() || null);
       idx++;
     }
+    const currentRow = (
+      await pool.query(`SELECT business_type, hotel_deployment, hotel_database_url FROM tenants WHERE id = $1`, [id])
+    ).rows[0] as
+      { business_type?: string; hotel_deployment?: string | null; hotel_database_url?: string | null } | undefined;
+    if (!currentRow) return res.status(404).json({ error: 'Tenant not found' });
+
     if (requestBody.businessType !== undefined && isNamedBusinessType(requestBody.businessType)) {
       updates.push(`business_type = $${idx}`);
       params.push(requestBody.businessType);
       idx++;
+      // Leaving hotel → clear deployment secrets
+      if (requestBody.businessType !== 'hotel_restaurant') {
+        updates.push(`hotel_deployment = $${idx}`);
+        params.push(null);
+        idx++;
+        updates.push(`hotel_database_url = $${idx}`);
+        params.push(null);
+        idx++;
+      }
+    }
+
+    const effectiveTypeForHotel =
+      requestBody.businessType !== undefined && isNamedBusinessType(requestBody.businessType)
+        ? requestBody.businessType
+        : (currentRow.business_type as string) || 'manufacturer';
+
+    if (requestBody.hotelDeployment !== undefined) {
+      if (effectiveTypeForHotel !== 'hotel_restaurant') {
+        return res.status(400).json({ error: 'hotelDeployment only applies to hotel_restaurant tenants' });
+      }
+      const mode = requestBody.hotelDeployment;
+      if (mode !== null && mode !== '' && !isHotelDeployment(mode)) {
+        return res.status(400).json({ error: 'hotelDeployment must be cloud, byo_db, or local_server' });
+      }
+      updates.push(`hotel_deployment = $${idx}`);
+      params.push(mode || null);
+      idx++;
+      if (mode === 'byo_db') {
+        const plain = String(requestBody.databaseUrl ?? requestBody.hotelDatabaseUrl ?? '').trim();
+        if (plain && plain !== '••••••••' && !/^•+$/.test(plain)) {
+          try {
+            resolveHotelDatabaseUrl('byo_db', plain);
+          } catch (e) {
+            return res.status(400).json({ error: (e as Error).message });
+          }
+          updates.push(`hotel_database_url = $${idx}`);
+          params.push(encryptSecret(plain));
+          idx++;
+        } else if (!currentRow.hotel_database_url) {
+          return res.status(400).json({
+            error: 'databaseUrl is required for byo_db (postgres:// or postgresql://)',
+          });
+        }
+      } else {
+        updates.push(`hotel_database_url = $${idx}`);
+        params.push(null);
+        idx++;
+      }
+    } else if (requestBody.databaseUrl !== undefined || requestBody.hotelDatabaseUrl !== undefined) {
+      if (effectiveTypeForHotel !== 'hotel_restaurant') {
+        return res.status(400).json({ error: 'databaseUrl only applies to hotel_restaurant tenants' });
+      }
+      const plain = String(requestBody.databaseUrl ?? requestBody.hotelDatabaseUrl ?? '').trim();
+      if (plain && plain !== '••••••••' && !/^•+$/.test(plain)) {
+        try {
+          resolveHotelDatabaseUrl('byo_db', plain);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+        // URL-only update implies byo_db so mode and secret stay consistent
+        if ((currentRow.hotel_deployment as string) !== 'byo_db') {
+          updates.push(`hotel_deployment = $${idx}`);
+          params.push('byo_db');
+          idx++;
+        }
+        updates.push(`hotel_database_url = $${idx}`);
+        params.push(encryptSecret(plain));
+        idx++;
+      }
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
-    if (requestBody.businessType === 'hotel_restaurant') {
+    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
+    const effectiveType = (tenant.business_type as string) || 'manufacturer';
+    const effectiveDeploy = (tenant.hotel_deployment as string) || 'cloud';
+    if (effectiveType === 'hotel_restaurant' && effectiveDeploy === 'cloud') {
       await seedHospitalityCatalog(id);
     }
-    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
     await logAudit(
       pool,
       id,
@@ -579,6 +688,9 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       whatsappWabaId: (tenant.whatsapp_waba_id as string) || '',
       whatsappDisplayPhone: (tenant.whatsapp_display_phone as string) || '',
       tabConfig: tenant.tab_config ?? null,
+      hotelDeployment: (tenant.hotel_deployment as string) || null,
+      hotelDatabaseUrlConfigured: !!(tenant.hotel_database_url as string),
+      hotelDatabaseUrl: tenant.hotel_database_url ? '••••••••' : '',
     });
   } catch (err) {
     return handleApiError(req, res, err);

@@ -63,6 +63,8 @@ interface TenantDetail {
   whatsappDisplayPhone?: string;
   tabConfig: Record<string, { label: string; visible: boolean }> | null;
   businessType?: string;
+  hotelDeployment?: string | null;
+  hotelDatabaseUrlConfigured?: boolean;
   createdAt: string;
   stats: {
     products: number;
@@ -453,6 +455,15 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <span className="px-2 py-1 bg-gray-100 rounded-lg text-sm font-medium">
               {bizTypeLabel(tenant.businessType, tenant.companyName)}
             </span>
+            {tenant.businessType === 'hotel_restaurant' && tenant.hotelDeployment && (
+              <span className="px-2 py-1 bg-orange-50 text-brand rounded-lg text-xs font-bold">
+                {tenant.hotelDeployment === 'cloud'
+                  ? 'Cloud DB'
+                  : tenant.hotelDeployment === 'byo_db'
+                    ? `Their DB${tenant.hotelDatabaseUrlConfigured ? ' ✓' : ''}`
+                    : 'Local PC server'}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Calendar size={16} className="text-gray-400" />

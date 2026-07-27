@@ -427,6 +427,30 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
   },
 };
 
+type HotelDeployment = 'cloud' | 'byo_db' | 'local_server';
+
+const HOTEL_DEPLOYMENT_OPTIONS: {
+  id: HotelDeployment;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    id: 'cloud',
+    label: 'Dhandho cloud',
+    desc: 'We host Postgres — Floor / Waiter / Kitchen / Queue in our DB',
+  },
+  {
+    id: 'byo_db',
+    label: 'Their Postgres URL',
+    desc: 'Customer provides DATABASE_URL — we do not host hotel ops data',
+  },
+  {
+    id: 'local_server',
+    label: 'Local PC server',
+    desc: 'Desktop + Postgres on their LAN PC — other devices talk to that host',
+  },
+];
+
 const BUSINESS_TYPE_CONFIGS: Record<
   NamedBusinessType,
   { label: string; desc: string; tabConfig: Record<string, { label: string; visible: boolean }> }
@@ -470,6 +494,8 @@ function CreateTenantModal({
     businessType: 'manufacturer' as BusinessType,
     needMobile: false,
     mobileFeatures: defaultMobileFeatures('manufacturer') as MobileFeatures,
+    hotelDeployment: 'cloud' as HotelDeployment,
+    databaseUrl: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -521,6 +547,13 @@ function CreateTenantModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (form.businessType === 'hotel_restaurant' && form.hotelDeployment === 'byo_db') {
+      const url = form.databaseUrl.trim();
+      if (!url || !/^postgres(ql)?:\/\//i.test(url)) {
+        setError('Paste a Postgres URL (postgres:// or postgresql://) for Their Postgres URL mode');
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const token = session.getToken();
@@ -532,6 +565,11 @@ function CreateTenantModal({
           needMobile: form.needMobile,
           mobileFeatures: form.needMobile ? form.mobileFeatures : undefined,
           tabConfig: form.businessType !== 'custom' ? BUSINESS_TYPE_CONFIGS[form.businessType].tabConfig : undefined,
+          hotelDeployment: form.businessType === 'hotel_restaurant' ? form.hotelDeployment : undefined,
+          databaseUrl:
+            form.businessType === 'hotel_restaurant' && form.hotelDeployment === 'byo_db'
+              ? form.databaseUrl.trim()
+              : undefined,
         }),
       });
       if (!res.ok) {
@@ -788,6 +826,8 @@ function CreateTenantModal({
                           businessType: bt.id,
                           needMobile: bt.id === 'service' ? true : form.needMobile,
                           mobileFeatures: defaultMobileFeatures(bt.id) as MobileFeatures,
+                          hotelDeployment: bt.id === 'hotel_restaurant' ? form.hotelDeployment : 'cloud',
+                          databaseUrl: bt.id === 'hotel_restaurant' ? form.databaseUrl : '',
                         })
                       }
                       className={cn(
@@ -808,6 +848,57 @@ function CreateTenantModal({
                 })}
               </div>
             </div>
+            {form.businessType === 'hotel_restaurant' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Hotel data hosting</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {HOTEL_DEPLOYMENT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setForm({ ...form, hotelDeployment: opt.id })}
+                      className={cn(
+                        'p-3 rounded-xl border-2 text-left transition-all',
+                        form.hotelDeployment === opt.id
+                          ? 'border-brand bg-orange-50'
+                          : 'border-gray-200 hover:border-gray-300',
+                      )}
+                    >
+                      <p className="text-sm font-bold text-gray-900">{opt.label}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                {form.hotelDeployment === 'byo_db' && (
+                  <div className="mt-3">
+                    <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                      Postgres DATABASE_URL
+                    </label>
+                    <input
+                      value={form.databaseUrl}
+                      onChange={e => setForm({ ...form, databaseUrl: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent font-mono"
+                      placeholder="postgresql://user:pass@host:5432/hotel_db"
+                      autoComplete="off"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Stored encrypted. Runtime connect to their DB is configured on their side / follow-up.
+                    </p>
+                  </div>
+                )}
+                {form.hotelDeployment === 'local_server' && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mt-3">
+                    After create: install Desktop on their shop PC (embedded Postgres) and point waiter/kitchen devices
+                    at that host. Use On-Prem tab for license activation.
+                  </p>
+                )}
+                {form.hotelDeployment === 'cloud' && (
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Seeds demo floor + menu into Dhandho cloud Postgres for this tenant.
+                  </p>
+                )}
+              </div>
+            )}
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Need mobile app?</label>
               <div className="flex gap-2">
