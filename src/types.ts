@@ -20,7 +20,9 @@ export type Tab =
   | 'hosp_floor'
   | 'hosp_waiter'
   | 'hosp_kitchen'
-  | 'hosp_queue';
+  | 'hosp_queue'
+  | 'hosp_menu'
+  | 'hosp_parcels';
 
 export interface Product {
   id: string;

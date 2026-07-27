@@ -67,10 +67,15 @@ describe('HTTP Hospitality', () => {
   });
 
   it('rejects hospitality APIs for non-hotel tenants', async () => {
-    const res = await api()
-      .get('/api/hospitality/tables')
-      .set(authHeaders(token(MFG_TENANT, MFG_USER), MFG_TENANT));
+    const headers = authHeaders(token(MFG_TENANT, MFG_USER), MFG_TENANT);
+    const res = await api().get('/api/hospitality/tables').set(headers);
     expect(res.status).toBe(403);
+
+    const catalog = await api().post('/api/hospitality/menu-categories').set(headers).send({ name: 'Nope' });
+    expect(catalog.status).toBe(403);
+
+    const parcels = await api().post('/api/hospitality/parcels').set(headers).send({ customerName: 'X' });
+    expect(parcels.status).toBe(403);
   });
 
   it('covers order lifecycle: open → add item → kitchen → bill → close → clear', async () => {
@@ -147,5 +152,150 @@ describe('HTTP Hospitality', () => {
     const q = await api().get('/api/hospitality/queue').set(headers);
     expect(q.status).toBe(200);
     expect(q.body.nowServing || q.body.entries.length >= 0).toBeTruthy();
+  });
+
+  it('catalog CRUD: category → item → modifier → table', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+
+    const cat = await api()
+      .post('/api/hospitality/menu-categories')
+      .set(headers)
+      .send({ name: 'Admin Cat', sortOrder: 99 });
+    expect(cat.status).toBe(201);
+    const categoryId = cat.body.category.id as string;
+
+    const item = await api()
+      .post('/api/hospitality/menu-items')
+      .set(headers)
+      .send({ name: 'Admin Dish', categoryId, price: 199, description: 'Test', available: true });
+    expect(item.status).toBe(201);
+    const itemId = item.body.item.id as string;
+
+    const upd = await api()
+      .put(`/api/hospitality/menu-items/${itemId}`)
+      .set(headers)
+      .send({ name: 'Admin Dish', categoryId, price: 249, available: false });
+    expect(upd.status).toBe(200);
+    expect(Number(upd.body.item.price)).toBe(249);
+    expect(upd.body.item.available).toBe(false);
+
+    const group = await api()
+      .post('/api/hospitality/modifier-groups')
+      .set(headers)
+      .send({ name: 'Extra Sauce', required: false, maxSelect: 2 });
+    expect(group.status).toBe(201);
+    const groupId = group.body.group.id as string;
+
+    const mod = await api()
+      .post(`/api/hospitality/modifier-groups/${groupId}/modifiers`)
+      .set(headers)
+      .send({ name: 'Garlic', priceDelta: 20 });
+    expect(mod.status).toBe(201);
+
+    const link = await api()
+      .put(`/api/hospitality/menu-items/${itemId}`)
+      .set(headers)
+      .send({ name: 'Admin Dish', categoryId, price: 249, available: true, modifierGroupIds: [groupId] });
+    expect(link.status).toBe(200);
+
+    const groups = await api().get('/api/hospitality/modifier-groups').set(headers);
+    expect(groups.status).toBe(200);
+    expect(groups.body.groups.some((g: { id: string }) => g.id === groupId)).toBe(true);
+
+    const table = await api()
+      .post('/api/hospitality/tables')
+      .set(headers)
+      .send({ name: 'Admin-T99', seats: 3, zone: 'Patio' });
+    expect(table.status).toBe(201);
+    const tableId = table.body.table.id as string;
+
+    const tUpd = await api()
+      .put(`/api/hospitality/tables/${tableId}`)
+      .set(headers)
+      .send({ name: 'Admin-T99', seats: 5, zone: 'Patio' });
+    expect(tUpd.status).toBe(200);
+    expect(tUpd.body.table.seats).toBe(5);
+
+    const delItem = await api().delete(`/api/hospitality/menu-items/${itemId}`).set(headers);
+    expect(delItem.status).toBe(200);
+    const delMod = await api().delete(`/api/hospitality/modifiers/${mod.body.modifier.id}`).set(headers);
+    expect(delMod.status).toBe(200);
+    const delGroup = await api().delete(`/api/hospitality/modifier-groups/${groupId}`).set(headers);
+    expect(delGroup.status).toBe(200);
+    const delCat = await api().delete(`/api/hospitality/menu-categories/${categoryId}`).set(headers);
+    expect(delCat.status).toBe(200);
+    const delTable = await api().delete(`/api/hospitality/tables/${tableId}`).set(headers);
+    expect(delTable.status).toBe(200);
+  });
+
+  it('rejects DELETE table while an open order exists', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+
+    const table = await api()
+      .post('/api/hospitality/tables')
+      .set(headers)
+      .send({ name: 'Busy-Del-T', seats: 2, zone: 'Test' });
+    expect(table.status).toBe(201);
+    const tableId = table.body.table.id as string;
+
+    const open = await api().post(`/api/hospitality/tables/${tableId}/open`).set(headers).send({});
+    expect(open.status).toBe(200);
+
+    const blocked = await api().delete(`/api/hospitality/tables/${tableId}`).set(headers);
+    expect(blocked.status).toBe(400);
+    expect(String(blocked.body.error || '')).toMatch(/open order/i);
+
+    const close = await api().post(`/api/hospitality/orders/${open.body.order.id}/close`).set(headers).send({});
+    expect(close.status).toBe(200);
+    await api().post(`/api/hospitality/tables/${tableId}/clear`).set(headers).send({});
+  });
+
+  it('parcel lifecycle: create → add item → kitchen label → bill → close', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    await api().post('/api/hospitality/seed').set(headers).send({});
+
+    const created = await api()
+      .post('/api/hospitality/parcels')
+      .set(headers)
+      .send({ customerName: 'Ravi', customerPhone: '9999999999' });
+    expect(created.status).toBe(201);
+    expect(created.body.order.order_type).toBe('parcel');
+    expect(created.body.order.table_id).toBeNull();
+    expect(created.body.label).toMatch(/Parcel/);
+    const orderId = created.body.order.id as string;
+
+    const menu = await api().get('/api/hospitality/menu').set(headers);
+    expect(menu.status).toBe(200);
+    const item = menu.body.items[0];
+    expect(item).toBeTruthy();
+
+    const added = await api()
+      .post(`/api/hospitality/orders/${orderId}/items`)
+      .set(headers)
+      .send({ menuItemId: item.id, qty: 1 });
+    expect(added.status).toBe(200);
+    expect(added.body.items.length).toBeGreaterThanOrEqual(1);
+
+    const kitchen = await api().get('/api/hospitality/kitchen').set(headers);
+    expect(kitchen.status).toBe(200);
+    const ticket = kitchen.body.tickets.find(
+      (t: { order_type?: string; label?: string }) =>
+        t.order_type === 'parcel' || String(t.label || '').includes('Parcel'),
+    );
+    expect(ticket).toBeTruthy();
+
+    const list = await api().get('/api/hospitality/parcels').set(headers);
+    expect(list.status).toBe(200);
+    expect(list.body.parcels.some((p: { id: string }) => p.id === orderId)).toBe(true);
+
+    const bill = await api().post(`/api/hospitality/orders/${orderId}/bill`).set(headers).send({});
+    expect(bill.status).toBe(200);
+    expect(bill.body.order.status).toBe('billed');
+
+    const close = await api().post(`/api/hospitality/orders/${orderId}/close`).set(headers).send({});
+    expect(close.status).toBe(200);
+
+    const after = await api().get('/api/hospitality/parcels').set(headers);
+    expect(after.body.parcels.some((p: { id: string }) => p.id === orderId)).toBe(false);
   });
 });

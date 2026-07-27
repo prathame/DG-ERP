@@ -164,6 +164,8 @@ export function mobileFeatureOptions(businessType?: string | null): { key: Mobil
 /** Map grants → Cap app tab ids. Settings always allowed by App shell. */
 export function mobileFeatureAllowsTab(tabId: string, features: MobileFeatures): boolean {
   if (tabId === 'settings') return false; // App.tsx allows settings separately
+  // Hospitality tabs: gated by role + tenant tab_config, not Cap mobile_features.
+  if (tabId.startsWith('hosp_')) return true;
   if (tabId === 'dashboard') return features.analytics;
   if ((MOBILE_FEATURE_KEYS as readonly string[]).includes(tabId)) {
     return features[tabId as MobileFeatureKey];

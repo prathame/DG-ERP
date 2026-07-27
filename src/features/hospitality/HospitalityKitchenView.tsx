@@ -20,6 +20,8 @@ type Ticket = {
   notes: string;
   kitchen_status: string;
   table_name: string;
+  label?: string;
+  order_type?: string;
   waiter_name: string | null;
   fired_at: string | null;
   modifiers: Array<{ name: string }>;
@@ -88,13 +90,20 @@ export function HospitalityKitchenView() {
         >
           {tickets.map(t => (
             <article key={t.id} className={cn(hospCardClass(shell), 'p-4 space-y-2')}>
-              <div className="flex justify-between text-sm">
-                <strong className={shell === 'desktopGlass' ? 'dg-ink' : shell === 'capGlass' ? 'dg-m-ink' : ''}>
-                  {t.table_name}
-                </strong>
+              <div className="flex justify-between text-sm gap-2 items-start">
+                <div>
+                  <strong className={shell === 'desktopGlass' ? 'dg-ink' : shell === 'capGlass' ? 'dg-m-ink' : ''}>
+                    {t.label || t.table_name}
+                  </strong>
+                  {t.order_type === 'parcel' && (
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide rounded-md px-1.5 py-0.5 bg-amber-100 text-amber-800">
+                      Parcel
+                    </span>
+                  )}
+                </div>
                 <span
                   className={cn(
-                    'uppercase text-[10px] font-bold',
+                    'uppercase text-[10px] font-bold shrink-0',
                     shell === 'classic' ? 'text-brand' : 'text-[var(--dg-primary)]',
                   )}
                 >
@@ -160,7 +169,7 @@ export function HospitalityKitchenView() {
                       await load();
                     }}
                   >
-                    Served
+                    {t.order_type === 'parcel' ? 'Handed over' : 'Served'}
                   </button>
                 )}
               </div>

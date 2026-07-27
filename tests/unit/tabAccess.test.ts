@@ -40,6 +40,8 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_waiter', user)).toBe('full');
     expect(resolveTabAccess('hosp_kitchen', user)).toBe('full');
     expect(resolveTabAccess('hosp_queue', user)).toBe('full');
+    expect(resolveTabAccess('hosp_menu', user)).toBe('full');
+    expect(resolveTabAccess('hosp_parcels', user)).toBe('full');
     expect(resolveTabAccess('inventory', user)).toBe('view');
     expect(resolveTabAccess('masters', user)).toBe('hidden');
   });
@@ -54,5 +56,39 @@ describe('resolveTabAccess', () => {
   it('Staff role defaults grant full hospitality tabs when permissions unset', () => {
     expect(resolveTabAccess('hosp_kitchen', { role: 'Staff', permissions: null })).toBe('full');
     expect(resolveTabAccess('inventory', { role: 'Staff', permissions: null })).toBe('view');
+  });
+
+  it('Waiter sees only Waiter Orders + Entry Queue', () => {
+    const user = { role: 'Waiter', permissions: { hospitality: 'full' } };
+    expect(resolveTabAccess('hosp_waiter', user)).toBe('full');
+    expect(resolveTabAccess('hosp_queue', user)).toBe('full');
+    expect(resolveTabAccess('hosp_kitchen', user)).toBe('hidden');
+    expect(resolveTabAccess('hosp_floor', user)).toBe('hidden');
+    expect(resolveTabAccess('hosp_menu', user)).toBe('hidden');
+    expect(resolveTabAccess('settings', user)).toBe('hidden');
+    expect(resolveTabAccess('invoices', user)).toBe('hidden');
+  });
+
+  it('Host sees only Entry Queue', () => {
+    const user = { role: 'Host', permissions: null };
+    expect(resolveTabAccess('hosp_queue', user)).toBe('full');
+    expect(resolveTabAccess('hosp_waiter', user)).toBe('hidden');
+    expect(resolveTabAccess('hosp_kitchen', user)).toBe('hidden');
+    expect(resolveTabAccess('finance', user)).toBe('hidden');
+  });
+
+  it('Kitchen sees only Kitchen tab', () => {
+    const user = { role: 'Kitchen', permissions: { hospitality: 'full', inventory: 'view' } };
+    expect(resolveTabAccess('hosp_kitchen', user)).toBe('full');
+    expect(resolveTabAccess('hosp_waiter', user)).toBe('hidden');
+    expect(resolveTabAccess('hosp_queue', user)).toBe('hidden');
+    expect(resolveTabAccess('inventory', user)).toBe('hidden');
+  });
+
+  it('Admin with hospitality permission still sees all hosp_* tabs', () => {
+    const user = { role: 'Admin', permissions: { hospitality: 'full', settings: 'full' } };
+    expect(resolveTabAccess('hosp_floor', user)).toBe('full');
+    expect(resolveTabAccess('hosp_menu', user)).toBe('full');
+    expect(resolveTabAccess('settings', user)).toBe('full');
   });
 });

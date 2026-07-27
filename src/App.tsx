@@ -24,6 +24,7 @@ import {
   ConciergeBell,
   ChefHat,
   ListOrdered,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
@@ -137,13 +138,19 @@ const HospitalityFloorView = lazy(() =>
   import('./features/hospitality/HospitalityFloorView').then(m => ({ default: m.HospitalityFloorView })),
 );
 const HospitalityWaiterView = lazy(() =>
-  import('./features/hospitality/HospitalityFloorView').then(m => ({ default: m.HospitalityWaiterView })),
+  import('./features/hospitality/HospitalityWaiterView').then(m => ({ default: m.HospitalityWaiterView })),
 );
 const HospitalityKitchenView = lazy(() =>
   import('./features/hospitality/HospitalityKitchenView').then(m => ({ default: m.HospitalityKitchenView })),
 );
 const HospitalityQueueView = lazy(() =>
   import('./features/hospitality/HospitalityQueueView').then(m => ({ default: m.HospitalityQueueView })),
+);
+const HospitalityMenuAdminView = lazy(() =>
+  import('./features/hospitality/HospitalityMenuAdminView').then(m => ({ default: m.HospitalityMenuAdminView })),
+);
+const HospitalityParcelsView = lazy(() =>
+  import('./features/hospitality/HospitalityParcelsView').then(m => ({ default: m.HospitalityParcelsView })),
 );
 
 function slugEntryApiContext(slug: string): {
@@ -747,8 +754,8 @@ export default function App() {
     {
       label: '',
       items: [
-        { id: 'analytics', label: tc('analytics', t('nav.analytics')), icon: LayoutDashboard, show: true },
-        { id: 'masters', label: tc('masters', t('nav.masters')), icon: BookUser, show: true },
+        { id: 'analytics', label: tc('analytics', t('nav.analytics')), icon: LayoutDashboard, show: tv('analytics') },
+        { id: 'masters', label: tc('masters', t('nav.masters')), icon: BookUser, show: tv('masters') },
         { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
         {
           id: 'distribution',
@@ -829,6 +836,18 @@ export default function App() {
           label: tc('hosp_queue', 'Entry Queue'),
           icon: ListOrdered,
           show: tv('hosp_queue'),
+        },
+        {
+          id: 'hosp_parcels',
+          label: tc('hosp_parcels', 'Parcels'),
+          icon: ShoppingBag,
+          show: tv('hosp_parcels'),
+        },
+        {
+          id: 'hosp_menu',
+          label: tc('hosp_menu', 'Menu'),
+          icon: BookOpen,
+          show: tv('hosp_menu'),
         },
       ],
     },
@@ -1747,6 +1766,8 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'hosp_waiter' && <HospitalityWaiterView />}
                     {canAccess(activeTab) && activeTab === 'hosp_kitchen' && <HospitalityKitchenView />}
                     {canAccess(activeTab) && activeTab === 'hosp_queue' && <HospitalityQueueView />}
+                    {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
+                    {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
                     {canAccess(activeTab) && activeTab === 'analytics' && (
                       <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
                     )}

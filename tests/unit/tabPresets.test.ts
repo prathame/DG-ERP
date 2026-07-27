@@ -36,11 +36,21 @@ describe('tabPresets', () => {
     expect(p.hosp_waiter.visible).toBe(true);
     expect(p.hosp_kitchen.visible).toBe(true);
     expect(p.hosp_queue.visible).toBe(true);
+    expect(p.hosp_parcels.visible).toBe(true);
+    expect(p.hosp_menu.visible).toBe(true);
+    expect(p.analytics.visible).toBe(false);
+    expect(p.masters.visible).toBe(false);
     expect(p.inventory.visible).toBe(false);
     expect(p.distribution.visible).toBe(false);
+    expect(p.purchases.visible).toBe(false);
+    expect(p.accounts.visible).toBe(false);
     expect(p.warranty.visible).toBe(false);
+    expect(p.invoices.visible).toBe(true);
+    expect(p.finance.visible).toBe(true);
+    expect(p.settings.visible).toBe(true);
     // other types keep hospitality tabs hidden by default
     expect(TAB_PRESETS.manufacturer.hosp_floor.visible).toBe(false);
+    expect(TAB_PRESETS.manufacturer.hosp_parcels.visible).toBe(false);
   });
 
   it('getTabPreset falls back to manufacturer and clones', () => {

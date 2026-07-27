@@ -1092,6 +1092,18 @@ export async function initSchema() {
        ON hosp_orders(table_id) WHERE status = 'open'`,
     );
 
+    // Parcel / takeaway orders: nullable table, order_type, customer fields
+    await client.query(`ALTER TABLE hosp_orders ALTER COLUMN table_id DROP NOT NULL`);
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'dine_in'`);
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS customer_phone TEXT NOT NULL DEFAULT ''`);
+    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS token TEXT`);
+    await client.query(`DROP INDEX IF EXISTS idx_hosp_one_open_order`);
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_hosp_one_open_order
+       ON hosp_orders(table_id) WHERE status = 'open' AND table_id IS NOT NULL`,
+    );
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS hosp_order_items (
         id TEXT PRIMARY KEY,

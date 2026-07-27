@@ -36,7 +36,7 @@ const STATUS_CLASS: Record<HospShell, Record<string, string>> = {
   },
 };
 
-export function HospitalityFloorView({ title = 'Floor' }: { title?: string }) {
+export function HospitalityFloorView() {
   const shell = useHospShell();
   const [tables, setTables] = useState<HospTable[]>([]);
   const [selected, setSelected] = useState<HospTable | null>(null);
@@ -91,7 +91,7 @@ export function HospitalityFloorView({ title = 'Floor' }: { title?: string }) {
       <div className="flex justify-between items-end gap-3 flex-wrap">
         <div>
           <p className={hospEyebrowClass(shell)}>Hospitality</p>
-          <h1 className={hospTitleClass(shell)}>{title}</h1>
+          <h1 className={hospTitleClass(shell)}>Floor</h1>
           <p className={hospSubClass(shell)}>
             {tables.filter(t => t.status === 'available').length} free ·{' '}
             {tables.filter(t => t.status === 'occupied').length} occupied
@@ -178,8 +178,4 @@ export function HospitalityFloorView({ title = 'Floor' }: { title?: string }) {
       )}
     </div>
   );
-}
-
-export function HospitalityWaiterView() {
-  return <HospitalityFloorView title="Waiter Orders" />;
 }

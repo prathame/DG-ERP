@@ -38,6 +38,8 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_waiter: { label: 'Waiter Orders', visible: false },
   hosp_kitchen: { label: 'Kitchen', visible: false },
   hosp_queue: { label: 'Entry Queue', visible: false },
+  hosp_menu: { label: 'Menu & Tables', visible: false },
+  hosp_parcels: { label: 'Parcels', visible: false },
   ...overrides,
 });
 
@@ -81,12 +83,16 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     rewards: { label: 'Rewards', visible: false },
   }),
   hotel_restaurant: baseAllVisible({
+    analytics: { label: 'Analytics', visible: false },
+    masters: { label: 'Masters', visible: false },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
     sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Expenses', visible: true },
+    purchases: { label: 'Expenses', visible: false },
     verification: { label: 'Search / Verify', visible: false },
     quotations: { label: 'Quotes & Orders', visible: false },
+    accounts: { label: 'Accounts', visible: false },
+    chatbot: { label: 'Chatbot', visible: false },
     finance: { label: 'Invoice Finance', visible: true },
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
@@ -95,6 +101,8 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     hosp_waiter: { label: 'Waiter Orders', visible: true },
     hosp_kitchen: { label: 'Kitchen', visible: true },
     hosp_queue: { label: 'Entry Queue', visible: true },
+    hosp_parcels: { label: 'Parcels', visible: true },
+    hosp_menu: { label: 'Menu', visible: true },
   }),
 };
 
