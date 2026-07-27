@@ -113,10 +113,7 @@ export function HospitalityAnalyticsView() {
               key={id}
               type="button"
               onClick={() => setPeriod(id)}
-              className={cn(
-                'min-h-[36px] px-3 text-xs font-bold',
-                period === id ? hospChipActive(shell) : hospChipIdle(shell),
-              )}
+              className={period === id ? hospChipActive(shell) : hospChipIdle(shell)}
             >
               {id === 'today' ? 'Today' : 'This week'}
             </button>
