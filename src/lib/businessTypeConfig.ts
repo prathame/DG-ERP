@@ -1,6 +1,6 @@
 import { session } from './session';
 
-export type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting';
+export type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting' | 'hotel_restaurant';
 
 export interface BusinessConfig {
   type: BusinessType;
@@ -29,6 +29,7 @@ export interface BusinessConfig {
     metalInventory: boolean; // weight / purity / fine on pieces
     weighScale: boolean; // scale capture on intake
     jewelleryTags: boolean; // jewellery tag print fields
+    hospitality: boolean; // floor / waiter / kitchen / queue
   };
 
   // Finance tab variant
@@ -74,6 +75,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       metalInventory: false,
       weighScale: false,
       jewelleryTags: false,
+      hospitality: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -112,6 +114,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       metalInventory: false,
       weighScale: false,
       jewelleryTags: false,
+      hospitality: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -150,6 +153,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       metalInventory: false,
       weighScale: false,
       jewelleryTags: false,
+      hospitality: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -188,6 +192,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       metalInventory: false,
       weighScale: false,
       jewelleryTags: false,
+      hospitality: false,
     },
     financeView: 'invoice',
     analytics: {
@@ -226,6 +231,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       metalInventory: true,
       weighScale: true,
       jewelleryTags: true,
+      hospitality: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -238,6 +244,45 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
     accounts: {
       hideTabs: [],
       distributionRegisterLabel: 'Sales Register',
+    },
+  },
+
+  hotel_restaurant: {
+    type: 'hotel_restaurant',
+    labels: {
+      vendors: 'Guests',
+      distribution: 'Distribution',
+      finance: 'Invoice Finance',
+      purchaseCost: 'Purchase Cost',
+      distributionRevenue: 'Food & Stay Revenue',
+    },
+    features: {
+      inventory: false,
+      distribution: false,
+      barcodes: false,
+      warranty: false,
+      rewards: false,
+      customerTracking: true,
+      eWayBill: false,
+      gstSplit: true,
+      vendorFinance: false,
+      invoiceFinance: true,
+      metalInventory: false,
+      weighScale: false,
+      jewelleryTags: false,
+      hospitality: true,
+    },
+    financeView: 'invoice',
+    analytics: {
+      showDispatched: false,
+      outstandingLabel: 'Unpaid Invoices',
+      outstandingKey: 'invoiceOutstanding',
+      collectionsLabel: 'Received',
+      revenueLabel: 'Revenue',
+    },
+    accounts: {
+      hideTabs: ['sales', 'distribution', 'stock'],
+      distributionRegisterLabel: 'Distribution Register',
     },
   },
 };

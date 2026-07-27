@@ -1010,6 +1010,131 @@ export async function initSchema() {
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ');
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ');
 
+    // ── Hospitality (hotel_restaurant business type) ───────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_dining_tables (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        seats INTEGER NOT NULL DEFAULT 4,
+        zone TEXT NOT NULL DEFAULT 'Main',
+        status TEXT NOT NULL DEFAULT 'available'
+          CHECK(status IN ('available','occupied','billing','cleaning')),
+        UNIQUE(tenant_id, name)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_tables_tenant ON hosp_dining_tables(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_menu_categories (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(tenant_id, name)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_menu_items (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        category_id TEXT NOT NULL REFERENCES hosp_menu_categories(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        price NUMERIC(14,2) NOT NULL,
+        available BOOLEAN NOT NULL DEFAULT true
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_menu_items_tenant ON hosp_menu_items(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_modifier_groups (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        required BOOLEAN NOT NULL DEFAULT false,
+        max_select INTEGER NOT NULL DEFAULT 3
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_modifiers (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES hosp_modifier_groups(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        price_delta NUMERIC(14,2) NOT NULL DEFAULT 0
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_item_modifier_groups (
+        menu_item_id TEXT NOT NULL REFERENCES hosp_menu_items(id) ON DELETE CASCADE,
+        group_id TEXT NOT NULL REFERENCES hosp_modifier_groups(id) ON DELETE CASCADE,
+        PRIMARY KEY (menu_item_id, group_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_orders (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        table_id TEXT NOT NULL REFERENCES hosp_dining_tables(id),
+        waiter_id TEXT,
+        status TEXT NOT NULL DEFAULT 'open'
+          CHECK(status IN ('open','billed','closed')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_hosp_one_open_order
+       ON hosp_orders(table_id) WHERE status = 'open'`,
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_order_items (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL REFERENCES hosp_orders(id) ON DELETE CASCADE,
+        menu_item_id TEXT NOT NULL REFERENCES hosp_menu_items(id),
+        name TEXT NOT NULL,
+        qty INTEGER NOT NULL DEFAULT 1,
+        unit_price NUMERIC(14,2) NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        kitchen_status TEXT NOT NULL DEFAULT 'queued'
+          CHECK(kitchen_status IN ('queued','preparing','ready','served')),
+        fired_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_order_item_modifiers (
+        id TEXT PRIMARY KEY,
+        order_item_id TEXT NOT NULL REFERENCES hosp_order_items(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        price_delta NUMERIC(14,2) NOT NULL DEFAULT 0
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hosp_queue_entries (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        token TEXT NOT NULL,
+        guest_name TEXT NOT NULL,
+        party_size INTEGER NOT NULL DEFAULT 2,
+        status TEXT NOT NULL DEFAULT 'waiting'
+          CHECK(status IN ('waiting','called','seated','no_show','left')),
+        table_id TEXT REFERENCES hosp_dining_tables(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        called_at TIMESTAMPTZ,
+        seated_at TIMESTAMPTZ,
+        UNIQUE(tenant_id, token)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_queue_tenant ON hosp_queue_entries(tenant_id, status)`);
+
     // SA → on-prem Bell messages (delivered on heartbeat / hard sync)
     await client.query(`
       CREATE TABLE IF NOT EXISTS onprem_notifications (

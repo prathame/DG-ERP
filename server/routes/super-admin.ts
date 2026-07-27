@@ -7,6 +7,7 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { clearSuperAdminSession, clearUserSession, replaceSuperAdminSession } from '../utils/userSessions';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
+import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
 import { ACTIVE_USER_SQL } from '../utils/activeUsers';
 import {
   DEFAULT_SERVICE_CLOUD_APP_URL,
@@ -275,6 +276,10 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
        WHERE id = $5`,
       [JSON.stringify(tabConfig), bType, accessMode, JSON.stringify(mobileFeatures), result.tenantId],
     );
+    // Hotel / restaurant: seed floor tables + starter menu into the same DG-ERP DB
+    if (bType === 'hotel_restaurant') {
+      await seedHospitalityCatalog(result.tenantId);
+    }
     // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
     // Create path sets mode to desktop (no mobile) or both (needMobile) — always seed desktop;
     // seed mobile when companions are enabled. Fixes Electron "No free desktop device slots"
@@ -538,6 +543,9 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
+    if (requestBody.businessType === 'hotel_restaurant') {
+      await seedHospitalityCatalog(id);
+    }
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
     await logAudit(
       pool,

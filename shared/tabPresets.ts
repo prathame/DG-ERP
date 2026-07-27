@@ -3,7 +3,14 @@
 export type TabConfigEntry = { label: string; visible: boolean };
 export type TabConfig = Record<string, TabConfigEntry>;
 
-export const NAMED_BUSINESS_TYPES = ['manufacturer', 'dealer', 'retail', 'service', 'silver_casting'] as const;
+export const NAMED_BUSINESS_TYPES = [
+  'manufacturer',
+  'dealer',
+  'retail',
+  'service',
+  'silver_casting',
+  'hotel_restaurant',
+] as const;
 
 export type NamedBusinessType = (typeof NAMED_BUSINESS_TYPES)[number];
 
@@ -26,6 +33,11 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   rewards: { label: 'Rewards', visible: true },
   chatbot: { label: 'Chatbot', visible: true },
   settings: { label: 'Settings', visible: true },
+  // Hospitality tabs — off by default; hotel_restaurant preset enables them
+  hosp_floor: { label: 'Floor', visible: false },
+  hosp_waiter: { label: 'Waiter Orders', visible: false },
+  hosp_kitchen: { label: 'Kitchen', visible: false },
+  hosp_queue: { label: 'Entry Queue', visible: false },
   ...overrides,
 });
 
@@ -67,6 +79,22 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+  }),
+  hotel_restaurant: baseAllVisible({
+    inventory: { label: 'Inventory', visible: false },
+    distribution: { label: 'Distribution', visible: false },
+    sales: { label: 'Sales Entry', visible: false },
+    purchases: { label: 'Expenses', visible: true },
+    verification: { label: 'Search / Verify', visible: false },
+    quotations: { label: 'Quotes & Orders', visible: false },
+    finance: { label: 'Invoice Finance', visible: true },
+    warranty: { label: 'Warranty', visible: false },
+    replacements: { label: 'Replacements', visible: false },
+    rewards: { label: 'Rewards', visible: false },
+    hosp_floor: { label: 'Floor', visible: true },
+    hosp_waiter: { label: 'Waiter Orders', visible: true },
+    hosp_kitchen: { label: 'Kitchen', visible: true },
+    hosp_queue: { label: 'Entry Queue', visible: true },
   }),
 };
 

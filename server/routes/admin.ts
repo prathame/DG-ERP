@@ -32,12 +32,13 @@ const ALL_MODULES = [
   'replacements',
   'rewards',
   'settings',
+  'hospitality',
 ];
 
 const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
   Admin: Object.fromEntries(ALL_MODULES.map(m => [m, 'full'])),
   Manager: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'settings' ? 'view' : 'full'])),
-  Staff: Object.fromEntries(ALL_MODULES.map(m => [m, 'view'])),
+  Staff: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'hospitality' ? 'full' : 'view'])),
   Warehouse: {
     dashboard: 'view',
     sales: 'hidden',
@@ -52,6 +53,7 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
     replacements: 'hidden',
     rewards: 'hidden',
     settings: 'hidden',
+    hospitality: 'hidden',
   },
   Vendor: {
     dashboard: 'view',
@@ -67,6 +69,7 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
     replacements: 'hidden',
     rewards: 'hidden',
     settings: 'hidden',
+    hospitality: 'hidden',
   },
 };
 

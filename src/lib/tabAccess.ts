@@ -42,7 +42,11 @@ export function resolveTabAccess(
   const role = user.role ?? '';
   if (['Super Admin', 'Admin'].includes(role)) return 'full';
   if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
-  if (role === 'Staff') return 'view';
+  if (role === 'Staff') {
+    // Waiter / kitchen / host staff need to mutate hospitality data
+    if (tabId.startsWith('hosp_')) return 'full';
+    return 'view';
+  }
   if (role === 'Vendor')
     return ['analytics', 'dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
   return 'hidden';
