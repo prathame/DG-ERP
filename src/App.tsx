@@ -138,7 +138,7 @@ const HospitalityFloorView = lazy(() =>
   import('./features/hospitality/HospitalityFloorView').then(m => ({ default: m.HospitalityFloorView })),
 );
 const HospitalityWaiterView = lazy(() =>
-  import('./features/hospitality/HospitalityFloorView').then(m => ({ default: m.HospitalityWaiterView })),
+  import('./features/hospitality/HospitalityWaiterView').then(m => ({ default: m.HospitalityWaiterView })),
 );
 const HospitalityKitchenView = lazy(() =>
   import('./features/hospitality/HospitalityKitchenView').then(m => ({ default: m.HospitalityKitchenView })),
