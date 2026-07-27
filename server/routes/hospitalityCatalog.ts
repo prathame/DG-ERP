@@ -696,6 +696,7 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
     const groupRows = (await client.query(`SELECT id, name FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]))
       .rows as Array<{ id: string; name: string }>;
     const groupByName = new Map(groupRows.map(g => [normGroupName(g.name), g.id]));
+    const createdModifierGroups: string[] = [];
     let sortNext =
       Number(
         (
@@ -760,17 +761,18 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
           .split(/[|;]/)
           .map(s => s.trim().replace(/^["']|["']$/g, ''))
           .filter(Boolean)) {
-          const gid = groupByName.get(normGroupName(part));
+          const key = normGroupName(part);
+          let gid = groupByName.get(key);
           if (!gid) {
-            await client.query('ROLLBACK');
-            const known = groupRows.map(g => g.name).sort((a, b) => a.localeCompare(b));
-            const hint =
-              known.length > 0
-                ? ` Known groups: ${known.map(n => `"${n}"`).join(', ')}.`
-                : ' No modifier groups exist yet.';
-            return res.status(400).json({
-              error: `Row ${count + 1}: Unknown modifier group "${part}" — import modifiers first.${hint}`,
-            });
+            gid = uid('HG');
+            const displayName = part.replace(/\s+/g, ' ').trim();
+            await client.query(
+              `INSERT INTO hosp_modifier_groups (id, tenant_id, name, required, max_select)
+               VALUES ($1,$2,$3,false,3)`,
+              [gid, tenantId, displayName],
+            );
+            groupByName.set(key, gid);
+            createdModifierGroups.push(displayName);
           }
           await client.query(
             `INSERT INTO hosp_item_modifier_groups (menu_item_id, group_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
@@ -781,7 +783,16 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
       count++;
     }
     await client.query('COMMIT');
-    res.status(201).json({ success: count, errors: [] });
+    if (createdModifierGroups.length > 0) {
+      console.info(
+        `[hospitality] tenant ${tenantId}: dish import created modifier groups: ${createdModifierGroups.join(', ')}`,
+      );
+    }
+    res.status(201).json({
+      success: count,
+      errors: [],
+      ...(createdModifierGroups.length > 0 ? { createdModifierGroups } : {}),
+    });
   } catch (e) {
     await client.query('ROLLBACK');
     handleApiError(req, res, e, 'Menu import failed', { publicMessage: 'Import failed — no dishes were added' });

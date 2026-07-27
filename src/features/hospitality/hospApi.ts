@@ -289,7 +289,7 @@ export const hospApi = {
       body: JSON.stringify({ items }),
     }),
   importMenuItemsBatch: (items: Record<string, string | number | boolean | null | undefined>[]) =>
-    fetchApi<{ success: number; errors: string[] }>('/hospitality/menu-items/batch', {
+    fetchApi<{ success: number; errors: string[]; createdModifierGroups?: string[] }>('/hospitality/menu-items/batch', {
       method: 'POST',
       body: JSON.stringify({ items }),
     }),

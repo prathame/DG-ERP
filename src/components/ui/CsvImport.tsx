@@ -4,7 +4,9 @@ import { cn } from '../../lib/utils';
 import { reportActionFailed } from '../../lib/reportActionFailure';
 
 export interface CsvImportProps {
-  onImport: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
+  onImport: (
+    rows: Record<string, string>[],
+  ) => Promise<{ success: number; errors: string[]; createdModifierGroups?: string[]; [key: string]: unknown }>;
   onClose: () => void;
   columns: { key: string; label: string; required?: boolean }[];
   templateName: string;
@@ -12,6 +14,8 @@ export interface CsvImportProps {
   existingNames?: string[];
   /** Soft requirement: at least one column from each group must be present in the file headers. */
   requireAnyOf?: string[][];
+  /** Optional note shown above the drop zone (e.g. import behavior). */
+  hint?: string;
 }
 
 function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
@@ -102,6 +106,7 @@ export function CsvImport({
   itemLabel = 'items',
   existingNames,
   requireAnyOf,
+  hint,
 }: CsvImportProps) {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -244,6 +249,13 @@ export function CsvImport({
                         )}
                       </div>
                     )}
+                    {Array.isArray((result as Record<string, unknown>).createdModifierGroups) &&
+                      ((result as Record<string, unknown>).createdModifierGroups as string[]).length > 0 && (
+                        <p className="text-sm text-emerald-700 mt-1">
+                          Created modifier groups:{' '}
+                          {((result as Record<string, unknown>).createdModifierGroups as string[]).join(', ')}
+                        </p>
+                      )}
                     {Array.isArray((result as Record<string, unknown>).details) && (
                       <div className="mt-2 max-h-32 overflow-y-auto space-y-0.5">
                         {(
@@ -360,6 +372,8 @@ export function CsvImport({
                   <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={handleFile} />
                 </label>
               </div>
+
+              {hint && <p className="text-sm text-gray-600">{hint}</p>}
 
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-xs font-bold text-gray-500 mb-2">Expected columns:</p>
