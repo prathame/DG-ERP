@@ -75,6 +75,21 @@ They participate in opposite directions of the same physical-goods chain — `su
 | `standalone_invoices` | Non-inventory billing (services, one-off invoices) | `items` JSONB, `status` (`draft`/`sent`/`paid`/`cancelled`), `tax_total`, `grand_total`, **`party_type`** (`vendor`/`customer`/null), **`party_id`** (app-level link to masters — indexed `idx_si_party`) |
 | `invoice_payments` | Partial/batch payments against a `standalone_invoices` row | `FOREIGN KEY (invoice_id) REFERENCES standalone_invoices(id) ON DELETE RESTRICT` |
 
+## Hospitality (`hotel_restaurant`)
+
+| Table | Purpose | Notable columns |
+|---|---|---|
+| `hosp_dining_tables` | Floor tiles | `name`, `seats`, `zone`, `status` (`available`/`occupied`/`billing`/`cleaning`) |
+| `hosp_menu_categories` / `hosp_menu_items` | Menu | `price`, `available` |
+| `hosp_modifier_groups` / `hosp_modifiers` | Customizations | `required`, `max_select`, `price_delta` |
+| `hosp_item_modifier_groups` | Item ↔ group links | composite PK |
+| `hosp_orders` | Table orders | `status` (`open`/`billed`/`closed`); unique open order per table |
+| `hosp_order_items` | KOT lines | `kitchen_status` (`queued`→`served`), `fired_at` |
+| `hosp_order_item_modifiers` | Snapshotted modifier names/prices on the line | denormalized at add-time |
+| `hosp_queue_entries` | Entry FIFO | `token`, `guest_name`, `party_size`, `status`, optional `table_id` |
+
+Seeded by `server/utils/hospitalitySeed.ts`. Routes: [Hospitality API](/api/hospitality).
+
 :::tip Why `party_type` / `party_id` exist
 Invoice Finance used to group solely by `customer_name`. Renaming a client on the next invoice split their ledger into two cards. The party columns are a stable foreign key *by convention* (validated on create; no DB FK to `vendors`/`customers`). Summary SQL builds `partyKey` as `party_type || ':' || party_id`, falling back to `name:` + display name for legacy rows.
 :::

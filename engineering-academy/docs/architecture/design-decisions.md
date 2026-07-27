@@ -64,7 +64,7 @@ Switching to httpOnly cookies without solving the cross-surface cookie-scoping p
 
 ## Decision: Business-type presets over a generic workflow builder
 
-Covered in depth in [Business Goals](/overview/business-goals) — summarized here for completeness: five fixed presets (`manufacturer`, `dealer`, `retail`, `service`, `custom`) rather than a configurable no-code workflow engine. Rejected because a general workflow builder is an order of magnitude more engineering effort for a benefit (perfect per-customer fit) that the actual customer base — Indian SMEs who want "the dealer app" or "the manufacturer app," not a blank canvas — doesn't need. The `custom` type is the deliberate escape hatch for the exceptions.
+Covered in depth in [Business Goals](/overview/business-goals) — summarized here for completeness: named presets (`manufacturer`, `dealer`, `retail`, `service`, `silver_casting`, `hotel_restaurant`, plus `custom`) rather than a configurable no-code workflow engine **or separate installers per vertical**. Rejected: a general workflow builder is an order of magnitude more engineering for little SME benefit; separate apps per business type multiply release cost without fixing shared API/schema blast radius. One Desktop + one Mobile shell, gated by `business_type` / tab presets / feature flags (and type-specific routers like metal + hospitality). The `custom` type remains the escape hatch for odd tab mixes.
 
 ## Decision: RLS enabled, not forced
 

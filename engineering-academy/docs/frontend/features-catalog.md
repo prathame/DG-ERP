@@ -5,10 +5,10 @@ description: A tour of every features/* View in the frontend, and the business p
 
 # Features Catalog
 
-`src/features/` holds 18 top-level business modules. Each is a folder with one primary `*View.tsx` (lazy-loaded from `App.tsx` — see [app-shell.md](./app-shell.md)) and usually several sub-components for detail screens, modals, and forms. This document is organized around one question per module: **what business problem does this solve, for whom, and why does it look the way it does?**
+`src/features/` holds the top-level business modules (including `hospitality`). Each is a folder with one or more primary `*View.tsx` files (lazy-loaded from `App.tsx` — see [app-shell.md](./app-shell.md)) and usually several sub-components for detail screens, modals, and forms. This document is organized around one question per module: **what business problem does this solve, for whom, and why does it look the way it does?**
 
 > [!NOTE]
-> **The `businessType` thread runs through nearly every module.** Dhandho supports named archetypes — `manufacturer`, `dealer`, `retail`, `service`, `silver_casting` (+ `custom`) — configured per tenant and read via `useBusinessConfig()` (`src/lib/businessTypeConfig.ts`). Tab presets live in `shared/tabPresets.ts`. The same `DistributionView` component, for instance, is labeled "Dispatch" for a manufacturer and effectively becomes the sales flow for a dealer or silver casting party sale. Rather than forking the UI per business type, one component adapts its **labels and visible features** based on this config object. Keep this in mind as you read below — many modules described as one thing are really "the same screen wearing a different business type's vocabulary."
+> **The `businessType` thread runs through nearly every module.** Dhandho supports named archetypes — `manufacturer`, `dealer`, `retail`, `service`, `silver_casting`, `hotel_restaurant` (+ `custom`) — configured per tenant and read via `useBusinessConfig()` (`src/lib/businessTypeConfig.ts`). Tab presets live in `shared/tabPresets.ts`. The same `DistributionView` component, for instance, is labeled "Dispatch" for a manufacturer and effectively becomes the sales flow for a dealer or silver casting party sale. Rather than forking the UI per business type, one component adapts its **labels and visible features** based on this config object. Keep this in mind as you read below — many modules described as one thing are really "the same screen wearing a different business type's vocabulary."
 
 ```mermaid
 graph TD
@@ -37,6 +37,11 @@ graph TD
         Analytics[Analytics]
         Settings[Settings]
         SuperAdmin[Super Admin — platform level]
+    end
+    subgraph "Hospitality (hotel_restaurant)"
+        Floor[Floor] --> Waiter[Waiter Orders]
+        Waiter --> Kitchen[Kitchen KOT]
+        Queue[Entry Queue] --> Floor
     end
 ```
 
@@ -188,6 +193,20 @@ A public-facing-adjacent trust feature: scan or type a barcode to instantly see 
 Per-tenant configuration: user profile, password change, bill customization (logo, terms, bank details for printed bills — `bill_settings` table), and the GST API integration settings (NIC e-Invoice/e-Way Bill credentials — see the "GST API Settings" section of the file and [../security/secrets.md](../security/secrets.md) for how those credentials are encrypted at rest with AES-256-GCM before storage).
 
 **Business value:** the one place an Admin configures everything that makes bills/invoices look like *their* company's bills, and everything that connects the tenant to government tax infrastructure.
+
+## Hospitality
+
+**`features/hospitality/*`** — `HospitalityFloorView` (+ `HospitalityWaiterView` alias), `HospitalityKitchenView`, `HospitalityQueueView`, `TableOrderDrawer`, `hospApi.ts`, `hospUi.ts`
+
+Only for `hotel_restaurant` tenants (tabs from `TAB_PRESETS.hotel_restaurant`). Owner/staff open Floor or Waiter Orders, tap a table → `TableOrderDrawer` opens/resumes an order, adds menu items with modifier groups, bills and clears. Kitchen polls `/api/hospitality/kitchen` and advances item status. Entry Queue issues FIFO tokens and seats onto free tables.
+
+**UI shells:** `hospUi.ts` mirrors Inventory/Finance — desktop glass (`dg-*`), Cap mobile glass (`dg-m-*`), classic `bg-brand`. Brand logo stays in the app shell (`BrandMark`), not duplicated inside these pages.
+
+**Not a separate desktop/mobile binary.** Same Cap / Electron shells as other types; feature flags + API gate isolate hotel data. Live updates use **polling**, not Socket.IO.
+
+**Business value:** a small restaurant can run floor → order → KOT → queue without leaving Dhandho SA onboarding or the shared Postgres tenant.
+
+API detail: [Hospitality API](/api/hospitality).
 
 ## Super Admin
 

@@ -32,7 +32,7 @@ flowchart TB
 ```
 
 1. **Log in as Super Admin** (`SA_EMAIL`/`SA_PASS` — note these are hardcoded test credentials in the script, matching what CI's `release.yml` sets via env for its own ephemeral database, not real production credentials).
-2. **For each of the 4 business types** (manufacturer, dealer, retail, service): create a **fresh tenant** — real isolation, not shared fixtures, so one type's tests can never pollute another's.
+2. **For each core goods/service business type** (manufacturer, dealer, retail, service — plus targeted suites for `silver_casting` / `hotel_restaurant` where present): create a **fresh tenant** — real isolation, not shared fixtures, so one type's tests can never pollute another's. Vitest API coverage for hospitality: `tests/api/http-hospitality.test.ts`.
 3. **`scaffold(tok, tid)`** creates the common baseline entities every type needs: a product (with barcode via `add-stock`), a vendor, a supplier, a customer, a bank, a staff member, an expense — each creation is itself an assertion (`ok(name, cond, detail)` records pass/fail).
 4. **Run type-specific tests** — e.g. a Manufacturer type exercises distribution + E-Invoice flows more heavily; a Retail type exercises POS sales + warranty + rewards more heavily.
 5. **Report per-type pass/fail/skip counts** with ✅/❌/⏭ markers, printed to stdout — no HTML report, no JUnit XML (a real gap if you ever want this wired into a test-results UI).

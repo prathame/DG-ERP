@@ -1,0 +1,461 @@
+---
+sidebar_label: "hospitality.ts"
+title: "File server/routes/hospitality.ts"
+description: "Deep walkthrough of server/routes/hospitality.ts in DG-ERP / Dhandho"
+---
+
+# File walkthrough: `server/routes/hospitality.ts`
+
+:::info Ownership context
+Auto-generated from the live source tree so **no file is invisible** during onboarding.
+:::
+
+## Purpose
+
+`server/routes/hospitality.ts` is part of Dhandho (DG-ERP). Approximate size: **653 lines**.
+
+## Business value
+
+Ask: *If this file disappeared tomorrow, which user-facing workflow would break?*
+
+## Imports
+
+- `express`
+- `../middleware/auth`
+- `../pg-db`
+- `../utils/helpers`
+- `../utils/http-error`
+- `../utils/hospitalitySeed`
+
+## Exports and symbols
+
+**Exported names:** _none detected_
+
+**Classes:** _none_
+
+## Functions (24 detected)
+
+### Function: requireHospitality
+
+```ts
+requireHospitality(tenantId: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `requireHospitality` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: tenantOf
+
+```ts
+tenantOf(req: AuthRequest)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `tenantOf` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: getOpenOrder
+
+```ts
+getOpenOrder(tenantId: string, tableId: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `getOpenOrder` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: orderDetail
+
+```ts
+orderDetail(tenantId: string, orderId: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `orderDetail` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: createOpenOrder
+
+```ts
+createOpenOrder(tenantId: string, tableId: string, waiterId: string | null)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `createOpenOrder` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: row
+
+```ts
+row(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `row` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: tables
+
+```ts
+tables(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `tables` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: categories
+
+```ts
+categories(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `categories` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: items
+
+```ts
+items(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `items` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: groups
+
+```ts
+groups(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `groups` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: modifiers
+
+```ts
+modifiers(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `modifiers` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: links
+
+```ts
+links(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `links` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: order
+
+```ts
+order(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `order` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: table
+
+```ts
+table(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `table` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: mods
+
+```ts
+mods(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `mods` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: lineTotal
+
+```ts
+lineTotal(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `lineTotal` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: item
+
+```ts
+item(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `item` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: m
+
+```ts
+m(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `m` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: tickets
+
+```ts
+tickets(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `tickets` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: entries
+
+```ts
+entries(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `entries` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: nowServing
+
+```ts
+nowServing(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `nowServing` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: count
+
+```ts
+count(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `count` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: next
+
+```ts
+next(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `next` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: entry
+
+```ts
+entry(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/hospitality.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `entry` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+
+## Execution flow
+
+1. Module loaded by Node (`tsx`) or Vite.
+2. Top-level imports initialize dependencies.
+3. Callers import exported symbols.
+
+## Call hierarchy
+
+```bash
+# From DG-ERP repo root
+rg -n "hospitality" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+```
+
+## Performance impact
+
+Line count **653**. Large view/route files are refactor candidates.
+
+## Security impact
+
+Review for: tenant scoping, IDOR, secrets in logs, XSS, path traversal on backups.
+
+## Scalability
+
+In-memory caches (authCache, GET Map) do **not** share across instances.
+
+## Refactoring opportunities
+
+- Extract pure helpers for unit tests
+- Split modules larger than ~800 lines
+- Deduplicate GST math via shared SQL fragments
+
+## Common mistakes
+
+- Forgetting `tenant_id` in a new query
+- Trusting JWT role claims without live DB hydration
+- Putting secrets in `VITE_*` env vars
+- Returning raw DB errors to clients
+
+## Alternative implementations
+
+| Approach | Trade-off |
+| --- | --- |
+| Keep as-is | Fast to ship; harder to test |
+| Split module | Clearer ownership; more files |
+| Shared package | Reuse across surfaces; packaging cost |
+
+## Related academy pages
+
+- [File index](/files/)
+- [Generated index](/files/generated/)
+- [Architecture](/architecture/system-overview)
+- [Security threat model](/security/threat-model)
+
+## Hands-on
+
+1. Open `server/routes/hospitality.ts` in the IDE.
+2. Breakpoint the largest exported function.
+3. Trigger via UI or supertest.
+4. Write one sentence on why this file exists in the product narrative.
+
+---
+
+*Generated by scripts/generate-file-deepdives.mjs · slug: `server__routes__hospitality`*

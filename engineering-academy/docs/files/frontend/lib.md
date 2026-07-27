@@ -1,7 +1,7 @@
 ---
-sidebar_label: src/lib/*
-title: File Walkthrough — src/lib/
-App.ts, useEscapeKey.ts.
+sidebar_label: src/lib
+title: File Walkthrough — src/lib
+description: Session, businessTypeConfig, bill templates, HSN rates, helpers, useEscapeKey.
 ---
 
 # File Walkthrough — `src/lib/`

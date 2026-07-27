@@ -1,12 +1,12 @@
 ---
 sidebar_label: Business Workflows
 title: Business Workflows — Following the Data
-description: End-to-end workflows traced through the actual code — purchase/sale/quote/IRN for goods, silver-casting metal intake, plus party-linked service invoices and price-list resolve.
+description: End-to-end workflows traced through the actual code — purchase/sale/quote/IRN for goods, silver-casting metal intake, party-linked service invoices, price-list resolve, and hotel hospitality.
 ---
 
 # Business Workflows
 
-Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the workflows that matter most. Workflows 1–4 are the physical-goods path (Manufacturer/Dealer/Retail). Workflow 1b is **Silver Casting** weigh → barcode. Workflows 5–6 cover **standalone invoices / Invoice Finance** and **price lists** (service tenants and any type that uses those tabs).
+Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the workflows that matter most. Workflows 1–4 are the physical-goods path (Manufacturer/Dealer/Retail). Workflow 1b is **Silver Casting** weigh → barcode. Workflows 5–6 cover **standalone invoices / Invoice Finance** and **price lists** (service tenants and any type that uses those tabs). Workflow 7 is **Hotel / Restaurant** hospitality (floor → KOT → queue).
 
 :::info Ground truth
 Every step below is read from the actual route handlers, not inferred. Table and column names are exact.
@@ -261,6 +261,34 @@ flowchart LR
 ```
 
 Service path (parallel, no barcodes): `vendors/customers` → `standalone_invoices` (+ optional price list on lines) → `invoice_payments`, summarized by `partyKey`.
+
+## Workflow 7: Hospitality floor → KOT → queue
+
+Only when `tenants.business_type = 'hotel_restaurant'`. Seed via SA onboard or `POST /api/hospitality/seed`.
+
+```mermaid
+sequenceDiagram
+    participant Host as Host / Waiter
+    participant API as /api/hospitality/*
+    participant PG as hosp_* tables
+    participant Kit as Kitchen UI
+
+    Host->>API: POST /queue (guest + party size)
+    API->>PG: INSERT hosp_queue_entries waiting
+    Host->>API: POST /queue/call-next then /seat tableId
+    API->>PG: entry seated + table occupied + open order
+    Host->>API: POST /tables/:id/open + /orders/:id/items
+    API->>PG: order items kitchen_status=queued
+    Kit->>API: GET /kitchen → PATCH item preparing/ready/served
+    Host->>API: POST /orders/:id/bill → close → tables/:id/clear
+```
+
+- **One open order per table** (partial unique index) — reopen after bill uses billed order until closed.
+- **Modifiers** are validated as tenant-owned today; required-group / max_select enforcement is still mostly client-side.
+- **Clear** only sets table `available` — close the order first in the happy path (known footgun if clear runs with an open order).
+- UI polls every few seconds; there is no Socket.IO in DG-ERP.
+
+Full endpoint map: [Hospitality API](/api/hospitality).
 
 ## Key concepts
 

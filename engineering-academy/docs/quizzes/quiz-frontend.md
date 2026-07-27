@@ -30,6 +30,12 @@ Clears `session` and redirects to `/{slug}` (or login flow).
 
 ## Q3
 
+What is Cap Online vs Offline Mobile for the phone shell?
+
+<details>
+<summary>Answer</summary>
+
+Same Cap binary with a one-time Online/Offline latch. Offline Mobile is service-type PGlite ERP (`service-mobile`). Online Cap hits cloud APIs; `businessType=service` gets Service phone UX, other types use companion `mobile_features`.
 
 </details>
 
