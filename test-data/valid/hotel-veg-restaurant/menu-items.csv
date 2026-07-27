@@ -1,0 +1,15 @@
+category,name,description,price,memberPrice,available,modifierGroups
+Starters,Paneer Tikka,Charred cottage cheese with mint chutney,280,250,Y,Spice Level|Extra Toppings|Cheese
+Starters,Veg Spring Rolls,Crispy rolls with sweet chili,180,160,Y,Extra Toppings|Cheese
+Starters,Hara Bhara Kabab,Spinach and peas patties,220,200,Y,Spice Level
+Mains,Paneer Butter Masala,Tomato-butter gravy,320,290,Y,Spice Level
+Mains,Dal Makhani,Slow-cooked black lentils,260,230,Y,Spice Level
+Mains,Veg Biryani,Fragrant basmati rice,300,270,Y,Spice Level
+Mains,Malai Kofta,Creamy kofta curry,340,310,Y,Spice Level
+Breads,Butter Naan,Tandoor baked,60,,Y,
+Breads,Garlic Naan,Garlic butter finish,80,,Y,
+Drinks,Masala Chai,Spiced milk tea,40,,Y,
+Drinks,Fresh Lime Soda,Sweet / salted,70,,Y,
+Drinks,Mango Lassi,Sweet yogurt drink,90,,Y,
+Desserts,Gulab Jamun,Warm milk dumplings,120,100,Y,
+Desserts,Kesar Kulfi,Saffron milk ice cream,100,90,Y,

@@ -598,21 +598,32 @@ def test_silver_casting(tok, tid, ids, email=""):
 # ── Hotel / Restaurant-specific tests ─────────────────────────────────────────
 def test_hotel_restaurant(tok, tid, ids, email=""):
     D = h(tok, tid)
-    sec("Hospitality seed + floor")
-    s, seeded = req("POST", "/api/hospitality/seed", {}, D)
-    ok("Seed hospitality → 200", s == 200, str(seeded)[:120])
+    sec("Hospitality floor + menu (no auto-seed — create via API)")
+    s, created_table = req("POST", "/api/hospitality/tables", {"name": "E2E-T1", "seats": 4, "zone": "Main"}, D)
+    ok("Create table → 201", s in (200, 201), str(created_table)[:120])
     s, tables = req("GET", "/api/hospitality/tables", headers=D)
     ok("List tables → 200", s == 200, str(tables)[:120])
     table_list = tables.get("tables") if isinstance(tables, dict) else []
-    ok("Tables seeded", isinstance(table_list, list) and len(table_list) >= 1, str(len(table_list) if isinstance(table_list, list) else 0))
-    table_id = table_list[0].get("id") if table_list else ""
+    ok("Tables present", isinstance(table_list, list) and len(table_list) >= 1, str(len(table_list) if isinstance(table_list, list) else 0))
+    table_id = (created_table.get("table") or {}).get("id") if isinstance(created_table, dict) else ""
+    if not table_id and table_list:
+        table_id = table_list[0].get("id") or ""
 
     sec("Menu + order + KOT")
+    s, cat = req("POST", "/api/hospitality/menu-categories", {"name": "E2E Mains", "sortOrder": 1}, D)
+    ok("Create category → 201", s in (200, 201), str(cat)[:120])
+    cat_id = (cat.get("category") or {}).get("id", "") if isinstance(cat, dict) else ""
+    s, dish = req("POST", "/api/hospitality/menu-items", {
+        "name": "E2E Paneer Tikka", "categoryId": cat_id, "price": 280, "description": "veg e2e"
+    }, D)
+    ok("Create dish → 201", s in (200, 201), str(dish)[:120])
     s, menu = req("GET", "/api/hospitality/menu", headers=D)
     ok("Menu → 200", s == 200)
     items = menu.get("items") if isinstance(menu, dict) else []
     ok("Menu has items", isinstance(items, list) and len(items) >= 1)
-    item_id = items[0].get("id") if items else ""
+    item_id = (dish.get("item") or {}).get("id") if isinstance(dish, dict) else ""
+    if not item_id and items:
+        item_id = items[0].get("id") or ""
     if table_id and item_id:
         s, opened = req("POST", f"/api/hospitality/tables/{table_id}/open", {}, D)
         ok("Open table → 200", s == 200, str(opened)[:120])

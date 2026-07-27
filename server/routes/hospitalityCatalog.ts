@@ -210,9 +210,7 @@ router.post('/api/hospitality/menu-items', blockVendors, async (req: AuthRequest
     const available = req.body?.available !== false;
     const memberPriceRaw = req.body?.memberPrice ?? req.body?.member_price;
     const memberPrice =
-      memberPriceRaw === null || memberPriceRaw === undefined || memberPriceRaw === ''
-        ? null
-        : Number(memberPriceRaw);
+      memberPriceRaw === null || memberPriceRaw === undefined || memberPriceRaw === '' ? null : Number(memberPriceRaw);
     const modifierGroupIds = Array.isArray(req.body?.modifierGroupIds)
       ? (req.body.modifierGroupIds as unknown[]).map(String)
       : [];
@@ -271,9 +269,7 @@ router.put('/api/hospitality/menu-items/:id', blockVendors, async (req: AuthRequ
     const available = req.body?.available !== false;
     const memberPriceRaw = req.body?.memberPrice ?? req.body?.member_price;
     const memberPrice =
-      memberPriceRaw === null || memberPriceRaw === undefined || memberPriceRaw === ''
-        ? null
-        : Number(memberPriceRaw);
+      memberPriceRaw === null || memberPriceRaw === undefined || memberPriceRaw === '' ? null : Number(memberPriceRaw);
     const modifierGroupIds = Array.isArray(req.body?.modifierGroupIds)
       ? (req.body.modifierGroupIds as unknown[]).map(String)
       : null;
@@ -493,6 +489,224 @@ router.delete('/api/hospitality/modifiers/:id', blockVendors, async (req: AuthRe
     res.json({ ok: true });
   } catch (e) {
     handleApiError(req, res, e);
+  }
+});
+
+// ── CSV / Excel batch import (all-or-nothing) ────────────────────────────────
+
+function ynTrue(v: unknown): boolean {
+  const s = String(v ?? '')
+    .trim()
+    .toLowerCase();
+  return s === 'y' || s === 'yes' || s === 'true' || s === '1';
+}
+
+router.post('/api/hospitality/tables/batch', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = await gate(req, res);
+  if (!tenantId) return;
+  const { items } = req.body as { items: Record<string, unknown>[] };
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let count = 0;
+    for (const r of items) {
+      const name = String(r.name || '').trim();
+      const seats = Math.max(1, Math.min(50, Number(r.seats) || 4));
+      const zone = String(r.zone || 'Main').trim() || 'Main';
+      if (!name) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: Table name is required — nothing imported` });
+      }
+      const id = uid('HT');
+      try {
+        await client.query(
+          `INSERT INTO hosp_dining_tables (id, tenant_id, name, seats, zone, status)
+           VALUES ($1,$2,$3,$4,$5,'available')`,
+          [id, tenantId, name, seats, zone],
+        );
+      } catch (e) {
+        await client.query('ROLLBACK');
+        const err = e as { code?: string };
+        if (err.code === '23505') {
+          return res.status(400).json({ error: `Table "${name}" already exists — nothing imported` });
+        }
+        throw e;
+      }
+      count++;
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    handleApiError(req, res, e, 'Table import failed', { publicMessage: 'Import failed — no tables were added' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/api/hospitality/modifiers/batch', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = await gate(req, res);
+  if (!tenantId) return;
+  const { items } = req.body as { items: Record<string, unknown>[] };
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const groupCache = new Map<string, string>();
+    let count = 0;
+    for (const r of items) {
+      const groupName = String(r.groupName || r.group || '').trim();
+      const modifierName = String(r.modifierName || r.name || '').trim();
+      const required = ynTrue(r.required);
+      const maxSelect = Math.max(1, Math.min(20, Number(r.maxSelect ?? r.max_select) || 3));
+      const priceDelta = Number(r.priceDelta ?? r.price_delta ?? 0);
+      if (!groupName || !modifierName) {
+        await client.query('ROLLBACK');
+        return res
+          .status(400)
+          .json({ error: `Row ${count + 1}: groupName and modifierName are required — nothing imported` });
+      }
+      if (!Number.isFinite(priceDelta)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: Invalid priceDelta — nothing imported` });
+      }
+      let gid = groupCache.get(groupName.toLowerCase());
+      if (!gid) {
+        const existing = (
+          await client.query(`SELECT id FROM hosp_modifier_groups WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)`, [
+            tenantId,
+            groupName,
+          ])
+        ).rows[0] as { id: string } | undefined;
+        if (existing) {
+          gid = existing.id;
+        } else {
+          gid = uid('HG');
+          await client.query(
+            `INSERT INTO hosp_modifier_groups (id, tenant_id, name, required, max_select)
+             VALUES ($1,$2,$3,$4,$5)`,
+            [gid, tenantId, groupName, required, maxSelect],
+          );
+        }
+        groupCache.set(groupName.toLowerCase(), gid);
+      }
+      await client.query(`INSERT INTO hosp_modifiers (id, group_id, name, price_delta) VALUES ($1,$2,$3,$4)`, [
+        uid('HM'),
+        gid,
+        modifierName,
+        priceDelta,
+      ]);
+      count++;
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    handleApiError(req, res, e, 'Modifier import failed', {
+      publicMessage: 'Import failed — no modifiers were added',
+    });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = await gate(req, res);
+  if (!tenantId) return;
+  const { items } = req.body as { items: Record<string, unknown>[] };
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const catCache = new Map<string, string>();
+    const groupRows = (await client.query(`SELECT id, name FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]))
+      .rows as Array<{ id: string; name: string }>;
+    const groupByName = new Map(groupRows.map(g => [g.name.toLowerCase(), g.id]));
+    let sortNext =
+      Number(
+        (
+          await client.query(
+            `SELECT COALESCE(MAX(sort_order), 0)::int AS m FROM hosp_menu_categories WHERE tenant_id = $1`,
+            [tenantId],
+          )
+        ).rows[0]?.m,
+      ) + 1;
+    let count = 0;
+    for (const r of items) {
+      const category = String(r.category || r.categoryName || '').trim();
+      const name = String(r.name || '').trim();
+      const description = String(r.description || '').trim();
+      const price = Number(r.price);
+      const memberRaw = r.memberPrice ?? r.member_price;
+      const memberPrice =
+        memberRaw === null || memberRaw === undefined || String(memberRaw).trim() === '' ? null : Number(memberRaw);
+      const available = r.available === undefined || r.available === '' ? true : ynTrue(r.available);
+      const modGroupsRaw = String(r.modifierGroups || r.modifier_groups || '').trim();
+      if (!category || !name) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: category and name are required — nothing imported` });
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: Valid price is required — nothing imported` });
+      }
+      if (memberPrice != null && (!Number.isFinite(memberPrice) || memberPrice < 0)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: Invalid memberPrice — nothing imported` });
+      }
+      let catId = catCache.get(category.toLowerCase());
+      if (!catId) {
+        const existing = (
+          await client.query(`SELECT id FROM hosp_menu_categories WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)`, [
+            tenantId,
+            category,
+          ])
+        ).rows[0] as { id: string } | undefined;
+        if (existing) {
+          catId = existing.id;
+        } else {
+          catId = uid('HC');
+          await client.query(
+            `INSERT INTO hosp_menu_categories (id, tenant_id, name, sort_order) VALUES ($1,$2,$3,$4)`,
+            [catId, tenantId, category, sortNext++],
+          );
+        }
+        catCache.set(category.toLowerCase(), catId);
+      }
+      const id = uid('HI');
+      await client.query(
+        `INSERT INTO hosp_menu_items (id, tenant_id, category_id, name, description, price, available, member_price)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [id, tenantId, catId, name, description, price, available, memberPrice],
+      );
+      if (modGroupsRaw) {
+        for (const part of modGroupsRaw
+          .split(/[|;]/)
+          .map(s => s.trim())
+          .filter(Boolean)) {
+          const gid = groupByName.get(part.toLowerCase());
+          if (!gid) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: `Row ${count + 1}: Unknown modifier group "${part}" — import modifiers first`,
+            });
+          }
+          await client.query(
+            `INSERT INTO hosp_item_modifier_groups (menu_item_id, group_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+            [id, gid],
+          );
+        }
+      }
+      count++;
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    handleApiError(req, res, e, 'Menu import failed', { publicMessage: 'Import failed — no dishes were added' });
+  } finally {
+    client.release();
   }
 });
 

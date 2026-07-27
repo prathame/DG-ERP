@@ -1,9 +1,11 @@
 import { pool } from '../pg-db';
 import { uid } from './helpers';
 
-/** Seed floor + starter menu when a hotel_restaurant tenant is onboarded.
- * Demo table names (T1–T12) are starters only — the hotel owner renames/adds/removes
- * freely in Menu → Tables; Floor and Waiter display whatever names they set. */
+/**
+ * Test-only fixture: vegetarian restaurant floor + menu.
+ * Not called for live tenant onboarding — hotels import via CSV / Excel
+ * (see test-data/valid/hotel-veg-restaurant/).
+ */
 export async function seedHospitalityCatalog(tenantId: string): Promise<void> {
   const existing = await pool.query(`SELECT id FROM hosp_dining_tables WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
   if (existing.rows[0]) return;
@@ -52,18 +54,18 @@ export async function seedHospitalityCatalog(tenantId: string): Promise<void> {
   for (const [cat, name, desc, price] of [
     ['Starters', 'Paneer Tikka', 'Charred cottage cheese with mint chutney', 280],
     ['Starters', 'Veg Spring Rolls', 'Crispy rolls with sweet chili', 180],
-    ['Starters', 'Chicken Wings', 'Spicy glazed wings', 320],
-    ['Mains', 'Butter Chicken', 'Tomato-butter gravy', 380],
+    ['Starters', 'Hara Bhara Kabab', 'Spinach and peas patties', 220],
+    ['Mains', 'Paneer Butter Masala', 'Tomato-butter gravy', 320],
     ['Mains', 'Dal Makhani', 'Slow-cooked black lentils', 260],
     ['Mains', 'Veg Biryani', 'Fragrant basmati rice', 300],
-    ['Mains', 'Margherita Pizza', 'Tomato, mozzarella, basil', 350],
+    ['Mains', 'Malai Kofta', 'Creamy kofta curry', 340],
     ['Breads', 'Butter Naan', 'Tandoor baked', 60],
     ['Breads', 'Garlic Naan', 'Garlic butter finish', 80],
     ['Drinks', 'Masala Chai', 'Spiced milk tea', 40],
     ['Drinks', 'Fresh Lime Soda', 'Sweet / salted', 70],
     ['Drinks', 'Mango Lassi', 'Sweet yogurt drink', 90],
     ['Desserts', 'Gulab Jamun', 'Warm milk dumplings', 120],
-    ['Desserts', 'Brownie Sundae', 'Chocolate brownie + ice cream', 180],
+    ['Desserts', 'Kesar Kulfi', 'Saffron milk ice cream', 100],
   ] as const) {
     const id = uid('hi');
     itemIds[name] = id;
@@ -94,7 +96,7 @@ export async function seedHospitalityCatalog(tenantId: string): Promise<void> {
     ['Extra Toppings', 'Mushrooms', 30],
     ['Extra Toppings', 'Jalapeños', 20],
     ['Extra Toppings', 'Olives', 25],
-    ['Extra Toppings', 'Extra Chicken', 60],
+    ['Extra Toppings', 'Corn', 25],
     ['Spice Level', 'Mild', 0],
     ['Spice Level', 'Medium', 0],
     ['Spice Level', 'Extra Hot', 0],
@@ -116,12 +118,11 @@ export async function seedHospitalityCatalog(tenantId: string): Promise<void> {
       [itemIds[itemName], groupIds[groupName]],
     );
   };
-  for (const name of ['Butter Chicken', 'Dal Makhani', 'Chicken Wings', 'Veg Biryani']) {
+  for (const name of ['Paneer Butter Masala', 'Dal Makhani', 'Hara Bhara Kabab', 'Veg Biryani', 'Malai Kofta']) {
     await link(name, 'Spice Level');
   }
-  for (const name of ['Margherita Pizza', 'Paneer Tikka', 'Veg Spring Rolls']) {
+  for (const name of ['Paneer Tikka', 'Veg Spring Rolls']) {
     await link(name, 'Extra Toppings');
     await link(name, 'Cheese');
   }
-  await link('Margherita Pizza', 'Spice Level');
 }

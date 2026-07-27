@@ -7,7 +7,6 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { clearSuperAdminSession, clearUserSession, replaceSuperAdminSession } from '../utils/userSessions';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
-import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
 import { ACTIVE_USER_SQL } from '../utils/activeUsers';
 import {
   DEFAULT_SERVICE_CLOUD_APP_URL,
@@ -19,7 +18,12 @@ import {
   DEFAULT_DESKTOP_WIN_URL,
   DEFAULT_DESKTOP_APP_URL,
 } from '../download-defaults';
-import { getTabPreset, isBusinessTypeWithCustom, isNamedBusinessType } from '../../shared/tabPresets';
+import {
+  fillMissingTabPresetKeys,
+  getTabPreset,
+  isBusinessTypeWithCustom,
+  isNamedBusinessType,
+} from '../../shared/tabPresets';
 import { defaultMobileFeatures, normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { encryptSecret } from '../utils/secret-crypto';
 import { isWhatsAppSendMode } from '../utils/whatsappBusiness';
@@ -303,10 +307,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         result.tenantId,
       ],
     );
-    // Cloud hotel only: seed floor + menu into our Postgres. BYO / local_server keep ops data off-cloud.
-    if (bType === 'hotel_restaurant' && hotelDeployment === 'cloud') {
-      await seedHospitalityCatalog(result.tenantId);
-    }
     // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
     // Create path sets mode to desktop (no mobile) or both (needMobile) — always seed desktop;
     // seed mobile when companions are enabled. Fixes Electron "No free desktop device slots"
@@ -419,7 +419,10 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         subscriptionEndsAt: tenant.subscription_ends_at,
         createdAt: tenant.created_at,
         lastActiveAt: tenant.last_active_at,
-        tabConfig: tenant.tab_config ?? null,
+        tabConfig: fillMissingTabPresetKeys(
+          tenant.tab_config as Record<string, { label?: string; visible?: boolean }> | null,
+          (tenant.business_type as string) || 'manufacturer',
+        ),
         businessType: tenant.business_type || 'manufacturer',
         hotelDeployment: (tenant.hotel_deployment as string) || null,
         hotelDatabaseUrlConfigured: !!(tenant.hotel_database_url as string),
@@ -651,11 +654,6 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
-    const effectiveType = (tenant.business_type as string) || 'manufacturer';
-    const effectiveDeploy = (tenant.hotel_deployment as string) || 'cloud';
-    if (effectiveType === 'hotel_restaurant' && effectiveDeploy === 'cloud') {
-      await seedHospitalityCatalog(id);
-    }
     await logAudit(
       pool,
       id,
@@ -687,7 +685,10 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       whatsappAccessToken: tenant.whatsapp_access_token ? '••••••••' : '',
       whatsappWabaId: (tenant.whatsapp_waba_id as string) || '',
       whatsappDisplayPhone: (tenant.whatsapp_display_phone as string) || '',
-      tabConfig: tenant.tab_config ?? null,
+      tabConfig: fillMissingTabPresetKeys(
+        tenant.tab_config as Record<string, { label?: string; visible?: boolean }> | null,
+        (tenant.business_type as string) || 'manufacturer',
+      ),
       hotelDeployment: (tenant.hotel_deployment as string) || null,
       hotelDatabaseUrlConfigured: !!(tenant.hotel_database_url as string),
       hotelDatabaseUrl: tenant.hotel_database_url ? '••••••••' : '',

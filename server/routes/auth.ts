@@ -9,7 +9,7 @@ import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 import { clearUserSession, replaceUserSession, SESSION_REPLACED_BODY, touchUserSession } from '../utils/userSessions';
 import { ACTIVE_USER_SQL, isSoftDeletedEmail } from '../utils/activeUsers';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
-import { fillMissingTabPresetKeys } from '../../shared/tabPresets';
+import { fillMissingTabPresetKeys, isStaleHotelQuotationsOff } from '../../shared/tabPresets';
 
 const router = Router();
 
@@ -241,13 +241,29 @@ router.post('/api/auth/login', async (req, res) => {
       ),
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
-      tabConfig: fillMissingTabPresetKeys(
-        (() => {
+      tabConfig: await (async () => {
+        const businessType = (row.business_type as string) || 'manufacturer';
+        const rawTc = (() => {
           const tc = typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : row.tab_config;
-          return tc && typeof tc === 'object' ? tc : null;
-        })(),
-        (row.business_type as string) || 'manufacturer',
-      ),
+          return tc && typeof tc === 'object' ? (tc as Record<string, { label?: string; visible?: boolean }>) : null;
+        })();
+        const effective = fillMissingTabPresetKeys(rawTc, businessType);
+        // Persist one-time Party Quotes migration for old hotel presets (SA Party Quotes off kept).
+        if (
+          businessType === 'hotel_restaurant' &&
+          (!rawTc?.quotations || isStaleHotelQuotationsOff(rawTc.quotations))
+        ) {
+          try {
+            await pool.query(`UPDATE tenants SET tab_config = $1::jsonb WHERE id = $2`, [
+              JSON.stringify(effective),
+              row.tenant_id,
+            ]);
+          } catch {
+            /* read-path still returns effective */
+          }
+        }
+        return effective;
+      })(),
     });
   } catch (err) {
     return handleApiError(req, res, err);

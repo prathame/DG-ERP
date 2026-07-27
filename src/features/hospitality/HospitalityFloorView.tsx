@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Download, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { CsvImport } from '../../components/ui/CsvImport';
 import { useToast } from '../../components/ui/Toast';
 import { session } from '../../lib/session';
-import { cn } from '../../lib/utils';
+import { cn, exportToCsv } from '../../lib/utils';
 import { compareHospTablesByZoneThenName, hospApi, type HospTable } from './hospApi';
 import { TableOrderDrawer } from './TableOrderDrawer';
 import {
@@ -62,6 +63,7 @@ export function HospitalityFloorView() {
   const [tableForm, setTableForm] = useState<TableForm | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onYes: () => void } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -175,6 +177,22 @@ export function HospitalityFloorView() {
                 <button type="button" className={hospPrimaryBtn(shell)} onClick={() => openAdd(empty ? 'T1' : '')}>
                   <Plus size={14} className="mr-1" /> Add table
                 </button>
+                <button type="button" className={hospSecondaryBtn(shell)} onClick={() => setCsvImportOpen(true)}>
+                  <Upload size={14} className="mr-1" /> Import
+                </button>
+                <button
+                  type="button"
+                  className={hospSecondaryBtn(shell)}
+                  disabled={empty}
+                  onClick={() =>
+                    exportToCsv(
+                      tables.map(t => ({ name: t.name, seats: t.seats, zone: t.zone || 'Main' })),
+                      'hotel-tables',
+                    )
+                  }
+                >
+                  <Download size={14} className="mr-1" /> Export
+                </button>
                 {!empty && (
                   <button
                     type="button"
@@ -182,18 +200,6 @@ export function HospitalityFloorView() {
                     onClick={() => setManaging(m => !m)}
                   >
                     {managing ? 'Done managing' : 'Manage tables'}
-                  </button>
-                )}
-                {empty && (
-                  <button
-                    type="button"
-                    className={hospSecondaryBtn(shell)}
-                    onClick={async () => {
-                      await hospApi.seed();
-                      await load();
-                    }}
-                  >
-                    Seed demo
                   </button>
                 )}
               </>
@@ -447,6 +453,39 @@ export function HospitalityFloorView() {
             setConfirm(null);
           }}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {csvImportOpen && (
+        <CsvImport
+          itemLabel="tables"
+          templateName="hotel-tables"
+          columns={[
+            { key: 'name', label: 'Table name', required: true },
+            { key: 'seats', label: 'Seats' },
+            { key: 'zone', label: 'Zone' },
+          ]}
+          onClose={() => {
+            setCsvImportOpen(false);
+            void load();
+          }}
+          onImport={async rows => {
+            try {
+              const result = await hospApi.importTablesBatch(
+                rows.map(r => ({
+                  name: r.name,
+                  seats: r.seats || '4',
+                  zone: r.zone || 'Main',
+                })),
+              );
+              return { success: result.success, errors: result.errors || [] };
+            } catch (err) {
+              return {
+                success: 0,
+                errors: [err instanceof Error ? err.message : 'Import failed — no tables were added'],
+              };
+            }
+          }}
         />
       )}
     </div>

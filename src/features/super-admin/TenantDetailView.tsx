@@ -33,7 +33,7 @@ import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 import { ServiceCloudSeatsPanel } from './ServiceCloudSeatsPanel';
-import { TAB_PRESETS, getTabPreset } from '../../../shared/tabPresets';
+import { fillMissingTabPresetKeys, getTabPreset, tabToggleKeys } from '../../../shared/tabPresets';
 interface TenantDetail {
   id: string;
   companyName: string;
@@ -1088,30 +1088,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   );
 }
 
-const DEFAULT_TAB_CONFIG = TAB_PRESETS.manufacturer;
-
 function getDefaultTabConfig(businessType?: string): Record<string, { label: string; visible: boolean }> {
   return getTabPreset(businessType);
 }
-
-const TAB_KEYS = [
-  'analytics',
-  'masters',
-  'inventory',
-  'distribution',
-  'sales',
-  'purchases',
-  'verification',
-  'quotations',
-  'invoices',
-  'finance',
-  'accounts',
-  'warranty',
-  'replacements',
-  'rewards',
-  'chatbot',
-  'settings',
-] as const;
 
 function TabCustomization({
   tenantId,
@@ -1124,9 +1103,12 @@ function TabCustomization({
   tenant: Record<string, unknown>;
   onSaved: () => void;
 }) {
+  const businessType = (tenant.businessType as string) || 'manufacturer';
+  const tabKeys = tabToggleKeys(businessType);
+  const defaultConfig = getDefaultTabConfig(businessType);
   const { toast } = useToast();
-  const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(
-    tabConfig ?? getDefaultTabConfig(tenant.businessType as string),
+  const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(() =>
+    fillMissingTabPresetKeys(tabConfig, businessType),
   );
   const [barcodeSystem, setBarcodeSystem] = useState(tenant.barcodeSystemEnabled !== false);
   const [multiLanguage, setMultiLanguage] = useState(tenant.multiLanguageEnabled !== false);
@@ -1145,7 +1127,7 @@ function TabCustomization({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setConfig(tabConfig ?? getDefaultTabConfig(tenant.businessType as string));
+    setConfig(fillMissingTabPresetKeys(tabConfig, businessType));
     setBarcodeSystem(tenant.barcodeSystemEnabled !== false);
     setMultiLanguage(tenant.multiLanguageEnabled !== false);
     setInventoryTracking(tenant.inventoryTrackingEnabled !== false);
@@ -1162,6 +1144,7 @@ function TabCustomization({
     setWhatsappDisplayPhone((tenant.whatsappDisplayPhone as string) || '');
   }, [
     tabConfig,
+    businessType,
     tenant.barcodeSystemEnabled,
     tenant.multiLanguageEnabled,
     tenant.inventoryTrackingEnabled,
@@ -1178,9 +1161,16 @@ function TabCustomization({
     tenant.whatsappDisplayPhone,
   ]);
 
-  const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
+  const updateLabel = (key: string, label: string) =>
+    setConfig(prev => ({
+      ...prev,
+      [key]: { label, visible: prev[key]?.visible !== false },
+    }));
   const toggleVisible = (key: string) =>
-    setConfig(prev => ({ ...prev, [key]: { ...prev[key], visible: !prev[key].visible } }));
+    setConfig(prev => {
+      const cur = prev[key] ?? defaultConfig[key] ?? { label: key, visible: true };
+      return { ...prev, [key]: { ...cur, visible: !cur.visible } };
+    });
   const isLocked = (key: string) => key === 'dashboard' || key === 'settings';
 
   const handleSave = async () => {
@@ -1234,7 +1224,7 @@ function TabCustomization({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setConfig(DEFAULT_TAB_CONFIG)}
+              onClick={() => setConfig(getDefaultTabConfig(businessType))}
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg"
             >
               <RotateCcw size={14} /> Reset
@@ -1260,7 +1250,7 @@ function TabCustomization({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {TAB_KEYS.map(key => (
+            {tabKeys.map(key => (
               <tr key={key} className={cn(!config[key]?.visible && !isLocked(key) && 'bg-gray-50/50 opacity-60')}>
                 <td className="px-6 py-3">
                   <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{key}</span>
@@ -1268,7 +1258,7 @@ function TabCustomization({
                 <td className="px-6 py-3">
                   <input
                     type="text"
-                    value={config[key]?.label ?? DEFAULT_TAB_CONFIG[key]?.label ?? key}
+                    value={config[key]?.label ?? defaultConfig[key]?.label ?? key}
                     onChange={e => updateLabel(key, e.target.value)}
                     className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full max-w-[200px] focus:ring-2 focus:ring-brand"
                   />

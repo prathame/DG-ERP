@@ -187,6 +187,72 @@ router.delete('/api/hospitality/membership-plans/:id', blockVendors, async (req:
   }
 });
 
+router.post('/api/hospitality/membership-plans/batch', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = await gate(req, res);
+  if (!tenantId) return;
+  if (!requireAdminRole(req, res)) return;
+  const { items } = req.body as { items: Record<string, unknown>[] };
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let count = 0;
+    for (const r of items) {
+      const name = String(r.name || '').trim();
+      const period = String(r.period || 'monthly') === 'yearly' ? 'yearly' : 'monthly';
+      const fee = Number(r.fee);
+      const discountPercent = Number(r.discountPercent ?? r.discount_percent ?? 0);
+      const useMemberPrices = (() => {
+        const v = r.useMemberPrices ?? r.use_member_prices;
+        if (v === undefined || v === '') return false;
+        const s = String(v).trim().toLowerCase();
+        return s === 'y' || s === 'yes' || s === 'true' || s === '1';
+      })();
+      const active = (() => {
+        const v = r.active;
+        if (v === undefined || v === '') return true;
+        const s = String(v).trim().toLowerCase();
+        return s === 'y' || s === 'yes' || s === 'true' || s === '1';
+      })();
+      if (!name) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: Plan name is required — nothing imported` });
+      }
+      if (!Number.isFinite(fee) || fee < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: Valid fee is required — nothing imported` });
+      }
+      if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Row ${count + 1}: discountPercent must be 0–100 — nothing imported` });
+      }
+      try {
+        await client.query(
+          `INSERT INTO hosp_membership_plans
+             (id, tenant_id, name, period, fee, discount_percent, use_member_prices, active)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [uid('hmp'), tenantId, name, period, fee, discountPercent, useMemberPrices, active],
+        );
+      } catch (e) {
+        await client.query('ROLLBACK');
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('unique') || msg.includes('hosp_membership_plans')) {
+          return res.status(400).json({ error: `Plan "${name}" already exists — nothing imported` });
+        }
+        throw e;
+      }
+      count++;
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    handleApiError(req, res, e, 'Plan import failed', { publicMessage: 'Import failed — no plans were added' });
+  } finally {
+    client.release();
+  }
+});
+
 // ── Members ─────────────────────────────────────────────────────────────────
 
 /** Order-time phone lookup with explicit validity (valid / expired / not found). */
