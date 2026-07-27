@@ -466,9 +466,7 @@ export async function initSchema() {
       `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_prices_include_gst BOOLEAN DEFAULT true`,
     );
     // Hotel guest bills: GST optional (off by default for small restaurants)
-    await client.query(
-      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_charge_gst BOOLEAN DEFAULT false`,
-    );
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_charge_gst BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS fssai_license TEXT`);
 
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
@@ -1192,9 +1190,36 @@ export async function initSchema() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_members_tenant ON hosp_members(tenant_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_hosp_members_phone ON hosp_members(tenant_id, phone)`);
 
-    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS member_id TEXT REFERENCES hosp_members(id) ON DELETE SET NULL`);
-    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0`);
-    await client.query(`ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0`);
+    await client.query(
+      `ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS member_id TEXT REFERENCES hosp_members(id) ON DELETE SET NULL`,
+    );
+    await client.query(
+      `ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0`,
+    );
+    await client.query(
+      `ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    );
+
+    // Hotel Party Quotes: flip stale #172 preset hide (Quotes & Orders / Quotations + visible:false).
+    // Does not touch SA-off Party Quotes (label "Party Quotes" or custom).
+    await client.query(`
+      UPDATE tenants
+      SET tab_config = jsonb_set(
+        COALESCE(tab_config, '{}'::jsonb),
+        '{quotations}',
+        '{"label":"Party Quotes","visible":true}'::jsonb,
+        true
+      )
+      WHERE business_type = 'hotel_restaurant'
+        AND (
+          tab_config IS NULL
+          OR NOT (tab_config ? 'quotations')
+          OR (
+            (tab_config->'quotations'->>'visible') = 'false'
+            AND COALESCE(tab_config->'quotations'->>'label', '') IN ('Quotes & Orders', 'Quotations')
+          )
+        )
+    `);
 
     // SA → on-prem Bell messages (delivered on heartbeat / hard sync)
     await client.query(`

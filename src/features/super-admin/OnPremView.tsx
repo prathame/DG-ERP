@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { useToast } from '../../components/ui';
-import { NAMED_BUSINESS_TYPES, getTabPreset } from '../../../shared/tabPresets';
+import { NAMED_BUSINESS_TYPES, getTabPreset, tabToggleKeys } from '../../../shared/tabPresets';
 
 const BUSINESS_TYPES = NAMED_BUSINESS_TYPES;
 
@@ -417,23 +417,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
               <p className="text-xs text-gray-400 mb-3">
                 Toggle which tabs are visible. Changes push to the on-prem app on next sync.
               </p>
-              {[
-                'analytics',
-                'masters',
-                'inventory',
-                'distribution',
-                'sales',
-                'purchases',
-                'verification',
-                'quotations',
-                'invoices',
-                'finance',
-                'accounts',
-                'warranty',
-                'replacements',
-                'rewards',
-                'chatbot',
-              ].map(tab => {
+              {tabToggleKeys((selected?.businessType as string) || 'manufacturer').map(tab => {
                 const businessType = (selected?.businessType as string) || 'manufacturer';
                 const presetCfg = getTabPreset(businessType)[tab] || { label: tab, visible: true };
                 const baseTc = {

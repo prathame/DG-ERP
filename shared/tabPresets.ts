@@ -129,10 +129,32 @@ export function getTabPreset(businessType?: string | null): TabConfig {
   return cloneTabConfig(TAB_PRESETS.manufacturer);
 }
 
+/** Ordered keys for Super Admin / on-prem tab toggle UIs (same surface for all verticals). */
+export function tabToggleKeys(businessType?: string | null): string[] {
+  return Object.keys(getTabPreset(businessType));
+}
+
+/**
+ * Old hotel_restaurant preset (#172) hid quotations as "Quotes & Orders".
+ * #181 renamed to Party Quotes + visible. Fingerprint SA-off as Party Quotes / custom label.
+ */
+const STALE_HOTEL_QUOTATION_LABELS = new Set(['Quotes & Orders', 'Quotations']);
+
+/** True when stored hotel quotations still match the pre–Party Quotes default hide. */
+export function isStaleHotelQuotationsOff(stored: { label?: string; visible?: boolean } | null | undefined): boolean {
+  if (!stored || typeof stored !== 'object') return false;
+  if (stored.visible !== false) return false;
+  const label = typeof stored.label === 'string' ? stored.label.trim() : '';
+  // Empty label + false: treat as stale incomplete hide (old saves), not SA Party Quotes off
+  if (!label) return true;
+  return STALE_HOTEL_QUOTATION_LABELS.has(label);
+}
+
 /**
  * Fill keys missing from a stored tenant tab_config from the business-type preset.
- * Stored values win when present (incl. explicit visible:false). Used so hotel tenants
- * created before hosp_menu / accounts existed still get Menu and restaurant Accounts.
+ * Stored values win when present (incl. explicit visible:false), except hotel quotations
+ * that still match the old #172 hide fingerprint — those migrate to Party Quotes on.
+ * SA toggle of Party Quotes off (label "Party Quotes" or custom) is preserved.
  */
 export function fillMissingTabPresetKeys(
   stored: TabConfig | Record<string, { label?: string; visible?: boolean }> | null | undefined,
@@ -150,6 +172,21 @@ export function fillMissingTabPresetKeys(
   }
   for (const [key, value] of Object.entries(preset)) {
     if (!(key in out)) out[key] = { label: value.label, visible: value.visible };
+  }
+  if (businessType === 'hotel_restaurant') {
+    const rawQ =
+      stored.quotations && typeof stored.quotations === 'object'
+        ? (stored.quotations as { label?: string; visible?: boolean })
+        : null;
+    if (!rawQ || isStaleHotelQuotationsOff(rawQ)) {
+      out.quotations = { label: 'Party Quotes', visible: true };
+    } else if (
+      out.quotations &&
+      out.quotations.visible !== false &&
+      STALE_HOTEL_QUOTATION_LABELS.has(out.quotations.label)
+    ) {
+      out.quotations = { ...out.quotations, label: 'Party Quotes' };
+    }
   }
   return out;
 }

@@ -5,8 +5,10 @@ import {
   getTabPreset,
   isBusinessTypeWithCustom,
   isNamedBusinessType,
+  isStaleHotelQuotationsOff,
   NAMED_BUSINESS_TYPES,
   TAB_PRESETS,
+  tabToggleKeys,
 } from '../../shared/tabPresets';
 
 describe('tabPresets', () => {
@@ -87,5 +89,46 @@ describe('tabPresets', () => {
     // manufacturer unchanged when missing keys filled from mfg preset
     const mfg = fillMissingTabPresetKeys({ analytics: { label: 'A', visible: true } }, 'manufacturer');
     expect(mfg.hosp_menu.visible).toBe(false);
+  });
+
+  it('migrates stale hotel Quotes & Orders off → Party Quotes on; keeps SA Party Quotes off', () => {
+    expect(isStaleHotelQuotationsOff({ label: 'Quotes & Orders', visible: false })).toBe(true);
+    expect(isStaleHotelQuotationsOff({ label: 'Party Quotes', visible: false })).toBe(false);
+
+    const fromOldPreset = fillMissingTabPresetKeys(
+      {
+        masters: { label: 'Masters', visible: false },
+        quotations: { label: 'Quotes & Orders', visible: false },
+      },
+      'hotel_restaurant',
+    );
+    expect(fromOldPreset.quotations.visible).toBe(true);
+    expect(fromOldPreset.quotations.label).toBe('Party Quotes');
+    expect(fromOldPreset.masters.visible).toBe(false);
+
+    const saOff = fillMissingTabPresetKeys(
+      {
+        quotations: { label: 'Party Quotes', visible: false },
+        hosp_floor: { label: 'Floor', visible: true },
+      },
+      'hotel_restaurant',
+    );
+    expect(saOff.quotations.visible).toBe(false);
+    expect(saOff.quotations.label).toBe('Party Quotes');
+  });
+
+  it('tabToggleKeys includes hospitality + quotations for hotel_restaurant', () => {
+    const keys = tabToggleKeys('hotel_restaurant');
+    expect(keys).toContain('quotations');
+    expect(keys).toContain('analytics');
+    expect(keys).toContain('accounts');
+    expect(keys).toContain('hosp_floor');
+    expect(keys).toContain('hosp_waiter');
+    expect(keys).toContain('hosp_kitchen');
+    expect(keys).toContain('hosp_queue');
+    expect(keys).toContain('hosp_parcels');
+    expect(keys).toContain('hosp_menu');
+    expect(keys).toContain('hosp_members');
+    expect(keys).toContain('masters');
   });
 });

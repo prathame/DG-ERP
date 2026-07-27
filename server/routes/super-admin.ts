@@ -19,7 +19,12 @@ import {
   DEFAULT_DESKTOP_WIN_URL,
   DEFAULT_DESKTOP_APP_URL,
 } from '../download-defaults';
-import { getTabPreset, isBusinessTypeWithCustom, isNamedBusinessType } from '../../shared/tabPresets';
+import {
+  fillMissingTabPresetKeys,
+  getTabPreset,
+  isBusinessTypeWithCustom,
+  isNamedBusinessType,
+} from '../../shared/tabPresets';
 import { defaultMobileFeatures, normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { encryptSecret } from '../utils/secret-crypto';
 import { isWhatsAppSendMode } from '../utils/whatsappBusiness';
@@ -419,7 +424,10 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         subscriptionEndsAt: tenant.subscription_ends_at,
         createdAt: tenant.created_at,
         lastActiveAt: tenant.last_active_at,
-        tabConfig: tenant.tab_config ?? null,
+        tabConfig: fillMissingTabPresetKeys(
+          tenant.tab_config as Record<string, { label?: string; visible?: boolean }> | null,
+          (tenant.business_type as string) || 'manufacturer',
+        ),
         businessType: tenant.business_type || 'manufacturer',
         hotelDeployment: (tenant.hotel_deployment as string) || null,
         hotelDatabaseUrlConfigured: !!(tenant.hotel_database_url as string),
@@ -687,7 +695,10 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       whatsappAccessToken: tenant.whatsapp_access_token ? '••••••••' : '',
       whatsappWabaId: (tenant.whatsapp_waba_id as string) || '',
       whatsappDisplayPhone: (tenant.whatsapp_display_phone as string) || '',
-      tabConfig: tenant.tab_config ?? null,
+      tabConfig: fillMissingTabPresetKeys(
+        tenant.tab_config as Record<string, { label?: string; visible?: boolean }> | null,
+        (tenant.business_type as string) || 'manufacturer',
+      ),
       hotelDeployment: (tenant.hotel_deployment as string) || null,
       hotelDatabaseUrlConfigured: !!(tenant.hotel_database_url as string),
       hotelDatabaseUrl: tenant.hotel_database_url ? '••••••••' : '',
