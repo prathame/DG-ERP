@@ -418,14 +418,14 @@ export function LandingPage() {
     },
     {
       icon: Scale,
-      title: L('Silver Casting', 'सिल्वर कास्टिंग', 'સિલ્વર કાસ્ટિંગ', 'सिल्व्हर कास्टिंग'),
+      title: L('Silver Casting', 'चाँदी ढलाई', 'ચાંદી ઢાળાઈ', 'चांदीची ढलाई'),
       color: 'from-amber-500/20 to-amber-500/5',
       dot: 'bg-amber-500',
       items: [
-        L('Metal intake & weigh', 'धातु intake व वजन', 'ધાતુ intake અને વજન', 'धातू intake व वजन'),
-        L('Jewellery tags', 'ज्वेलरी tags', 'જ્વેલરી tags', 'ज्वेलरी tags'),
-        L('Rate × weight sale', 'रेट × वजन sale', 'રેટ × વજન sale', 'रेट × वजन sale'),
-        L('Fine metal ledger', 'फाइन मेटल ledger', 'ફાઇન મેટલ ledger', 'फाइन मेटल ledger'),
+        L('Metal intake & weigh', 'धातु लेना और तौलना', 'ધાતુ લેવી અને વજન કરવું', 'धातू घेणे व वजन करणे'),
+        L('Jewellery tags', 'आभूषण टैग', 'ઝવેરી ટૅગ્સ', 'दागिने टॅग्ज'),
+        L('Rate × weight sale', 'दर × वजन से बिक्री', 'દર × વજનથી વેચાણ', 'दर × वजनाने विक्री'),
+        L('Fine metal ledger', 'शुद्ध धातु खाता', 'શુદ્ધ ધાતુ ખાતું', 'शुद्ध धातू खाते'),
       ],
     },
     {
@@ -434,10 +434,15 @@ export function LandingPage() {
       color: 'from-rose-500/20 to-rose-500/5',
       dot: 'bg-rose-500',
       items: [
-        L('Floor & table tiles', 'फ्लोर / टेबल tiles', 'ફ્લોર / ટેબલ tiles', 'फ्लोअर / टेबल tiles'),
-        L('Waiter orders + toppings', 'वेटर orders + toppings', 'વેટર orders + toppings', 'वेटर orders + toppings'),
-        L('Kitchen KOT board', 'किचन KOT बोर्ड', 'કિચન KOT બોર્ડ', 'किचन KOT बोर्ड'),
-        L('Entry queue (FIFO)', 'एंट्री कतार (FIFO)', 'એન્ટ્રી કતાર (FIFO)', 'एंट्री रांग (FIFO)'),
+        L('Floor & table tiles', 'फर्श और टेबल टाइलें', 'ફ્લોર અને ટેબલ ટાઇલ્સ', 'मजला व टेबल टाइल्स'),
+        L('Waiter orders + toppings', 'वेटर ऑर्डर और टॉपिंग', 'વેટર ઓર્ડર અને ટોપિંગ', 'वेटर ऑर्डर आणि टॉपिंग्ज'),
+        L('Kitchen KOT board', 'रसोई के.ओ.टी. बोर्ड', 'કિચન કે.ઓ.ટી. બોર્ડ', 'स्वयंपाकघर के.ओ.टी. फलक'),
+        L(
+          'Entry queue (FIFO)',
+          'प्रवेश कतार (पहले आओ पहले जाओ)',
+          'પ્રવેશ કતાર (પહેલા આવો પહેલા જાઓ)',
+          'प्रवेश रांग (आधी येणारा आधी)',
+        ),
       ],
     },
   ];
@@ -535,22 +540,22 @@ export function LandingPage() {
     },
     {
       icon: Scale,
-      title: L('Metal Stock', 'मेटल स्टॉक', 'મેટલ સ્ટોક', 'मेटल स्टॉक'),
+      title: L('Metal Stock', 'धातु भंडार', 'ધાતુ ભંડાર', 'धातू साठा'),
       desc: L(
         'Silver casting weigh-to-barcode intake, jewellery tags, weight-based sales, fine ledger',
-        'सिल्वर कास्टिंग — वजन से barcode, ज्वेलरी tags, वजन-आधारित sale, फाइन ledger',
-        'સિલ્વર કાસ્ટિંગ — વજનથી barcode, જ્વેલરી tags, વજન-આધારિત sale, ફાઇન ledger',
-        'सिल्व्हर कास्टिंग — वजनापासून barcode, ज्वेलरी tags, वजन-आधारित sale, फाइन ledger',
+        'चाँदी ढलाई — वजन से बारकोड, आभूषण टैग, वजन आधारित बिक्री, शुद्ध धातु खाता',
+        'ચાંદી ઢાળાઈ — વજનથી બારકોડ, ઝવેરી ટૅગ્સ, વજન આધારિત વેચાણ, શુદ્ધ ધાતુ ખાતું',
+        'चांदीची ढलाई — वजनापासून बारकोड, दागिने टॅग्ज, वजन आधारित विक्री, शुद्ध धातू खाते',
       ),
     },
     {
       icon: UtensilsCrossed,
-      title: L('Hospitality', 'हॉस्पिटैलिटी', 'હોસ્પિટાલિટી', 'हॉस्पिटॅलिटी'),
+      title: L('Hospitality', 'आतिथ्य', 'આતિથ્ય', 'आतिथ्य'),
       desc: L(
         'Hotel/restaurant floor tiles, waiter orders with modifiers, kitchen KOT, entry queue',
-        'होटल/रेस्तरां फ्लोर tiles, वेटर orders + toppings, किचन KOT, एंट्री कतार',
-        'હોટલ/રેસ્ટોરન્ટ ફ્લોર tiles, વેટર orders + toppings, કિચન KOT, એન્ટ્રી કતાર',
-        'हॉटेल/रेस्टॉरंट फ्लोअर tiles, वेटर orders + toppings, किचन KOT, एंट्री रांग',
+        'होटल/रेस्तरां फर्श टाइलें, वेटर ऑर्डर और टॉपिंग, रसोई के.ओ.टी., प्रवेश कतार',
+        'હોટલ/રેસ્ટોરન્ટ ફ્લોર ટાઇલ્સ, વેટર ઓર્ડર અને ટોપિંગ, કિચન કે.ઓ.ટી., પ્રવેશ કતાર',
+        'हॉटेल/रेस्टॉरंट मजला टाइल्स, वेटर ऑर्डर व टॉपिंग्ज, स्वयंपाकघर के.ओ.टी., प्रवेश रांग',
       ),
     },
     {
@@ -558,18 +563,19 @@ export function LandingPage() {
       title: L('4 Languages', '4 भाषाएं', '4 ભાષાઓ', '4 भाषा'),
       desc: L(
         'Full English, Hindi, Gujarati, Marathi — switch from settings, entire UI changes',
-        'English, Hindi, Gujarati, Marathi — settings से switch',
-        'English, Hindi, Gujarati, Marathi — settings માંથી switch',
-        'English, Hindi, Gujarati, Marathi — settings मधून बदला',
+        'अंग्रेज़ी, हिंदी, गुजराती, मराठी — सेटिंग्स से बदलें, पूरी स्क्रीन बदल जाती है',
+        'અંગ્રેજી, હિન્દી, ગુજરાતી, મરાઠી — સેટિંગ્સમાંથી બદલો, આખું UI બદલાય',
+        'इंग्रजी, हिंदी, गुजराती, मराठी — सेटिंग्जमधून बदला, संपूर्ण UI बदलते',
       ),
     },
     {
       icon: Cloud,
-      title: L('Cloud + Desktop', 'Cloud + Desktop', 'Cloud + Desktop'),
+      title: L('Cloud + Desktop', 'क्लाउड + डेस्कटॉप', 'ક્લાઉડ + ડેસ્કટૉપ', 'क्लाउड + डेस्कटॉप'),
       desc: L(
         'Browser app + Electron desktop (Windows/Mac). On-prem version with local database available',
-        'Browser + Electron desktop (Windows/Mac). On-prem version available',
-        'Browser + Electron desktop (Windows/Mac). On-prem version available',
+        'ब्राउज़र ऐप + इलेक्ट्रॉन डेस्कटॉप (Windows/Mac)। स्थानीय डेटाबेस वाला ऑन-प्रेम संस्करण उपलब्ध',
+        'બ્રાઉઝર એપ + ઇલેક્ટ્રોન ડેસ્કટૉપ (Windows/Mac). સ્થાનિક ડેટાબેઝ સાથે ઑન-પ્રેમ વર્ઝન ઉપલબ્ધ',
+        'ब्राउझर अॅप + इलेक्ट्रॉन डेस्कटॉप (Windows/Mac). स्थानिक डेटाबेस असलेली ऑन-प्रेम आवृत्ती उपलब्ध',
       ),
     },
   ];
