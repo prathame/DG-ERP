@@ -6,6 +6,7 @@ import { session } from '../../lib/session';
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
 import { isMobileAppShell, offersBugReportShare } from '../../lib/mobileAppShell';
 import { BrandMark } from '../ui/BrandMark';
+import { setLastCompanySlug } from '../../lib/companySlug';
 
 type LoginMode = 'login' | 'forgot' | 'reset';
 
@@ -95,7 +96,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
     const slug = result.tenantSlug || tenant?.slug;
     if (slug) {
       session.setSlug(slug);
-      localStorage.setItem('dg_last_slug', slug);
+      setLastCompanySlug(slug);
     }
     onLogin(result.user);
     if (slug && window.location.pathname !== `/${slug}`) {
