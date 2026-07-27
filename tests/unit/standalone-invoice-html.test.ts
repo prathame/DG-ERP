@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountInWords, generateStandaloneInvoiceHtml } from '../../src/lib/billTemplates';
+import { amountInWords, generateQuotationHtml, generateStandaloneInvoiceHtml } from '../../src/lib/billTemplates';
 
 const baseInv = {
   invoiceNumber: 'INV/2026-27/0001',
@@ -124,6 +124,55 @@ describe('generateStandaloneInvoiceHtml', () => {
     );
     expect(quoteHtml).toContain('Valid until');
     expect(quoteHtml).not.toContain('cust-label">Due');
+  });
+});
+
+describe('generateQuotationHtml (Party Quotes / A4)', () => {
+  it('uses full-page A4 invoice layout — never 80mm thermal receipt CSS', () => {
+    const html = generateQuotationHtml({
+      quotationNumber: 'Q-HOTEL-1',
+      quotationDate: '2026-07-27',
+      validUntil: '2026-08-10',
+      status: 'Draft',
+      customerName: 'Wedding party',
+      customerPhone: '9999999999',
+      items: [
+        {
+          productName: 'Veg thali × 50',
+          quantity: 50,
+          price: 250,
+          discountPercent: 0,
+          withGst: true,
+          lineNet: 12500,
+          lineGst: 2250,
+          lineTotal: 14750,
+        },
+      ],
+      subtotal: 12500,
+      gstRate: 18,
+      gstAmount: 2250,
+      total: 14750,
+      company: {
+        name: 'Hotel Demo',
+        phone: '8806907616',
+        address: 'Main Road',
+        gstNumber: '24AAAAA0000A1Z5',
+      },
+      billSettings: { footerText: 'Powered by Dhandho' },
+    });
+
+    expect(html).toContain('Quotation');
+    expect(html).toContain('Quotation No');
+    expect(html).toContain('Hotel Demo');
+    expect(html).toContain('Veg thali');
+    expect(html).toContain('Wedding party');
+    expect(html).toMatch(/@page\{[^}]*size:\s*A4/);
+    expect(html).toContain('font-family:Arial,Helvetica,sans-serif');
+    expect(html).toContain('class="outer');
+    expect(html).not.toMatch(/size:\s*80mm/);
+    expect(html).not.toContain('dg-thermal-page');
+    expect(html).not.toContain('Courier New');
+    expect(html).not.toContain('max-width:300px');
   });
 });
 

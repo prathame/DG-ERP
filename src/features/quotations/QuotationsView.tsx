@@ -232,7 +232,8 @@ export function QuotationsView() {
   };
 
   const printQuotation = async (q: Quotation) => {
-    // Shared bill template (QUOTATION title, no bank) + same print pagination as invoices
+    // A4 quote/invoice layout for all business types (incl. hotel Party Quotes).
+    // Do NOT use hospThermalPrint / 80mm — that path is table guest bills + KOT only.
     const w = openPrintWindow('Preparing quotation…', { hidePdfDownload: true });
     if (!w) {
       reportActionBlocked('quote.print', PRINT_POPUP_BLOCKED, { quotationNumber: q.quotationNumber });
