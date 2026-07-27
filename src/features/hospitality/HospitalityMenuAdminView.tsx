@@ -166,7 +166,7 @@ export function HospitalityMenuAdminView() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Menu sections">
         {(
           [
             { id: 'menu' as const, label: 'Dishes' },
@@ -176,6 +176,8 @@ export function HospitalityMenuAdminView() {
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             className={tab === t.id ? hospChipActive(shell) : hospChipIdle(shell)}
           >

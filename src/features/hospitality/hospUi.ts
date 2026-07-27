@@ -96,18 +96,25 @@ export function hospInputClass(shell: HospShell) {
   );
 }
 
+/** Shared segment/filter chip sizing — same box on active & idle so text never kisses the edge. */
+const hospChipBase =
+  'dg-pill-tab inline-flex items-center justify-center box-border shrink-0 min-h-9 px-4 py-2 text-sm font-semibold leading-none border border-solid transition-colors';
+
 export function hospChipActive(shell: HospShell) {
   return cn(
-    shell === 'desktopGlass' && 'dg-bg-primary rounded-lg',
-    shell === 'capGlass' && 'dg-m-chip-active rounded-full',
-    shell === 'classic' && 'bg-brand text-white shadow-md shadow-brand/20 rounded-full',
+    hospChipBase,
+    // Transparent border keeps height identical to idle (1px border always present)
+    shell === 'desktopGlass' && 'dg-bg-primary rounded-lg border-transparent',
+    shell === 'capGlass' && 'dg-m-chip-active rounded-full border-transparent',
+    shell === 'classic' && 'bg-brand text-white shadow-md shadow-brand/20 rounded-full border-transparent',
   );
 }
 
 export function hospChipIdle(shell: HospShell) {
   return cn(
-    shell === 'desktopGlass' && 'rounded-lg border border-[var(--dg-card-border)] dg-muted',
-    shell === 'capGlass' && 'dg-pill-tab rounded-full',
-    shell === 'classic' && 'rounded-full bg-gray-50 text-gray-600',
+    hospChipBase,
+    shell === 'desktopGlass' && 'rounded-lg border-[var(--dg-card-border)] dg-muted hover:bg-[var(--dg-input)]',
+    shell === 'capGlass' && 'rounded-full border-[var(--dg-card-border)] dg-m-muted dg-m-surface',
+    shell === 'classic' && 'rounded-full bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100',
   );
 }

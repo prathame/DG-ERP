@@ -234,10 +234,7 @@ export function HospitalityWaiterView() {
               key={f.id}
               type="button"
               onClick={() => setFilter(f.id)}
-              className={cn(
-                'shrink-0 px-3.5 py-2 text-xs font-bold min-h-[40px]',
-                filter === f.id ? hospChipActive(shell) : hospChipIdle(shell),
-              )}
+              className={filter === f.id ? hospChipActive(shell) : hospChipIdle(shell)}
             >
               {f.label}
             </button>

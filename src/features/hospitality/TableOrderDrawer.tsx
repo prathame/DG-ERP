@@ -321,10 +321,7 @@ export function TableOrderDrawer({
                       key={c.id}
                       type="button"
                       onClick={() => setCatId(c.id)}
-                      className={cn(
-                        'px-3 py-1.5 text-sm whitespace-nowrap font-semibold',
-                        catId === c.id ? hospChipActive(shell) : hospChipIdle(shell),
-                      )}
+                      className={cn('whitespace-nowrap', catId === c.id ? hospChipActive(shell) : hospChipIdle(shell))}
                     >
                       {c.name}
                     </button>

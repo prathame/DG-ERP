@@ -148,7 +148,7 @@ export function HospitalityMembersView() {
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap" role="tablist" aria-label="Members sections">
         {(
           [
             { id: 'members' as const, label: 'Registry' },
@@ -158,6 +158,8 @@ export function HospitalityMembersView() {
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={section === t.id}
             className={section === t.id ? hospChipActive(shell) : hospChipIdle(shell)}
             onClick={() => setSection(t.id)}
           >
