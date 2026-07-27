@@ -94,7 +94,7 @@ export async function seedHospitalityCatalog(tenantId: string): Promise<void> {
   for (const [g, name, delta] of [
     ['Extra Toppings', 'Extra Paneer', 40],
     ['Extra Toppings', 'Mushrooms', 30],
-    ['Extra Toppings', 'Jalapeños', 20],
+    ['Extra Toppings', 'Jalapenos', 20],
     ['Extra Toppings', 'Olives', 25],
     ['Extra Toppings', 'Corn', 25],
     ['Spice Level', 'Mild', 0],

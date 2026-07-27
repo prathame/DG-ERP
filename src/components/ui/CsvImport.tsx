@@ -17,7 +17,12 @@ export interface CsvImportProps {
 function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return { headers: [], rows: [] };
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const headers = lines[0].split(',').map(h =>
+    h
+      .trim()
+      .replace(/^\uFEFF/, '')
+      .replace(/^"|"$/g, ''),
+  );
   const rows = lines.slice(1).map(line => {
     const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
     const obj: Record<string, string> = {};
@@ -31,10 +36,13 @@ function parseCsv(text: string): { headers: string[]; rows: Record<string, strin
 
 function sheetToRows(raw: Record<string, unknown>[]): { headers: string[]; rows: Record<string, string>[] } {
   if (raw.length === 0) return { headers: [], rows: [] };
-  const headers = Object.keys(raw[0]);
+  const headers = Object.keys(raw[0]).map(h => h.replace(/^\uFEFF/, ''));
   const rows = raw.map(r => {
     const obj: Record<string, string> = {};
-    for (const h of headers) obj[h] = String(r[h] ?? '').trim();
+    for (const h of Object.keys(raw[0])) {
+      const key = h.replace(/^\uFEFF/, '');
+      obj[key] = String(r[h] ?? '').trim();
+    }
     return obj;
   });
   return { headers, rows };
@@ -56,8 +64,34 @@ async function parseSpreadsheet(file: File): Promise<{ headers: string[]; rows: 
   return parseCsv(text);
 }
 
+function normHeader(h: string): string {
+  return h
+    .replace(/^\uFEFF/, '')
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+}
+
 function hasHeader(headers: string[], key: string): boolean {
-  return headers.some(h => h.toLowerCase() === key.toLowerCase());
+  const n = normHeader(key);
+  return headers.some(h => normHeader(h) === n);
+}
+
+/** Remap spreadsheet headers to the canonical `columns[].key` values (case/spacing insensitive). */
+function canonicalizeRows(
+  parsed: { headers: string[]; rows: Record<string, string>[] },
+  columns: { key: string }[],
+): { headers: string[]; rows: Record<string, string>[] } {
+  const canonByNorm = new Map(columns.map(c => [normHeader(c.key), c.key]));
+  const mappedHeaders = parsed.headers.map(h => canonByNorm.get(normHeader(h)) || h.replace(/^\uFEFF/, ''));
+  const rows = parsed.rows.map(row => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) {
+      const canon = canonByNorm.get(normHeader(k)) || k.replace(/^\uFEFF/, '');
+      out[canon] = v;
+    }
+    return out;
+  });
+  return { headers: mappedHeaders, rows };
 }
 
 export function CsvImport({
@@ -96,8 +130,9 @@ export function CsvImport({
         }
       }
     }
-    setHeaders(parsed.headers);
-    setRows(parsed.rows);
+    const canonical = canonicalizeRows(parsed, columns);
+    setHeaders(canonical.headers);
+    setRows(canonical.rows);
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
