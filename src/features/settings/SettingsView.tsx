@@ -879,10 +879,22 @@ const PERMISSION_LABELS: { id: string; label: string }[] = [
   { id: 'settings', label: 'Settings' },
 ];
 
+/** Hotel floor: UI modules hidden; hospitality unlocked for API (nav allowlisted in tabAccess). */
+const HOTEL_FLOOR_UI_PRESET: Record<string, string> = {
+  ...Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, 'hidden'])),
+  hospitality: 'full',
+};
+
 const ROLE_PRESETS: Record<string, Record<string, string>> = {
-  Admin: Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, 'full'])),
-  Manager: Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, p.id === 'settings' ? 'view' : 'full'])),
-  Staff: Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, 'view'])),
+  Admin: Object.fromEntries([...PERMISSION_LABELS.map(p => [p.id, 'full'] as const), ['hospitality', 'full'] as const]),
+  Manager: Object.fromEntries([
+    ...PERMISSION_LABELS.map(p => [p.id, p.id === 'settings' ? 'view' : 'full'] as const),
+    ['hospitality', 'full'] as const,
+  ]),
+  Staff: Object.fromEntries([...PERMISSION_LABELS.map(p => [p.id, 'view'] as const), ['hospitality', 'full'] as const]),
+  Waiter: { ...HOTEL_FLOOR_UI_PRESET },
+  Host: { ...HOTEL_FLOOR_UI_PRESET },
+  Kitchen: { ...HOTEL_FLOOR_UI_PRESET },
   Warehouse: {
     dashboard: 'view',
     sales: 'hidden',
@@ -2981,6 +2993,13 @@ export function SettingsView({
                       <option>Admin</option>
                       <option>Manager</option>
                       <option>Staff</option>
+                      {getBusinessConfig().features.hospitality && (
+                        <>
+                          <option value="Waiter">Waiter</option>
+                          <option value="Host">Host (Queue)</option>
+                          <option value="Kitchen">Kitchen</option>
+                        </>
+                      )}
                       <option>Warehouse</option>
                       <option>Vendor</option>
                     </select>
@@ -3092,6 +3111,13 @@ export function SettingsView({
                       <option>Admin</option>
                       <option>Manager</option>
                       <option>Staff</option>
+                      {getBusinessConfig().features.hospitality && (
+                        <>
+                          <option value="Waiter">Waiter</option>
+                          <option value="Host">Host (Queue)</option>
+                          <option value="Kitchen">Kitchen</option>
+                        </>
+                      )}
                       <option>Warehouse</option>
                       <option>Vendor</option>
                     </select>

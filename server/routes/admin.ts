@@ -35,10 +35,18 @@ const ALL_MODULES = [
   'hospitality',
 ];
 
+/** Hotel floor roles: API hospitality full; nav tabs narrowed in resolveTabAccess. */
+const HOTEL_FLOOR_PRESET: Record<string, AccessLevel> = Object.fromEntries(
+  ALL_MODULES.map(m => [m, m === 'hospitality' ? 'full' : 'hidden']),
+);
+
 const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
   Admin: Object.fromEntries(ALL_MODULES.map(m => [m, 'full'])),
   Manager: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'settings' ? 'view' : 'full'])),
   Staff: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'hospitality' ? 'full' : 'view'])),
+  Waiter: { ...HOTEL_FLOOR_PRESET },
+  Host: { ...HOTEL_FLOOR_PRESET },
+  Kitchen: { ...HOTEL_FLOOR_PRESET },
   Warehouse: {
     dashboard: 'view',
     sales: 'hidden',

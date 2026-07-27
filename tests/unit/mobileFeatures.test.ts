@@ -77,6 +77,9 @@ describe('mobileFeatures', () => {
     expect(mobileFeatureAllowsTab('chatbot', f)).toBe(true);
     expect(mobileFeatureAllowsTab('settings', f)).toBe(false);
     expect(mobileFeatureAllowsTab('dashboard', f)).toBe(false);
+    // Hospitality tabs bypass Cap mobile_features (role + tab_config gate instead)
+    expect(mobileFeatureAllowsTab('hosp_waiter', f)).toBe(true);
+    expect(mobileFeatureAllowsTab('hosp_queue', f)).toBe(true);
   });
 
   it('filters SA checkbox options by business type', () => {

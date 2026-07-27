@@ -2,17 +2,35 @@
 export type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
 
 /**
+ * Hotel floor roles → allowed nav tab ids.
+ * Admin/Manager/Staff keep broader defaults; these roles are allowlist-only.
+ */
+export const HOTEL_ROLE_TABS: Record<string, readonly string[]> = {
+  Waiter: ['hosp_waiter', 'hosp_queue'],
+  Host: ['hosp_queue'],
+  Kitchen: ['hosp_kitchen'],
+};
+
+/**
  * Resolve access for a nav tab id from user.permissions + role defaults.
  *
  * - `null` / `undefined` / `[]` / `{}` → role defaults (empty object is the Offline Mobile DB default)
  * - object map → per-tab level; missing key is hidden (deny by default)
  * - string array (legacy) → full if listed
+ * - Waiter / Host / Kitchen → allowlisted hosp_* tabs only (ignores coarse hospitality unlock)
  */
 export function resolveTabAccess(
   tabId: string,
   user: { permissions?: unknown; role?: string } | null | undefined,
 ): AccessLevel {
   if (!user) return 'hidden';
+
+  const role = user.role ?? '';
+  const hotelAllow = HOTEL_ROLE_TABS[role];
+  if (hotelAllow) {
+    return hotelAllow.includes(tabId) ? 'full' : 'hidden';
+  }
+
   const perms = user.permissions;
 
   if (perms && typeof perms === 'object' && !Array.isArray(perms)) {
@@ -42,11 +60,10 @@ export function resolveTabAccess(
     }
   }
 
-  const role = user.role ?? '';
   if (['Super Admin', 'Admin'].includes(role)) return 'full';
   if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
   if (role === 'Staff') {
-    // Waiter / kitchen / host staff need to mutate hospitality data
+    // Generic Staff with unset perms can use all hospitality tabs
     if (tabId.startsWith('hosp_')) return 'full';
     return 'view';
   }
