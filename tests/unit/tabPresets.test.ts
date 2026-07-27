@@ -46,6 +46,8 @@ describe('tabPresets', () => {
     expect(p.distribution.visible).toBe(false);
     expect(p.purchases.visible).toBe(false);
     expect(p.accounts.visible).toBe(true);
+    expect(p.quotations.visible).toBe(true);
+    expect(p.quotations.label).toBe('Party Quotes');
     expect(p.warranty.visible).toBe(false);
     expect(p.invoices.visible).toBe(true);
     expect(p.finance.visible).toBe(true);

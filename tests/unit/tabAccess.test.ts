@@ -71,6 +71,7 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_members', user)).toBe('hidden');
     expect(resolveTabAccess('settings', user)).toBe('hidden');
     expect(resolveTabAccess('invoices', user)).toBe('hidden');
+    expect(resolveTabAccess('quotations', user)).toBe('hidden');
   });
 
   it('Host sees only Entry Queue', () => {

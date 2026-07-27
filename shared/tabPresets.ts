@@ -91,7 +91,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     sales: { label: 'Sales Entry', visible: false },
     purchases: { label: 'Expenses', visible: false },
     verification: { label: 'Search / Verify', visible: false },
-    quotations: { label: 'Quotes & Orders', visible: false },
+    quotations: { label: 'Party Quotes', visible: true },
     accounts: { label: 'Accounts', visible: true },
     chatbot: { label: 'Chatbot', visible: false },
     finance: { label: 'Invoice Finance', visible: true },

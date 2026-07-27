@@ -106,6 +106,29 @@ describe('HTTP Hospitality', () => {
     expect(typeof res.body.parcelsOpen).toBe('number');
   });
 
+  it('creates party quote with free-text lines (no product barcode)', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const res = await api()
+      .post('/api/quotations')
+      .set(headers)
+      .send({
+        customerName: 'Sharma Wedding',
+        customerPhone: '9876500000',
+        items: [
+          { description: 'Veg thali × 50', quantity: 50, customPrice: 250, withGst: true },
+          { description: 'Paneer platter', quantity: 10, customPrice: 800, withGst: true },
+        ],
+        gstRate: 5,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.customerName || res.body.customer_name || res.body.vendorName).toBeTruthy();
+    const items = res.body.items as Array<{ productId: string; productName: string; quantity: number }>;
+    expect(items.length).toBe(2);
+    expect(items[0].productId).toBe('');
+    expect(items[0].productName).toMatch(/Veg thali/i);
+    expect(Number(res.body.total)).toBeGreaterThan(0);
+  });
+
   it('returns restaurant accounts summary for hotel tenants', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
     const res = await api().get('/api/hospitality/accounts-summary?period=week').set(headers);

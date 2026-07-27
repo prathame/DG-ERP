@@ -15,6 +15,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
+import { isHotelRestaurantBusiness } from '../../../shared/hotelMasters';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
@@ -152,10 +153,14 @@ export function QuotationsView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const sessionUser = session.getUser() as Record<string, unknown> | null;
   const companyName = String(sessionUser?.companyName || '');
-  const isService = String(sessionUser?.businessType || '') === 'service';
-  const offlinePdf = isServicePhoneUx(String(sessionUser?.businessType || ''));
-  const partyLabel = isService ? 'Client' : 'Vendor';
-  const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
+  const businessType = String(sessionUser?.businessType || '');
+  const isService = businessType === 'service';
+  const isHotel = isHotelRestaurantBusiness(businessType);
+  const offlinePdf = isServicePhoneUx(businessType);
+  /** Free-text lines for service Cap / hotel party catering (no product barcodes). */
+  const allowCustomLines = offlinePdf || isHotel;
+  const partyLabel = isHotel ? 'Customer' : isService ? 'Client' : 'Vendor';
+  const convertLabel = isService || isHotel ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
     if (csvImportOpen) {
@@ -430,12 +435,16 @@ export function QuotationsView() {
       return Boolean(r.description.trim() && parseFloat(r.customPrice) > 0);
     });
     if (validRows.length === 0) {
-      const reason = offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product';
+      const reason = allowCustomLines
+        ? isHotel
+          ? 'Add at least one party line (description + rate)'
+          : 'Add at least one line (Price List item or custom)'
+        : 'Add at least one product';
       reportActionBlocked('quote.save', reason);
       toast(reason, 'error');
       return;
     }
-    if (!offlinePdf && validRows.some(r => !r.productId)) {
+    if (!allowCustomLines && validRows.some(r => !r.productId)) {
       reportActionBlocked('quote.save', 'Select a product for each line');
       toast('Select a product for each line', 'error');
       return;
@@ -1145,9 +1154,11 @@ export function QuotationsView() {
                 </FormField>
               </FormGrid>
               <p className="text-xs text-gray-500">
-                {offlinePdf
-                  ? 'Pick a Price List item (Catalog / Clients rates) or type a custom line.'
-                  : 'Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.'}
+                {isHotel
+                  ? 'Party / bulk catering: type each line (e.g. Veg thali × 50) with rate. Customer name & mobile optional.'
+                  : allowCustomLines
+                    ? 'Pick a Price List item (Catalog / Clients rates) or type a custom line.'
+                    : 'Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.'}
               </p>
 
               <div className="sm:hidden space-y-3">
@@ -1157,7 +1168,7 @@ export function QuotationsView() {
                   const qFields: LineItemCardField[] = [
                     {
                       key: 'product',
-                      label: offlinePdf ? 'Price List item' : 'Product',
+                      label: allowCustomLines ? (isHotel ? 'Menu / package' : 'Price List item') : 'Product',
                       wide: true,
                       node: (
                         <select
@@ -1181,7 +1192,9 @@ export function QuotationsView() {
                           }}
                           className={formControlClass}
                         >
-                          <option value="">{offlinePdf ? 'Custom item' : 'Select'}</option>
+                          <option value="">
+                            {allowCustomLines ? (isHotel ? 'Custom party line' : 'Custom item') : 'Select'}
+                          </option>
                           {products.map(pr => (
                             <option key={pr.id} value={pr.id}>
                               {pr.name} (₹{pr.price.toLocaleString()})
@@ -1190,7 +1203,7 @@ export function QuotationsView() {
                         </select>
                       ),
                     },
-                    ...(offlinePdf && !row.productId
+                    ...(allowCustomLines && !row.productId
                       ? [
                           {
                             key: 'description',
@@ -1240,7 +1253,7 @@ export function QuotationsView() {
                           onChange={e =>
                             setRows(rows.map((r, i) => (i === idx ? { ...r, customPrice: e.target.value } : r)))
                           }
-                          placeholder={p ? `₹${p.price}` : offlinePdf ? 'Rate' : '—'}
+                          placeholder={p ? `₹${p.price}` : allowCustomLines ? 'Rate' : '—'}
                           className={formControlClass}
                         />
                       ),
@@ -1306,7 +1319,7 @@ export function QuotationsView() {
                   <thead className="bg-gray-50">
                     <tr className="text-xs font-bold text-gray-400 uppercase">
                       <th className="px-3 py-3 w-8">#</th>
-                      <th className="px-3 py-3">{offlinePdf ? 'Item' : 'Product'}</th>
+                      <th className="px-3 py-3">{allowCustomLines ? 'Item' : 'Product'}</th>
                       <th className="px-3 py-3 w-16">Qty</th>
                       <th className="px-3 py-3 w-24">Price</th>
                       <th className="px-3 py-3 w-16">Disc%</th>
@@ -1344,14 +1357,16 @@ export function QuotationsView() {
                               }}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
                             >
-                              <option value="">{offlinePdf ? 'Custom item' : 'Select'}</option>
+                              <option value="">
+                                {allowCustomLines ? (isHotel ? 'Custom party line' : 'Custom item') : 'Select'}
+                              </option>
                               {products.map(pr => (
                                 <option key={pr.id} value={pr.id}>
                                   {pr.name} (₹{pr.price.toLocaleString()})
                                 </option>
                               ))}
                             </select>
-                            {offlinePdf && !row.productId && (
+                            {allowCustomLines && !row.productId && (
                               <input
                                 value={row.description}
                                 onChange={e =>
@@ -1445,7 +1460,7 @@ export function QuotationsView() {
                 onClick={() => setRows([...rows, emptyQuoteRow()])}
                 className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
               >
-                {offlinePdf ? '+ Add Line' : '+ Add Product'}
+                {allowCustomLines ? '+ Add Line' : '+ Add Product'}
               </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs sm:text-sm text-gray-600">
@@ -1460,7 +1475,7 @@ export function QuotationsView() {
                 <span className="text-lg font-bold text-brand tabular-nums">₹{totals.total.toLocaleString()}</span>
               </div>
               {/* Offline: Notes / T&C / bank details come from Settings → Bill Customization */}
-              {!offlinePdf && (
+              {!allowCustomLines && (
                 <FormField label="Notes">
                   <textarea
                     value={form.notes}
@@ -1555,7 +1570,7 @@ export function QuotationsView() {
             const result = await importQuotationsFromRows(rows, {
               products,
               vendors,
-              allowCustomLines: offlinePdf,
+              allowCustomLines,
               gstRate: 18,
               post: body => fetchApi('/quotations', { method: 'POST', body: JSON.stringify(body) }),
             });

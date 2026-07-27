@@ -22,7 +22,10 @@ type QuoteItem = {
 };
 
 type QuoteItemInput = {
-  productId: string;
+  productId?: string;
+  /** Free-text line (service / hotel party quotes — no product master required). */
+  description?: string;
+  productName?: string;
   quantity?: number;
   customPrice?: unknown;
   discountPercent?: number;
@@ -90,19 +93,58 @@ async function buildResolvedItems(
   let subtotal = 0;
   const resolvedItems: QuoteItem[] = [];
   for (const item of items) {
+    const productId = String(item.productId || '').trim();
+    const qty = Math.max(1, Number(item.quantity) || 1);
+    const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
+    const withGst = item.withGst !== false;
+
+    // Free-text party / catering line (no product barcode master)
+    if (!productId) {
+      const customName = String(item.description || item.productName || '').trim();
+      if (!customName) return { error: 'Custom line needs a description', status: 400 };
+      if (!hasExplicitUnitPrice(item.customPrice)) {
+        return { error: `Rate required for custom line: ${customName}`, status: 400 };
+      }
+      const price = Number(item.customPrice);
+      if (!Number.isFinite(price) || price < 0) {
+        return { error: `Rate required for custom line: ${customName}`, status: 400 };
+      }
+      const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
+        basePrice: price,
+        discountPercent: disc,
+        withGst,
+        priceIncludesGst: false,
+        gstRate: rate,
+      });
+      const lineNet = Math.round(netPricePerUnit * qty * 100) / 100;
+      const lineTotal = Math.round(billedPricePerUnit * qty * 100) / 100;
+      const lineGst = Math.round((lineTotal - lineNet) * 100) / 100;
+      subtotal += lineNet;
+      resolvedItems.push({
+        productId: '',
+        productName: customName,
+        quantity: qty,
+        price,
+        discountPercent: disc,
+        withGst,
+        lineNet,
+        lineGst,
+        lineTotal,
+        convertedQty: 0,
+      });
+      continue;
+    }
+
     const product = (
       await pool.query('SELECT id, name, price, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2', [
-        item.productId,
+        productId,
         tenantId,
       ])
     ).rows[0] as { id: string; name: string; price: number; price_includes_gst: boolean } | undefined;
-    if (!product) return { error: `Product not found: ${item.productId}`, status: 404 };
-    const qty = Math.max(1, Number(item.quantity) || 1);
+    if (!product) return { error: `Product not found: ${productId}`, status: 404 };
     const price = hasExplicitUnitPrice(item.customPrice)
       ? Number(item.customPrice)
-      : (await resolvePrice(tenantId, item.productId, vendorId, qty)).price;
-    const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-    const withGst = item.withGst !== false;
+      : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
     const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
       basePrice: price,
       discountPercent: disc,
@@ -450,9 +492,10 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
 
       const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
         ?.business_type as string | undefined;
-      const isService = tenantType === 'service';
+      // Service + hotel: convert → standalone invoice (free-text party lines OK)
+      const isInvoiceConvert = tenantType === 'service' || tenantType === 'hotel_restaurant';
 
-      if (!isService && !quote.vendor_id) {
+      if (!isInvoiceConvert && !quote.vendor_id) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Quotation must have a vendor to convert to distribution' });
       }
@@ -509,30 +552,44 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
       const date = (quote.quotation_date as string) || (await todayYmd());
       let resultPayload: Record<string, unknown> = {};
 
-      if (isService) {
+      if (isInvoiceConvert) {
         // Convert remaining selection → standalone invoice (frozen prices)
         const invItems = [];
         let subtotal = 0;
         let taxTotal = 0;
         for (const p of plan) {
           const withGst = p.item.withGst !== false;
-          const product = (
-            await client.query(
-              'SELECT id, name, price, price_includes_gst, hsn_code FROM products WHERE id = $1 AND tenant_id = $2',
-              [p.productId, tenantId],
-            )
-          ).rows[0] as
-            | { id: string; name: string; price: number; price_includes_gst: boolean; hsn_code: string | null }
-            | undefined;
-          if (!product) {
+          const productId = String(p.productId || '').trim();
+          let priceIncludesGst = false;
+          let hsnSac = '';
+          let description = String(p.item.productName || '').trim();
+
+          if (productId) {
+            const product = (
+              await client.query(
+                'SELECT id, name, price, price_includes_gst, hsn_code FROM products WHERE id = $1 AND tenant_id = $2',
+                [productId, tenantId],
+              )
+            ).rows[0] as
+              | { id: string; name: string; price: number; price_includes_gst: boolean; hsn_code: string | null }
+              | undefined;
+            if (!product) {
+              await client.query('ROLLBACK');
+              return res.status(404).json({ error: `Product not found: ${productId}` });
+            }
+            priceIncludesGst = !!product.price_includes_gst;
+            hsnSac = product.hsn_code || '';
+            description = p.item.productName || product.name;
+          } else if (!description) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ error: `Product not found: ${p.productId}` });
+            return res.status(400).json({ error: 'Custom quote line missing description' });
           }
+
           const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
             basePrice: Number(p.item.price),
             discountPercent: Number(p.item.discountPercent) || 0,
             withGst,
-            priceIncludesGst: !!product.price_includes_gst,
+            priceIncludesGst,
             gstRate,
           });
           const taxable = Math.round(netPricePerUnit * p.convertQty * 100) / 100;
@@ -541,9 +598,9 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
           subtotal += taxable;
           taxTotal += tax;
           invItems.push({
-            description: p.item.productName || product.name,
-            productId: p.productId,
-            hsnSac: product.hsn_code || '',
+            description,
+            productId: productId || '',
+            hsnSac,
             qty: p.convertQty,
             rate: Number(p.item.price),
             discountPercent: Number(p.item.discountPercent) || 0,
