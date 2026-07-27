@@ -1734,9 +1734,9 @@ export default function App() {
             </header>
 
             <div className="app-mobile-content p-3 sm:p-4 lg:p-8">
-              <ErrorBoundary key={tabKey} onReset={() => setTabKey(k => k + 1)}>
+              <ErrorBoundary key={`${activeTab}-${tabKey}`} onReset={() => setTabKey(k => k + 1)}>
                 <Suspense fallback={<LazyFallback />}>
-                  <div key={tabKey}>
+                  <div key={`${activeTab}-${tabKey}`}>
                     {canAccess(activeTab) && activeTab === 'dashboard' && (
                       <DashboardView
                         user={user}

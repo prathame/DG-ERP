@@ -139,11 +139,61 @@ export async function provisionTenant(data: {
   }
 }
 
+/**
+ * Hospitality FKs that block CASCADE from tenants:
+ * - hosp_order_items.menu_item_id → hosp_menu_items (no ON DELETE)
+ * - hosp_orders.table_id → hosp_dining_tables (no ON DELETE)
+ * - hosp_queue_entries.table_id → hosp_dining_tables
+ * - hosp_members.plan_id → hosp_membership_plans (no ON DELETE)
+ * Child junction/modifier rows often lack tenant_id — delete via join.
+ */
+async function deleteHospitalityForTenant(
+  client: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+  tenantId: string,
+) {
+  await client.query(
+    `DELETE FROM hosp_order_item_modifiers WHERE order_item_id IN (
+       SELECT oi.id FROM hosp_order_items oi
+       JOIN hosp_orders o ON o.id = oi.order_id
+       WHERE o.tenant_id = $1
+     )`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM hosp_order_items WHERE order_id IN (
+       SELECT id FROM hosp_orders WHERE tenant_id = $1
+     )`,
+    [tenantId],
+  );
+  await client.query(`DELETE FROM hosp_orders WHERE tenant_id = $1`, [tenantId]);
+  await client.query(`DELETE FROM hosp_queue_entries WHERE tenant_id = $1`, [tenantId]);
+  await client.query(
+    `DELETE FROM hosp_item_modifier_groups WHERE menu_item_id IN (
+       SELECT id FROM hosp_menu_items WHERE tenant_id = $1
+     )`,
+    [tenantId],
+  );
+  await client.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1`, [tenantId]);
+  await client.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1`, [tenantId]);
+  await client.query(
+    `DELETE FROM hosp_modifiers WHERE group_id IN (
+       SELECT id FROM hosp_modifier_groups WHERE tenant_id = $1
+     )`,
+    [tenantId],
+  );
+  await client.query(`DELETE FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]);
+  await client.query(`DELETE FROM hosp_members WHERE tenant_id = $1`, [tenantId]);
+  await client.query(`DELETE FROM hosp_membership_plans WHERE tenant_id = $1`, [tenantId]);
+  await client.query(`DELETE FROM hosp_dining_tables WHERE tenant_id = $1`, [tenantId]);
+}
+
 export async function deleteTenant(tenantId: string) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await setTenantContext(client, tenantId);
+    // Must run before other deletes / tenants CASCADE — see deleteHospitalityForTenant
+    await deleteHospitalityForTenant(client, tenantId);
     const tables = [
       'expenses',
       'staff_payments',

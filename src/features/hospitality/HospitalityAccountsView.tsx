@@ -204,7 +204,7 @@ export function HospitalityAccountsView() {
               />
               <div>
                 <p className={hospEyebrowClass(shell)}>GST note</p>
-                <p className={cn('text-sm mt-1', hospSubClass(shell))}>{data?.gst.note}</p>
+                <p className={cn('text-sm mt-1', hospSubClass(shell))}>{data?.gst?.note}</p>
               </div>
             </div>
           </div>
