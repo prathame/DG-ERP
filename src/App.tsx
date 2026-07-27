@@ -53,6 +53,7 @@ import {
   isServicePhoneUx,
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
+import { fillMissingTabPresetKeys } from '../shared/tabPresets';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -158,6 +159,9 @@ const HospitalityMembersView = lazy(() =>
 );
 const HospitalityAnalyticsView = lazy(() =>
   import('./features/hospitality/HospitalityAnalyticsView').then(m => ({ default: m.HospitalityAnalyticsView })),
+);
+const HospitalityAccountsView = lazy(() =>
+  import('./features/hospitality/HospitalityAccountsView').then(m => ({ default: m.HospitalityAccountsView })),
 );
 
 function slugEntryApiContext(slug: string): {
@@ -748,7 +752,11 @@ export default function App() {
   const { t } = useTranslation();
 
   const userConfig = user as Record<string, unknown>;
-  const tabConfig = (userConfig?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
+  // Merge missing hospitality keys (e.g. hosp_menu) from preset for older hotel tab_config JSON
+  const tabConfig = fillMissingTabPresetKeys(
+    userConfig?.tabConfig as Record<string, { label?: string; visible?: boolean }> | null | undefined,
+    userConfig?.businessType as string | undefined,
+  );
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
   /** Tenant tabConfig, plus Offline Mobile Settings override for Accounts. */
   const tv = (key: string) => {
@@ -868,7 +876,7 @@ export default function App() {
   const navItems = navSections.flatMap(s => s.items).filter(i => i.show);
 
   const getAccess = (tabId: string): AccessLevel =>
-    resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string } | null);
+    resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string; businessType?: string } | null);
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
 
   const companionFeatures =
@@ -1789,9 +1797,14 @@ export default function App() {
                       ) : (
                         <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
                       ))}
-                    {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
-                      <AccountsView accessLevel={getAccess('accounts')} />
-                    )}
+                    {canAccess(activeTab) &&
+                      tv('accounts') &&
+                      activeTab === 'accounts' &&
+                      ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                        <HospitalityAccountsView />
+                      ) : (
+                        <AccountsView accessLevel={getAccess('accounts')} />
+                      ))}
                   </div>
                   {canAccess('settings') && activeTab === 'settings' && (
                     <SettingsView user={user} onUserChange={setUser} />

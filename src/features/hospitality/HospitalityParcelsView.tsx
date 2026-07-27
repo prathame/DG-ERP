@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, RefreshCw } from 'lucide-react';
+import { session } from '../../lib/session';
 import { cn } from '../../lib/utils';
 import { hospApi, type HospMenuItem, type HospOrderDetail, type HospParcel } from './hospApi';
 import { OrderMemberDiscountPanel } from './OrderMemberDiscountPanel';
@@ -18,8 +19,14 @@ import {
   useHospShell,
 } from './hospUi';
 
+function isHotelAdminRole(): boolean {
+  const role = String((session.getUser() as { role?: string } | null)?.role || '');
+  return role === 'Admin' || role === 'Super Admin';
+}
+
 export function HospitalityParcelsView() {
   const shell = useHospShell();
+  const canMarkPaid = isHotelAdminRole();
   const [parcels, setParcels] = useState<HospParcel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -81,10 +88,22 @@ export function HospitalityParcelsView() {
   async function createParcel() {
     setBusy(true);
     try {
-      const created = await hospApi.createParcel({
+      const phone = guestPhone.trim();
+      let created = await hospApi.createParcel({
         customerName: guestName.trim(),
-        customerPhone: guestPhone.trim(),
+        customerPhone: phone,
       });
+      // Attach only when membership is currently valid (active + date + plan)
+      if (phone) {
+        try {
+          const lookup = await hospApi.lookupMember(phone);
+          if (lookup.valid && lookup.member) {
+            created = await hospApi.setOrderMember(created.order.id, lookup.member.id);
+          }
+        } catch {
+          /* guest fields already saved on create */
+        }
+      }
       setNewOpen(false);
       setGuestName('');
       setGuestPhone('');
@@ -289,28 +308,33 @@ export function HospitalityParcelsView() {
                     Bill
                   </button>
                 )}
-                {(detail.order.status === 'open' || detail.order.status === 'billed') && (
-                  <button
-                    type="button"
-                    className={hospDangerBtn(shell)}
-                    disabled={busy}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        await hospApi.close(detail.order.id);
-                        setActiveId(null);
-                        setDetail(null);
-                        await loadParcels();
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : 'Close failed');
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    Close / handed over
-                  </button>
-                )}
+                {(detail.order.status === 'open' || detail.order.status === 'billed') &&
+                  (canMarkPaid ? (
+                    <button
+                      type="button"
+                      className={hospDangerBtn(shell)}
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          await hospApi.close(detail.order.id);
+                          setActiveId(null);
+                          setDetail(null);
+                          await loadParcels();
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : 'Close failed');
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      Payment done
+                    </button>
+                  ) : (
+                    <p className={cn('text-xs self-center', hospSubClass(shell))}>
+                      Waiting for Admin to mark payment done…
+                    </p>
+                  ))}
               </div>
             </>
           )}

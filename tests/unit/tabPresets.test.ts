@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CUSTOM_TAB_PRESET,
+  fillMissingTabPresetKeys,
   getTabPreset,
   isBusinessTypeWithCustom,
   isNamedBusinessType,
@@ -44,7 +45,7 @@ describe('tabPresets', () => {
     expect(p.inventory.visible).toBe(false);
     expect(p.distribution.visible).toBe(false);
     expect(p.purchases.visible).toBe(false);
-    expect(p.accounts.visible).toBe(false);
+    expect(p.accounts.visible).toBe(true);
     expect(p.warranty.visible).toBe(false);
     expect(p.invoices.visible).toBe(true);
     expect(p.finance.visible).toBe(true);
@@ -66,5 +67,23 @@ describe('tabPresets', () => {
     expect(CUSTOM_TAB_PRESET.warranty.visible).toBe(true);
     expect(CUSTOM_TAB_PRESET.inventory.visible).toBe(true);
     expect(getTabPreset('custom').sales.visible).toBe(true);
+  });
+
+  it('fillMissingTabPresetKeys restores hosp_menu / accounts for old hotel tab_config', () => {
+    const stale = {
+      analytics: { label: 'Analytics', visible: true },
+      masters: { label: 'Masters', visible: false },
+      finance: { label: 'Invoice Finance', visible: true },
+      // hosp_menu / accounts intentionally absent (pre-hospitality save)
+    };
+    const merged = fillMissingTabPresetKeys(stale, 'hotel_restaurant');
+    expect(merged.hosp_menu.visible).toBe(true);
+    expect(merged.hosp_menu.label).toBe('Menu');
+    expect(merged.hosp_floor.visible).toBe(true);
+    expect(merged.accounts.visible).toBe(true);
+    expect(merged.masters.visible).toBe(false); // stored wins
+    // manufacturer unchanged when missing keys filled from mfg preset
+    const mfg = fillMissingTabPresetKeys({ analytics: { label: 'A', visible: true } }, 'manufacturer');
+    expect(mfg.hosp_menu.visible).toBe(false);
   });
 });

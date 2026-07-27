@@ -64,18 +64,61 @@ export function HospitalityMembersView() {
     void load();
   }, [load]);
 
+  const [memberQ, setMemberQ] = useState('');
+  const filteredMembers = members.filter(m => {
+    const q = memberQ.trim().toLowerCase();
+    if (!q) return true;
+    return m.name.toLowerCase().includes(q) || m.phone.includes(q) || (m.plan_name || '').toLowerCase().includes(q);
+  });
+
   return (
     <div className={hospPageClass(shell)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className={hospEyebrowClass(shell)}>Hospitality</p>
           <h1 className={hospTitleClass(shell)}>Members</h1>
-          <p className={hospSubClass(shell)}>Plans and member registry — prices apply on new order lines</p>
+          <p className={hospSubClass(shell)}>Plans and registry — member prices apply on new order lines</p>
         </div>
-        <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()}>
-          <RefreshCw size={14} className="mr-1.5" />
-          Refresh
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          {section === 'plans' ? (
+            <button
+              type="button"
+              className={hospPrimaryBtn(shell)}
+              onClick={() =>
+                setPlanForm({
+                  name: '',
+                  period: 'monthly',
+                  fee: '0',
+                  discountPercent: '0',
+                  useMemberPrices: false,
+                  active: true,
+                })
+              }
+            >
+              <Plus size={14} className="mr-1" /> Add plan
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={hospPrimaryBtn(shell)}
+              disabled={!plans.length}
+              onClick={() =>
+                setMemberForm({
+                  name: '',
+                  phone: '',
+                  planId: plans.find(p => p.active)?.id || plans[0]?.id || '',
+                  status: 'active',
+                })
+              }
+            >
+              <Plus size={14} className="mr-1" /> Add member
+            </button>
+          )}
+          <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()}>
+            <RefreshCw size={14} className="mr-1.5" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -97,139 +140,167 @@ export function HospitalityMembersView() {
       </div>
 
       {loading ? (
-        <p className={cn('text-sm py-10', hospSubClass(shell))}>Loading…</p>
+        <div className={cn(hospCardClass(shell), 'p-8 text-center text-sm', hospSubClass(shell))}>Loading…</div>
       ) : section === 'plans' ? (
         <section className="space-y-3">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className={hospPrimaryBtn(shell)}
-              onClick={() =>
-                setPlanForm({
-                  name: '',
-                  period: 'monthly',
-                  fee: '0',
-                  discountPercent: '0',
-                  useMemberPrices: false,
-                  active: true,
-                })
-              }
-            >
-              <Plus size={14} className="mr-1" /> New plan
-            </button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {plans.map(p => (
-              <article key={p.id} className={cn(hospCardClass(shell), 'p-4')}>
-                <div className="flex justify-between gap-2">
-                  <div>
-                    <h3 className="font-bold">{p.name}</h3>
-                    <p className={cn('text-xs', hospSubClass(shell))}>
-                      {p.period} · fee ₹{Number(p.fee).toLocaleString('en-IN')}
-                      {!p.active ? ' · inactive' : ''}
-                    </p>
-                    <p className="text-sm mt-1">
-                      {p.use_member_prices ? 'Member prices' : `${Number(p.discount_percent)}% off`}
-                    </p>
+          {plans.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {plans.map(p => (
+                <article key={p.id} className={cn(hospCardClass(shell), 'p-4')}>
+                  <div className="flex justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold">{p.name}</h3>
+                      <p className={cn('text-xs', hospSubClass(shell))}>
+                        {p.period} · fee ₹{Number(p.fee).toLocaleString('en-IN')}
+                        {!p.active ? ' · inactive' : ''}
+                      </p>
+                      <p className="text-sm mt-1">
+                        {p.use_member_prices ? 'Member prices' : `${Number(p.discount_percent)}% off`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={hospSecondaryBtn(shell)}
+                      onClick={() =>
+                        setPlanForm({
+                          id: p.id,
+                          name: p.name,
+                          period: p.period,
+                          fee: String(p.fee),
+                          discountPercent: String(p.discount_percent),
+                          useMemberPrices: p.use_member_prices,
+                          active: p.active,
+                        })
+                      }
+                    >
+                      <Pencil size={14} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className={hospSecondaryBtn(shell)}
-                    onClick={() =>
-                      setPlanForm({
-                        id: p.id,
-                        name: p.name,
-                        period: p.period,
-                        fee: String(p.fee),
-                        discountPercent: String(p.discount_percent),
-                        useMemberPrices: p.use_member_prices,
-                        active: p.active,
-                      })
-                    }
-                  >
-                    <Pencil size={14} />
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-          {!plans.length && <p className={cn('text-sm text-center py-8', hospSubClass(shell))}>No plans yet</p>}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className={cn(hospCardClass(shell), 'p-8 text-center space-y-3')}>
+              <p className="font-semibold">No plans yet</p>
+              <p className={cn('text-sm max-w-sm mx-auto', hospSubClass(shell))}>
+                Create a membership plan (fee + discount or member prices), then add guests to the registry.
+              </p>
+              <button
+                type="button"
+                className={hospPrimaryBtn(shell)}
+                onClick={() =>
+                  setPlanForm({
+                    name: '',
+                    period: 'monthly',
+                    fee: '499',
+                    discountPercent: '10',
+                    useMemberPrices: false,
+                    active: true,
+                  })
+                }
+              >
+                <Plus size={14} className="mr-1" /> Add plan
+              </button>
+            </div>
+          )}
         </section>
       ) : (
         <section className="space-y-3">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className={hospPrimaryBtn(shell)}
-              disabled={!plans.length}
-              onClick={() =>
-                setMemberForm({
-                  name: '',
-                  phone: '',
-                  planId: plans.find(p => p.active)?.id || plans[0]?.id || '',
-                  status: 'active',
-                })
-              }
-            >
-              <Plus size={14} className="mr-1" /> Add member
-            </button>
-          </div>
-          {!plans.length && (
-            <p className={cn('text-sm', hospSubClass(shell))}>Create a plan first, then add members.</p>
-          )}
-          <div className="space-y-2">
-            {members.map(m => (
-              <article
-                key={m.id}
-                className={cn(hospCardClass(shell), 'p-3 flex flex-wrap justify-between gap-2 items-center')}
-              >
-                <div>
-                  <p className="font-semibold">
-                    {m.name} · {m.phone}
-                  </p>
-                  <p className={cn('text-xs', hospSubClass(shell))}>
-                    {m.plan_name} · {m.status}
-                    {m.currently_active ? ' · active now' : ''} · until {String(m.valid_until).slice(0, 10)}
-                  </p>
+          {!plans.length ? (
+            <div className={cn(hospCardClass(shell), 'p-8 text-center space-y-3')}>
+              <p className="font-semibold">Create a plan first</p>
+              <p className={cn('text-sm', hospSubClass(shell))}>Members need a plan before you can register them.</p>
+              <button type="button" className={hospPrimaryBtn(shell)} onClick={() => setSection('plans')}>
+                Go to Plans
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                className={cn(hospInputClass(shell), 'w-full max-w-md')}
+                placeholder="Search name or mobile"
+                value={memberQ}
+                onChange={e => setMemberQ(e.target.value)}
+              />
+              {filteredMembers.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredMembers.map(m => (
+                    <article
+                      key={m.id}
+                      className={cn(hospCardClass(shell), 'p-3 flex flex-wrap justify-between gap-2 items-center')}
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          {m.name} · {m.phone}
+                        </p>
+                        <p className={cn('text-xs', hospSubClass(shell))}>
+                          {m.plan_name} · {m.status}
+                          {m.currently_active ? ' · active now' : ''} · until {String(m.valid_until).slice(0, 10)}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className={hospSecondaryBtn(shell)}
+                          title="Renew"
+                          onClick={() =>
+                            void hospApi
+                              .renewMember(m.id)
+                              .then(() => {
+                                toast('Membership renewed', 'success');
+                                void load();
+                              })
+                              .catch(e => toast(e instanceof Error ? e.message : 'Renew failed', 'error'))
+                          }
+                        >
+                          <RotateCcw size={14} className="mr-1" /> Renew
+                        </button>
+                        <button
+                          type="button"
+                          className={hospSecondaryBtn(shell)}
+                          onClick={() =>
+                            setMemberForm({
+                              id: m.id,
+                              name: m.name,
+                              phone: m.phone,
+                              planId: m.plan_id,
+                              status: m.status,
+                            })
+                          }
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className={hospSecondaryBtn(shell)}
-                    title="Renew"
-                    onClick={() =>
-                      void hospApi
-                        .renewMember(m.id)
-                        .then(() => {
-                          toast('Membership renewed', 'success');
-                          void load();
+              ) : (
+                <div className={cn(hospCardClass(shell), 'p-8 text-center space-y-3')}>
+                  <p className="font-semibold">{memberQ.trim() ? 'No matches' : 'No members yet'}</p>
+                  <p className={cn('text-sm', hospSubClass(shell))}>
+                    {memberQ.trim()
+                      ? 'Try another name or mobile.'
+                      : 'Register guests by phone so waiters can attach member pricing on orders.'}
+                  </p>
+                  {!memberQ.trim() && (
+                    <button
+                      type="button"
+                      className={hospPrimaryBtn(shell)}
+                      onClick={() =>
+                        setMemberForm({
+                          name: '',
+                          phone: '',
+                          planId: plans.find(p => p.active)?.id || plans[0]?.id || '',
+                          status: 'active',
                         })
-                        .catch(e => toast(e instanceof Error ? e.message : 'Renew failed', 'error'))
-                    }
-                  >
-                    <RotateCcw size={14} className="mr-1" /> Renew
-                  </button>
-                  <button
-                    type="button"
-                    className={hospSecondaryBtn(shell)}
-                    onClick={() =>
-                      setMemberForm({
-                        id: m.id,
-                        name: m.name,
-                        phone: m.phone,
-                        planId: m.plan_id,
-                        status: m.status,
-                      })
-                    }
-                  >
-                    <Pencil size={14} />
-                  </button>
+                      }
+                    >
+                      <Plus size={14} className="mr-1" /> Add member
+                    </button>
+                  )}
                 </div>
-              </article>
-            ))}
-          </div>
-          {!members.length && plans.length > 0 && (
-            <p className={cn('text-sm text-center py-8', hospSubClass(shell))}>No members yet</p>
+              )}
+            </>
           )}
         </section>
       )}
@@ -448,17 +519,12 @@ export function HospitalityMembersView() {
   );
 }
 
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-md max-h-[90vh] overflow-auto rounded-t-2xl sm:rounded-2xl bg-white p-4 shadow-xl"
         onClick={e => e.stopPropagation()}

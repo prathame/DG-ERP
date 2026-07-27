@@ -79,6 +79,9 @@ describe('HTTP Hospitality', () => {
 
     const analytics = await api().get('/api/hospitality/analytics').set(headers);
     expect(analytics.status).toBe(403);
+
+    const accounts = await api().get('/api/hospitality/accounts-summary').set(headers);
+    expect(accounts.status).toBe(403);
   });
 
   it('returns hospitality analytics snapshot for hotel tenants', async () => {
@@ -103,7 +106,97 @@ describe('HTTP Hospitality', () => {
     expect(typeof res.body.parcelsOpen).toBe('number');
   });
 
-  it('covers order lifecycle: open → add item → kitchen → bill → close → clear', async () => {
+  it('returns restaurant accounts summary for hotel tenants', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const res = await api().get('/api/hospitality/accounts-summary?period=week').set(headers);
+    expect(res.status).toBe(200);
+    expect(res.body.period).toBe('week');
+    expect(res.body.sales).toMatchObject({
+      revenue: expect.any(Number),
+      orderCount: expect.any(Number),
+      dineIn: { revenue: expect.any(Number), orders: expect.any(Number) },
+      parcel: { revenue: expect.any(Number), orders: expect.any(Number) },
+    });
+    expect(Array.isArray(res.body.byDay)).toBe(true);
+    expect(res.body.expenses).toMatchObject({
+      total: expect.any(Number),
+      count: expect.any(Number),
+      byCategory: expect.any(Array),
+    });
+    expect(res.body.gst).toMatchObject({
+      chargeGst: expect.any(Boolean),
+      pricesIncludeGst: expect.any(Boolean),
+      note: expect.any(String),
+    });
+  });
+
+  it('saves optional guest fields and looks up member by phone', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    await api().post('/api/hospitality/seed').set(headers).send({});
+
+    const plan = await api().post('/api/hospitality/membership-plans').set(headers).send({
+      name: 'Guest Lookup Plan',
+      period: 'monthly',
+      fee: 100,
+      discountPercent: 0,
+      useMemberPrices: true,
+    });
+    expect(plan.status).toBe(201);
+    const mem = await api().post('/api/hospitality/members').set(headers).send({
+      name: 'Priya Guest',
+      phone: '9876501234',
+      planId: plan.body.plan.id,
+    });
+    expect(mem.status).toBe(201);
+
+    const byPhone = await api().get('/api/hospitality/members?phone=9876501234').set(headers);
+    expect(byPhone.status).toBe(200);
+    expect(byPhone.body.members).toHaveLength(1);
+    expect(byPhone.body.members[0].name).toBe('Priya Guest');
+    expect(byPhone.body.members[0].valid).toBe(true);
+
+    const lookupOk = await api().get('/api/hospitality/members/lookup?phone=9876501234').set(headers);
+    expect(lookupOk.status).toBe(200);
+    expect(lookupOk.body).toMatchObject({ found: true, valid: true, member: { name: 'Priya Guest' } });
+
+    const lookupMiss = await api().get('/api/hospitality/members/lookup?phone=0000000000').set(headers);
+    expect(lookupMiss.status).toBe(200);
+    expect(lookupMiss.body).toMatchObject({ found: false, valid: false, member: null });
+    expect(String(lookupMiss.body.reason || '')).toMatch(/no membership/i);
+
+    const tables = await api().get('/api/hospitality/tables').set(headers);
+    const table = tables.body.tables.find((t: { status: string }) => t.status === 'available') || tables.body.tables[0];
+    const opened = await api().post(`/api/hospitality/tables/${table.id}/open`).set(headers).send({});
+    expect(opened.status).toBe(200);
+    const orderId = opened.body.order.id as string;
+
+    const emptyGuest = await api().put(`/api/hospitality/orders/${orderId}/guest`).set(headers).send({
+      customerName: '',
+      customerPhone: '',
+    });
+    expect(emptyGuest.status).toBe(200);
+    expect(emptyGuest.body.order.customer_name).toBe('');
+    expect(emptyGuest.body.order.customer_phone).toBe('');
+
+    const guest = await api().put(`/api/hospitality/orders/${orderId}/guest`).set(headers).send({
+      customerName: 'Walk-in',
+      customerPhone: '9876501234',
+    });
+    expect(guest.status).toBe(200);
+    expect(guest.body.order.customer_name).toBe('Walk-in');
+    expect(guest.body.order.customer_phone).toBe('9876501234');
+
+    const attached = await api()
+      .put(`/api/hospitality/orders/${orderId}/member`)
+      .set(headers)
+      .send({ memberId: mem.body.member.id });
+    expect(attached.status).toBe(200);
+    expect(attached.body.member?.id).toBe(mem.body.member.id);
+    expect(attached.body.order.customer_name).toBe('Priya Guest');
+    expect(attached.body.order.customer_phone).toBe('9876501234');
+  });
+
+  it('covers order lifecycle: open → add item → kitchen → bill → payment done (available)', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
 
     const seedRes = await api().post('/api/hospitality/seed').set(headers).send({});
@@ -146,12 +239,57 @@ describe('HTTP Hospitality', () => {
 
     const billRes = await api().post(`/api/hospitality/orders/${orderId}/bill`).set(headers).send({});
     expect(billRes.status).toBe(200);
+    expect(billRes.body.table?.status || billRes.body.order.status).toBeTruthy();
 
     const closeRes = await api().post(`/api/hospitality/orders/${orderId}/close`).set(headers).send({});
     expect(closeRes.status).toBe(200);
 
-    const clearRes = await api().post(`/api/hospitality/tables/${table.id}/clear`).set(headers).send({});
-    expect(clearRes.status).toBe(200);
+    const after = await api().get('/api/hospitality/tables').set(headers);
+    const freed = (after.body.tables as Array<{ id: string; status: string }>).find(t => t.id === table.id);
+    expect(freed?.status).toBe('available');
+  });
+
+  it('Waiter cannot mark payment done; Admin can and frees table', async () => {
+    const adminHeaders = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const waiterId = 'U-TEST-HOSP-WAITER';
+    const hash = await bcrypt.hash('password123', 12);
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1, $2, $3, $4, 'Waiter', 'Waiter')
+       ON CONFLICT DO NOTHING`,
+      [waiterId, HOSP_TENANT, `${waiterId}@test.com`, hash],
+    );
+    const waiterHeaders = authHeaders(token(HOSP_TENANT, waiterId), HOSP_TENANT);
+
+    await api().post('/api/hospitality/seed').set(adminHeaders).send({});
+    const tables = await api().get('/api/hospitality/tables').set(adminHeaders);
+    const free = (tables.body.tables as Array<{ id: string; status: string }>).find(t => t.status === 'available');
+    expect(free).toBeTruthy();
+    const open = await api().post(`/api/hospitality/tables/${free!.id}/open`).set(waiterHeaders).send({});
+    expect(open.status).toBe(200);
+    const orderId = open.body.order.id as string;
+
+    const menu = await api().get('/api/hospitality/menu').set(waiterHeaders);
+    const item = menu.body.items[0] as { id: string };
+    await api()
+      .post(`/api/hospitality/orders/${orderId}/items`)
+      .set(waiterHeaders)
+      .send({ menuItemId: item.id, qty: 1 });
+    const bill = await api().post(`/api/hospitality/orders/${orderId}/bill`).set(waiterHeaders).send({});
+    expect(bill.status).toBe(200);
+
+    const denied = await api().post(`/api/hospitality/orders/${orderId}/close`).set(waiterHeaders).send({});
+    expect(denied.status).toBe(403);
+
+    const clearDenied = await api().post(`/api/hospitality/tables/${free!.id}/clear`).set(waiterHeaders).send({});
+    expect(clearDenied.status).toBe(403);
+
+    const paid = await api().post(`/api/hospitality/orders/${orderId}/close`).set(adminHeaders).send({});
+    expect(paid.status).toBe(200);
+    const after = await api().get('/api/hospitality/tables').set(waiterHeaders);
+    expect((after.body.tables as Array<{ id: string; status: string }>).find(t => t.id === free!.id)?.status).toBe(
+      'available',
+    );
   });
 
   it('covers entry queue: add → call-next → seat', async () => {
@@ -272,7 +410,6 @@ describe('HTTP Hospitality', () => {
 
     const close = await api().post(`/api/hospitality/orders/${open.body.order.id}/close`).set(headers).send({});
     expect(close.status).toBe(200);
-    await api().post(`/api/hospitality/tables/${tableId}/clear`).set(headers).send({});
   });
 
   it('parcel lifecycle: create → add item → kitchen label → bill → close', async () => {
@@ -397,7 +534,6 @@ describe('HTTP Hospitality', () => {
     const a = await openAndPrice(memActive.body.member.id);
     expect(a.unit).toBe(150);
     await api().post(`/api/hospitality/orders/${a.orderId}/close`).set(headers).send({});
-    await api().post(`/api/hospitality/tables/${a.tableId}/clear`).set(headers).send({});
 
     const p = await openAndPrice(memPct.body.member.id);
     expect(p.unit).toBe(180);
@@ -410,11 +546,9 @@ describe('HTTP Hospitality', () => {
     expect(Number(disc.body.discount_value)).toBe(18);
     expect(Number(disc.body.total)).toBe(162);
     await api().post(`/api/hospitality/orders/${p.orderId}/close`).set(headers).send({});
-    await api().post(`/api/hospitality/tables/${p.tableId}/clear`).set(headers).send({});
 
     const e = await openAndPrice(memExp.body.member.id);
     expect(e.unit).toBe(200);
     await api().post(`/api/hospitality/orders/${e.orderId}/close`).set(headers).send({});
-    await api().post(`/api/hospitality/tables/${e.tableId}/clear`).set(headers).send({});
   });
 });

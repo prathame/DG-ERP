@@ -9,6 +9,7 @@ import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 import { clearUserSession, replaceUserSession, SESSION_REPLACED_BODY, touchUserSession } from '../utils/userSessions';
 import { ACTIVE_USER_SQL, isSoftDeletedEmail } from '../utils/activeUsers';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
+import { fillMissingTabPresetKeys } from '../../shared/tabPresets';
 
 const router = Router();
 
@@ -240,23 +241,13 @@ router.post('/api/auth/login', async (req, res) => {
       ),
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
-      tabConfig: (() => {
-        const tc = typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : row.tab_config;
-        if (tc) return tc;
-        return {
-          dashboard: { label: 'Dashboard', visible: true },
-          inventory: { label: 'Inventory', visible: true },
-          distribution: { label: 'Distribution', visible: true },
-          sales: { label: 'Sales Entry', visible: true },
-          verification: { label: 'Verify Product', visible: true },
-          warranty: { label: 'Warranty', visible: true },
-          replacements: { label: 'Replacements', visible: true },
-          rewards: { label: 'Rewards', visible: true },
-          finance: { label: 'Finance', visible: true },
-          chatbot: { label: 'Chatbot', visible: true },
-          settings: { label: 'Settings', visible: true },
-        };
-      })(),
+      tabConfig: fillMissingTabPresetKeys(
+        (() => {
+          const tc = typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : row.tab_config;
+          return tc && typeof tc === 'object' ? tc : null;
+        })(),
+        (row.business_type as string) || 'manufacturer',
+      ),
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -343,7 +334,10 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       whatsappSendMode: (row.whatsapp_send_mode as string) || null,
       whatsappApiAllowed: !!row.whatsapp_api_allowed,
       whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,
-      tabConfig: typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null),
+      tabConfig: fillMissingTabPresetKeys(
+        typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null),
+        (row.business_type as string) || 'manufacturer',
+      ),
     });
   } catch (err) {
     return handleApiError(req, res, err);

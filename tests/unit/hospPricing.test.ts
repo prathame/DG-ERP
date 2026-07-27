@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeOrderDiscount,
+  evaluateMembershipValidity,
   isMemberCurrentlyActive,
   resolveMemberUnitPrice,
 } from '../../shared/hospPricing';
@@ -68,5 +69,29 @@ describe('isMemberCurrentlyActive', () => {
     expect(isMemberCurrentlyActive('active', '2026-07-27', now)).toBe(true);
     expect(isMemberCurrentlyActive('active', '2026-07-26', now)).toBe(false);
     expect(isMemberCurrentlyActive('expired', '2026-12-31', now)).toBe(false);
+  });
+});
+
+describe('evaluateMembershipValidity', () => {
+  const now = new Date('2026-07-27T12:00:00');
+
+  it('valid when active, in date, and plan active', () => {
+    expect(evaluateMembershipValidity({ status: 'active', validUntil: '2026-12-31', planActive: true, now })).toEqual({
+      valid: true,
+      reason: null,
+    });
+  });
+
+  it('invalid when expired, cancelled, or plan inactive', () => {
+    expect(evaluateMembershipValidity({ status: 'expired', validUntil: '2026-12-31', now }).valid).toBe(false);
+    expect(evaluateMembershipValidity({ status: 'cancelled', validUntil: '2026-12-31', now }).reason).toMatch(
+      /cancelled/i,
+    );
+    expect(
+      evaluateMembershipValidity({ status: 'active', validUntil: '2026-07-26', planActive: true, now }).reason,
+    ).toMatch(/expired/i);
+    expect(
+      evaluateMembershipValidity({ status: 'active', validUntil: '2026-12-31', planActive: false, now }).reason,
+    ).toMatch(/plan inactive/i);
   });
 });

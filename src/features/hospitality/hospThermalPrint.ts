@@ -192,8 +192,7 @@ export function generateTableBillHtml(
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const token = detail.order.token?.trim() || detail.label?.trim() || '';
   // Lines → order discount → GST (inclusive or exclusive). Prefer explicit fields.
-  const linesSubtotal =
-    detail.subtotal != null ? Number(detail.subtotal) || 0 : Number(detail.total) || 0;
+  const linesSubtotal = detail.subtotal != null ? Number(detail.subtotal) || 0 : Number(detail.total) || 0;
   const discountValue = Number(detail.discount_value) || 0;
   const afterDiscount =
     detail.subtotal != null
@@ -229,6 +228,12 @@ export function generateTableBillHtml(
   const gstinLine = header.gstin ? `<div class="sub">GSTIN: ${escHtml(header.gstin)}</div>` : '';
   const fssaiLine = header.fssaiLicense ? `<div class="sub">FSSAI: ${escHtml(header.fssaiLicense)}</div>` : '';
   const tokenLine = token ? `<div>Token / Bill: <strong>${escHtml(token)}</strong></div>` : '';
+  const guestName = String(detail.order.customer_name || '').trim();
+  const guestPhone = String(detail.order.customer_phone || '').trim();
+  const guestLine =
+    guestName || guestPhone
+      ? `<div>Guest: <strong>${escHtml(guestName || 'Guest')}</strong>${guestPhone ? ` · ${escHtml(guestPhone)}` : ''}</div>`
+      : '';
 
   const discPct = Number(detail.order.discount_percent) || 0;
   const discFlat = Number(detail.order.discount_amount) || 0;
@@ -264,7 +269,7 @@ ${discountLine}`;
 <div class="meta">
   <div>Table: <strong>${escHtml(tableLabel)}</strong></div>
   <div>Date: ${escHtml(dateStr)} &nbsp; Time: ${escHtml(timeStr)}</div>
-  ${tokenLine}
+  ${tokenLine}${guestLine}
 </div>
 <div class="sep">--------------------------------</div>
 <table>
