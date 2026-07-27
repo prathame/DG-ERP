@@ -53,6 +53,7 @@ import {
   isServicePhoneUx,
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
+import { fillMissingTabPresetKeys } from '../shared/tabPresets';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -155,6 +156,12 @@ const HospitalityParcelsView = lazy(() =>
 );
 const HospitalityMembersView = lazy(() =>
   import('./features/hospitality/HospitalityMembersView').then(m => ({ default: m.HospitalityMembersView })),
+);
+const HospitalityAnalyticsView = lazy(() =>
+  import('./features/hospitality/HospitalityAnalyticsView').then(m => ({ default: m.HospitalityAnalyticsView })),
+);
+const HospitalityAccountsView = lazy(() =>
+  import('./features/hospitality/HospitalityAccountsView').then(m => ({ default: m.HospitalityAccountsView })),
 );
 
 function slugEntryApiContext(slug: string): {
@@ -745,7 +752,11 @@ export default function App() {
   const { t } = useTranslation();
 
   const userConfig = user as Record<string, unknown>;
-  const tabConfig = (userConfig?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
+  // Merge missing hospitality keys (e.g. hosp_menu) from preset for older hotel tab_config JSON
+  const tabConfig = fillMissingTabPresetKeys(
+    userConfig?.tabConfig as Record<string, { label?: string; visible?: boolean }> | null | undefined,
+    userConfig?.businessType as string | undefined,
+  );
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
   /** Tenant tabConfig, plus Offline Mobile Settings override for Accounts. */
   const tv = (key: string) => {
@@ -865,7 +876,7 @@ export default function App() {
   const navItems = navSections.flatMap(s => s.items).filter(i => i.show);
 
   const getAccess = (tabId: string): AccessLevel =>
-    resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string } | null);
+    resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string; businessType?: string } | null);
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
 
   const companionFeatures =
@@ -1779,12 +1790,21 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
                     {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
                     {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
-                    {canAccess(activeTab) && activeTab === 'analytics' && (
-                      <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
-                    )}
-                    {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
-                      <AccountsView accessLevel={getAccess('accounts')} />
-                    )}
+                    {canAccess(activeTab) &&
+                      activeTab === 'analytics' &&
+                      ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                        <HospitalityAnalyticsView />
+                      ) : (
+                        <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
+                      ))}
+                    {canAccess(activeTab) &&
+                      tv('accounts') &&
+                      activeTab === 'accounts' &&
+                      ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                        <HospitalityAccountsView />
+                      ) : (
+                        <AccountsView accessLevel={getAccess('accounts')} />
+                      ))}
                   </div>
                   {canAccess('settings') && activeTab === 'settings' && (
                     <SettingsView user={user} onUserChange={setUser} />
@@ -1876,6 +1896,8 @@ export default function App() {
               inventoryVisible={tv('inventory')}
               distributionVisible={tv('distribution')}
               serviceMobile={servicePhoneUx}
+              businessType={(userConfig?.businessType as string) || undefined}
+              mastersVisible={tv('masters')}
             />
           </Suspense>
         )}

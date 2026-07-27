@@ -49,11 +49,34 @@ export function navigateForGlobalSearchHit(
     /** @deprecated use servicePhoneUx */
     serviceMobile?: boolean;
     servicePhoneUx?: boolean;
+    /** When hotel_restaurant: avoid manufacturing Masters deep-links. */
+    businessType?: string | null;
+    /** If Masters tab is hidden, staff hits go to Settings instead. */
+    mastersVisible?: boolean;
   },
 ): GlobalSearchNavigate {
   const inventoryVisible = opts?.inventoryVisible !== false;
   const distributionVisible = opts?.distributionVisible !== false;
   const serviceMobile = !!(opts?.servicePhoneUx ?? opts?.serviceMobile);
+  const hotel = opts?.businessType === 'hotel_restaurant';
+  const mastersVisible = opts?.mastersVisible !== false;
+
+  if (hotel) {
+    switch (kind) {
+      case 'product':
+      case 'barcode':
+        return { tab: 'hosp_menu' };
+      case 'customer':
+      case 'vendor':
+        return { tab: 'invoices' };
+      case 'challan':
+        return { tab: 'settings' };
+      case 'staff':
+        return mastersVisible ? { tab: 'masters', master: 'staff', staffName: hit.name } : { tab: 'settings' };
+      default:
+        return { tab: 'settings' };
+    }
+  }
 
   switch (kind) {
     case 'product':

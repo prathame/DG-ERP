@@ -32,11 +32,7 @@ export function resolveMemberUnitPrice(input: MemberPriceInput): number {
 }
 
 /** Order discount: % of subtotal + flat ₹, capped at subtotal. Applied after line totals. */
-export function computeOrderDiscount(
-  subtotal: number,
-  discountPercent: number,
-  discountAmount: number,
-): number {
+export function computeOrderDiscount(subtotal: number, discountPercent: number, discountAmount: number): number {
   const sub = Math.max(0, Number(subtotal) || 0);
   const pct = Math.max(0, Math.min(100, Number(discountPercent) || 0));
   const flat = Math.max(0, Number(discountAmount) || 0);
@@ -56,4 +52,21 @@ export function isMemberCurrentlyActive(
   // Compare calendar days in local time: valid through end date
   const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
   return endDay.getTime() >= now.getTime();
+}
+
+/** Order-time membership check: active status + date + plan active. */
+export function evaluateMembershipValidity(input: {
+  status: string;
+  validUntil: string | Date | null | undefined;
+  planActive?: boolean | null;
+  now?: Date;
+}): { valid: boolean; reason: string | null } {
+  const status = String(input.status || '').toLowerCase();
+  if (status === 'cancelled') return { valid: false, reason: 'Membership cancelled' };
+  if (status === 'expired') return { valid: false, reason: 'Membership expired / not valid' };
+  if (!isMemberCurrentlyActive(status, input.validUntil, input.now)) {
+    return { valid: false, reason: 'Membership expired / not valid' };
+  }
+  if (input.planActive === false) return { valid: false, reason: 'Membership plan inactive' };
+  return { valid: true, reason: null };
 }

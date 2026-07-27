@@ -4,11 +4,8 @@ import { pool } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { seedHospitalityCatalog } from '../utils/hospitalitySeed';
-import {
-  computeOrderDiscount,
-  isMemberCurrentlyActive,
-  resolveMemberUnitPrice,
-} from '../../shared/hospPricing';
+import { computeOrderDiscount, isMemberCurrentlyActive, resolveMemberUnitPrice } from '../../shared/hospPricing';
+import { hospAnalyticsPeriodStart, hospOrderPayable, parseHospAnalyticsPeriod } from '../../shared/hospAnalytics';
 
 const router = Router();
 
@@ -20,6 +17,13 @@ async function requireHospitality(tenantId: string): Promise<string | null> {
     return 'Hospitality APIs are only available for Hotel / Restaurant tenants';
   }
   return null;
+}
+
+/** Payment done (close) + clear table — hotel owner / Admin only. */
+function requireHotelPaymentAdmin(req: AuthRequest): string | null {
+  const role = req.user?.role || '';
+  if (role === 'Admin' || role === 'Super Admin') return null;
+  return 'Only Admin can mark payment done or clear tables';
 }
 
 function tenantOf(req: AuthRequest): string | null {
@@ -60,6 +64,249 @@ router.get('/api/hospitality/tables', blockVendors, async (req: AuthRequest, res
       )
     ).rows;
     res.json({ tables });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Floor snapshot + billed/closed order stats for hotel Analytics tab. */
+router.get('/api/hospitality/analytics', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+
+    const period = parseHospAnalyticsPeriod(req.query?.period);
+    const start = hospAnalyticsPeriodStart(period);
+
+    const [tablesRow, kitchenRow, queueRow, parcelsOpenRow, orderRows] = await Promise.all([
+      pool.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE status = 'occupied')::int AS occupied,
+           COUNT(*) FILTER (WHERE status = 'billing')::int AS billing,
+           COUNT(*) FILTER (WHERE status = 'available')::int AS available,
+           COUNT(*) FILTER (WHERE status = 'cleaning')::int AS cleaning
+         FROM hosp_dining_tables WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS c
+         FROM hosp_order_items oi
+         JOIN hosp_orders o ON o.id = oi.order_id
+         WHERE o.tenant_id = $1 AND o.status = 'open'
+           AND oi.kitchen_status IN ('queued','preparing','ready')`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS c FROM hosp_queue_entries
+         WHERE tenant_id = $1 AND status IN ('waiting','called')`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS c FROM hosp_orders
+         WHERE tenant_id = $1 AND order_type = 'parcel' AND status IN ('open','billed')`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT o.id, o.order_type, o.discount_percent, o.discount_amount,
+           COALESCE(SUM(
+             (oi.unit_price + COALESCE((
+               SELECT SUM(m.price_delta) FROM hosp_order_item_modifiers m WHERE m.order_item_id = oi.id
+             ), 0)) * oi.qty
+           ), 0) AS subtotal
+         FROM hosp_orders o
+         LEFT JOIN hosp_order_items oi ON oi.order_id = o.id
+         WHERE o.tenant_id = $1
+           AND o.status IN ('billed','closed')
+           AND o.updated_at >= $2
+         GROUP BY o.id`,
+        [tenantId, start.toISOString()],
+      ),
+    ]);
+
+    const t = tablesRow.rows[0] as Record<string, number>;
+    let dineIn = 0;
+    let parcel = 0;
+    let revenue = 0;
+    for (const row of orderRows.rows as Array<{
+      order_type: string;
+      discount_percent: number;
+      discount_amount: number;
+      subtotal: string | number;
+    }>) {
+      const payable = hospOrderPayable(
+        Number(row.subtotal) || 0,
+        Number(row.discount_percent) || 0,
+        Number(row.discount_amount) || 0,
+        computeOrderDiscount,
+      );
+      revenue += payable;
+      if (row.order_type === 'parcel') parcel += 1;
+      else dineIn += 1;
+    }
+    revenue = Math.round(revenue * 100) / 100;
+
+    res.json({
+      period,
+      periodStart: start.toISOString(),
+      tables: {
+        total: Number(t.total) || 0,
+        occupied: Number(t.occupied) || 0,
+        billing: Number(t.billing) || 0,
+        available: Number(t.available) || 0,
+        cleaning: Number(t.cleaning) || 0,
+      },
+      orders: {
+        dineIn,
+        parcel,
+        total: dineIn + parcel,
+        revenue,
+      },
+      kitchenQueueDepth: Number((kitchenRow.rows[0] as { c: number })?.c) || 0,
+      parcelsOpen: Number((parcelsOpenRow.rows[0] as { c: number })?.c) || 0,
+      queueWaiting: Number((queueRow.rows[0] as { c: number })?.c) || 0,
+    });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Restaurant books: food sales (dine-in / parcel), daily summary, expenses, GST note. */
+router.get('/api/hospitality/accounts-summary', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+
+    const period = parseHospAnalyticsPeriod(req.query?.period);
+    const start = hospAnalyticsPeriodStart(period);
+    const startIso = start.toISOString();
+    const startDate = startIso.slice(0, 10);
+
+    const [orderRows, expenseRows, gstRow] = await Promise.all([
+      pool.query(
+        `SELECT o.id, o.order_type, o.discount_percent, o.discount_amount, o.updated_at,
+           COALESCE(SUM(
+             (oi.unit_price + COALESCE((
+               SELECT SUM(m.price_delta) FROM hosp_order_item_modifiers m WHERE m.order_item_id = oi.id
+             ), 0)) * oi.qty
+           ), 0) AS subtotal
+         FROM hosp_orders o
+         LEFT JOIN hosp_order_items oi ON oi.order_id = o.id
+         WHERE o.tenant_id = $1
+           AND o.status IN ('billed','closed')
+           AND o.updated_at >= $2
+         GROUP BY o.id`,
+        [tenantId, startIso],
+      ),
+      pool.query(
+        `SELECT category, SUM(amount)::numeric AS total, COUNT(*)::int AS count
+         FROM expenses
+         WHERE tenant_id = $1 AND expense_date >= $2::date
+         GROUP BY category
+         ORDER BY total DESC`,
+        [tenantId, startDate],
+      ),
+      pool.query(
+        `SELECT hosp_charge_gst, hosp_prices_include_gst
+         FROM bill_settings WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+    ]);
+
+    let dineInOrders = 0;
+    let parcelOrders = 0;
+    let dineInRevenue = 0;
+    let parcelRevenue = 0;
+    const byDayMap = new Map<string, { revenue: number; orders: number; dineIn: number; parcel: number }>();
+
+    for (const row of orderRows.rows as Array<{
+      order_type: string;
+      discount_percent: number;
+      discount_amount: number;
+      subtotal: string | number;
+      updated_at: string | Date;
+    }>) {
+      const payable = hospOrderPayable(
+        Number(row.subtotal) || 0,
+        Number(row.discount_percent) || 0,
+        Number(row.discount_amount) || 0,
+        computeOrderDiscount,
+      );
+      const isParcel = row.order_type === 'parcel';
+      if (isParcel) {
+        parcelOrders += 1;
+        parcelRevenue += payable;
+      } else {
+        dineInOrders += 1;
+        dineInRevenue += payable;
+      }
+      const day = new Date(row.updated_at).toISOString().slice(0, 10);
+      const slot = byDayMap.get(day) || { revenue: 0, orders: 0, dineIn: 0, parcel: 0 };
+      slot.revenue += payable;
+      slot.orders += 1;
+      if (isParcel) slot.parcel += 1;
+      else slot.dineIn += 1;
+      byDayMap.set(day, slot);
+    }
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    dineInRevenue = round2(dineInRevenue);
+    parcelRevenue = round2(parcelRevenue);
+    const revenue = round2(dineInRevenue + parcelRevenue);
+
+    const byDay = [...byDayMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, s]) => ({
+        date,
+        revenue: round2(s.revenue),
+        orders: s.orders,
+        dineIn: s.dineIn,
+        parcel: s.parcel,
+      }));
+
+    const byCategory = (expenseRows.rows as Array<{ category: string; total: string | number; count: number }>).map(
+      r => ({
+        category: r.category || 'Other',
+        total: round2(Number(r.total) || 0),
+        count: Number(r.count) || 0,
+      }),
+    );
+    const expensesTotal = round2(byCategory.reduce((s, r) => s + r.total, 0));
+
+    const gst = gstRow.rows[0] as { hosp_charge_gst?: boolean; hosp_prices_include_gst?: boolean } | undefined;
+    const chargeGst = gst?.hosp_charge_gst === true;
+    const pricesIncludeGst = gst?.hosp_prices_include_gst !== false;
+    let gstNote =
+      'Hospitality GST is configured in Settings → Bill. Sales below are billed order totals (after discounts).';
+    if (chargeGst) {
+      gstNote = pricesIncludeGst
+        ? 'Menu prices include GST (hosp setting on). Totals below are what guests paid.'
+        : 'GST is charged on top of menu prices (hosp setting on). Totals below are pre-GST order payables as stored on orders.';
+    } else {
+      gstNote = 'GST charge on bills is off in Settings. Enable hosp GST there if you need tax on guest bills.';
+    }
+
+    res.json({
+      period,
+      periodStart: startIso,
+      sales: {
+        revenue,
+        orderCount: dineInOrders + parcelOrders,
+        dineIn: { revenue: dineInRevenue, orders: dineInOrders },
+        parcel: { revenue: parcelRevenue, orders: parcelOrders },
+      },
+      byDay,
+      expenses: {
+        total: expensesTotal,
+        count: byCategory.reduce((s, r) => s + r.count, 0),
+        byCategory,
+      },
+      gst: { chargeGst, pricesIncludeGst, note: gstNote },
+    });
   } catch (e) {
     handleApiError(req, res, e);
   }
@@ -495,23 +742,29 @@ router.post('/api/hospitality/orders/:id/bill', blockVendors, async (req: AuthRe
   }
 });
 
+/** Payment done — Admin only. Closes order and frees the table immediately (no cleaning step). */
 router.post('/api/hospitality/orders/:id/close', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = tenantOf(req);
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const err = await requireHospitality(tenantId);
     if (err) return res.status(403).json({ error: err });
+    const role = req.user?.role || '';
+    if (role !== 'Admin' && role !== 'Super Admin') {
+      return res.status(403).json({ error: 'Only Admin can mark payment done' });
+    }
     const order = (
       await pool.query(
         `SELECT id, table_id FROM hosp_orders
          WHERE id = $1 AND tenant_id = $2 AND status IN ('open','billed')`,
         [req.params.id, tenantId],
       )
-    ).rows[0] as { id: string; table_id: string } | undefined;
+    ).rows[0] as { id: string; table_id: string | null } | undefined;
     if (!order) return res.status(404).json({ error: 'Order not found' });
     await pool.query(`UPDATE hosp_orders SET status = 'closed', updated_at = NOW() WHERE id = $1`, [order.id]);
     if (order.table_id) {
-      await pool.query(`UPDATE hosp_dining_tables SET status = 'cleaning' WHERE id = $1 AND tenant_id = $2`, [
+      // Happy path: paid → available (skip cleaning)
+      await pool.query(`UPDATE hosp_dining_tables SET status = 'available' WHERE id = $1 AND tenant_id = $2`, [
         order.table_id,
         tenantId,
       ]);
@@ -522,12 +775,17 @@ router.post('/api/hospitality/orders/:id/close', blockVendors, async (req: AuthR
   }
 });
 
+/** Legacy clear — Admin only. Prefer close (payment done) which already frees the table. */
 router.post('/api/hospitality/tables/:id/clear', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = tenantOf(req);
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const err = await requireHospitality(tenantId);
     if (err) return res.status(403).json({ error: err });
+    const role = req.user?.role || '';
+    if (role !== 'Admin' && role !== 'Super Admin') {
+      return res.status(403).json({ error: 'Only Admin can clear tables' });
+    }
     await pool.query(`UPDATE hosp_dining_tables SET status = 'available' WHERE id = $1 AND tenant_id = $2`, [
       req.params.id,
       tenantId,
@@ -843,6 +1101,33 @@ router.post('/api/hospitality/parcels', blockVendors, async (req: AuthRequest, r
   }
 });
 
+/** Optional guest name/phone on dine-in or parcel (empty allowed — does not block bill). */
+router.put('/api/hospitality/orders/:id/guest', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+    const order = (
+      await pool.query(`SELECT id FROM hosp_orders WHERE id = $1 AND tenant_id = $2 AND status IN ('open','billed')`, [
+        req.params.id,
+        tenantId,
+      ])
+    ).rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const customerName = String(req.body?.customerName ?? req.body?.customer_name ?? '').trim();
+    const customerPhone = String(req.body?.customerPhone ?? req.body?.customer_phone ?? '').trim();
+    await pool.query(
+      `UPDATE hosp_orders SET customer_name = $1, customer_phone = $2, updated_at = NOW() WHERE id = $3`,
+      [customerName, customerPhone, req.params.id],
+    );
+    res.json(await orderDetail(tenantId, req.params.id));
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
 /** Attach / clear membership on an open order (new lines only pick up member prices). */
 router.put('/api/hospitality/orders/:id/member', blockVendors, async (req: AuthRequest, res) => {
   try {
@@ -865,13 +1150,19 @@ router.put('/api/hospitality/orders/:id/member', blockVendors, async (req: AuthR
     }
     const memberId = String(raw).trim();
     const member = (
-      await pool.query(`SELECT id FROM hosp_members WHERE id = $1 AND tenant_id = $2`, [memberId, tenantId])
-    ).rows[0];
+      await pool.query(`SELECT id, name, phone FROM hosp_members WHERE id = $1 AND tenant_id = $2`, [
+        memberId,
+        tenantId,
+      ])
+    ).rows[0] as { id: string; name: string; phone: string } | undefined;
     if (!member) return res.status(400).json({ error: 'Member not found' });
-    await pool.query(`UPDATE hosp_orders SET member_id = $1, updated_at = NOW() WHERE id = $2`, [
-      memberId,
-      req.params.id,
-    ]);
+    // Copy member contact onto guest fields for bill print
+    await pool.query(
+      `UPDATE hosp_orders
+       SET member_id = $1, customer_name = $2, customer_phone = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [memberId, member.name || '', member.phone || '', req.params.id],
+    );
     res.json(await orderDetail(tenantId, req.params.id));
   } catch (e) {
     handleApiError(req, res, e);

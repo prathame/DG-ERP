@@ -119,6 +119,16 @@ export type HospMember = {
   discount_percent?: number;
   use_member_prices?: boolean;
   currently_active?: boolean;
+  /** Order-time validity: active + date + plan */
+  valid?: boolean;
+  reason?: string | null;
+};
+
+export type HospMemberLookup = {
+  found: boolean;
+  valid: boolean;
+  reason: string | null;
+  member: HospMember | null;
 };
 
 export const hospApi = {
@@ -135,6 +145,11 @@ export const hospApi = {
     fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/member`, {
       method: 'PUT',
       body: JSON.stringify({ memberId }),
+    }),
+  setOrderGuest: (orderId: string, body: { customerName?: string; customerPhone?: string }) =>
+    fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/guest`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
     }),
   setOrderDiscount: (orderId: string, body: { discountPercent: number; discountAmount: number }) =>
     fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/discount`, {
@@ -211,8 +226,7 @@ export const hospApi = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  deletePlan: (id: string) =>
-    fetchApi<{ ok: boolean }>(`/hospitality/membership-plans/${id}`, { method: 'DELETE' }),
+  deletePlan: (id: string) => fetchApi<{ ok: boolean }>(`/hospitality/membership-plans/${id}`, { method: 'DELETE' }),
   members: (params?: { phone?: string; q?: string }) => {
     const qs = new URLSearchParams();
     if (params?.phone) qs.set('phone', params.phone);
@@ -220,6 +234,9 @@ export const hospApi = {
     const suffix = qs.toString() ? `?${qs}` : '';
     return fetchApi<{ members: HospMember[] }>(`/hospitality/members${suffix}`);
   },
+  /** Order-time phone check — returns found/valid/reason without attaching. */
+  lookupMember: (phone: string) =>
+    fetchApi<HospMemberLookup>(`/hospitality/members/lookup?phone=${encodeURIComponent(phone.trim())}`),
   createMember: (body: { name: string; phone: string; planId: string }) =>
     fetchApi<{ member: HospMember }>('/hospitality/members', {
       method: 'POST',
@@ -327,4 +344,36 @@ export const hospApi = {
       body: JSON.stringify(body),
     }),
   deleteModifier: (id: string) => fetchApi<{ ok: boolean }>(`/hospitality/modifiers/${id}`, { method: 'DELETE' }),
+
+  analytics: (period: 'today' | 'week' = 'today') =>
+    fetchApi<{
+      period: 'today' | 'week';
+      periodStart: string;
+      tables: {
+        total: number;
+        occupied: number;
+        billing: number;
+        available: number;
+        cleaning: number;
+      };
+      orders: { dineIn: number; parcel: number; total: number; revenue: number };
+      kitchenQueueDepth: number;
+      parcelsOpen: number;
+      queueWaiting: number;
+    }>(`/hospitality/analytics?period=${period}`),
+
+  accountsSummary: (period: 'today' | 'week' = 'today') =>
+    fetchApi<{
+      period: 'today' | 'week';
+      periodStart: string;
+      sales: {
+        revenue: number;
+        orderCount: number;
+        dineIn: { revenue: number; orders: number };
+        parcel: { revenue: number; orders: number };
+      };
+      byDay: Array<{ date: string; revenue: number; orders: number; dineIn: number; parcel: number }>;
+      expenses: { total: number; count: number; byCategory: Array<{ category: string; total: number; count: number }> };
+      gst: { chargeGst: boolean; pricesIncludeGst: boolean; note: string };
+    }>(`/hospitality/accounts-summary?period=${period}`),
 };

@@ -71,6 +71,7 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_members', user)).toBe('hidden');
     expect(resolveTabAccess('settings', user)).toBe('hidden');
     expect(resolveTabAccess('invoices', user)).toBe('hidden');
+    expect(resolveTabAccess('quotations', user)).toBe('hidden');
   });
 
   it('Host sees only Entry Queue', () => {
@@ -79,6 +80,7 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_waiter', user)).toBe('hidden');
     expect(resolveTabAccess('hosp_kitchen', user)).toBe('hidden');
     expect(resolveTabAccess('finance', user)).toBe('hidden');
+    expect(resolveTabAccess('settings', user)).toBe('hidden');
   });
 
   it('Kitchen sees only Kitchen tab', () => {
@@ -87,6 +89,7 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_waiter', user)).toBe('hidden');
     expect(resolveTabAccess('hosp_queue', user)).toBe('hidden');
     expect(resolveTabAccess('inventory', user)).toBe('hidden');
+    expect(resolveTabAccess('settings', user)).toBe('hidden');
   });
 
   it('Admin with hospitality permission still sees all hosp_* tabs including Members', () => {
@@ -95,5 +98,33 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_menu', user)).toBe('full');
     expect(resolveTabAccess('hosp_members', user)).toBe('full');
     expect(resolveTabAccess('settings', user)).toBe('full');
+  });
+
+  it('hotel_restaurant: Settings is Admin-only (Manager/Staff cannot open even with settings:view)', () => {
+    expect(
+      resolveTabAccess('settings', {
+        role: 'Admin',
+        businessType: 'hotel_restaurant',
+        permissions: null,
+      }),
+    ).toBe('full');
+    expect(
+      resolveTabAccess('settings', {
+        role: 'Manager',
+        businessType: 'hotel_restaurant',
+        permissions: { settings: 'view', hospitality: 'full' },
+      }),
+    ).toBe('hidden');
+    expect(
+      resolveTabAccess('settings', {
+        role: 'Staff',
+        businessType: 'hotel_restaurant',
+        permissions: { settings: 'view' },
+      }),
+    ).toBe('hidden');
+    // Other business types keep Manager settings:view
+    expect(resolveTabAccess('settings', { role: 'Manager', businessType: 'manufacturer', permissions: null })).toBe(
+      'view',
+    );
   });
 });

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../components/ui/Toast';
+import { session } from '../../lib/session';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { hospApi, type HospMenuItem, type HospOrderDetail, type HospTable } from './hospApi';
 import { generateTableBillHtml, loadBillHeaderMeta, sessionCompanyName } from './hospThermalPrint';
@@ -16,6 +17,11 @@ import {
   useHospShell,
 } from './hospUi';
 
+function isHotelAdminRole(): boolean {
+  const role = String((session.getUser() as { role?: string } | null)?.role || '');
+  return role === 'Admin' || role === 'Super Admin';
+}
+
 export function TableOrderDrawer({
   table,
   onClose,
@@ -27,6 +33,7 @@ export function TableOrderDrawer({
 }) {
   const shell = useHospShell();
   const { toast } = useToast();
+  const canMarkPaid = isHotelAdminRole();
   const [detail, setDetail] = useState<HospOrderDetail | null>(null);
   const [tableStatus, setTableStatus] = useState(table.status);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
@@ -44,9 +51,11 @@ export function TableOrderDrawer({
     if (next.table?.status) setTableStatus(next.table.status as HospTable['status']);
   }
 
+  // Open once per table — do not re-open when status flips to available (would re-occupy).
   useEffect(() => {
     setBusy(true);
     setTableStatus(table.status);
+    setDetail(null);
     Promise.all([hospApi.openTable(table.id), hospApi.menu()])
       .then(([opened, m]) => {
         applyDetail(opened);
@@ -56,7 +65,17 @@ export function TableOrderDrawer({
       })
       .catch(e => setError(e instanceof Error ? e.message : 'Failed'))
       .finally(() => setBusy(false));
-  }, [table.id, table.status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally table.id only
+  }, [table.id]);
+
+  // Poll/parent refresh: Admin payment done frees table → close drawer for Waiter
+  useEffect(() => {
+    setTableStatus(table.status);
+    if (table.status === 'available' && detail?.order.status === 'billed') {
+      onClose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to status / billed state
+  }, [table.status, detail?.order.status]);
 
   const filtered = useMemo(
     () => menu.filter(m => m.available !== false && (catId == null ? true : m.category_id === catId)),
@@ -206,37 +225,30 @@ export function TableOrderDrawer({
                     Bill table
                   </button>
                 )}
-                {(tableStatus === 'billing' || detail.order.status === 'billed') && (
-                  <button
-                    type="button"
-                    className={cn(
-                      'inline-flex items-center justify-center min-h-[44px] px-4 py-2 text-sm font-bold text-white',
-                      shell === 'desktopGlass' && 'rounded-lg bg-emerald-600',
-                      shell === 'capGlass' && 'rounded-full h-9 px-3 text-[11px] bg-emerald-600',
-                      shell === 'classic' && 'rounded-xl bg-emerald-700',
-                    )}
-                    onClick={async () => {
-                      await hospApi.close(detail.order.id);
-                      onChanged();
-                      onClose();
-                    }}
-                  >
-                    Payment done
-                  </button>
-                )}
-                {tableStatus === 'cleaning' && (
-                  <button
-                    type="button"
-                    className={hospPrimaryBtn(shell)}
-                    onClick={async () => {
-                      await hospApi.clear(table.id);
-                      onChanged();
-                      onClose();
-                    }}
-                  >
-                    Mark available
-                  </button>
-                )}
+                {(tableStatus === 'billing' || detail.order.status === 'billed') &&
+                  (canMarkPaid ? (
+                    <button
+                      type="button"
+                      className={cn(
+                        'inline-flex items-center justify-center min-h-[44px] px-4 py-2 text-sm font-bold text-white',
+                        shell === 'desktopGlass' && 'rounded-lg bg-emerald-600',
+                        shell === 'capGlass' && 'rounded-full h-9 px-3 text-[11px] bg-emerald-600',
+                        shell === 'classic' && 'rounded-xl bg-emerald-700',
+                      )}
+                      onClick={async () => {
+                        await hospApi.close(detail.order.id);
+                        setTableStatus('available');
+                        onChanged();
+                        onClose();
+                      }}
+                    >
+                      Payment done
+                    </button>
+                  ) : (
+                    <p className={cn('text-xs self-center', hospSubClass(shell))}>
+                      Waiting for Admin to mark payment done…
+                    </p>
+                  ))}
               </div>
             </div>
 

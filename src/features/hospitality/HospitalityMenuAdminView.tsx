@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { compareHospTablesByZoneThenName, hospApi, type HospMenuItem, type HospTable } from './hospApi';
+import { hospApi, type HospMenuItem } from './hospApi';
 import {
   useHospShell,
   hospPageClass,
@@ -19,7 +19,7 @@ import {
 } from './hospUi';
 import { cn } from '../../lib/utils';
 
-type AdminTab = 'menu' | 'modifiers' | 'tables';
+type AdminTab = 'menu' | 'modifiers';
 
 type Category = { id: string; name: string; sort_order: number };
 type ModGroup = {
@@ -37,7 +37,6 @@ export function HospitalityMenuAdminView() {
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<HospMenuItem[]>([]);
-  const [tables, setTables] = useState<HospTable[]>([]);
   const [groups, setGroups] = useState<ModGroup[]>([]);
   const [activeCat, setActiveCat] = useState<string | 'all'>('all');
   const [confirm, setConfirm] = useState<{ title: string; message: string; onYes: () => void } | null>(null);
@@ -53,7 +52,6 @@ export function HospitalityMenuAdminView() {
     modifierGroupIds: string[];
   } | null>(null);
   const [catForm, setCatForm] = useState<{ id?: string; name: string; sortOrder: string } | null>(null);
-  const [tableForm, setTableForm] = useState<{ id?: string; name: string; seats: string; zone: string } | null>(null);
   const [groupForm, setGroupForm] = useState<{
     id?: string;
     name: string;
@@ -70,15 +68,9 @@ export function HospitalityMenuAdminView() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [menu, cats, tbl, mods] = await Promise.all([
-        hospApi.menu(),
-        hospApi.categories(),
-        hospApi.tables(),
-        hospApi.modifierGroups(),
-      ]);
+      const [menu, cats, mods] = await Promise.all([hospApi.menu(), hospApi.categories(), hospApi.modifierGroups()]);
       setItems(menu.items);
       setCategories(cats.categories);
-      setTables(tbl.tables);
       setGroups(mods.groups as ModGroup[]);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Failed to load menu', 'error');
@@ -96,8 +88,6 @@ export function HospitalityMenuAdminView() {
     [items, activeCat],
   );
 
-  const sortedTables = useMemo(() => [...tables].sort(compareHospTablesByZoneThenName), [tables]);
-
   const catName = (id: string) => categories.find(c => c.id === id)?.name || '—';
 
   return (
@@ -106,9 +96,7 @@ export function HospitalityMenuAdminView() {
         <div>
           <p className={hospEyebrowClass(shell)}>Hospitality</p>
           <h1 className={hospTitleClass(shell)}>Menu</h1>
-          <p className={hospSubClass(shell)}>
-            Restaurant catalog — dishes, prices, toppings, and floor tables (hotel owner sets numbering)
-          </p>
+          <p className={hospSubClass(shell)}>Dishes, prices, and toppings — tables are managed on Floor</p>
         </div>
         <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()} disabled={loading}>
           <RefreshCw size={14} className="mr-1.5" />
@@ -121,7 +109,6 @@ export function HospitalityMenuAdminView() {
           [
             { id: 'menu' as const, label: 'Dishes' },
             { id: 'modifiers' as const, label: 'Modifiers' },
-            { id: 'tables' as const, label: 'Tables' },
           ] as const
         ).map(t => (
           <button
@@ -435,88 +422,6 @@ export function HospitalityMenuAdminView() {
               {!groups.length && <p className="text-sm opacity-50 text-center py-6">No modifier groups yet</p>}
             </section>
           )}
-
-          {tab === 'tables' && (
-            <section className={cn(hospCardClass(shell), 'p-4 space-y-4')}>
-              <div className="flex flex-wrap justify-between items-start gap-3">
-                <div>
-                  <h2 className="font-bold text-sm">Dining tables</h2>
-                  <p className={cn('text-xs mt-1 max-w-md', hospSubClass(shell))}>
-                    Hotel owner sets each table’s name/number, seats, and zone. Floor and Waiter show these exactly —
-                    use any scheme (T1, A1, Window-1, Garden-2). Rename, add, or remove anytime.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className={hospPrimaryBtn(shell)}
-                  onClick={() => setTableForm({ name: '', seats: '4', zone: 'Main' })}
-                >
-                  <Plus size={14} className="mr-1" /> Add table
-                </button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {sortedTables.map(t => (
-                  <article key={t.id} className={cn(hospCardClass(shell), 'p-3 space-y-2')}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-bold text-sm">{t.name}</p>
-                        <p className={cn('text-xs', hospSubClass(shell))}>
-                          {t.zone} · {t.seats} seats
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase opacity-50">{t.status}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className={cn(hospSecondaryBtn(shell), 'flex-1')}
-                        onClick={() =>
-                          setTableForm({
-                            id: t.id,
-                            name: t.name,
-                            seats: String(t.seats),
-                            zone: t.zone || 'Main',
-                          })
-                        }
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className={hospDangerBtn(shell)}
-                        onClick={() =>
-                          setConfirm({
-                            title: 'Delete table?',
-                            message: `Remove “${t.name}”?`,
-                            onYes: () => {
-                              void hospApi
-                                .deleteTable(t.id)
-                                .then(() => {
-                                  toast('Table deleted', 'success');
-                                  void load();
-                                })
-                                .catch(e => toast(e instanceof Error ? e.message : 'Delete failed', 'error'));
-                            },
-                          })
-                        }
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              {!tables.length && (
-                <div className="text-center py-8 space-y-1">
-                  <p className="text-sm font-semibold opacity-70">No tables yet</p>
-                  <p className={cn('text-xs max-w-sm mx-auto', hospSubClass(shell))}>
-                    Add tables with your own numbers (e.g. T1, Garden-2). Seed demo data only creates starters — the
-                    hotel owner can rename or replace them freely.
-                  </p>
-                </div>
-              )}
-            </section>
-          )}
         </>
       )}
 
@@ -601,8 +506,7 @@ export function HospitalityMenuAdminView() {
                 return;
               }
               const memberPriceRaw = itemForm.memberPrice.trim();
-              const memberPrice =
-                memberPriceRaw === '' ? null : Number(memberPriceRaw);
+              const memberPrice = memberPriceRaw === '' ? null : Number(memberPriceRaw);
               if (memberPrice != null && (!Number.isFinite(memberPrice) || memberPrice < 0)) {
                 toast('Member price must be a valid amount', 'error');
                 return;
@@ -658,57 +562,6 @@ export function HospitalityMenuAdminView() {
                 .then(() => {
                   toast(catForm.id ? 'Category updated' : 'Category added', 'success');
                   setCatForm(null);
-                  void load();
-                })
-                .catch(e => toast(e instanceof Error ? e.message : 'Save failed', 'error'));
-            }}
-          >
-            Save
-          </button>
-        </Modal>
-      )}
-
-      {tableForm && (
-        <Modal title={tableForm.id ? 'Edit table' : 'Add table'} onClose={() => setTableForm(null)}>
-          <label className="block text-xs font-bold opacity-60 mb-1">Name / number</label>
-          <input
-            className={hospInputClass(shell)}
-            value={tableForm.name}
-            onChange={e => setTableForm({ ...tableForm, name: e.target.value })}
-            placeholder="e.g. T1, A1, Window-1"
-          />
-          <p className="text-[11px] opacity-50 mt-1">Shown on Floor and Waiter as typed — any numbering scheme.</p>
-          <label className="block text-xs font-bold opacity-60 mb-1 mt-3">Seats</label>
-          <input
-            className={hospInputClass(shell)}
-            inputMode="numeric"
-            value={tableForm.seats}
-            onChange={e => setTableForm({ ...tableForm, seats: e.target.value })}
-          />
-          <label className="block text-xs font-bold opacity-60 mb-1 mt-3">Zone</label>
-          <input
-            className={hospInputClass(shell)}
-            value={tableForm.zone}
-            onChange={e => setTableForm({ ...tableForm, zone: e.target.value })}
-            placeholder="e.g. Main, Garden, Bar"
-          />
-          <button
-            type="button"
-            className={cn(hospPrimaryBtn(shell), 'w-full mt-4')}
-            onClick={() => {
-              if (!tableForm.name.trim()) {
-                toast('Name required', 'error');
-                return;
-              }
-              const body = {
-                name: tableForm.name.trim(),
-                seats: Number(tableForm.seats) || 4,
-                zone: tableForm.zone.trim() || 'Main',
-              };
-              void (tableForm.id ? hospApi.updateTable(tableForm.id, body) : hospApi.createTable(body))
-                .then(() => {
-                  toast(tableForm.id ? 'Table updated' : 'Table added', 'success');
-                  setTableForm(null);
                   void load();
                 })
                 .catch(e => toast(e instanceof Error ? e.message : 'Save failed', 'error'));

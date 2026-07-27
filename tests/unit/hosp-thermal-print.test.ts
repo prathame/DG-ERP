@@ -103,6 +103,25 @@ describe('generateTableBillHtml', () => {
     expect(html).toContain('Rs.');
   });
 
+  it('prints optional guest name and mobile when present', () => {
+    const html = generateTableBillHtml(
+      baseDetail({
+        order: {
+          id: 'o1',
+          table_id: 't1',
+          status: 'billed',
+          customer_name: 'Priya',
+          customer_phone: '9876501234',
+        },
+      }),
+      'T1',
+      'Silver Hotel',
+    );
+    expect(html).toContain('Guest:');
+    expect(html).toContain('Priya');
+    expect(html).toContain('9876501234');
+  });
+
   it('escapes hostile item / company / table strings', () => {
     const html = generateTableBillHtml(
       baseDetail({

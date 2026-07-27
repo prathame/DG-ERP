@@ -84,15 +84,15 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     rewards: { label: 'Rewards', visible: false },
   }),
   hotel_restaurant: baseAllVisible({
-    analytics: { label: 'Analytics', visible: false },
+    analytics: { label: 'Analytics', visible: true },
     masters: { label: 'Masters', visible: false },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
     sales: { label: 'Sales Entry', visible: false },
     purchases: { label: 'Expenses', visible: false },
     verification: { label: 'Search / Verify', visible: false },
-    quotations: { label: 'Quotes & Orders', visible: false },
-    accounts: { label: 'Accounts', visible: false },
+    quotations: { label: 'Party Quotes', visible: true },
+    accounts: { label: 'Accounts', visible: true },
     chatbot: { label: 'Chatbot', visible: false },
     finance: { label: 'Invoice Finance', visible: true },
     warranty: { label: 'Warranty', visible: false },
@@ -127,6 +127,31 @@ export function getTabPreset(businessType?: string | null): TabConfig {
     return cloneTabConfig(TAB_PRESETS[businessType as NamedBusinessType]);
   }
   return cloneTabConfig(TAB_PRESETS.manufacturer);
+}
+
+/**
+ * Fill keys missing from a stored tenant tab_config from the business-type preset.
+ * Stored values win when present (incl. explicit visible:false). Used so hotel tenants
+ * created before hosp_menu / accounts existed still get Menu and restaurant Accounts.
+ */
+export function fillMissingTabPresetKeys(
+  stored: TabConfig | Record<string, { label?: string; visible?: boolean }> | null | undefined,
+  businessType?: string | null,
+): TabConfig {
+  const preset = getTabPreset(businessType);
+  if (!stored || typeof stored !== 'object') return preset;
+  const out: TabConfig = {};
+  for (const [key, value] of Object.entries(stored)) {
+    if (!value || typeof value !== 'object') continue;
+    out[key] = {
+      label: typeof value.label === 'string' && value.label ? value.label : (preset[key]?.label ?? key),
+      visible: value.visible !== false,
+    };
+  }
+  for (const [key, value] of Object.entries(preset)) {
+    if (!(key in out)) out[key] = { label: value.label, visible: value.visible };
+  }
+  return out;
 }
 
 export function isNamedBusinessType(value: unknown): value is NamedBusinessType {

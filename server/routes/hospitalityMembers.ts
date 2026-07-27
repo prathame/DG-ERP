@@ -7,14 +7,13 @@ import { AuthRequest, blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { isMemberCurrentlyActive } from '../../shared/hospPricing';
+import { evaluateMembershipValidity, isMemberCurrentlyActive } from '../../shared/hospPricing';
 
 const router = Router();
 
 async function requireHospitality(tenantId: string): Promise<string | null> {
   const row = (await pool.query(`SELECT business_type FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
-    | { business_type: string }
-    | undefined;
+    { business_type: string } | undefined;
   if ((row?.business_type || '') !== 'hotel_restaurant') {
     return 'Hospitality APIs are only available for Hotel / Restaurant tenants';
   }
@@ -63,7 +62,9 @@ function toDateOnly(d: Date): string {
 function mapMember(row: Record<string, unknown>) {
   const status = String(row.status || '');
   const validUntil = row.valid_until as string | Date;
+  const planActive = row.plan_active !== false && row.plan_active !== undefined ? !!row.plan_active : true;
   const active = isMemberCurrentlyActive(status, validUntil);
+  const validity = evaluateMembershipValidity({ status, validUntil, planActive });
   return {
     ...row,
     fee: Number(row.fee) || 0,
@@ -71,6 +72,8 @@ function mapMember(row: Record<string, unknown>) {
     use_member_prices: !!row.use_member_prices,
     plan_active: row.plan_active !== false && row.plan_active !== undefined ? !!row.plan_active : undefined,
     currently_active: active,
+    valid: validity.valid,
+    reason: validity.reason,
   };
 }
 
@@ -81,10 +84,7 @@ router.get('/api/hospitality/membership-plans', blockVendors, async (req: AuthRe
     const tenantId = await gate(req, res);
     if (!tenantId) return;
     const rows = (
-      await pool.query(
-        `SELECT * FROM hosp_membership_plans WHERE tenant_id = $1 ORDER BY name`,
-        [tenantId],
-      )
+      await pool.query(`SELECT * FROM hosp_membership_plans WHERE tenant_id = $1 ORDER BY name`, [tenantId])
     ).rows;
     res.json({
       plans: rows.map((r: Record<string, unknown>) => ({
@@ -188,6 +188,40 @@ router.delete('/api/hospitality/membership-plans/:id', blockVendors, async (req:
 });
 
 // ── Members ─────────────────────────────────────────────────────────────────
+
+/** Order-time phone lookup with explicit validity (valid / expired / not found). */
+router.get('/api/hospitality/members/lookup', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = await gate(req, res);
+    if (!tenantId) return;
+    const phone = String(req.query.phone || '').trim();
+    if (!phone) {
+      return res.json({ found: false, valid: false, reason: 'No mobile entered', member: null });
+    }
+    const row = (
+      await pool.query(
+        `SELECT m.*, p.name AS plan_name, p.period, p.fee, p.discount_percent, p.use_member_prices, p.active AS plan_active
+         FROM hosp_members m
+         JOIN hosp_membership_plans p ON p.id = m.plan_id
+         WHERE m.tenant_id = $1 AND m.phone = $2
+         LIMIT 1`,
+        [tenantId, phone],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
+    if (!row) {
+      return res.json({ found: false, valid: false, reason: 'No membership', member: null });
+    }
+    const member = mapMember(row);
+    res.json({
+      found: true,
+      valid: !!member.valid,
+      reason: member.reason ?? null,
+      member,
+    });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
 
 router.get('/api/hospitality/members', blockVendors, async (req: AuthRequest, res) => {
   try {
@@ -337,10 +371,11 @@ router.post('/api/hospitality/members/:id/renew', blockVendors, async (req: Auth
     const currentEnd = new Date(row.valid_until);
     const base = currentEnd.getTime() > today.getTime() ? currentEnd : today;
     const until = addPeriod(base, row.period);
-    await pool.query(
-      `UPDATE hosp_members SET status = 'active', valid_until = $1 WHERE id = $2 AND tenant_id = $3`,
-      [toDateOnly(until), req.params.id, tenantId],
-    );
+    await pool.query(`UPDATE hosp_members SET status = 'active', valid_until = $1 WHERE id = $2 AND tenant_id = $3`, [
+      toDateOnly(until),
+      req.params.id,
+      tenantId,
+    ]);
     const updated = (
       await pool.query(
         `SELECT m.*, p.name AS plan_name, p.period, p.fee, p.discount_percent, p.use_member_prices, p.active AS plan_active

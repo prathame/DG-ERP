@@ -75,6 +75,7 @@ export function HospitalityWaiterView() {
     try {
       const data = await hospApi.tables();
       setTables(data.tables);
+      setSelected(prev => (prev ? data.tables.find(t => t.id === prev.id) || null : null));
       setEmpty(data.tables.length === 0);
       setError('');
     } catch (e) {
@@ -196,7 +197,7 @@ export function HospitalityWaiterView() {
 
       {filtered.length === 0 ? (
         <div className={cn(hospCardClass(shell), 'p-8 text-center', hospSubClass(shell))}>
-          {empty ? 'No tables yet — hotel owner adds them in Menu → Tables (any numbering).' : 'No tables match'}
+          {empty ? 'No tables yet — hotel owner adds them on Floor.' : 'No tables match'}
         </div>
       ) : (
         <ul className="space-y-2">

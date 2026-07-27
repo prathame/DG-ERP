@@ -1,3 +1,5 @@
+import { isHotelRestaurantBusiness } from '../../shared/hotelMasters';
+
 /** Tab RBAC levels used by the app shell nav and route guards. */
 export type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
 
@@ -19,10 +21,11 @@ export const HOTEL_ROLE_TABS: Record<string, readonly string[]> = {
  * - string array (legacy) → full if listed
  * - Waiter / Host / Kitchen → allowlisted hosp_* tabs only (ignores coarse hospitality unlock)
  * - hosp_members → Admin / Super Admin only (plans + registry); waiters attach via order UI
+ * - hotel_restaurant settings → Admin / Super Admin only (hides Manager/Staff/floor even if perms grant view)
  */
 export function resolveTabAccess(
   tabId: string,
-  user: { permissions?: unknown; role?: string } | null | undefined,
+  user: { permissions?: unknown; role?: string; businessType?: string } | null | undefined,
 ): AccessLevel {
   if (!user) return 'hidden';
 
@@ -34,6 +37,15 @@ export function resolveTabAccess(
 
   // Members tab is Admin-managed even when hospitality module is unlocked for Staff
   if (tabId === 'hosp_members' && !['Super Admin', 'Admin'].includes(role)) {
+    return 'hidden';
+  }
+
+  // Hotel books / company Settings: owner (Admin) only — not Manager/Staff/floor
+  if (
+    tabId === 'settings' &&
+    isHotelRestaurantBusiness(user.businessType) &&
+    !['Super Admin', 'Admin'].includes(role)
+  ) {
     return 'hidden';
   }
 
