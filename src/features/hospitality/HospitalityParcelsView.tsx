@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../components/ui/Toast';
 import { session } from '../../lib/session';
 import { cn } from '../../lib/utils';
 import { hospApi, type HospMenuItem, type HospOrderDetail, type HospParcel } from './hospApi';
@@ -26,7 +28,9 @@ function isHotelAdminRole(): boolean {
 
 export function HospitalityParcelsView() {
   const shell = useHospShell();
+  const { toast } = useToast();
   const canMarkPaid = isHotelAdminRole();
+  const isAdmin = canMarkPaid;
   const [parcels, setParcels] = useState<HospParcel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -43,6 +47,10 @@ export function HospitalityParcelsView() {
   const [newOpen, setNewOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   const loadParcels = useCallback(async () => {
     try {
@@ -161,7 +169,24 @@ export function HospitalityParcelsView() {
           <h1 className={hospTitleClass(shell)}>Parcels</h1>
           <p className={hospSubClass(shell)}>Takeaway / pickup counter — no table needed</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {isAdmin && parcels.length > 0 && (
+            <button
+              type="button"
+              className={selecting ? hospPrimaryBtn(shell) : hospSecondaryBtn(shell)}
+              onClick={() => {
+                setSelecting(s => !s);
+                setSelectedIds(new Set());
+              }}
+            >
+              {selecting ? 'Done selecting' : 'Select to cancel'}
+            </button>
+          )}
+          {selecting && selectedIds.size > 0 && (
+            <button type="button" className={hospDangerBtn(shell)} onClick={() => setConfirmBulk(true)}>
+              Cancel selected ({selectedIds.size})
+            </button>
+          )}
           <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void loadParcels()}>
             <RefreshCw size={14} className="mr-1.5" />
             Refresh
@@ -183,26 +208,48 @@ export function HospitalityParcelsView() {
             <ul className="space-y-2">
               {parcels.map(p => (
                 <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveId(p.id)}
+                  <div
                     className={cn(
-                      'w-full text-left rounded-xl px-3 py-3 border transition',
+                      'w-full rounded-xl px-3 py-3 border transition flex items-start gap-2',
                       activeId === p.id
                         ? 'border-[var(--dg-primary)] bg-[var(--dg-primary)]/10'
                         : 'border-black/5 hover:border-black/15',
+                      selecting && selectedIds.has(p.id) && 'ring-2 ring-[var(--dg-primary)]',
                     )}
                   >
-                    <div className="flex justify-between gap-2">
-                      <strong className="text-sm">{p.label}</strong>
-                      <span className="text-[10px] font-bold uppercase opacity-60">{p.status}</span>
-                    </div>
-                    <p className={cn('text-xs mt-0.5', hospSubClass(shell))}>
-                      {p.customer_name || 'Guest'}
-                      {p.customer_phone ? ` · ${p.customer_phone}` : ''} · {p.item_count} item(s) · ₹
-                      {Number(p.total).toLocaleString('en-IN')}
-                    </p>
-                  </button>
+                    {selecting && (
+                      <input
+                        type="checkbox"
+                        className="mt-1 shrink-0"
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(p.id)) next.delete(p.id);
+                            else next.add(p.id);
+                            return next;
+                          });
+                        }}
+                        aria-label={`Select ${p.label}`}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      disabled={selecting}
+                      onClick={() => setActiveId(p.id)}
+                      className="flex-1 text-left min-w-0"
+                    >
+                      <div className="flex justify-between gap-2">
+                        <strong className="text-sm">{p.label}</strong>
+                        <span className="text-[10px] font-bold uppercase opacity-60">{p.status}</span>
+                      </div>
+                      <p className={cn('text-xs mt-0.5', hospSubClass(shell))}>
+                        {p.customer_name || 'Guest'}
+                        {p.customer_phone ? ` · ${p.customer_phone}` : ''} · {p.item_count} item(s) · ₹
+                        {Number(p.total).toLocaleString('en-IN')}
+                      </p>
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -234,7 +281,7 @@ export function HospitalityParcelsView() {
               <ul className="divide-y divide-black/5">
                 {detail.items.map(it => (
                   <li key={it.id} className="py-2 flex justify-between gap-2 text-sm">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-semibold">
                         {it.qty}× {it.name}
                       </p>
@@ -243,7 +290,27 @@ export function HospitalityParcelsView() {
                       )}
                       <p className={cn('text-[10px] uppercase font-bold', hospSubClass(shell))}>{it.kitchen_status}</p>
                     </div>
-                    <span>₹{it.lineTotal.toLocaleString('en-IN')}</span>
+                    <div className="flex items-start gap-2 shrink-0">
+                      <span>₹{it.lineTotal.toLocaleString('en-IN')}</span>
+                      {detail.order.status === 'open' && it.kitchen_status === 'queued' && (
+                        <button
+                          type="button"
+                          className={cn(hospDangerBtn(shell), 'h-8 min-h-0 px-2')}
+                          aria-label={`Remove ${it.name}`}
+                          onClick={() => {
+                            void hospApi
+                              .removeItem(it.id)
+                              .then(next => {
+                                setDetail(next);
+                                void loadParcels();
+                              })
+                              .catch(e => setError(e instanceof Error ? e.message : 'Could not remove item'));
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
                 {!detail.items.length && (
@@ -312,7 +379,12 @@ export function HospitalityParcelsView() {
                   (canMarkPaid ? (
                     <button
                       type="button"
-                      className={hospDangerBtn(shell)}
+                      className={cn(
+                        'inline-flex items-center justify-center min-h-[44px] px-4 py-2 text-sm font-bold text-white',
+                        shell === 'desktopGlass' && 'rounded-lg bg-emerald-600',
+                        shell === 'capGlass' && 'rounded-full h-9 px-3 text-[11px] bg-emerald-600',
+                        shell === 'classic' && 'rounded-xl bg-emerald-700',
+                      )}
                       disabled={busy}
                       onClick={async () => {
                         setBusy(true);
@@ -335,11 +407,87 @@ export function HospitalityParcelsView() {
                       Waiting for Admin to mark payment done…
                     </p>
                   ))}
+                {(detail.order.status === 'open' || detail.order.status === 'billed') &&
+                  (isAdmin || (detail.order.status === 'open' && detail.items.length === 0)) && (
+                    <button
+                      type="button"
+                      className={hospDangerBtn(shell)}
+                      disabled={busy}
+                      onClick={() => setConfirmCancel(true)}
+                    >
+                      Cancel order
+                    </button>
+                  )}
               </div>
             </>
           )}
         </section>
       </div>
+
+      {confirmCancel && detail && (
+        <ConfirmDialog
+          title="Cancel parcel?"
+          message={
+            detail.items.length > 0
+              ? 'Void this parcel order? Kitchen tickets for it will stop showing.'
+              : 'Close this empty parcel?'
+          }
+          confirmLabel="Cancel order"
+          variant="danger"
+          onConfirm={() => {
+            void (async () => {
+              setBusy(true);
+              try {
+                await hospApi.cancelOrder(detail.order.id);
+                toast('Parcel cancelled', 'success');
+                setActiveId(null);
+                setDetail(null);
+                await loadParcels();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Cancel failed');
+              } finally {
+                setBusy(false);
+                setConfirmCancel(false);
+              }
+            })();
+          }}
+          onCancel={() => setConfirmCancel(false)}
+        />
+      )}
+
+      {confirmBulk && (
+        <ConfirmDialog
+          title="Cancel selected parcels?"
+          message={`Void ${selectedIds.size} parcel order(s)?`}
+          confirmLabel="Cancel selected"
+          variant="danger"
+          onConfirm={() => {
+            void (async () => {
+              const ids = [...selectedIds];
+              try {
+                const r = await hospApi.bulkCancelOrders({ orderIds: ids });
+                const msg =
+                  r.errors.length > 0
+                    ? `Cancelled ${r.cancelled}; ${r.errors.length} failed`
+                    : `Cancelled ${r.cancelled} parcel(s)`;
+                toast(msg, r.errors.length ? 'error' : 'success');
+                setSelectedIds(new Set());
+                setSelecting(false);
+                if (activeId && ids.includes(activeId)) {
+                  setActiveId(null);
+                  setDetail(null);
+                }
+                await loadParcels();
+              } catch (e) {
+                toast(e instanceof Error ? e.message : 'Bulk cancel failed', 'error');
+              } finally {
+                setConfirmBulk(false);
+              }
+            })();
+          }}
+          onCancel={() => setConfirmBulk(false)}
+        />
+      )}
 
       {newOpen && (
         <div

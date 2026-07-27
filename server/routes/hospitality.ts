@@ -761,6 +761,151 @@ router.post('/api/hospitality/orders/:id/close', blockVendors, async (req: AuthR
   }
 });
 
+async function cancelHospOrder(
+  tenantId: string,
+  orderId: string,
+  opts: { isAdmin: boolean },
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const order = (
+    await pool.query(
+      `SELECT id, table_id, status FROM hosp_orders
+       WHERE id = $1 AND tenant_id = $2 AND status IN ('open','billed')`,
+      [orderId, tenantId],
+    )
+  ).rows[0] as { id: string; table_id: string | null; status: string } | undefined;
+  if (!order) return { error: 'Order not found', status: 404 };
+
+  const itemCount = (
+    await pool.query(`SELECT COUNT(*)::int AS c FROM hosp_order_items WHERE order_id = $1`, [order.id])
+  ).rows[0] as { c: number };
+  const hasItems = Number(itemCount.c) > 0;
+  if (!opts.isAdmin) {
+    if (hasItems || order.status !== 'open') {
+      return { error: 'Only Admin can cancel an order with items or a billed order', status: 403 };
+    }
+  }
+
+  await pool.query(`UPDATE hosp_orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [order.id]);
+  if (order.table_id) {
+    await pool.query(`UPDATE hosp_dining_tables SET status = 'available' WHERE id = $1 AND tenant_id = $2`, [
+      order.table_id,
+      tenantId,
+    ]);
+  }
+  return { ok: true };
+}
+
+function isHospAdminRole(role: string | undefined): boolean {
+  return role === 'Admin' || role === 'Super Admin';
+}
+
+/**
+ * Cancel / void an open or billed order (no payment). Frees the table.
+ * Admin/Super Admin: any open/billed order.
+ * Waiter: only empty open orders (mistaken seat / open).
+ */
+router.post('/api/hospitality/orders/:id/cancel', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+
+    const result = await cancelHospOrder(tenantId, req.params.id, {
+      isAdmin: isHospAdminRole(req.user?.role),
+    });
+    if ('error' in result) return res.status(result.status).json({ error: result.error });
+    res.json({ ok: true, cancelled: true });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/**
+ * Bulk cancel open/billed orders by order id and/or table id. Admin only.
+ */
+router.post('/api/hospitality/orders/bulk-cancel', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+    if (!isHospAdminRole(req.user?.role)) {
+      return res.status(403).json({ error: 'Only Admin can bulk-cancel orders' });
+    }
+
+    const orderIds = Array.isArray(req.body?.orderIds)
+      ? (req.body.orderIds as unknown[]).map(x => String(x)).filter(Boolean)
+      : [];
+    const tableIds = Array.isArray(req.body?.tableIds)
+      ? (req.body.tableIds as unknown[]).map(x => String(x)).filter(Boolean)
+      : [];
+    if (!orderIds.length && !tableIds.length) {
+      return res.status(400).json({ error: 'Provide orderIds and/or tableIds' });
+    }
+
+    const fromTables =
+      tableIds.length > 0
+        ? (
+            (
+              await pool.query(
+                `SELECT id FROM hosp_orders
+                 WHERE tenant_id = $1 AND table_id = ANY($2::text[]) AND status IN ('open','billed')`,
+                [tenantId, tableIds],
+              )
+            ).rows as Array<{ id: string }>
+          ).map(r => r.id)
+        : [];
+    const ids = [...new Set([...orderIds, ...fromTables])];
+    let cancelled = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+      const result = await cancelHospOrder(tenantId, id, { isAdmin: true });
+      if ('error' in result) errors.push(`${id}: ${result.error}`);
+      else cancelled += 1;
+    }
+    res.json({ cancelled, errors });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Remove a queued line from an open order (before kitchen starts preparing). */
+router.delete('/api/hospitality/order-items/:id', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+
+    const row = (
+      await pool.query(
+        `SELECT oi.id, oi.order_id, oi.kitchen_status, o.status
+         FROM hosp_order_items oi
+         JOIN hosp_orders o ON o.id = oi.order_id
+         WHERE oi.id = $1 AND o.tenant_id = $2`,
+        [req.params.id, tenantId],
+      )
+    ).rows[0] as { id: string; order_id: string; kitchen_status: string; status: string } | undefined;
+    if (!row) return res.status(404).json({ error: 'Order item not found' });
+    if (row.status !== 'open') {
+      return res.status(400).json({ error: 'Can only remove items from an open order' });
+    }
+    if (row.kitchen_status !== 'queued') {
+      return res.status(400).json({ error: 'Can only remove items still queued in the kitchen' });
+    }
+
+    await pool.query(`DELETE FROM hosp_order_items WHERE id = $1`, [row.id]);
+    await pool.query(`UPDATE hosp_orders SET updated_at = NOW() WHERE id = $1 AND tenant_id = $2`, [
+      row.order_id,
+      tenantId,
+    ]);
+    res.json(await orderDetail(tenantId, row.order_id));
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
 /** Legacy clear — Admin only. Prefer close (payment done) which already frees the table. */
 router.post('/api/hospitality/tables/:id/clear', blockVendors, async (req: AuthRequest, res) => {
   try {

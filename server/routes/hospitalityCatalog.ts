@@ -93,23 +93,70 @@ router.put('/api/hospitality/tables/:id', blockVendors, async (req: AuthRequest,
   }
 });
 
+async function deleteDiningTable(
+  tenantId: string,
+  tableId: string,
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const active = (
+    await pool.query(
+      `SELECT id FROM hosp_orders
+       WHERE table_id = $1 AND tenant_id = $2 AND status IN ('open','billed') LIMIT 1`,
+      [tableId, tenantId],
+    )
+  ).rows[0];
+  if (active) {
+    return { error: 'Cannot delete a table with an active order — cancel or close it first', status: 400 };
+  }
+  // Detach history so closed/cancelled orders don't block table removal
+  await pool.query(
+    `UPDATE hosp_orders SET table_id = NULL
+     WHERE table_id = $1 AND tenant_id = $2 AND status IN ('closed','cancelled')`,
+    [tableId, tenantId],
+  );
+  await pool.query(`UPDATE hosp_queue_entries SET table_id = NULL WHERE table_id = $1 AND tenant_id = $2`, [
+    tableId,
+    tenantId,
+  ]);
+  const result = await pool.query(`DELETE FROM hosp_dining_tables WHERE id = $1 AND tenant_id = $2`, [
+    tableId,
+    tenantId,
+  ]);
+  if (!result.rowCount) return { error: 'Table not found', status: 404 };
+  return { ok: true };
+}
+
 router.delete('/api/hospitality/tables/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = await gate(req, res);
     if (!tenantId) return;
-    const open = (
-      await pool.query(
-        `SELECT id FROM hosp_orders WHERE table_id = $1 AND tenant_id = $2 AND status = 'open' LIMIT 1`,
-        [req.params.id, tenantId],
-      )
-    ).rows[0];
-    if (open) return res.status(400).json({ error: 'Cannot delete a table with an open order — close it first' });
-    const result = await pool.query(`DELETE FROM hosp_dining_tables WHERE id = $1 AND tenant_id = $2`, [
-      req.params.id,
-      tenantId,
-    ]);
-    if (!result.rowCount) return res.status(404).json({ error: 'Table not found' });
+    const result = await deleteDiningTable(tenantId, req.params.id);
+    if ('error' in result) return res.status(result.status).json({ error: result.error });
     res.json({ ok: true });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+/** Bulk delete dining tables. Admin only. Skips tables with active orders. */
+router.post('/api/hospitality/tables/bulk-delete', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = await gate(req, res);
+    if (!tenantId) return;
+    const role = req.user?.role || '';
+    if (role !== 'Admin' && role !== 'Super Admin') {
+      return res.status(403).json({ error: 'Only Admin can bulk-delete tables' });
+    }
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).map(x => String(x)).filter(Boolean) : [];
+    if (!ids.length) return res.status(400).json({ error: 'Provide ids' });
+
+    let deleted = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+      const result = await deleteDiningTable(tenantId, id);
+      if ('error' in result) errors.push(`${id}: ${result.error}`);
+      else deleted += 1;
+    }
+    res.json({ deleted, errors });
   } catch (e) {
     handleApiError(req, res, e);
   }

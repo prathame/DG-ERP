@@ -1089,7 +1089,7 @@ export async function initSchema() {
         table_id TEXT NOT NULL REFERENCES hosp_dining_tables(id),
         waiter_id TEXT,
         status TEXT NOT NULL DEFAULT 'open'
-          CHECK(status IN ('open','billed','closed')),
+          CHECK(status IN ('open','billed','closed','cancelled')),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
@@ -1199,6 +1199,14 @@ export async function initSchema() {
     await client.query(
       `ALTER TABLE hosp_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
     );
+
+    // Cancel/void open or billed orders (existing DBs may still have the 3-value check).
+    await client.query(`ALTER TABLE hosp_orders DROP CONSTRAINT IF EXISTS hosp_orders_status_check`);
+    await client.query(`
+      ALTER TABLE hosp_orders
+        ADD CONSTRAINT hosp_orders_status_check
+        CHECK (status IN ('open','billed','closed','cancelled'))
+    `);
 
     // Hotel Party Quotes: flip stale #172 preset hide (Quotes & Orders / Quotations + visible:false).
     // Does not touch SA-off Party Quotes (label "Party Quotes" or custom).

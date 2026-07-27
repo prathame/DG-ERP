@@ -160,6 +160,20 @@ export const hospApi = {
     fetchApi<HospOrderDetail>(`/hospitality/orders/${orderId}/bill`, { method: 'POST', body: '{}' }),
   close: (orderId: string) =>
     fetchApi<{ ok: boolean }>(`/hospitality/orders/${orderId}/close`, { method: 'POST', body: '{}' }),
+  /** Cancel/void open or billed order (Admin; Waiter only when empty + open). */
+  cancelOrder: (orderId: string) =>
+    fetchApi<{ ok: boolean; cancelled: boolean }>(`/hospitality/orders/${orderId}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  /** Admin: cancel many open/billed orders by order and/or table id. */
+  bulkCancelOrders: (body: { orderIds?: string[]; tableIds?: string[] }) =>
+    fetchApi<{ cancelled: number; errors: string[] }>('/hospitality/orders/bulk-cancel', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  /** Remove a queued line from an open order. */
+  removeItem: (itemId: string) => fetchApi<HospOrderDetail>(`/hospitality/order-items/${itemId}`, { method: 'DELETE' }),
   clear: (tableId: string) =>
     fetchApi<{ ok: boolean }>(`/hospitality/tables/${tableId}/clear`, { method: 'POST', body: '{}' }),
   kitchen: () => fetchApi<{ tickets: Array<Record<string, unknown>> }>('/hospitality/kitchen'),
@@ -264,6 +278,11 @@ export const hospApi = {
       body: JSON.stringify(body),
     }),
   deleteTable: (id: string) => fetchApi<{ ok: boolean }>(`/hospitality/tables/${id}`, { method: 'DELETE' }),
+  bulkDeleteTables: (ids: string[]) =>
+    fetchApi<{ deleted: number; errors: string[] }>('/hospitality/tables/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
   importTablesBatch: (items: Array<{ name: string; seats?: number | string; zone?: string }>) =>
     fetchApi<{ success: number; errors: string[] }>('/hospitality/tables/batch', {
       method: 'POST',
