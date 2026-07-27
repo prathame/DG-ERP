@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   normalizeCompanySlug,
   validateCompanySlug,
@@ -8,13 +8,23 @@ import {
   LAST_COMPANY_SLUG_KEY,
 } from '../../src/lib/companySlug';
 
+function memoryLocalStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+  };
+}
+
 describe('companySlug', () => {
   beforeEach(() => {
-    try {
-      localStorage.removeItem(LAST_COMPANY_SLUG_KEY);
-    } catch {
-      /* ignore */
-    }
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', memoryLocalStorage());
   });
 
   it('normalizes whitespace, case, and leading slashes', () => {
