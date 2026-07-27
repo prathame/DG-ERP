@@ -442,6 +442,96 @@ describe('utils/tenant', () => {
     await expect(deleteTenant('T-NONEXIST-ROLLBACK')).rejects.toThrow(/forced delete fail/);
     spy.mockRestore();
   });
+
+  it('deleteTenant removes hotel tenant with menu items + order items (FK order)', async () => {
+    const plan = (await pool.query(`SELECT id FROM plans ORDER BY id LIMIT 1`)).rows[0];
+    if (!plan) return;
+
+    const result = await provisionTenant({
+      companyName: `Hosp Del ${Date.now()}`,
+      adminEmail: `hospdel${Date.now()}@t.com`,
+      adminName: 'Admin',
+      adminPassword: 'Test@12345',
+      planId: plan.id,
+    });
+    const tid = result.tenantId;
+    await pool.query(`UPDATE tenants SET business_type = 'hotel_restaurant' WHERE id = $1`, [tid]);
+
+    const catId = `HC-${Date.now()}`;
+    const itemId = `HI-${Date.now()}`;
+    const tableId = `HT-${Date.now()}`;
+    const orderId = `HO-${Date.now()}`;
+    const oiId = `HOI-${Date.now()}`;
+    const modGroupId = `HMG-${Date.now()}`;
+    const modId = `HM-${Date.now()}`;
+    const oimId = `HOIM-${Date.now()}`;
+    const memPlanId = `HP-${Date.now()}`;
+    const memberId = `HMEM-${Date.now()}`;
+    const queueId = `HQ-${Date.now()}`;
+
+    await pool.query(`INSERT INTO hosp_menu_categories (id, tenant_id, name, sort_order) VALUES ($1,$2,'Mains',0)`, [
+      catId,
+      tid,
+    ]);
+    await pool.query(
+      `INSERT INTO hosp_menu_items (id, tenant_id, category_id, name, price, available)
+       VALUES ($1,$2,$3,'Dal',120,true)`,
+      [itemId, tid, catId],
+    );
+    await pool.query(
+      `INSERT INTO hosp_modifier_groups (id, tenant_id, name, required, max_select)
+       VALUES ($1,$2,'Spice',false,1)`,
+      [modGroupId, tid],
+    );
+    await pool.query(`INSERT INTO hosp_modifiers (id, group_id, name, price_delta) VALUES ($1,$2,'Extra',10)`, [
+      modId,
+      modGroupId,
+    ]);
+    await pool.query(`INSERT INTO hosp_item_modifier_groups (menu_item_id, group_id) VALUES ($1,$2)`, [
+      itemId,
+      modGroupId,
+    ]);
+    await pool.query(
+      `INSERT INTO hosp_dining_tables (id, tenant_id, name, seats, zone, status)
+       VALUES ($1,$2,'T1',4,'Main','occupied')`,
+      [tableId, tid],
+    );
+    await pool.query(
+      `INSERT INTO hosp_membership_plans (id, tenant_id, name, period, fee, discount_percent)
+       VALUES ($1,$2,'Gold','monthly',500,10)`,
+      [memPlanId, tid],
+    );
+    await pool.query(
+      `INSERT INTO hosp_members (id, tenant_id, name, phone, plan_id, status, valid_until)
+       VALUES ($1,$2,'Guest','9999999999',$3,'active', CURRENT_DATE + 30)`,
+      [memberId, tid, memPlanId],
+    );
+    await pool.query(
+      `INSERT INTO hosp_orders (id, tenant_id, table_id, status, order_type, member_id)
+       VALUES ($1,$2,$3,'open','dine_in',$4)`,
+      [orderId, tid, tableId, memberId],
+    );
+    await pool.query(
+      `INSERT INTO hosp_order_items (id, order_id, menu_item_id, name, qty, unit_price)
+       VALUES ($1,$2,$3,'Dal',1,120)`,
+      [oiId, orderId, itemId],
+    );
+    await pool.query(
+      `INSERT INTO hosp_order_item_modifiers (id, order_item_id, name, price_delta)
+       VALUES ($1,$2,'Extra',10)`,
+      [oimId, oiId],
+    );
+    await pool.query(
+      `INSERT INTO hosp_queue_entries (id, tenant_id, token, guest_name, party_size, status, table_id)
+       VALUES ($1,$2,'A1','Walk-in',2,'waiting',$3)`,
+      [queueId, tid, tableId],
+    );
+
+    // Repro before-fix: bare tenants DELETE fails with 23503 on hosp_order_items → menu_items
+    await expect(deleteTenant(tid)).resolves.toBeUndefined();
+    const gone = (await pool.query('SELECT 1 FROM tenants WHERE id = $1', [tid])).rows[0];
+    expect(gone).toBeUndefined();
+  });
 });
 
 describe('services/nic-api', () => {

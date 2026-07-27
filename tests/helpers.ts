@@ -64,15 +64,30 @@ export async function cleanupTestData(tenantId: string) {
     'service_cloud_device_slots',
     'service_cloud_sessions',
     'user_sessions',
-    'hosp_queue_entries',
-    'hosp_orders',
-    'hosp_members',
-    'hosp_membership_plans',
-    'hosp_menu_items',
-    'hosp_menu_categories',
-    'hosp_modifier_groups',
-    'hosp_dining_tables',
   ];
+  // Hospitality children first (same order as deleteTenant — non-CASCADE FKs)
+  const hospSql = [
+    `DELETE FROM hosp_order_item_modifiers WHERE order_item_id IN (
+       SELECT oi.id FROM hosp_order_items oi
+       JOIN hosp_orders o ON o.id = oi.order_id WHERE o.tenant_id = $1)`,
+    `DELETE FROM hosp_order_items WHERE order_id IN (
+       SELECT id FROM hosp_orders WHERE tenant_id = $1)`,
+    `DELETE FROM hosp_orders WHERE tenant_id = $1`,
+    `DELETE FROM hosp_queue_entries WHERE tenant_id = $1`,
+    `DELETE FROM hosp_item_modifier_groups WHERE menu_item_id IN (
+       SELECT id FROM hosp_menu_items WHERE tenant_id = $1)`,
+    `DELETE FROM hosp_menu_items WHERE tenant_id = $1`,
+    `DELETE FROM hosp_menu_categories WHERE tenant_id = $1`,
+    `DELETE FROM hosp_modifiers WHERE group_id IN (
+       SELECT id FROM hosp_modifier_groups WHERE tenant_id = $1)`,
+    `DELETE FROM hosp_modifier_groups WHERE tenant_id = $1`,
+    `DELETE FROM hosp_members WHERE tenant_id = $1`,
+    `DELETE FROM hosp_membership_plans WHERE tenant_id = $1`,
+    `DELETE FROM hosp_dining_tables WHERE tenant_id = $1`,
+  ];
+  for (const sql of hospSql) {
+    await pool.query(sql, [tenantId]).catch(() => {});
+  }
   for (const t of tables) {
     await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {});
   }
