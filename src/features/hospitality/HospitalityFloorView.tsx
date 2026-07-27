@@ -58,10 +58,16 @@ export function HospitalityFloorView() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [managing, setManaging] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const [tableForm, setTableForm] = useState<TableForm | null>(null);
-  const [confirm, setConfirm] = useState<{ title: string; message: string; onYes: () => void } | null>(null);
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onYes: () => void;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
 
@@ -110,6 +116,25 @@ export function HospitalityFloorView() {
   function openAdd(presetName = '') {
     setTableForm({ name: presetName, seats: '4', zone: 'Main' });
   }
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function setManagingMode(on: boolean) {
+    setManaging(on);
+    setSelectedIds(new Set());
+  }
+
+  const selectedBusy = useMemo(
+    () => tables.filter(t => selectedIds.has(t.id) && (t.status === 'occupied' || t.status === 'billing')),
+    [tables, selectedIds],
+  );
 
   async function saveTable() {
     if (!tableForm) return;
@@ -197,10 +222,70 @@ export function HospitalityFloorView() {
                   <button
                     type="button"
                     className={managing ? hospPrimaryBtn(shell) : hospSecondaryBtn(shell)}
-                    onClick={() => setManaging(m => !m)}
+                    onClick={() => setManagingMode(!managing)}
                   >
                     {managing ? 'Done managing' : 'Manage tables'}
                   </button>
+                )}
+                {managing && selectedIds.size > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className={hospDangerBtn(shell)}
+                      onClick={() =>
+                        setConfirm({
+                          title: 'Delete selected tables?',
+                          message: `Remove ${selectedIds.size} table(s)? Tables with active orders are skipped.`,
+                          confirmLabel: 'Delete selected',
+                          onYes: () => {
+                            void hospApi
+                              .bulkDeleteTables([...selectedIds])
+                              .then(r => {
+                                const msg =
+                                  r.errors.length > 0
+                                    ? `Deleted ${r.deleted}; ${r.errors.length} skipped`
+                                    : `Deleted ${r.deleted} table(s)`;
+                                toast(msg, r.errors.length ? 'error' : 'success');
+                                setSelectedIds(new Set());
+                                void load();
+                              })
+                              .catch(e => toast(e instanceof Error ? e.message : 'Bulk delete failed', 'error'));
+                          },
+                        })
+                      }
+                    >
+                      <Trash2 size={14} className="mr-1" /> Delete selected ({selectedIds.size})
+                    </button>
+                    {selectedBusy.length > 0 && (
+                      <button
+                        type="button"
+                        className={hospDangerBtn(shell)}
+                        onClick={() =>
+                          setConfirm({
+                            title: 'Cancel selected orders?',
+                            message: `Void orders on ${selectedBusy.length} busy table(s) and free them?`,
+                            confirmLabel: 'Cancel orders',
+                            onYes: () => {
+                              void hospApi
+                                .bulkCancelOrders({ tableIds: selectedBusy.map(t => t.id) })
+                                .then(r => {
+                                  const msg =
+                                    r.errors.length > 0
+                                      ? `Cancelled ${r.cancelled}; ${r.errors.length} failed`
+                                      : `Cancelled ${r.cancelled} order(s)`;
+                                  toast(msg, r.errors.length ? 'error' : 'success');
+                                  setSelectedIds(new Set());
+                                  void load();
+                                })
+                                .catch(e => toast(e instanceof Error ? e.message : 'Bulk cancel failed', 'error'));
+                            },
+                          })
+                        }
+                      >
+                        Cancel orders ({selectedBusy.length})
+                      </button>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -242,7 +327,7 @@ export function HospitalityFloorView() {
 
         {managing && isAdmin && !empty && (
           <p className={cn('text-xs', hospSubClass(shell))}>
-            Manage mode — edit or delete tables. Tap Done managing to take orders again.
+            Manage mode — select tables to bulk-delete or cancel busy orders. Tap Done managing to take orders again.
           </p>
         )}
       </div>
@@ -293,19 +378,26 @@ export function HospitalityFloorView() {
                     'aspect-square border-2 p-3 text-left flex flex-col justify-between transition',
                     'rounded-2xl',
                     STATUS_CLASS[shell][t.status] || '',
+                    managing && selectedIds.has(t.id) && 'ring-2 ring-[var(--dg-primary)]',
                   )}
                 >
+                  {isAdmin && managing && (
+                    <label className="flex items-center gap-2 mb-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(t.id)}
+                        onChange={() => toggleSelected(t.id)}
+                        aria-label={`Select ${t.name}`}
+                      />
+                      <span className={cn('text-[10px] font-bold uppercase', hospSubClass(shell))}>Select</span>
+                    </label>
+                  )}
                   <button
                     type="button"
                     className="flex-1 text-left active:scale-[0.98] min-h-0"
                     onClick={() => {
                       if (managing && isAdmin) {
-                        setTableForm({
-                          id: t.id,
-                          name: t.name,
-                          seats: String(t.seats),
-                          zone: t.zone || 'Main',
-                        });
+                        toggleSelected(t.id);
                       } else {
                         setSelected(t);
                       }
@@ -446,7 +538,7 @@ export function HospitalityFloorView() {
         <ConfirmDialog
           title={confirm.title}
           message={confirm.message}
-          confirmLabel="Delete"
+          confirmLabel={confirm.confirmLabel || 'Delete'}
           variant="danger"
           onConfirm={() => {
             confirm.onYes();

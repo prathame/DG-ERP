@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Loader2, RefreshCw, Search } from 'lucide-react';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../components/ui/Toast';
+import { session } from '../../lib/session';
 import { cn } from '../../lib/utils';
 import { compareHospTableName, hospApi, type HospTable } from './hospApi';
 import { TableOrderDrawer } from './TableOrderDrawer';
@@ -7,9 +10,11 @@ import {
   hospCardClass,
   hospChipActive,
   hospChipIdle,
+  hospDangerBtn,
   hospEyebrowClass,
   hospInputClass,
   hospPageClass,
+  hospPrimaryBtn,
   hospSecondaryBtn,
   hospSubClass,
   hospTitleClass,
@@ -60,8 +65,15 @@ function matchesFilter(table: HospTable, filter: FilterId) {
   return table.status === 'occupied' || table.status === 'billing';
 }
 
+function isHotelAdminRole(): boolean {
+  const role = String((session.getUser() as { role?: string } | null)?.role || '');
+  return role === 'Admin' || role === 'Super Admin';
+}
+
 export function HospitalityWaiterView() {
   const shell = useHospShell();
+  const { toast } = useToast();
+  const isAdmin = isHotelAdminRole();
   const [tables, setTables] = useState<HospTable[]>([]);
   const [selected, setSelected] = useState<HospTable | null>(null);
   const [error, setError] = useState('');
@@ -69,6 +81,9 @@ export function HospitalityWaiterView() {
   const [empty, setEmpty] = useState(false);
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +121,42 @@ export function HospitalityWaiterView() {
 
   const occupiedCount = tables.filter(t => t.status === 'occupied' || t.status === 'billing').length;
   const availableCount = tables.filter(t => t.status === 'available').length;
+  const selectedBusy = useMemo(
+    () => tables.filter(t => selectedIds.has(t.id) && (t.status === 'occupied' || t.status === 'billing')),
+    [tables, selectedIds],
+  );
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function setSelectingMode(on: boolean) {
+    setSelecting(on);
+    setSelectedIds(new Set());
+  }
+
+  async function runBulkCancel() {
+    try {
+      const r = await hospApi.bulkCancelOrders({ tableIds: selectedBusy.map(t => t.id) });
+      const msg =
+        r.errors.length > 0
+          ? `Cancelled ${r.cancelled}; ${r.errors.length} failed`
+          : `Cancelled ${r.cancelled} order(s)`;
+      toast(msg, r.errors.length ? 'error' : 'success');
+      setSelectedIds(new Set());
+      setSelecting(false);
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Bulk cancel failed', 'error');
+    } finally {
+      setConfirmBulk(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -130,7 +181,7 @@ export function HospitalityWaiterView() {
           shell === 'classic' && 'bg-[#F8F9FA]/95 backdrop-blur-md',
         )}
       >
-        <div className="flex justify-between items-end gap-3">
+        <div className="flex justify-between items-end gap-3 flex-wrap">
           <div>
             <p className={hospEyebrowClass(shell)}>Hospitality</p>
             <h1 className={hospTitleClass(shell)}>Waiter Orders</h1>
@@ -138,7 +189,21 @@ export function HospitalityWaiterView() {
               {availableCount} free · {occupiedCount} busy
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex gap-2 shrink-0 flex-wrap">
+            {isAdmin && occupiedCount > 0 && (
+              <button
+                type="button"
+                className={selecting ? hospPrimaryBtn(shell) : hospSecondaryBtn(shell)}
+                onClick={() => setSelectingMode(!selecting)}
+              >
+                {selecting ? 'Done selecting' : 'Select to cancel'}
+              </button>
+            )}
+            {selecting && selectedBusy.length > 0 && (
+              <button type="button" className={hospDangerBtn(shell)} onClick={() => setConfirmBulk(true)}>
+                Cancel selected ({selectedBusy.length})
+              </button>
+            )}
             <button type="button" className={hospSecondaryBtn(shell)} onClick={() => void load()} aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
               <span className="ml-1.5 hidden sm:inline">Refresh</span>
@@ -178,6 +243,12 @@ export function HospitalityWaiterView() {
             </button>
           ))}
         </div>
+
+        {selecting && (
+          <p className={cn('text-xs', hospSubClass(shell))}>
+            Select busy tables, then Cancel selected to void their orders (Admin).
+          </p>
+        )}
       </div>
 
       {error && <p className={cn('text-sm', shell === 'classic' ? 'text-rose-600' : 'text-rose-500')}>{error}</p>}
@@ -188,58 +259,91 @@ export function HospitalityWaiterView() {
         </div>
       ) : (
         <ul className="space-y-2">
-          {filtered.map(t => (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => setSelected(t)}
-                className={cn(
-                  hospCardClass(shell),
-                  'w-full min-h-[64px] px-4 py-3 flex items-center gap-3 text-left transition active:scale-[0.99]',
-                  shell === 'classic' && 'hover:bg-gray-50',
-                  shell === 'desktopGlass' && 'hover:bg-[var(--dg-input)]/40',
-                  shell === 'capGlass' && 'hover:bg-[var(--dg-input)]/30',
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className={cn(
-                        'text-lg font-bold tracking-tight',
-                        shell === 'desktopGlass' && 'dg-ink',
-                        shell === 'capGlass' && 'dg-m-ink',
-                      )}
-                    >
-                      {t.name}
-                    </span>
-                    <span
-                      className={cn(
-                        'text-[10px] font-bold uppercase tracking-wide rounded-md px-1.5 py-0.5',
-                        STATUS_CHIP[shell][t.status],
-                      )}
-                    >
-                      {t.status}
-                    </span>
-                  </div>
-                  <p className={cn('text-xs mt-0.5', hospSubClass(shell))}>
-                    {t.zone} · {t.seats} seats
-                    {t.open_items > 0 ? ` · ${t.open_items} open item${t.open_items === 1 ? '' : 's'}` : ''}
-                  </p>
-                </div>
-                <ChevronRight
+          {filtered.map(t => {
+            const busy = t.status === 'occupied' || t.status === 'billing';
+            return (
+              <li key={t.id}>
+                <div
                   className={cn(
-                    'w-5 h-5 shrink-0',
-                    shell === 'desktopGlass' ? 'dg-faint' : shell === 'capGlass' ? 'dg-m-faint' : 'text-gray-300',
+                    hospCardClass(shell),
+                    'w-full min-h-[64px] px-4 py-3 flex items-center gap-3 text-left',
+                    selecting && selectedIds.has(t.id) && 'ring-2 ring-[var(--dg-primary)]',
                   )}
-                />
-              </button>
-            </li>
-          ))}
+                >
+                  {selecting && (
+                    <input
+                      type="checkbox"
+                      className="shrink-0"
+                      disabled={!busy}
+                      checked={selectedIds.has(t.id)}
+                      onChange={() => toggleSelected(t.id)}
+                      aria-label={`Select ${t.name}`}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    disabled={selecting}
+                    onClick={() => setSelected(t)}
+                    className={cn(
+                      'flex-1 min-w-0 flex items-center gap-3 text-left transition',
+                      !selecting && 'active:scale-[0.99]',
+                      selecting && 'opacity-90 cursor-default',
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={cn(
+                            'text-lg font-bold tracking-tight',
+                            shell === 'desktopGlass' && 'dg-ink',
+                            shell === 'capGlass' && 'dg-m-ink',
+                          )}
+                        >
+                          {t.name}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-[10px] font-bold uppercase tracking-wide rounded-md px-1.5 py-0.5',
+                            STATUS_CHIP[shell][t.status],
+                          )}
+                        >
+                          {t.status}
+                        </span>
+                      </div>
+                      <p className={cn('text-xs mt-0.5', hospSubClass(shell))}>
+                        {t.zone} · {t.seats} seats
+                        {t.open_items > 0 ? ` · ${t.open_items} open item${t.open_items === 1 ? '' : 's'}` : ''}
+                      </p>
+                    </div>
+                    {!selecting && (
+                      <ChevronRight
+                        className={cn(
+                          'w-5 h-5 shrink-0',
+                          shell === 'desktopGlass' ? 'dg-faint' : shell === 'capGlass' ? 'dg-m-faint' : 'text-gray-300',
+                        )}
+                      />
+                    )}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      {selected && (
+      {selected && !selecting && (
         <TableOrderDrawer table={selected} onClose={() => setSelected(null)} onChanged={() => void load()} />
+      )}
+
+      {confirmBulk && (
+        <ConfirmDialog
+          title="Cancel selected orders?"
+          message={`Void orders on ${selectedBusy.length} table(s) and free them?`}
+          confirmLabel="Cancel orders"
+          variant="danger"
+          onConfirm={() => void runBulkCancel()}
+          onCancel={() => setConfirmBulk(false)}
+        />
       )}
     </div>
   );

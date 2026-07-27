@@ -314,6 +314,120 @@ describe('HTTP Hospitality', () => {
     );
   });
 
+  it('cancels open order (Admin any; Waiter empty only) and removes queued lines', async () => {
+    const adminHeaders = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const waiterId = 'U-TEST-HOSP-WAITER-CANCEL';
+    const hash = await bcrypt.hash('password123', 12);
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1, $2, $3, $4, 'Waiter', 'Waiter')
+       ON CONFLICT DO NOTHING`,
+      [waiterId, HOSP_TENANT, `${waiterId}@test.com`, hash],
+    );
+    const waiterHeaders = authHeaders(token(HOSP_TENANT, waiterId), HOSP_TENANT);
+
+    await seedHospitalityCatalog(HOSP_TENANT);
+    const tables = await api().get('/api/hospitality/tables').set(adminHeaders);
+    const free = (tables.body.tables as Array<{ id: string; status: string }>).find(t => t.status === 'available');
+    expect(free).toBeTruthy();
+
+    // Waiter can cancel empty open order
+    const emptyOpen = await api().post(`/api/hospitality/tables/${free!.id}/open`).set(waiterHeaders).send({});
+    expect(emptyOpen.status).toBe(200);
+    const emptyCancel = await api()
+      .post(`/api/hospitality/orders/${emptyOpen.body.order.id}/cancel`)
+      .set(waiterHeaders)
+      .send({});
+    expect(emptyCancel.status).toBe(200);
+
+    const reopen = await api().post(`/api/hospitality/tables/${free!.id}/open`).set(waiterHeaders).send({});
+    const orderId = reopen.body.order.id as string;
+    const menu = await api().get('/api/hospitality/menu').set(waiterHeaders);
+    const item = menu.body.items[0] as { id: string };
+    const added = await api()
+      .post(`/api/hospitality/orders/${orderId}/items`)
+      .set(waiterHeaders)
+      .send({ menuItemId: item.id, qty: 1 });
+    expect(added.status).toBe(200);
+    const lineId = added.body.items[0].id as string;
+
+    const waiterDenied = await api().post(`/api/hospitality/orders/${orderId}/cancel`).set(waiterHeaders).send({});
+    expect(waiterDenied.status).toBe(403);
+
+    const removed = await api().delete(`/api/hospitality/order-items/${lineId}`).set(waiterHeaders);
+    expect(removed.status).toBe(200);
+    expect(removed.body.items.length).toBe(0);
+
+    // Re-add and Admin cancel with items
+    const added2 = await api()
+      .post(`/api/hospitality/orders/${orderId}/items`)
+      .set(waiterHeaders)
+      .send({ menuItemId: item.id, qty: 1 });
+    expect(added2.status).toBe(200);
+    const adminCancel = await api().post(`/api/hospitality/orders/${orderId}/cancel`).set(adminHeaders).send({});
+    expect(adminCancel.status).toBe(200);
+    const after = await api().get('/api/hospitality/tables').set(adminHeaders);
+    expect((after.body.tables as Array<{ id: string; status: string }>).find(t => t.id === free!.id)?.status).toBe(
+      'available',
+    );
+  });
+
+  it('Admin bulk-cancels orders by tableIds and bulk-deletes free tables', async () => {
+    const adminHeaders = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const waiterId = 'U-TEST-HOSP-WAITER-BULK';
+    const hash = await bcrypt.hash('password123', 12);
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1, $2, $3, $4, 'Waiter', 'Waiter')
+       ON CONFLICT DO NOTHING`,
+      [waiterId, HOSP_TENANT, `${waiterId}@test.com`, hash],
+    );
+    const waiterHeaders = authHeaders(token(HOSP_TENANT, waiterId), HOSP_TENANT);
+
+    await seedHospitalityCatalog(HOSP_TENANT);
+    const t1 = await api()
+      .post('/api/hospitality/tables')
+      .set(adminHeaders)
+      .send({ name: 'Bulk-A', seats: 2, zone: 'Test' });
+    const t2 = await api()
+      .post('/api/hospitality/tables')
+      .set(adminHeaders)
+      .send({ name: 'Bulk-B', seats: 2, zone: 'Test' });
+    expect(t1.status).toBe(201);
+    expect(t2.status).toBe(201);
+    const id1 = t1.body.table.id as string;
+    const id2 = t2.body.table.id as string;
+
+    await api().post(`/api/hospitality/tables/${id1}/open`).set(adminHeaders).send({});
+    await api().post(`/api/hospitality/tables/${id2}/open`).set(adminHeaders).send({});
+
+    const denied = await api()
+      .post('/api/hospitality/orders/bulk-cancel')
+      .set(waiterHeaders)
+      .send({ tableIds: [id1, id2] });
+    expect(denied.status).toBe(403);
+
+    const cancelled = await api()
+      .post('/api/hospitality/orders/bulk-cancel')
+      .set(adminHeaders)
+      .send({ tableIds: [id1, id2] });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.cancelled).toBe(2);
+
+    const bulkDelDenied = await api()
+      .post('/api/hospitality/tables/bulk-delete')
+      .set(waiterHeaders)
+      .send({ ids: [id1, id2] });
+    expect(bulkDelDenied.status).toBe(403);
+
+    const deleted = await api()
+      .post('/api/hospitality/tables/bulk-delete')
+      .set(adminHeaders)
+      .send({ ids: [id1, id2] });
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.deleted).toBe(2);
+  });
+
   it('covers entry queue: add → call-next → seat', async () => {
     const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
 
@@ -428,7 +542,7 @@ describe('HTTP Hospitality', () => {
 
     const blocked = await api().delete(`/api/hospitality/tables/${tableId}`).set(headers);
     expect(blocked.status).toBe(400);
-    expect(String(blocked.body.error || '')).toMatch(/open order/i);
+    expect(String(blocked.body.error || '')).toMatch(/active order/i);
 
     const close = await api().post(`/api/hospitality/orders/${open.body.order.id}/close`).set(headers).send({});
     expect(close.status).toBe(200);
