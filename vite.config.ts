@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
     name: 'dg-shared-ts-resolve',
     enforce: 'pre',
     resolveId(source) {
-      const m = source.match(/(?:^|[/.])shared\/(mobileFeatures|tabPresets|metal)(?:\.js)?$/);
+      const m = source.match(/(?:^|[/.])shared\/(mobileFeatures|tabPresets|metal|hospPricing)(?:\.js)?$/);
       if (!m) return null;
       return path.resolve(__dirname, `shared/${m[1]}.ts`);
     },

@@ -30,6 +30,8 @@ const baseDetail = (overrides?: Partial<HospOrderDetail>): HospOrderDetail => ({
     },
   ],
   total: overrides?.total ?? 540,
+  subtotal: overrides?.subtotal,
+  discount_value: overrides?.discount_value,
   table: overrides?.table ?? { id: 't1', name: 'T1', seats: 4, status: 'occupied', zone: 'Hall' },
   label: overrides?.label ?? null,
 });
@@ -176,6 +178,28 @@ describe('generateTableBillHtml', () => {
     });
     expect(html).toContain('GSTIN: &lt;gst&gt;');
     expect(html).toContain('FSSAI: A&amp;B');
+  });
+  it('prints order discount line when discount_value is set', () => {
+    const html = generateTableBillHtml(
+      baseDetail({
+        total: 450,
+        subtotal: 500,
+        discount_value: 50,
+        order: {
+          id: 'o1',
+          table_id: 't1',
+          status: 'open',
+          discount_percent: 10,
+          discount_amount: 0,
+        },
+        items: [],
+      }),
+      'T1',
+      'Shop',
+    );
+    expect(html).toContain('Discount');
+    expect(html).toContain('- Rs. 50');
+    expect(html).toContain('Rs. 450');
   });
 });
 
