@@ -66,7 +66,7 @@ import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
 import { isDesktopGlassUi } from './lib/desktopGlass';
 import { applyDesktopFontPrefs } from './lib/desktopFontPrefs';
 import { useEscapeKey } from './lib/useEscapeKey';
-import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
+import { normalizeCompanySlug, validateCompanySlug, getLastCompanySlug, clearLastCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
 import { getApiOrigin, getPublicAppHostPrefix } from './platforms/shared';
 
@@ -197,13 +197,7 @@ function CapSlugOnboardingShare({ lastError, note }: { lastError?: string; note:
 
 /** Cloud Electron + Online Cap: company slug → /{slug} login (not marketing LandingPage). */
 function CompanySlugEntry() {
-  const [slug, setSlug] = React.useState(() => {
-    try {
-      return normalizeCompanySlug(String(localStorage.getItem('dg_last_slug') || ''));
-    } catch {
-      return '';
-    }
-  });
+  const [slug, setSlug] = React.useState(() => getLastCompanySlug());
   const [slugError, setSlugError] = React.useState('');
   const [checking, setChecking] = React.useState(false);
   const mobileApp = isMobileAppShell();
@@ -212,13 +206,9 @@ function CompanySlugEntry() {
 
   React.useEffect(() => {
     // Returning users: skip the form when we already know the company
-    try {
-      const last = normalizeCompanySlug(String(localStorage.getItem('dg_last_slug') || ''));
-      if (last && window.location.pathname === '/') {
-        window.location.replace(`/${last}`);
-      }
-    } catch {
-      /* ignore */
+    const last = getLastCompanySlug();
+    if (last && window.location.pathname === '/') {
+      window.location.replace(`/${last}`);
     }
   }, []);
 
@@ -925,6 +915,8 @@ export default function App() {
           // Network / wrong API host must not look like an "invalid slug"
           setSlugLookupNetworkError(network);
           setSlugNotFound(true);
+          // Deleted / unknown company: drop remembered slug so Choose company is not a bounce loop
+          if (!network) clearLastCompanySlug();
           const ctx = slugEntryApiContext(urlSlug);
           void reportSlugOnboardingFailure({
             action: 'slug.lookup',
@@ -1138,6 +1130,9 @@ export default function App() {
             </p>
             <a
               href={isServiceCloudDesktop() || isServiceCloudMobile() ? cloudSlugHomeHref() : '/'}
+              onClick={() => {
+                clearLastCompanySlug();
+              }}
               className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
             >
               {isServiceCloudDesktop() || isServiceCloudMobile() ? 'Choose company' : 'Go to Dhandho Home'}
@@ -1153,11 +1148,7 @@ export default function App() {
       const changeCompany =
         isServiceCloudDesktop() || isServiceCloudMobile()
           ? () => {
-              try {
-                localStorage.removeItem('dg_last_slug');
-              } catch {
-                /* ignore */
-              }
+              clearLastCompanySlug();
               window.location.href = cloudSlugHomeHref();
             }
           : undefined;

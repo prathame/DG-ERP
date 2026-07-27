@@ -1,7 +1,32 @@
-import { describe, expect, it } from 'vitest';
-import { normalizeCompanySlug, validateCompanySlug } from '../../src/lib/companySlug';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import {
+  normalizeCompanySlug,
+  validateCompanySlug,
+  getLastCompanySlug,
+  setLastCompanySlug,
+  clearLastCompanySlug,
+  LAST_COMPANY_SLUG_KEY,
+} from '../../src/lib/companySlug';
+
+function memoryLocalStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+  };
+}
 
 describe('companySlug', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', memoryLocalStorage());
+  });
+
   it('normalizes whitespace, case, and leading slashes', () => {
     expect(normalizeCompanySlug('  /Acme-Traders/ ')).toBe('acme-traders');
   });
@@ -25,5 +50,15 @@ describe('companySlug', () => {
   it('allows single-segment alphanumerics and hyphenated slugs', () => {
     expect(validateCompanySlug('a')).toEqual({ ok: true, slug: 'a' });
     expect(validateCompanySlug('acme-traders')).toEqual({ ok: true, slug: 'acme-traders' });
+  });
+
+  it('remembers and clears last company slug (deleted-tenant escape)', () => {
+    expect(getLastCompanySlug()).toBe('');
+    setLastCompanySlug('/Test/');
+    expect(getLastCompanySlug()).toBe('test');
+    expect(localStorage.getItem(LAST_COMPANY_SLUG_KEY)).toBe('test');
+    clearLastCompanySlug();
+    expect(getLastCompanySlug()).toBe('');
+    expect(localStorage.getItem(LAST_COMPANY_SLUG_KEY)).toBeNull();
   });
 });

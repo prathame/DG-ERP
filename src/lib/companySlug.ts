@@ -1,10 +1,40 @@
 /** Static paths that must not be used as tenant company slugs. */
 export const RESERVED_COMPANY_SLUGS = ['admin', 'privacy', 'terms', 'download', 'api', 'assets'] as const;
 
+/** Remembered company for Cloud Electron / Online Cap return visits. */
+export const LAST_COMPANY_SLUG_KEY = 'dg_last_slug';
+
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 export function normalizeCompanySlug(raw: string): string {
   return raw.trim().toLowerCase().replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+export function getLastCompanySlug(): string {
+  try {
+    return normalizeCompanySlug(String(localStorage.getItem(LAST_COMPANY_SLUG_KEY) || ''));
+  } catch {
+    return '';
+  }
+}
+
+export function setLastCompanySlug(slug: string): void {
+  const n = normalizeCompanySlug(slug);
+  if (!n) return;
+  try {
+    localStorage.setItem(LAST_COMPANY_SLUG_KEY, n);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/** Drop remembered slug so Choose company / home does not bounce to a deleted tenant. */
+export function clearLastCompanySlug(): void {
+  try {
+    localStorage.removeItem(LAST_COMPANY_SLUG_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
