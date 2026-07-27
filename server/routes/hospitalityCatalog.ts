@@ -548,6 +548,27 @@ function ynTrue(v: unknown): boolean {
   return s === 'y' || s === 'yes' || s === 'true' || s === '1';
 }
 
+/** Case / spacing / underscore insensitive field read from a CSV/Excel row. */
+function csvField(row: Record<string, unknown>, ...aliases: string[]): string {
+  const map = new Map<string, string>();
+  for (const [k, v] of Object.entries(row)) {
+    const nk = k
+      .replace(/^\uFEFF/, '')
+      .toLowerCase()
+      .replace(/[\s_-]+/g, '');
+    if (!map.has(nk)) map.set(nk, String(v ?? '').trim());
+  }
+  for (const a of aliases) {
+    const nk = a.toLowerCase().replace(/[\s_-]+/g, '');
+    if (map.has(nk)) return map.get(nk)!;
+  }
+  return '';
+}
+
+function normGroupName(s: string): string {
+  return s.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 router.post('/api/hospitality/tables/batch', blockVendors, async (req: AuthRequest, res) => {
   const tenantId = await gate(req, res);
   if (!tenantId) return;
@@ -603,11 +624,14 @@ router.post('/api/hospitality/modifiers/batch', blockVendors, async (req: AuthRe
     const groupCache = new Map<string, string>();
     let count = 0;
     for (const r of items) {
-      const groupName = String(r.groupName || r.group || '').trim();
-      const modifierName = String(r.modifierName || r.name || '').trim();
-      const required = ynTrue(r.required);
-      const maxSelect = Math.max(1, Math.min(20, Number(r.maxSelect ?? r.max_select) || 3));
-      const priceDelta = Number(r.priceDelta ?? r.price_delta ?? 0);
+      const groupName = csvField(r, 'groupName', 'group', 'group_name');
+      const modifierName = csvField(r, 'modifierName', 'name', 'modifier_name', 'optionName', 'option');
+      const required = ynTrue(csvField(r, 'required') || r.required);
+      const maxSelect = Math.max(
+        1,
+        Math.min(20, Number(csvField(r, 'maxSelect', 'max_select') || r.maxSelect || r.max_select) || 3),
+      );
+      const priceDelta = Number(csvField(r, 'priceDelta', 'price_delta') || r.priceDelta || r.price_delta || 0);
       if (!groupName || !modifierName) {
         await client.query('ROLLBACK');
         return res
@@ -618,13 +642,15 @@ router.post('/api/hospitality/modifiers/batch', blockVendors, async (req: AuthRe
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `Row ${count + 1}: Invalid priceDelta — nothing imported` });
       }
-      let gid = groupCache.get(groupName.toLowerCase());
+      const groupKey = normGroupName(groupName);
+      let gid = groupCache.get(groupKey);
       if (!gid) {
         const existing = (
-          await client.query(`SELECT id FROM hosp_modifier_groups WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)`, [
-            tenantId,
-            groupName,
-          ])
+          await client.query(
+            `SELECT id FROM hosp_modifier_groups
+             WHERE tenant_id = $1 AND lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = $2`,
+            [tenantId, groupKey],
+          )
         ).rows[0] as { id: string } | undefined;
         if (existing) {
           gid = existing.id;
@@ -633,10 +659,10 @@ router.post('/api/hospitality/modifiers/batch', blockVendors, async (req: AuthRe
           await client.query(
             `INSERT INTO hosp_modifier_groups (id, tenant_id, name, required, max_select)
              VALUES ($1,$2,$3,$4,$5)`,
-            [gid, tenantId, groupName, required, maxSelect],
+            [gid, tenantId, groupName.replace(/\s+/g, ' ').trim(), required, maxSelect],
           );
         }
-        groupCache.set(groupName.toLowerCase(), gid);
+        groupCache.set(groupKey, gid);
       }
       await client.query(`INSERT INTO hosp_modifiers (id, group_id, name, price_delta) VALUES ($1,$2,$3,$4)`, [
         uid('HM'),
@@ -669,7 +695,7 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
     const catCache = new Map<string, string>();
     const groupRows = (await client.query(`SELECT id, name FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]))
       .rows as Array<{ id: string; name: string }>;
-    const groupByName = new Map(groupRows.map(g => [g.name.toLowerCase(), g.id]));
+    const groupByName = new Map(groupRows.map(g => [normGroupName(g.name), g.id]));
     let sortNext =
       Number(
         (
@@ -681,15 +707,16 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
       ) + 1;
     let count = 0;
     for (const r of items) {
-      const category = String(r.category || r.categoryName || '').trim();
-      const name = String(r.name || '').trim();
-      const description = String(r.description || '').trim();
-      const price = Number(r.price);
-      const memberRaw = r.memberPrice ?? r.member_price;
+      const category = csvField(r, 'category', 'categoryName', 'category_name');
+      const name = csvField(r, 'name', 'dish', 'dishName', 'item');
+      const description = csvField(r, 'description', 'desc');
+      const price = Number(csvField(r, 'price') || r.price);
+      const memberRaw = csvField(r, 'memberPrice', 'member_price') || r.memberPrice || r.member_price;
       const memberPrice =
         memberRaw === null || memberRaw === undefined || String(memberRaw).trim() === '' ? null : Number(memberRaw);
-      const available = r.available === undefined || r.available === '' ? true : ynTrue(r.available);
-      const modGroupsRaw = String(r.modifierGroups || r.modifier_groups || '').trim();
+      const availableRaw = csvField(r, 'available');
+      const available = availableRaw === '' ? true : ynTrue(availableRaw);
+      const modGroupsRaw = csvField(r, 'modifierGroups', 'modifier_groups', 'modifiers', 'modifierGroup');
       if (!category || !name) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `Row ${count + 1}: category and name are required — nothing imported` });
@@ -702,13 +729,14 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `Row ${count + 1}: Invalid memberPrice — nothing imported` });
       }
-      let catId = catCache.get(category.toLowerCase());
+      let catId = catCache.get(normGroupName(category));
       if (!catId) {
         const existing = (
-          await client.query(`SELECT id FROM hosp_menu_categories WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)`, [
-            tenantId,
-            category,
-          ])
+          await client.query(
+            `SELECT id FROM hosp_menu_categories
+             WHERE tenant_id = $1 AND lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = $2`,
+            [tenantId, normGroupName(category)],
+          )
         ).rows[0] as { id: string } | undefined;
         if (existing) {
           catId = existing.id;
@@ -716,10 +744,10 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
           catId = uid('HC');
           await client.query(
             `INSERT INTO hosp_menu_categories (id, tenant_id, name, sort_order) VALUES ($1,$2,$3,$4)`,
-            [catId, tenantId, category, sortNext++],
+            [catId, tenantId, category.replace(/\s+/g, ' ').trim(), sortNext++],
           );
         }
-        catCache.set(category.toLowerCase(), catId);
+        catCache.set(normGroupName(category), catId);
       }
       const id = uid('HI');
       await client.query(
@@ -730,13 +758,18 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
       if (modGroupsRaw) {
         for (const part of modGroupsRaw
           .split(/[|;]/)
-          .map(s => s.trim())
+          .map(s => s.trim().replace(/^["']|["']$/g, ''))
           .filter(Boolean)) {
-          const gid = groupByName.get(part.toLowerCase());
+          const gid = groupByName.get(normGroupName(part));
           if (!gid) {
             await client.query('ROLLBACK');
+            const known = groupRows.map(g => g.name).sort((a, b) => a.localeCompare(b));
+            const hint =
+              known.length > 0
+                ? ` Known groups: ${known.map(n => `"${n}"`).join(', ')}.`
+                : ' No modifier groups exist yet.';
             return res.status(400).json({
-              error: `Row ${count + 1}: Unknown modifier group "${part}" — import modifiers first`,
+              error: `Row ${count + 1}: Unknown modifier group "${part}" — import modifiers first.${hint}`,
             });
           }
           await client.query(

@@ -687,4 +687,97 @@ describe('HTTP Hospitality', () => {
     expect(e.unit).toBe(200);
     await api().post(`/api/hospitality/orders/${e.orderId}/close`).set(headers).send({});
   });
+
+  it('veg sample CSV: modifiers then dishes resolves Spice Level', async () => {
+    const headers = authHeaders(token(HOSP_TENANT, HOSP_USER), HOSP_TENANT);
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+
+    const parseCsv = (file: string) => {
+      const text = readFileSync(resolve(process.cwd(), file), 'utf8');
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      const cols = lines[0].split(',').map(h => h.trim().replace(/^\uFEFF/, ''));
+      return lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        const row: Record<string, string> = {};
+        cols.forEach((h, i) => {
+          row[h] = values[i] || '';
+        });
+        return row;
+      });
+    };
+
+    // Clear catalog so this test owns modifiers → dishes (seed may have run earlier).
+    await pool.query(
+      `DELETE FROM hosp_item_modifier_groups WHERE menu_item_id IN (
+         SELECT id FROM hosp_menu_items WHERE tenant_id = $1)`,
+      [HOSP_TENANT],
+    );
+    await pool.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1`, [HOSP_TENANT]);
+    await pool.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1`, [HOSP_TENANT]);
+    await pool.query(
+      `DELETE FROM hosp_modifiers WHERE group_id IN (
+         SELECT id FROM hosp_modifier_groups WHERE tenant_id = $1)`,
+      [HOSP_TENANT],
+    );
+    await pool.query(`DELETE FROM hosp_modifier_groups WHERE tenant_id = $1`, [HOSP_TENANT]);
+
+    const beforeDishes = await api()
+      .post('/api/hospitality/menu-items/batch')
+      .set(headers)
+      .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/menu-items.csv') });
+    expect(beforeDishes.status).toBe(400);
+    expect(String(beforeDishes.body.error)).toMatch(/Spice Level/i);
+    expect(String(beforeDishes.body.error)).toMatch(/import modifiers first/i);
+
+    const mods = await api()
+      .post('/api/hospitality/modifiers/batch')
+      .set(headers)
+      .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/modifiers.csv') });
+    expect(mods.status).toBe(201);
+    expect(mods.body.success).toBeGreaterThanOrEqual(10);
+
+    const groups = await pool.query(`SELECT name FROM hosp_modifier_groups WHERE tenant_id = $1 ORDER BY name`, [
+      HOSP_TENANT,
+    ]);
+    expect(groups.rows.map((r: { name: string }) => r.name)).toEqual(
+      expect.arrayContaining(['Cheese', 'Extra Toppings', 'Spice Level']),
+    );
+
+    // Case / spacing tolerant lookup after modifiers exist
+    const caseOk = await api()
+      .post('/api/hospitality/menu-items/batch')
+      .set(headers)
+      .send({
+        items: [
+          {
+            category: 'Test Cat',
+            name: 'Case Probe',
+            description: '',
+            price: 10,
+            available: 'Y',
+            Modifier_Groups: 'spice  level',
+          },
+        ],
+      });
+    expect(caseOk.status).toBe(201);
+    expect(caseOk.body.success).toBe(1);
+    await pool.query(`DELETE FROM hosp_menu_items WHERE tenant_id = $1 AND name = 'Case Probe'`, [HOSP_TENANT]);
+    await pool.query(`DELETE FROM hosp_menu_categories WHERE tenant_id = $1 AND name = 'Test Cat'`, [HOSP_TENANT]);
+
+    const dishes = await api()
+      .post('/api/hospitality/menu-items/batch')
+      .set(headers)
+      .send({ items: parseCsv('test-data/valid/hotel-veg-restaurant/menu-items.csv') });
+    expect(dishes.status).toBe(201);
+    expect(dishes.body.success).toBe(14);
+
+    const linked = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM hosp_item_modifier_groups l
+       JOIN hosp_menu_items i ON i.id = l.menu_item_id
+       WHERE i.tenant_id = $1`,
+      [HOSP_TENANT],
+    );
+    expect(linked.rows[0].c).toBeGreaterThanOrEqual(8);
+  });
 });
