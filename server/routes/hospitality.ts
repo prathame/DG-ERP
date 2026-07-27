@@ -92,11 +92,15 @@ router.get('/api/hospitality/menu', blockVendors, async (req: AuthRequest, res) 
     const categories = (
       await pool.query(`SELECT * FROM hosp_menu_categories WHERE tenant_id = $1 ORDER BY sort_order`, [tenantId])
     ).rows;
-    const items = (
-      await pool.query(`SELECT * FROM hosp_menu_items WHERE tenant_id = $1 AND available = true ORDER BY name`, [
-        tenantId,
-      ])
-    ).rows as Array<{ id: string; category_id: string; name: string; description: string; price: number }>;
+    const items = (await pool.query(`SELECT * FROM hosp_menu_items WHERE tenant_id = $1 ORDER BY name`, [tenantId]))
+      .rows as Array<{
+      id: string;
+      category_id: string;
+      name: string;
+      description: string;
+      price: number;
+      available: boolean;
+    }>;
     const groups = (await pool.query(`SELECT * FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]))
       .rows as Array<{ id: string; name: string; required: boolean; max_select: number }>;
     const modifiers = (
@@ -153,15 +157,27 @@ async function getOpenOrder(tenantId: string, tableId: string) {
 
 async function orderDetail(tenantId: string, orderId: string) {
   const order = (await pool.query(`SELECT * FROM hosp_orders WHERE id = $1 AND tenant_id = $2`, [orderId, tenantId]))
-    .rows[0] as { id: string; table_id: string; status: string } | undefined;
-  if (!order) return { order: null, items: [], total: 0, table: null };
+    .rows[0] as
+    | {
+        id: string;
+        table_id: string | null;
+        status: string;
+        order_type?: string;
+        customer_name?: string;
+        customer_phone?: string;
+        token?: string | null;
+      }
+    | undefined;
+  if (!order) return { order: null, items: [], total: 0, table: null, label: null };
 
-  const table = (
-    await pool.query(`SELECT id, name, seats, status, zone FROM hosp_dining_tables WHERE id = $1 AND tenant_id = $2`, [
-      order.table_id,
-      tenantId,
-    ])
-  ).rows[0];
+  const table = order.table_id
+    ? (
+        await pool.query(
+          `SELECT id, name, seats, status, zone FROM hosp_dining_tables WHERE id = $1 AND tenant_id = $2`,
+          [order.table_id, tenantId],
+        )
+      ).rows[0]
+    : null;
 
   const items = (await pool.query(`SELECT * FROM hosp_order_items WHERE order_id = $1 ORDER BY created_at`, [orderId]))
     .rows as Array<{
@@ -192,14 +208,19 @@ async function orderDetail(tenantId: string, orderId: string) {
     };
   });
   const total = withMods.reduce((s, i) => s + i.lineTotal, 0);
-  return { order, items: withMods, total, table };
+  const label =
+    order.order_type === 'parcel'
+      ? `Parcel · ${order.token || order.customer_name || 'Takeaway'}`
+      : (table as { name?: string } | null)?.name || 'Table';
+  return { order, items: withMods, total, table: table || null, label };
 }
 
 async function createOpenOrder(tenantId: string, tableId: string, waiterId: string | null) {
   try {
     const id = uid('ho');
     await pool.query(
-      `INSERT INTO hosp_orders (id, tenant_id, table_id, waiter_id, status) VALUES ($1,$2,$3,$4,'open')`,
+      `INSERT INTO hosp_orders (id, tenant_id, table_id, waiter_id, status, order_type)
+       VALUES ($1,$2,$3,$4,'open','dine_in')`,
       [id, tenantId, tableId, waiterId],
     );
   } catch (e) {
@@ -369,10 +390,12 @@ router.post('/api/hospitality/orders/:id/bill', blockVendors, async (req: AuthRe
     ).rows[0] as { id: string; table_id: string } | undefined;
     if (!order) return res.status(404).json({ error: 'Open order not found' });
     await pool.query(`UPDATE hosp_orders SET status = 'billed', updated_at = NOW() WHERE id = $1`, [order.id]);
-    await pool.query(`UPDATE hosp_dining_tables SET status = 'billing' WHERE id = $1 AND tenant_id = $2`, [
-      order.table_id,
-      tenantId,
-    ]);
+    if (order.table_id) {
+      await pool.query(`UPDATE hosp_dining_tables SET status = 'billing' WHERE id = $1 AND tenant_id = $2`, [
+        order.table_id,
+        tenantId,
+      ]);
+    }
     res.json(await orderDetail(tenantId, order.id));
   } catch (e) {
     handleApiError(req, res, e);
@@ -394,10 +417,12 @@ router.post('/api/hospitality/orders/:id/close', blockVendors, async (req: AuthR
     ).rows[0] as { id: string; table_id: string } | undefined;
     if (!order) return res.status(404).json({ error: 'Order not found' });
     await pool.query(`UPDATE hosp_orders SET status = 'closed', updated_at = NOW() WHERE id = $1`, [order.id]);
-    await pool.query(`UPDATE hosp_dining_tables SET status = 'cleaning' WHERE id = $1 AND tenant_id = $2`, [
-      order.table_id,
-      tenantId,
-    ]);
+    if (order.table_id) {
+      await pool.query(`UPDATE hosp_dining_tables SET status = 'cleaning' WHERE id = $1 AND tenant_id = $2`, [
+        order.table_id,
+        tenantId,
+      ]);
+    }
     res.json({ ok: true });
   } catch (e) {
     handleApiError(req, res, e);
@@ -429,10 +454,11 @@ router.get('/api/hospitality/kitchen', blockVendors, async (req: AuthRequest, re
 
     const tickets = (
       await pool.query(
-        `SELECT oi.*, o.table_id, t.name AS table_name, u.name AS waiter_name
+        `SELECT oi.*, o.table_id, o.order_type, o.token, o.customer_name,
+                t.name AS table_name, u.name AS waiter_name
          FROM hosp_order_items oi
          JOIN hosp_orders o ON o.id = oi.order_id
-         JOIN hosp_dining_tables t ON t.id = o.table_id
+         LEFT JOIN hosp_dining_tables t ON t.id = o.table_id
          LEFT JOIN users u ON u.id = o.waiter_id AND u.tenant_id = o.tenant_id
          WHERE o.tenant_id = $1 AND o.status = 'open'
            AND oi.kitchen_status IN ('queued','preparing','ready')
@@ -441,7 +467,13 @@ router.get('/api/hospitality/kitchen', blockVendors, async (req: AuthRequest, re
            oi.fired_at ASC NULLS LAST, oi.created_at ASC`,
         [tenantId],
       )
-    ).rows as Array<{ id: string }>;
+    ).rows as Array<{
+      id: string;
+      order_type?: string;
+      token?: string | null;
+      customer_name?: string;
+      table_name?: string | null;
+    }>;
 
     const ids = tickets.map(t => t.id);
     let mods: Array<{ order_item_id: string; name: string; price_delta: number }> = [];
@@ -451,10 +483,16 @@ router.get('/api/hospitality/kitchen', blockVendors, async (req: AuthRequest, re
     }
 
     res.json({
-      tickets: tickets.map(t => ({
-        ...t,
-        modifiers: mods.filter(m => m.order_item_id === t.id),
-      })),
+      tickets: tickets.map(t => {
+        const label =
+          t.order_type === 'parcel' ? `Parcel · ${t.token || t.customer_name || 'Takeaway'}` : t.table_name || 'Table';
+        return {
+          ...t,
+          table_name: label,
+          label,
+          modifiers: mods.filter(m => m.order_item_id === t.id),
+        };
+      }),
     });
   } catch (e) {
     handleApiError(req, res, e);
@@ -644,6 +682,69 @@ router.post('/api/hospitality/queue/:id/leave', blockVendors, async (req: AuthRe
       tenantId,
     ]);
     res.json({ ok: true });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+router.get('/api/hospitality/parcels', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+    const orders = (
+      await pool.query(
+        `SELECT o.*,
+           (SELECT COUNT(*)::int FROM hosp_order_items oi WHERE oi.order_id = o.id) AS item_count,
+           (SELECT COALESCE(SUM(
+              (oi.unit_price + COALESCE((
+                SELECT SUM(m.price_delta) FROM hosp_order_item_modifiers m WHERE m.order_item_id = oi.id
+              ), 0)) * oi.qty
+            ), 0) FROM hosp_order_items oi WHERE oi.order_id = o.id) AS total
+         FROM hosp_orders o
+         WHERE o.tenant_id = $1 AND o.order_type = 'parcel' AND o.status IN ('open','billed')
+         ORDER BY o.created_at DESC`,
+        [tenantId],
+      )
+    ).rows;
+    res.json({
+      parcels: orders.map((o: Record<string, unknown>) => ({
+        ...o,
+        total: Number(o.total) || 0,
+        item_count: Number(o.item_count) || 0,
+        label: `Parcel · ${(o.token as string) || (o.customer_name as string) || 'Takeaway'}`,
+      })),
+    });
+  } catch (e) {
+    handleApiError(req, res, e);
+  }
+});
+
+router.post('/api/hospitality/parcels', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const err = await requireHospitality(tenantId);
+    if (err) return res.status(403).json({ error: err });
+    const customerName = String(req.body?.customerName || '').trim();
+    const customerPhone = String(req.body?.customerPhone || '').trim();
+    const count = (
+      await pool.query(
+        `SELECT COUNT(*)::int AS c FROM hosp_orders
+         WHERE tenant_id = $1 AND order_type = 'parcel' AND created_at::date = CURRENT_DATE`,
+        [tenantId],
+      )
+    ).rows[0] as { c: number };
+    const token = `P-${String(count.c + 1).padStart(3, '0')}`;
+    const id = uid('ho');
+    await pool.query(
+      `INSERT INTO hosp_orders
+         (id, tenant_id, table_id, waiter_id, status, order_type, customer_name, customer_phone, token)
+       VALUES ($1,$2,NULL,$3,'open','parcel',$4,$5,$6)`,
+      [id, tenantId, req.user?.userId || null, customerName, customerPhone, token],
+    );
+    res.status(201).json(await orderDetail(tenantId, id));
   } catch (e) {
     handleApiError(req, res, e);
   }

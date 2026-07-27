@@ -47,6 +47,7 @@ import priceListsRouter from './routes/price-lists';
 import accountsRouter from './routes/accounts';
 import metalRouter from './routes/metal';
 import hospitalityRouter from './routes/hospitality';
+import hospitalityCatalogRouter from './routes/hospitalityCatalog';
 import mastersRouter from './routes/masters';
 import mappingRouter from './routes/mapping';
 import auditRouter from './routes/audit';
@@ -684,6 +685,7 @@ export function createApp(): express.Application {
   app.use(accountsRouter);
   app.use(metalRouter);
   app.use(hospitalityRouter);
+  app.use(hospitalityCatalogRouter);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const correlationId =

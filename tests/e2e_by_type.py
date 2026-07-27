@@ -652,6 +652,10 @@ def test_hotel_restaurant(tok, tid, ids, email=""):
                        {"x-tenant-id": tid})
         tc = login.get("tabConfig") or {}
         ok("hosp_floor visible", (tc.get("hosp_floor") or {}).get("visible") is True, str(tc.get("hosp_floor")))
+        ok("hosp_menu visible", (tc.get("hosp_menu") or {}).get("visible") is True, str(tc.get("hosp_menu")))
+        ok("hosp_parcels visible", (tc.get("hosp_parcels") or {}).get("visible") is True, str(tc.get("hosp_parcels")))
+        ok("hotel analytics hidden", (tc.get("analytics") or {}).get("visible") is False, str(tc.get("analytics")))
+        ok("hotel masters hidden", (tc.get("masters") or {}).get("visible") is False, str(tc.get("masters")))
         ok("inventory hidden", (tc.get("inventory") or {}).get("visible") is False, str(tc.get("inventory")))
 
 # ── Service-specific tests ────────────────────────────────────────────────────

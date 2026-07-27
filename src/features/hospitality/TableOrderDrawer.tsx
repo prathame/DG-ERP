@@ -54,7 +54,10 @@ export function TableOrderDrawer({
       .finally(() => setBusy(false));
   }, [table.id, table.status]);
 
-  const filtered = useMemo(() => menu.filter(m => (catId == null ? true : m.category_id === catId)), [menu, catId]);
+  const filtered = useMemo(
+    () => menu.filter(m => m.available !== false && (catId == null ? true : m.category_id === catId)),
+    [menu, catId],
+  );
 
   async function addItem() {
     if (!detail || !picking) return;

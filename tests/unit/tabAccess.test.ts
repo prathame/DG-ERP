@@ -40,6 +40,8 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('hosp_waiter', user)).toBe('full');
     expect(resolveTabAccess('hosp_kitchen', user)).toBe('full');
     expect(resolveTabAccess('hosp_queue', user)).toBe('full');
+    expect(resolveTabAccess('hosp_menu', user)).toBe('full');
+    expect(resolveTabAccess('hosp_parcels', user)).toBe('full');
     expect(resolveTabAccess('inventory', user)).toBe('view');
     expect(resolveTabAccess('masters', user)).toBe('hidden');
   });
