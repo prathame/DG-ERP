@@ -45,7 +45,7 @@ describe('HTTP SA hotel deployment onboard', () => {
     expect(orphan).toBeUndefined();
   });
 
-  it('creates cloud hotel and seeds hosp tables', async () => {
+  it('creates cloud hotel without seeding hosp tables', async () => {
     const res = await api().post('/api/super-admin/tenants').set(SA()).send({
       companyName: 'Hotel Cloud Co',
       adminEmail: CLOUD_EMAIL,
@@ -60,7 +60,7 @@ describe('HTTP SA hotel deployment onboard', () => {
     expect(res.body.hotelDatabaseUrlConfigured).toBe(false);
     const tid = res.body.tenantId as string;
     const tables = await pool.query(`SELECT COUNT(*)::int AS c FROM hosp_dining_tables WHERE tenant_id = $1`, [tid]);
-    expect(tables.rows[0].c).toBeGreaterThanOrEqual(1);
+    expect(tables.rows[0].c).toBe(0);
   });
 
   it('creates byo_db hotel with encrypted URL and does not seed', async () => {
