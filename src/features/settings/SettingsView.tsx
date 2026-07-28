@@ -34,6 +34,7 @@ import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSettingsFlags';
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
@@ -356,6 +357,7 @@ function GstApiSection() {
 
 function BillCustomizationSection() {
   const { toast } = useToast();
+  const { t: st } = useTranslation();
   const phoneBillUx = isServicePhoneBillUx();
   const isHospitality = getBusinessConfig().features.hospitality;
   const [form, setForm] = useState<BillSettings>(() => billDefaults());
@@ -512,23 +514,23 @@ function BillCustomizationSection() {
     <div className={settingsPanel()}>
       <div className={settingsPanelHead('flex items-center justify-between')}>
         <h3 className="font-bold text-lg flex items-center gap-2">
-          <FileText size={20} /> Bill Customization
+          <FileText size={20} /> {st('settings.billCustomization')}
         </h3>
         <button
           type="button"
           onClick={handlePreview}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand border border-brand rounded-lg hover:bg-brand/5"
         >
-          <Eye size={14} /> Preview
+          <Eye size={14} /> {st('settings.preview')}
         </button>
       </div>
       <div className="p-6 space-y-6">
         {/* Branding */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Branding</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.brandingSection')}</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Company Logo</label>
+              <label className="text-xs font-bold text-gray-500 block mb-1">{st('settings.companyLogo')}</label>
               <div className="flex items-center gap-3">
                 {form.logoBase64 ? (
                   <img
@@ -566,7 +568,7 @@ function BillCustomizationSection() {
               <p className="text-[10px] text-gray-400 mt-1">PNG/JPG, max 500KB</p>
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Bill Color</label>
+              <label className="text-xs font-bold text-gray-500 block mb-1">{st('settings.billColor')}</label>
               <div className="flex items-center gap-2">
                 <input
                   id="settings-field-2"
@@ -586,7 +588,7 @@ function BillCustomizationSection() {
             </div>
             <div>
               <label htmlFor="settings-field-4" className="text-xs font-bold text-gray-500 block mb-1">
-                Tagline / Subtitle
+                {st('settings.tagline')}
               </label>
               <input
                 id="settings-field-4"
@@ -601,11 +603,11 @@ function BillCustomizationSection() {
 
         {/* Invoice Numbering + template */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Invoice Numbering &amp; Template</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.invoiceNumbering')}</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="settings-field-5" className="text-xs font-bold text-gray-500 block mb-1">
-                Invoice Prefix
+                {st('settings.invoicePrefix')}
               </label>
               <input
                 id="settings-field-5"
@@ -657,7 +659,7 @@ function BillCustomizationSection() {
 
         {/* Bank Details */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bank Details (printed on bill)</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.bankDetails')}</p>
           {banks.length > 0 ? (
             <div className="space-y-3">
               <select
@@ -717,7 +719,7 @@ function BillCustomizationSection() {
                 </div>
               )}
               <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">UPI ID (optional)</label>
+                <label className="text-xs font-bold text-gray-500 block mb-1">{st('settings.upiId')}</label>
                 <input
                   value={form.bankUpiId || ''}
                   onChange={e => setForm(p => ({ ...p, bankUpiId: e.target.value || null }))}
@@ -737,7 +739,7 @@ function BillCustomizationSection() {
 
         {/* Terms & Conditions */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Terms & Conditions</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.termsConditions')}</p>
           <textarea
             value={form.termsAndConditions || ''}
             onChange={e => setForm(p => ({ ...p, termsAndConditions: e.target.value || null }))}
@@ -751,7 +753,7 @@ function BillCustomizationSection() {
 
         {/* Authorized Signatory */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Authorized Signatory</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.authorizedSignatory')}</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="settings-field-13" className="text-xs font-bold text-gray-500 block mb-1">
@@ -767,7 +769,7 @@ function BillCustomizationSection() {
             </div>
             <div>
               <label htmlFor="settings-field-14" className="text-xs font-bold text-gray-500 block mb-1">
-                Designation
+                {st('settings.designation')}
               </label>
               <input
                 id="settings-field-14"
@@ -778,7 +780,7 @@ function BillCustomizationSection() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Signature Image</label>
+              <label className="text-xs font-bold text-gray-500 block mb-1">{st('settings.signatureImage')}</label>
               <div className="flex items-center gap-2">
                 {form.signatureBase64 ? (
                   <img src={form.signatureBase64} alt="Signature" className="h-10 rounded border border-gray-200" />
@@ -813,7 +815,7 @@ function BillCustomizationSection() {
 
         {/* Bill Section Toggles — GST (includes HSN) for all; barcode/warranty/rewards cloud only */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.billSections')}</p>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -907,21 +909,21 @@ function BillCustomizationSection() {
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">Show Barcode</p>
+                    <p className="font-medium text-sm">{st('settings.showBarcode')}</p>
                     <p className="text-xs text-gray-500">Display barcode column on bills</p>
                   </div>
                   {toggleField('showBarcode')}
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">Show Warranty</p>
+                    <p className="font-medium text-sm">{st('settings.showWarranty')}</p>
                     <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
                   </div>
                   {toggleField('showWarranty')}
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">Show Rewards</p>
+                    <p className="font-medium text-sm">{st('settings.showRewards')}</p>
                     <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
                   </div>
                   {toggleField('showRewards')}
@@ -933,7 +935,7 @@ function BillCustomizationSection() {
 
         {/* Footer */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Footer Text</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.footerText')}</p>
           <input
             id="settings-field-16"
             value={form.footerText}
@@ -944,7 +946,7 @@ function BillCustomizationSection() {
         </div>
 
         <button type="button" onClick={handleSave} disabled={saving} className={settingsPrimaryBtn()}>
-          {saving ? 'Saving...' : 'Save Bill Settings'}
+          {saving ? st('settings.saving') : st('settings.saveBillSettings')}
         </button>
       </div>
     </div>
@@ -1374,6 +1376,8 @@ export function SettingsView({
 
   const desktopGlass = settingsGlass();
   const capMobileSettings = mobileApp && !desktopGlass;
+  // Cap service (online + offline): GSTIN/rate live under Business Identity — hide empty GST sheet.
+  const hideGstModule = isServicePhoneUx(getBusinessConfig().type);
 
   const showTab = (id: DesktopSettingsTabId | DesktopSettingsTabId[]) => {
     const ids = Array.isArray(id) ? id : [id];
@@ -1383,32 +1387,32 @@ export function SettingsView({
   };
 
   const desktopTabs: DesktopSettingsTab[] = [
-    { id: 'personal', label: 'Personal Info', icon: User },
-    { id: 'company', label: 'Company Details', icon: Building2, hidden: !user },
-    { id: 'gst', label: 'GST Settings', icon: FileCheck, hidden: !user },
-    { id: 'bill', label: 'Bill Customization', icon: FileText, hidden: !user || !isAdmin },
-    { id: 'data', label: 'Data Management', icon: HardDrive, hidden: !user || !isAdmin },
-    { id: 'preferences', label: 'Preferences', icon: Bell, hidden: !user },
-    { id: 'users', label: 'Users', icon: UserCog, hidden: !user || !isAdmin || serviceMobile },
+    { id: 'personal', label: st('settings.personalInfoShort'), icon: User },
+    { id: 'company', label: st('settings.companyDetails'), icon: Building2, hidden: !user },
+    { id: 'gst', label: st('settings.gstSettings'), icon: FileCheck, hidden: !user || hideGstModule },
+    { id: 'bill', label: st('settings.billCustomization'), icon: FileText, hidden: !user || !isAdmin },
+    { id: 'data', label: st('settings.dataManagement'), icon: HardDrive, hidden: !user || !isAdmin },
+    { id: 'preferences', label: st('settings.preferences'), icon: Bell, hidden: !user },
+    { id: 'users', label: st('settings.users'), icon: UserCog, hidden: !user || !isAdmin || serviceMobile },
   ];
 
-  const mobileModules = desktopTabs.map(t => ({
-    id: t.id,
+  const mobileModules = desktopTabs.map(tab => ({
+    id: tab.id,
     label:
-      t.id === 'personal'
-        ? 'Account Settings'
-        : t.id === 'company'
-          ? 'Business Identity'
-          : t.id === 'gst'
-            ? 'GST & Tax'
-            : t.id === 'bill'
-              ? 'Invoice Styling'
-              : t.id === 'data'
-                ? 'Data Resilience'
-                : t.label,
-    blurb: moduleBlurb(t.id),
-    icon: t.icon,
-    hidden: t.hidden,
+      tab.id === 'personal'
+        ? st('settings.accountSettings')
+        : tab.id === 'company'
+          ? st('settings.businessIdentity')
+          : tab.id === 'gst'
+            ? st('settings.gstAndTax')
+            : tab.id === 'bill'
+              ? st('settings.invoiceStyling')
+              : tab.id === 'data'
+                ? st('settings.dataResilience')
+                : tab.label,
+    blurb: moduleBlurb(tab.id, st),
+    icon: tab.icon,
+    hidden: tab.hidden,
   }));
 
   useEffect(() => {
@@ -1433,10 +1437,8 @@ export function SettingsView({
     >
       {desktopGlass ? (
         <div className="mb-8">
-          <h2 className="text-3xl font-bold dg-ink tracking-tight">Global Settings</h2>
-          <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">
-            Configure your workspace identity, tax compliance, and automated data workflows.
-          </p>
+          <h2 className="text-3xl font-bold dg-ink tracking-tight">{st('settings.globalTitle')}</h2>
+          <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">{st('settings.globalSubtitle')}</p>
         </div>
       ) : capMobileSettings ? (
         !mobileSheet ? (
@@ -1450,8 +1452,8 @@ export function SettingsView({
         ) : null
       ) : (
         <div>
-          <h2 className="text-xl font-bold">Settings</h2>
-          <p className="text-sm text-gray-500">Manage your account and preferences</p>
+          <h2 className="text-xl font-bold">{st('settings.title')}</h2>
+          <p className="text-sm text-gray-500">{st('settings.manageAccount')}</p>
         </div>
       )}
 
@@ -1632,7 +1634,7 @@ export function SettingsView({
                         htmlFor="settings-field-21"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        Full Name
+                        {st('settings.fullName')}
                       </label>
                       <input
                         id="settings-field-21"
@@ -1646,7 +1648,7 @@ export function SettingsView({
                         htmlFor="settings-field-22"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        Email
+                        {st('common.email')}
                       </label>
                       <input
                         id="settings-field-22"
@@ -1661,7 +1663,7 @@ export function SettingsView({
                         htmlFor="settings-field-23"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        Role
+                        {st('settings.role')}
                       </label>
                       <input
                         id="settings-field-23"
@@ -1677,7 +1679,7 @@ export function SettingsView({
                     disabled={profileSubmitting}
                     className="px-6 py-2 bg-brand text-white rounded-xl font-bold"
                   >
-                    {profileSubmitting ? 'Saving...' : 'Save'}
+                    {profileSubmitting ? st('settings.saving') : st('common.save')}
                   </button>
                 </form>
               </div>
@@ -1685,14 +1687,14 @@ export function SettingsView({
               <div className={cn(settingsPanel(), !showTab('personal') && 'hidden')}>
                 <div className={settingsPanelHead()}>
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <Phone size={20} /> Contact Details
+                    <Phone size={20} /> {st('settings.contactDetails')}
                   </h3>
                 </div>
                 <form onSubmit={handleProfileSave} className="p-6 space-y-4">
                   <div className={cn('grid grid-cols-1 gap-4', !desktopGlass && 'md:grid-cols-2')}>
                     <div>
                       <label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1">
-                        <Phone size={12} /> Phone
+                        <Phone size={12} /> {st('common.phone')}
                       </label>
                       <input
                         id="settings-field-24"
@@ -1707,7 +1709,7 @@ export function SettingsView({
                     {!desktopGlass && (
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1">
-                          <MapPin size={12} /> Address
+                          <MapPin size={12} /> {st('common.address')}
                         </label>
                         <input
                           id="settings-field-25"
@@ -1727,7 +1729,7 @@ export function SettingsView({
                       desktopGlass ? 'dg-bg-primary' : 'bg-brand',
                     )}
                   >
-                    {profileSubmitting ? 'Saving...' : 'Save'}
+                    {profileSubmitting ? st('settings.saving') : st('common.save')}
                   </button>
                 </form>
               </div>
@@ -1736,13 +1738,13 @@ export function SettingsView({
               <div className={cn(settingsPanel(), !showTab('company') && 'hidden')}>
                 <div className={settingsPanelHead()}>
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <Building2 size={20} /> {desktopGlass ? 'Company Identity' : 'Company & Other'}
+                    <Building2 size={20} /> {desktopGlass ? st('settings.companyIdentity') : st('settings.companyInfo')}
                   </h3>
                 </div>
                 <form onSubmit={handleProfileSave} className="p-6 space-y-4">
                   <div>
                     <label htmlFor="settings-field-26" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                      Company / Business Name
+                      {st('settings.companyName')}
                     </label>
                     <input
                       id="settings-field-26"
@@ -1758,7 +1760,7 @@ export function SettingsView({
                         htmlFor="settings-field-25-desktop"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"
                       >
-                        <MapPin size={12} /> Registered Address
+                        <MapPin size={12} /> {st('settings.registeredAddress')}
                       </label>
                       <textarea
                         id="settings-field-25-desktop"
@@ -1778,7 +1780,7 @@ export function SettingsView({
                           htmlFor="settings-field-27"
                           className="text-xs font-bold text-gray-400 uppercase block mb-1"
                         >
-                          GST Number (GSTIN)
+                          {st('settings.gstNumber')}
                         </label>
                         <input
                           id="settings-field-27"
@@ -1791,7 +1793,7 @@ export function SettingsView({
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                          Default GST Rate (%)
+                          {st('settings.defaultGstRatePct')}
                         </label>
                         <div className="flex gap-2 mt-1">
                           {[3, 5, 12, 18, 28].map(rate => (
@@ -1824,9 +1826,7 @@ export function SettingsView({
                             className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          CGST + SGST will split equally (e.g. 18% = 9% + 9%)
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">{st('settings.gstSplitHint')}</p>
                       </div>
                     </div>
                   )}
@@ -1838,7 +1838,7 @@ export function SettingsView({
                       desktopGlass ? 'dg-bg-primary' : 'bg-brand',
                     )}
                   >
-                    {profileSubmitting ? 'Saving...' : 'Save'}
+                    {profileSubmitting ? st('settings.saving') : st('common.save')}
                   </button>
                 </form>
               </div>
@@ -1848,7 +1848,7 @@ export function SettingsView({
                 <div className={cn(settingsPanel(), !showTab('gst') && 'hidden')}>
                   <div className={settingsPanelHead()}>
                     <h3 className="font-bold text-lg flex items-center gap-2">
-                      <FileCheck size={20} /> Tax Compliance (GST)
+                      <FileCheck size={20} /> {st('settings.taxCompliance')}
                     </h3>
                   </div>
                   <form onSubmit={handleProfileSave} className="p-6 space-y-4">
@@ -1858,7 +1858,7 @@ export function SettingsView({
                           htmlFor="settings-field-27-desktop"
                           className="text-xs font-bold text-gray-400 uppercase block mb-1"
                         >
-                          GST Number (GSTIN)
+                          {st('settings.gstNumber')}
                         </label>
                         <input
                           id="settings-field-27-desktop"
@@ -1871,7 +1871,7 @@ export function SettingsView({
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                          Default GST Rate (%)
+                          {st('settings.defaultGstRatePct')}
                         </label>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {[3, 5, 12, 18, 28].map(rate => (
@@ -1904,13 +1904,11 @@ export function SettingsView({
                             className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          CGST + SGST will split equally (e.g. 18% = 9% + 9%)
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">{st('settings.gstSplitHint')}</p>
                       </div>
                     </div>
                     <button type="submit" disabled={profileSubmitting} className={settingsPrimaryBtn()}>
-                      {profileSubmitting ? 'Saving...' : 'Save'}
+                      {profileSubmitting ? st('settings.saving') : st('common.save')}
                     </button>
                   </form>
                 </div>
@@ -2029,7 +2027,7 @@ export function SettingsView({
               <div className={cn(settingsPanel(), !showTab('personal') && 'hidden')}>
                 <div className={settingsPanelHead()}>
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <Shield size={20} /> Change Password
+                    <Shield size={20} /> {st('settings.changePassword')}
                   </h3>
                 </div>
                 <form
@@ -2040,7 +2038,7 @@ export function SettingsView({
                     const newPw = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
                     const confirm = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
                     if (newPw !== confirm) {
-                      toast('New passwords do not match', 'error');
+                      toast(st('auth.passwordsDoNotMatch'), 'error');
                       return;
                     }
                     if (newPw.length < 8) {
@@ -2063,7 +2061,7 @@ export function SettingsView({
                         htmlFor="settings-field-29"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        Current Password
+                        {st('settings.currentPassword')}
                       </label>
                       <PasswordInput
                         id="settings-field-29"
@@ -2077,7 +2075,7 @@ export function SettingsView({
                         htmlFor="settings-field-30"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        New Password
+                        {st('settings.newPassword')}
                       </label>
                       <PasswordInput
                         id="settings-field-30"
@@ -2092,7 +2090,7 @@ export function SettingsView({
                         htmlFor="settings-field-31"
                         className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        Confirm New Password
+                        {st('settings.confirmPassword')}
                       </label>
                       <PasswordInput
                         id="settings-field-31"
@@ -2104,7 +2102,7 @@ export function SettingsView({
                     </div>
                   </div>
                   <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">
-                    Update Password
+                    {st('settings.updatePassword')}
                   </button>
                 </form>
               </div>
@@ -2317,7 +2315,7 @@ export function SettingsView({
                 <div className={settingsPanelHead('', true)}>
                   <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                     <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                    WhatsApp Auto-Send
+                    {st('settings.whatsappAutoSend')}
                   </h3>
                 </div>
                 <div className="p-4 sm:p-6 space-y-3">
@@ -2902,14 +2900,14 @@ export function SettingsView({
                 <div className={cn(settingsPanel(), !showTab('users') && 'hidden')}>
                   <div className={settingsPanelHead('flex items-center justify-between')}>
                     <h3 className="font-bold text-lg flex items-center gap-2">
-                      <UserCog size={20} /> User Management
+                      <UserCog size={20} /> {st('settings.userManagement')}
                     </h3>
                     <button
                       type="button"
                       onClick={() => setAddUserOpen(true)}
                       className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
                     >
-                      <UserPlus size={16} /> Add User
+                      <UserPlus size={16} /> {st('settings.addUser')}
                     </button>
                   </div>
                   <div className="p-6">
@@ -3273,14 +3271,14 @@ export function SettingsView({
                       onClick={() => setEditUserTarget(null)}
                       className="flex-1 py-2 border rounded-lg font-medium"
                     >
-                      Cancel
+                      {st('common.cancel')}
                     </button>
                     <button
                       type="submit"
                       disabled={userSubmitting}
                       className="flex-1 py-2 bg-brand text-white rounded-lg font-bold"
                     >
-                      {userSubmitting ? 'Saving...' : 'Save'}
+                      {userSubmitting ? st('settings.saving') : st('common.save')}
                     </button>
                   </div>
                 </form>

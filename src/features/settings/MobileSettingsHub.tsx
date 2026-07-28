@@ -5,6 +5,7 @@
 import React from 'react';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useTranslation } from '../../i18n';
 import type { DesktopSettingsTabId } from './DesktopSettingsPanel';
 
 export type MobileSettingsModule = {
@@ -23,29 +24,31 @@ type Props = {
   onOpen: (id: DesktopSettingsTabId) => void;
 };
 
-const BLURB: Partial<Record<DesktopSettingsTabId, string>> = {
-  personal: 'Profile, Email, Account',
-  company: 'Tax ID, Entity, Region',
-  gst: 'Tax rates & GST options',
-  bill: 'Colors, Logos, Visibility',
-  data: 'Backups, Exports, Cloud',
-  preferences: 'Language, reminders, appearance',
-  users: 'Roles and access',
+const BLURB_KEYS: Partial<Record<DesktopSettingsTabId, string>> = {
+  personal: 'settings.blurbPersonal',
+  company: 'settings.blurbCompany',
+  gst: 'settings.blurbGst',
+  bill: 'settings.blurbBill',
+  data: 'settings.blurbData',
+  preferences: 'settings.blurbPreferences',
+  users: 'settings.blurbUsers',
 };
 
-export function moduleBlurb(id: DesktopSettingsTabId, fallback = ''): string {
-  return BLURB[id] || fallback;
+export function moduleBlurb(id: DesktopSettingsTabId, t: (key: string) => string, fallback = ''): string {
+  const key = BLURB_KEYS[id];
+  return key ? t(key) : fallback;
 }
 
 export function MobileSettingsHub({ userName, userEmail, userRole, modules, onOpen }: Props) {
+  const { t } = useTranslation();
   const visible = modules.filter(m => !m.hidden);
   const initial = (userName || '?').charAt(0).toUpperCase();
 
   return (
     <div className="dg-mobile-glass space-y-4 -mx-3 px-3 pb-4">
       <div>
-        <h2 className="text-2xl font-bold dg-m-ink tracking-tight">Global Settings</h2>
-        <p className="text-[12px] dg-m-muted mt-1">Configure workspace identity and workflows.</p>
+        <h2 className="text-2xl font-bold dg-m-ink tracking-tight">{t('settings.globalTitle')}</h2>
+        <p className="text-[12px] dg-m-muted mt-1">{t('settings.globalSubtitleMobile')}</p>
       </div>
 
       {userName ? (
@@ -67,7 +70,7 @@ export function MobileSettingsHub({ userName, userEmail, userRole, modules, onOp
 
       <div>
         <h4 className="text-[11px] font-bold uppercase tracking-widest dg-m-faint mb-2 px-0.5">
-          Configuration Modules
+          {t('settings.configurationModules')}
         </h4>
         <div className="dg-m-glass-card rounded-2xl overflow-hidden divide-y divide-[var(--dg-card-border)]">
           {visible.map(m => {
@@ -84,7 +87,7 @@ export function MobileSettingsHub({ userName, userEmail, userRole, modules, onOp
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-bold dg-m-ink">{m.label}</p>
-                  <p className="text-[11px] dg-m-muted truncate">{m.blurb || moduleBlurb(m.id)}</p>
+                  <p className="text-[11px] dg-m-muted truncate">{m.blurb || moduleBlurb(m.id, t)}</p>
                 </div>
                 <ChevronRight size={18} className="dg-m-faint shrink-0" />
               </button>
@@ -105,6 +108,7 @@ type SheetChromeProps = {
 
 /** Sticky sheet header — section panels scroll in a sibling layer in SettingsView. */
 export function MobileSettingsSheetChrome({ title, subtitle, onClose }: SheetChromeProps) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -123,7 +127,7 @@ export function MobileSettingsSheetChrome({ title, subtitle, onClose }: SheetChr
           onClick={onClose}
           className="h-9 px-3 rounded-full text-[12px] font-bold bg-[var(--dg-input)] dg-m-ink shrink-0"
         >
-          Close
+          {t('common.close')}
         </button>
       </div>
     </div>

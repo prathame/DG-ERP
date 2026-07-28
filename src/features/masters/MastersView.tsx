@@ -21,6 +21,7 @@ import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
@@ -208,7 +209,7 @@ export function MastersView({
     ...productsMaster,
     {
       id: 'vendor' as const,
-      name: cfg.labels.vendors,
+      name: tb(cfg.labels.vendors, t),
       count: masterCounts.vendor as number | string,
       icon: Truck,
       color: 'text-brand',
@@ -530,7 +531,7 @@ export function MastersView({
   const ActiveIcon = activeMeta?.icon;
   const listHubTabs = new Set<MasterType>(['vendor', 'customer', 'item', 'bank', 'staff']);
   const showList = Boolean(active && listHubTabs.has(active));
-  const partyLabel = cfg.labels.vendors || t('masters.clients');
+  const partyLabel = tb(cfg.labels.vendors, t) || t('masters.clients');
 
   const fabLabel =
     active === 'vendor'

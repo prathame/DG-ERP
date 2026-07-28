@@ -5,6 +5,8 @@ import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { Customer, Vendor } from '../../types';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 
@@ -18,8 +20,9 @@ export function CustomerMasterView({
   user?: { role?: string; vendorId?: string } | null;
 }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
-  const linkedPartyLabel = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
+  const linkedPartyLabel = tb(cfg.labels.vendors, t).replace(/s$/i, ''); // Vendor | Customer | Client
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const [list, setList] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);

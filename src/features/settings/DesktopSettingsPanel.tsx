@@ -5,6 +5,7 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useTranslation } from '../../i18n';
 
 export type DesktopSettingsTabId = 'personal' | 'company' | 'gst' | 'bill' | 'data' | 'preferences' | 'users';
 
@@ -56,13 +57,12 @@ type PanelProps = NavProps & {
 
 /** Full shell: Global Settings header + left tabs + right glass sheet. */
 export function DesktopSettingsPanel({ tabs, activeTab, onTabChange, children }: PanelProps) {
+  const { t } = useTranslation();
   return (
     <div className="w-full max-w-none">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold dg-ink tracking-tight">Global Settings</h2>
-        <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">
-          Configure your workspace identity, tax compliance, and automated data workflows.
-        </p>
+        <h2 className="text-3xl font-bold dg-ink tracking-tight">{t('settings.globalTitle')}</h2>
+        <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">{t('settings.globalSubtitle')}</p>
       </div>
       <div className="flex gap-8 items-start">
         <DesktopSettingsTabNav tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />

@@ -4,6 +4,8 @@ import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer,
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge, PaidStamp } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
@@ -27,6 +29,7 @@ const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
 
 export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const isService = cfg.type === 'service';
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -259,7 +262,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   const totalOutstanding = safeSummary.reduce((s, c) => s + Math.max(0, Number(c.balance) || 0), 0);
   const totalReceived = safeSummary.reduce((s, c) => s + (Number(c.totalPaid) || 0), 0);
   const totalInvoiced = safeSummary.reduce((s, c) => s + (Number(c.totalInvoiced) || 0), 0);
-  const clientsLabel = cfg.labels.vendors || 'Clients';
+  const clientsLabel = tb(cfg.labels.vendors || 'Clients', t);
 
   // ── Client detail workspace (Distribution-style drill-down) ───────────────
   if (selected) {

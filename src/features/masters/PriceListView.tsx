@@ -17,6 +17,8 @@ import { CsvImport } from '../../components/ui/CsvImport';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 
 type PriceTab = 'generic' | 'vendor';
 /** Offline: create sellable item from Price List (no separate Masters Catalog pill). */
@@ -64,8 +66,9 @@ type TenantHeader = {
 
 export function PriceListView({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
-  const partyLabel = cfg.labels.vendors; // Vendors | Customers | Clients
+  const partyLabel = tb(cfg.labels.vendors, t); // Vendors | Customers | Clients
   const isService = cfg.type === 'service';
   const serviceMobile = isServicePhoneUx(cfg.type);
   const [tab, setTab] = useState<PriceTab>(isService ? 'generic' : 'vendor');

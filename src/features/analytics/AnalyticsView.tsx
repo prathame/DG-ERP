@@ -20,6 +20,7 @@ import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import type { Tab } from '../../types';
 import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 import {
@@ -163,14 +164,14 @@ export function AnalyticsView({
         [
           {
             id: 'collections',
-            label: cfg.analytics.collectionsLabel,
+            label: tb(cfg.analytics.collectionsLabel, t),
             value: money.collections,
             accent: 'green' as const,
             show: true,
           },
           {
             id: 'revenue',
-            label: cfg.analytics.revenueLabel,
+            label: tb(cfg.analytics.revenueLabel, t),
             value: money.revenue,
             accent: 'blue' as const,
             show: true,
@@ -191,7 +192,7 @@ export function AnalyticsView({
           },
           {
             id: 'outstanding',
-            label: cfg.analytics.outstandingLabel || outstandingLabel,
+            label: tb(cfg.analytics.outstandingLabel, t) || outstandingLabel,
             value: money[cfg.analytics.outstandingKey],
             accent: (money[cfg.analytics.outstandingKey] > 0 ? 'rose' : 'green') as 'rose' | 'green',
             show: true,
@@ -311,8 +312,8 @@ export function AnalyticsView({
           moneyTiles={moneyTiles}
           moneyLoading={!money}
           vendors={vendors}
-          outstandingLabel={cfg.analytics.outstandingLabel || outstandingLabel}
-          vendorsLabel={cfg.labels.vendors}
+          outstandingLabel={tb(cfg.analytics.outstandingLabel, t) || outstandingLabel}
+          vendorsLabel={tb(cfg.labels.vendors, t)}
           activity={activity}
           relativeTime={d => relativeTime(d, t)}
           activityLabel={type => t(ACTIVITY_META[type]?.labelKey ?? 'dashboard.sale')}
@@ -444,7 +445,7 @@ export function AnalyticsView({
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
-              <IndianRupee size={16} className="text-rose-500" /> {outstandingLabel} {cfg.labels.vendors}
+              <IndianRupee size={16} className="text-rose-500" /> {outstandingLabel} {tb(cfg.labels.vendors, t)}
             </h3>
             <button
               type="button"

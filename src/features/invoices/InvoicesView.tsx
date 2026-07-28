@@ -144,7 +144,16 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
   return candidates[0]?.price ?? product.price ?? 0;
 }
 
-export function InvoicesView() {
+function invoiceHasPayments(inv: Invoice): boolean {
+  return (Number(inv.paidAmount) || 0) > 0.001;
+}
+
+function isPaymentsBlockDeleteError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return /delete payments first|with payments/i.test(msg);
+}
+
+export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } = {}) {
   const { toast } = useToast();
   const { t } = useTranslation();
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
@@ -202,13 +211,24 @@ export function InvoicesView() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (invoiceHasPayments(deleteTarget)) {
+      const reason = 'Cannot delete invoice with payments. Delete payments in Finance first.';
+      toast(reason, 'error');
+      reportActionBlocked('invoice.delete', reason, { invoiceNumber: deleteTarget.invoiceNumber });
+      return;
+    }
     try {
       await fetchApi(`/invoices/${deleteTarget.id}`, { method: 'DELETE' });
       setInvoices(prev => prev.filter(i => i.id !== deleteTarget.id));
       setDeleteTarget(null);
       toast('Invoice deleted', 'success');
     } catch (err) {
-      toast((err as Error).message, 'error');
+      const msg = (err as Error).message;
+      toast(msg, 'error');
+      if (isPaymentsBlockDeleteError(err)) {
+        reportActionBlocked('invoice.delete', msg, { invoiceNumber: deleteTarget.invoiceNumber });
+        return;
+      }
       void reportActionFailed('invoice.delete', err, { invoiceNumber: deleteTarget.invoiceNumber });
     }
   };
@@ -216,7 +236,17 @@ export function InvoicesView() {
   const handleStatus = async (inv: Invoice, status: string) => {
     try {
       await fetchApi(`/invoices/${inv.id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
-      setInvoices(prev => prev.map(i => (i.id === inv.id ? { ...i, status } : i)));
+      setInvoices(prev =>
+        prev.map(i => {
+          if (i.id !== inv.id) return i;
+          // Offline Mark Paid auto-writes invoice_payments — keep list paidAmount in sync
+          // so delete UX can block without a 400 round-trip.
+          if (status === 'paid') {
+            return { ...i, status, paidAmount: i.grandTotal, outstanding: 0 };
+          }
+          return { ...i, status };
+        }),
+      );
       toast(`Invoice marked as ${status}`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -451,8 +481,8 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => setDeleteTarget(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
-                      title="Delete"
-                      aria-label="Delete invoice"
+                      title={invoiceHasPayments(inv) ? 'Has payments — delete payments in Finance first' : 'Delete'}
+                      aria-label={invoiceHasPayments(inv) ? 'Cannot delete invoice with payments' : 'Delete invoice'}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -535,7 +565,7 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => setDeleteTarget(inv)}
                           className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-                          title="Delete"
+                          title={invoiceHasPayments(inv) ? 'Has payments — delete payments in Finance first' : 'Delete'}
                         >
                           <Trash2 size={15} />
                         </button>
@@ -670,7 +700,7 @@ export function InvoicesView() {
         )}
       </AnimatePresence>
 
-      {/* Delete confirm */}
+      {/* Delete confirm — blocked when payments exist (ledger guard) */}
       <AnimatePresence>
         {deleteTarget && (
           <motion.div
@@ -685,26 +715,63 @@ export function InvoicesView() {
               exit={{ scale: 0.95 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center"
             >
-              <p className="text-lg font-bold mb-2">Delete Invoice?</p>
-              <p className="text-sm text-gray-500 mb-4">
-                {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(null)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold"
-                >
-                  Delete
-                </button>
-              </div>
+              {invoiceHasPayments(deleteTarget) ? (
+                <>
+                  <p className="text-lg font-bold mb-2">Cannot delete invoice</p>
+                  <p className="text-sm text-gray-500 mb-1">
+                    {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This invoice has ₹{Number(deleteTarget.paidAmount).toLocaleString()} in payments. Delete those
+                    payments in Finance first, then delete the invoice.
+                    {servicePhoneUx ? ' (More → Finance)' : ''}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(null)}
+                      className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+                    >
+                      OK
+                    </button>
+                    {onOpenFinance && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteTarget(null);
+                          onOpenFinance();
+                        }}
+                        className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold"
+                      >
+                        Open Finance
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-bold mb-2">Delete Invoice?</p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(null)}
+                      className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

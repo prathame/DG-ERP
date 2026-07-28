@@ -34,6 +34,7 @@ async function runMigrations(instance: PGlite): Promise<void> {
 }
 
 async function createAndMigrate(): Promise<PGlite> {
+  // PGlite IDB URL is `idb://dhandho-service-mobile`; underlying store is `/pglite/…`.
   const instance = await PGlite.create('idb://dhandho-service-mobile');
   await instance.exec(SERVICE_MOBILE_SCHEMA_SQL);
   await runMigrations(instance);
@@ -50,14 +51,37 @@ async function runDataRepairs(): Promise<void> {
   }
 }
 
+const PGLITE_IDB_NAME = '/pglite/dhandho-service-mobile';
+
 async function deleteIdbStore(): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   await new Promise<void>(resolve => {
-    const req = indexedDB.deleteDatabase('/pglite/dhandho-service-mobile');
+    const req = indexedDB.deleteDatabase(PGLITE_IDB_NAME);
     req.onsuccess = () => resolve();
     req.onerror = () => resolve();
     req.onblocked = () => resolve();
   });
+}
+
+/** True when we must not auto-wipe (existing IDB, unknown WebView, or activated license). */
+async function mustPreserveLocalDb(): Promise<boolean> {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('dg_sm_license')) return true;
+  } catch {
+    /* ignore */
+  }
+  if (typeof indexedDB === 'undefined') return false;
+  try {
+    const list = indexedDB.databases ? await indexedDB.databases() : null;
+    if (!list) return true; // no databases() (some WebViews) — never auto-wipe
+    return list.some(d => d.name === PGLITE_IDB_NAME);
+  } catch {
+    return true;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export async function getLocalDb(): Promise<PGlite> {
@@ -70,13 +94,30 @@ export async function getLocalDb(): Promise<PGlite> {
         await runDataRepairs();
         return instance;
       } catch (first) {
-        // Corrupted IDB or interrupted first boot (common after Vite/WASM hiccups) — wipe once and retry.
-        console.warn('[service-mobile] PGlite open failed, wiping IndexedDB and retrying', first);
-        await deleteIdbStore();
-        const instance = await createAndMigrate();
-        db = instance;
-        await runDataRepairs();
-        return instance;
+        // Transient WASM/IDB hiccups: retry once without destroying data.
+        console.warn('[service-mobile] PGlite open failed, retrying once', first);
+        await sleep(250);
+        try {
+          const instance = await createAndMigrate();
+          db = instance;
+          await runDataRepairs();
+          return instance;
+        } catch (second) {
+          // Only wipe when there is no existing store and no license (interrupted first boot).
+          // Never auto-wipe an activated Cap device — that looked like "clients auto-deleted".
+          if (await mustPreserveLocalDb()) {
+            const detail = second instanceof Error ? second.message : String(second);
+            throw new Error(
+              `Local database failed to open. Your data was not wiped — restart the app or restore from a backup. (${detail})`,
+            );
+          }
+          console.warn('[service-mobile] PGlite open failed on empty store, recreating', second);
+          await deleteIdbStore();
+          const instance = await createAndMigrate();
+          db = instance;
+          await runDataRepairs();
+          return instance;
+        }
       }
     })().catch(err => {
       ready = null;

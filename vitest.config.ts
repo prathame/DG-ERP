@@ -1,10 +1,12 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 
 export default defineConfig({
   test: {
     environment: 'node',
     globalSetup: './tests/globalSetup.ts',
     setupFiles: ['./tests/setup.ts'],
+    // Playwright specs live under tests/e2e and run via `playwright test`, not vitest.
+    exclude: [...configDefaults.exclude, 'tests/e2e/**'],
     // Prefer .ts over stale compiled .js siblings under server/
     server: {
       deps: {
