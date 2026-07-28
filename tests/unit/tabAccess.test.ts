@@ -100,6 +100,75 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('settings', user)).toBe('full');
   });
 
+  describe('unmapped nav tabs fall back to their governing permission module', () => {
+    // Regression: server/routes/service-cloud.ts always stores a fully-populated permissions
+    // object for SA-created seat users (normalizePermissions(null, role)), and Settings → Add
+    // User does the same. Before the fix, tabs with no dedicated permission key (masters,
+    // invoices, chatbot) always resolved to 'hidden' for these users regardless of role,
+    // silently dropping "Manage Staff" / Invoices from the Cap service-phone nav.
+    it('masters falls back to the settings permission level', () => {
+      const admin = { role: 'Admin', permissions: { settings: 'full', sales: 'full' } };
+      expect(resolveTabAccess('masters', admin)).toBe('full');
+      const staff = { role: 'Staff', permissions: { settings: 'view', sales: 'view' } };
+      expect(resolveTabAccess('masters', staff)).toBe('view');
+      const restricted = { role: 'Staff', permissions: { settings: 'hidden', sales: 'view' } };
+      expect(resolveTabAccess('masters', restricted)).toBe('hidden');
+    });
+
+    it('invoices falls back to the sales permission level', () => {
+      const admin = { role: 'Admin', permissions: { sales: 'full', settings: 'view' } };
+      expect(resolveTabAccess('invoices', admin)).toBe('full');
+      const staff = { role: 'Staff', permissions: { sales: 'view', settings: 'view' } };
+      expect(resolveTabAccess('invoices', staff)).toBe('view');
+    });
+
+    it('chatbot falls back to the dashboard permission level', () => {
+      const admin = { role: 'Admin', permissions: { dashboard: 'full', settings: 'view' } };
+      expect(resolveTabAccess('chatbot', admin)).toBe('full');
+    });
+
+    it('verification has no backend permission module — falls through to role defaults instead of denying', () => {
+      const admin = { role: 'Admin', permissions: { settings: 'full', sales: 'full' } };
+      expect(resolveTabAccess('verification', admin)).toBe('full');
+      const staff = { role: 'Staff', permissions: { settings: 'view', sales: 'view' } };
+      expect(resolveTabAccess('verification', staff)).toBe('view');
+      const vendor = { role: 'Vendor', permissions: { settings: 'hidden', sales: 'hidden' } };
+      expect(resolveTabAccess('verification', vendor)).toBe('hidden');
+    });
+
+    it('still hides masters/invoices when the fallback module itself is unset in a narrow explicit map', () => {
+      const user = { role: 'Staff', permissions: { dashboard: 'view', inventory: 'hidden' } };
+      expect(resolveTabAccess('masters', user)).toBe('hidden');
+      expect(resolveTabAccess('invoices', user)).toBe('hidden');
+    });
+
+    it('SA-created service-cloud seat user (role Admin, fully-populated preset) sees every tab', () => {
+      // Mirrors normalizePermissions(null, 'Admin') from server/middleware/permissions.ts.
+      const allFull = Object.fromEntries(
+        [
+          'dashboard',
+          'sales',
+          'distribution',
+          'inventory',
+          'purchases',
+          'quotations',
+          'orders',
+          'finance',
+          'accounts',
+          'warranty',
+          'replacements',
+          'rewards',
+          'settings',
+          'hospitality',
+        ].map(m => [m, 'full']),
+      );
+      const seatUser = { role: 'Admin', businessType: 'service', permissions: allFull };
+      for (const tabId of ['analytics', 'masters', 'invoices', 'quotations', 'purchases', 'finance', 'settings']) {
+        expect(resolveTabAccess(tabId, seatUser)).toBe('full');
+      }
+    });
+  });
+
   it('hotel_restaurant: Settings is Admin-only (Manager/Staff cannot open even with settings:view)', () => {
     expect(
       resolveTabAccess('settings', {
