@@ -499,7 +499,9 @@ function CreateTenantModal({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number; priceYearly: number }[]>([]);
+  const [plans, setPlans] = useState<
+    { id: string; name: string; priceMonthly: number; priceYearly: number; maxUsers: number }[]
+  >([]);
 
   const calcEndDate = (start: string, plan: string, cycle: 'monthly' | 'yearly') => {
     if (plan === 'TRIAL') {
@@ -530,6 +532,7 @@ function CreateTenantModal({
             name: p.name as string,
             priceMonthly: Number(p.priceMonthly ?? 0),
             priceYearly: Number(p.priceYearly ?? 0),
+            maxUsers: Number(p.maxUsers ?? -1),
           })),
         );
         if (list.length > 0 && !form.plan) {
@@ -797,9 +800,15 @@ function CreateTenantModal({
                   <option key={p.id} value={p.id}>
                     {p.name}
                     {p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}
+                    {' · '}
+                    {p.maxUsers === -1 ? 'unlimited users' : `up to ${p.maxUsers} users`}
                   </option>
                 ))}
               </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Plan sets the max login users for this tenant (any business type) — change later from Tenant → Change
+                Plan. Cloud app device slots (mobile/laptop) are configured separately per user.
+              </p>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Business Type</label>

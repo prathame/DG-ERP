@@ -47,7 +47,7 @@ import {
   type RestoreProgress,
 } from '../../platforms/service-mobile';
 import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
-import { fillMissingTabPresetKeys, getToggleableNavTabs } from '../../../shared/tabPresets';
+import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import {
@@ -1018,6 +1018,20 @@ const ROLE_PRESETS: Record<string, Record<string, string>> = {
 
 const ACCESS_LEVELS = ['hidden', 'view', 'print', 'full'] as const;
 
+/**
+ * Permission modules relevant to this tenant: hides checkboxes for modules the business-type
+ * preset doesn't use or that Super Admin turned off via tab_config (e.g. service tenants don't
+ * offer Warranty / Rewards — those tabs don't exist for them either).
+ */
+function visiblePermissionModules(tabConfig: Record<string, { visible?: boolean }>): { id: string; label: string }[] {
+  return PERMISSION_LABELS.filter(p => isPermissionModuleRelevant(p.id, tabConfig));
+}
+
+/** Full Settings access (company/GST/bill/data/users) is Admin-only — see `isAdmin` gating below. */
+function settingsLevelDisabled(moduleId: string, level: string, role: string): boolean {
+  return moduleId === 'settings' && level === 'full' && !ADMIN_ROLES.includes(role);
+}
+
 export function SettingsView({
   user,
   onUserChange,
@@ -1397,8 +1411,11 @@ export function SettingsView({
 
   const desktopTabs: DesktopSettingsTab[] = [
     { id: 'personal', label: st('settings.personalInfoShort'), icon: User },
+    // Company Details also hosts Appearance (dark mode / language / nav toggles) for everyone —
+    // stays reachable for non-admins, but the company identity form inside is Admin-only (below).
     { id: 'company', label: st('settings.companyDetails'), icon: Building2, hidden: !user },
-    { id: 'gst', label: st('settings.gstSettings'), icon: FileCheck, hidden: !user || hideGstModule },
+    // GST tab has no non-admin content (identity form + WhatsApp GST API are both Admin-only).
+    { id: 'gst', label: st('settings.gstSettings'), icon: FileCheck, hidden: !user || !isAdmin || hideGstModule },
     { id: 'bill', label: st('settings.billCustomization'), icon: FileText, hidden: !user || !isAdmin },
     { id: 'data', label: st('settings.dataManagement'), icon: HardDrive, hidden: !user || !isAdmin },
     { id: 'preferences', label: st('settings.preferences'), icon: Bell, hidden: !user },
@@ -1749,117 +1766,124 @@ export function SettingsView({
                 </form>
               </div>
 
-              {/* Company — Cap: full card. Desktop: company name + address (GST fields → GST tab). */}
-              <div className={cn(settingsPanel(), !showTab('company') && 'hidden')}>
-                <div className={settingsPanelHead()}>
-                  <h3 className="font-bold text-lg flex items-center gap-2">
-                    <Building2 size={20} /> {desktopGlass ? st('settings.companyIdentity') : st('settings.companyInfo')}
-                  </h3>
-                </div>
-                <form onSubmit={handleProfileSave} className="p-6 space-y-4">
-                  <div>
-                    <label htmlFor="settings-field-26" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                      {st('settings.companyName')}
-                    </label>
-                    <input
-                      id="settings-field-26"
-                      value={profileForm.companyName}
-                      onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      placeholder="Your Company Name"
-                    />
+              {/* Company identity — Admin-only (legal name/address/GSTIN/rate). Non-admins keep
+                  the Appearance card further down under the same 'company' tab. */}
+              {isAdmin && (
+                <div className={cn(settingsPanel(), !showTab('company') && 'hidden')}>
+                  <div className={settingsPanelHead()}>
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <Building2 size={20} />{' '}
+                      {desktopGlass ? st('settings.companyIdentity') : st('settings.companyInfo')}
+                    </h3>
                   </div>
-                  {desktopGlass && (
+                  <form onSubmit={handleProfileSave} className="p-6 space-y-4">
                     <div>
                       <label
-                        htmlFor="settings-field-25-desktop"
-                        className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"
+                        htmlFor="settings-field-26"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
                       >
-                        <MapPin size={12} /> {st('settings.registeredAddress')}
+                        {st('settings.companyName')}
                       </label>
-                      <textarea
-                        id="settings-field-25-desktop"
-                        rows={3}
-                        value={profileForm.address}
-                        onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                      <input
+                        id="settings-field-26"
+                        value={profileForm.companyName}
+                        onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                        placeholder="Street, City, State"
+                        placeholder="Your Company Name"
                       />
                     </div>
-                  )}
-                  {/* Cap / phone: GSTIN + rates stay on this card. Desktop: GST tab. */}
-                  {!desktopGlass && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {desktopGlass && (
                       <div>
                         <label
-                          htmlFor="settings-field-27"
-                          className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                          htmlFor="settings-field-25-desktop"
+                          className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"
                         >
-                          {st('settings.gstNumber')}
+                          <MapPin size={12} /> {st('settings.registeredAddress')}
                         </label>
-                        <input
-                          id="settings-field-27"
-                          value={profileForm.gstNumber ?? ''}
-                          onChange={e => setProfileForm({ ...profileForm, gstNumber: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
-                          placeholder="e.g. 27AABCU9603R1ZM"
-                          maxLength={15}
+                        <textarea
+                          id="settings-field-25-desktop"
+                          rows={3}
+                          value={profileForm.address}
+                          onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="Street, City, State"
                         />
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                          {st('settings.defaultGstRatePct')}
-                        </label>
-                        <div className="flex gap-2 mt-1">
-                          {[3, 5, 12, 18, 28].map(rate => (
-                            <button
-                              key={rate}
-                              type="button"
-                              onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
-                              className={cn(
-                                'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
-                                profileForm.defaultGstRate === rate
-                                  ? 'bg-brand text-white border-brand'
-                                  : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
-                              )}
-                            >
-                              {rate}%
-                            </button>
-                          ))}
+                    )}
+                    {/* Cap / phone: GSTIN + rates stay on this card. Desktop: GST tab. */}
+                    {!desktopGlass && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label
+                            htmlFor="settings-field-27"
+                            className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                          >
+                            {st('settings.gstNumber')}
+                          </label>
                           <input
-                            id="settings-field-28"
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={profileForm.defaultGstRate || ''}
-                            onChange={e =>
-                              setProfileForm({
-                                ...profileForm,
-                                defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value),
-                              })
-                            }
-                            className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                            id="settings-field-27"
+                            value={profileForm.gstNumber ?? ''}
+                            onChange={e => setProfileForm({ ...profileForm, gstNumber: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                            placeholder="e.g. 27AABCU9603R1ZM"
+                            maxLength={15}
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{st('settings.gstSplitHint')}</p>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                            {st('settings.defaultGstRatePct')}
+                          </label>
+                          <div className="flex gap-2 mt-1">
+                            {[3, 5, 12, 18, 28].map(rate => (
+                              <button
+                                key={rate}
+                                type="button"
+                                onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
+                                className={cn(
+                                  'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                                  profileForm.defaultGstRate === rate
+                                    ? 'bg-brand text-white border-brand'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                                )}
+                              >
+                                {rate}%
+                              </button>
+                            ))}
+                            <input
+                              id="settings-field-28"
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={profileForm.defaultGstRate || ''}
+                              onChange={e =>
+                                setProfileForm({
+                                  ...profileForm,
+                                  defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value),
+                                })
+                              }
+                              className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">{st('settings.gstSplitHint')}</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={profileSubmitting}
-                    className={cn(
-                      'px-6 py-2 rounded-xl font-bold text-white',
-                      desktopGlass ? 'dg-bg-primary' : 'bg-brand',
                     )}
-                  >
-                    {profileSubmitting ? st('settings.saving') : st('common.save')}
-                  </button>
-                </form>
-              </div>
+                    <button
+                      type="submit"
+                      disabled={profileSubmitting}
+                      className={cn(
+                        'px-6 py-2 rounded-xl font-bold text-white',
+                        desktopGlass ? 'dg-bg-primary' : 'bg-brand',
+                      )}
+                    >
+                      {profileSubmitting ? st('settings.saving') : st('common.save')}
+                    </button>
+                  </form>
+                </div>
+              )}
 
-              {/* Desktop GST sheet — GSTIN + rates (same profile save). */}
-              {desktopGlass && (
+              {/* Desktop GST sheet — GSTIN + rates (same profile save). Admin-only, like the identity form above. */}
+              {desktopGlass && isAdmin && (
                 <div className={cn(settingsPanel(), !showTab('gst') && 'hidden')}>
                   <div className={settingsPanelHead()}>
                     <h3 className="font-bold text-lg flex items-center gap-2">
@@ -3131,26 +3155,31 @@ export function SettingsView({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {PERMISSION_LABELS.map(p => (
+                          {visiblePermissionModules(filledTabConfig).map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
                               <td className="px-3 py-1.5 text-sm">{p.label}</td>
-                              {ACCESS_LEVELS.map(level => (
-                                <td key={level} className="text-center px-2 py-1.5">
-                                  <input
-                                    id="settings-field-35"
-                                    type="radio"
-                                    name={`perm-add-${p.id}`}
-                                    checked={(addUserForm.permissions[p.id] || 'hidden') === level}
-                                    onChange={() =>
-                                      setAddUserForm({
-                                        ...addUserForm,
-                                        permissions: { ...addUserForm.permissions, [p.id]: level },
-                                      })
-                                    }
-                                    className="text-brand"
-                                  />
-                                </td>
-                              ))}
+                              {ACCESS_LEVELS.map(level => {
+                                const disabled = settingsLevelDisabled(p.id, level, addUserForm.role);
+                                return (
+                                  <td key={level} className="text-center px-2 py-1.5">
+                                    <input
+                                      id="settings-field-35"
+                                      type="radio"
+                                      name={`perm-add-${p.id}`}
+                                      disabled={disabled}
+                                      title={disabled ? 'Full Settings access requires the Admin role' : undefined}
+                                      checked={(addUserForm.permissions[p.id] || 'hidden') === level}
+                                      onChange={() =>
+                                        setAddUserForm({
+                                          ...addUserForm,
+                                          permissions: { ...addUserForm.permissions, [p.id]: level },
+                                        })
+                                      }
+                                      className="text-brand disabled:opacity-40"
+                                    />
+                                  </td>
+                                );
+                              })}
                             </tr>
                           ))}
                         </tbody>
@@ -3249,26 +3278,31 @@ export function SettingsView({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {PERMISSION_LABELS.map(p => (
+                          {visiblePermissionModules(filledTabConfig).map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
                               <td className="px-3 py-1.5 text-sm">{p.label}</td>
-                              {ACCESS_LEVELS.map(level => (
-                                <td key={level} className="text-center px-2 py-1.5">
-                                  <input
-                                    id="settings-field-36"
-                                    type="radio"
-                                    name={`perm-edit-${p.id}`}
-                                    checked={(editUserForm.permissions[p.id] || 'hidden') === level}
-                                    onChange={() =>
-                                      setEditUserForm({
-                                        ...editUserForm,
-                                        permissions: { ...editUserForm.permissions, [p.id]: level },
-                                      })
-                                    }
-                                    className="text-brand"
-                                  />
-                                </td>
-                              ))}
+                              {ACCESS_LEVELS.map(level => {
+                                const disabled = settingsLevelDisabled(p.id, level, editUserForm.role);
+                                return (
+                                  <td key={level} className="text-center px-2 py-1.5">
+                                    <input
+                                      id="settings-field-36"
+                                      type="radio"
+                                      name={`perm-edit-${p.id}`}
+                                      disabled={disabled}
+                                      title={disabled ? 'Full Settings access requires the Admin role' : undefined}
+                                      checked={(editUserForm.permissions[p.id] || 'hidden') === level}
+                                      onChange={() =>
+                                        setEditUserForm({
+                                          ...editUserForm,
+                                          permissions: { ...editUserForm.permissions, [p.id]: level },
+                                        })
+                                      }
+                                      className="text-brand disabled:opacity-40"
+                                    />
+                                  </td>
+                                );
+                              })}
                             </tr>
                           ))}
                         </tbody>

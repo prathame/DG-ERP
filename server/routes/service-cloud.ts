@@ -18,6 +18,7 @@ import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { encryptSecret } from '../utils/secret-crypto';
 import { clearUserSession } from '../utils/userSessions';
 import { ACTIVE_USER_SQL } from '../utils/activeUsers';
+import { checkPlanLimit } from '../utils/planLimits';
 
 const router = Router();
 
@@ -109,11 +110,20 @@ async function getSeatsPayload(tenantId: string) {
     ? ((await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at > NOW()`, [tenantId]))
         .rows[0] as Record<string, unknown> | undefined)
     : undefined;
+  // Plan-wide login user cap (shared with Tenant Settings → Add User) — distinct from the
+  // per-user device/mobile slot counts below. Surfaced so SA sees the ceiling before adding seats.
+  const planRow = tenant.plan_id
+    ? ((await pool.query(`SELECT max_users FROM plans WHERE id = $1`, [tenant.plan_id])).rows[0] as
+        { max_users: number } | undefined)
+    : undefined;
+  const planMaxUsers = planRow ? Number(planRow.max_users) : -1;
 
   return {
     clientAccessMode: (tenant.client_access_mode as string) || null,
     businessType,
     companySessionLock: usesCompanySessionLock(tenant),
+    planMaxUsers,
+    activeUserCount: users.length,
     mobileFeatures: normalizeMobileFeatures(tenant.mobile_features, businessType),
     whatsappBusinessEnabled: !!tenant.whatsapp_business_enabled,
     whatsappSendMode: (tenant.whatsapp_send_mode as string) || null,
@@ -198,6 +208,12 @@ router.post('/api/super-admin/tenants/:id/service-cloud/users', superAdminMiddle
     const tenantId = req.params.id;
     const tenant = await assertCloudTenant(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    // Same plan.max_users cap as Tenant Settings → Add User (server/routes/admin.ts) — device
+    // seats are a separate concept (mobile/desktop slot counts), but every seat user is still a
+    // login `users` row and must not bypass the tenant's plan-wide user cap.
+    const userLimitErr = await checkPlanLimit(tenantId, 'users');
+    if (userLimitErr) return res.status(403).json(userLimitErr);
 
     const {
       name,

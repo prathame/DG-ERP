@@ -226,6 +226,40 @@ export function isTabVisibleForUser(tabId: string, tabConfig: TabConfig, userPre
   return true;
 }
 
+/**
+ * User-permission checkbox module id → tab_config key that gates its relevance for a tenant.
+ * Most module ids match a tab_config key 1:1; `dashboard` is the permission-side name for the
+ * `analytics` tab (see `resolveTabAccess`'s dashboard/analytics fallback in `src/lib/tabAccess.ts`).
+ */
+export const PERMISSION_MODULE_TAB_KEY: Record<string, string> = {
+  dashboard: 'analytics',
+  sales: 'sales',
+  distribution: 'distribution',
+  inventory: 'inventory',
+  purchases: 'purchases',
+  quotations: 'quotations',
+  finance: 'finance',
+  accounts: 'accounts',
+  warranty: 'warranty',
+  replacements: 'replacements',
+  rewards: 'rewards',
+  settings: 'settings',
+};
+
+/**
+ * True when a user-permission module should be offered in Settings → Users / SA permission
+ * checkboxes for this tenant: the business-type preset uses it AND Super Admin hasn't turned
+ * off the matching tab via tab_config. Pass `tabConfig` pre-filled via `fillMissingTabPresetKeys`
+ * so missing SA overrides fall back to the business-type preset instead of looking disabled.
+ */
+export function isPermissionModuleRelevant(
+  moduleId: string,
+  tabConfig: Record<string, { visible?: boolean }>,
+): boolean {
+  const tabKey = PERMISSION_MODULE_TAB_KEY[moduleId] ?? moduleId;
+  return tabConfig[tabKey]?.visible !== false;
+}
+
 export function isNamedBusinessType(value: unknown): value is NamedBusinessType {
   return typeof value === 'string' && (NAMED_BUSINESS_TYPES as readonly string[]).includes(value);
 }

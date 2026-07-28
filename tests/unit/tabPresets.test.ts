@@ -6,10 +6,12 @@ import {
   getToggleableNavTabs,
   isBusinessTypeWithCustom,
   isNamedBusinessType,
+  isPermissionModuleRelevant,
   isStaleHotelQuotationsOff,
   isTabVisibleForUser,
   isToggleableTabId,
   NAMED_BUSINESS_TYPES,
+  PERMISSION_MODULE_TAB_KEY,
   TAB_PRESETS,
   tabToggleKeys,
 } from '../../shared/tabPresets';
@@ -216,6 +218,40 @@ describe('tabPresets', () => {
       const toggles = getToggleableNavTabs(getTabPreset('dealer'));
       const distribution = toggles.find(t => t.id === 'distribution');
       expect(distribution?.label).toBe('Sales');
+    });
+  });
+
+  describe('isPermissionModuleRelevant (Settings → Users permission checkbox gating)', () => {
+    it('dashboard maps to the analytics tab, not a literal "dashboard" key', () => {
+      expect(PERMISSION_MODULE_TAB_KEY.dashboard).toBe('analytics');
+    });
+
+    it('service tenant: hides Warranty / Rewards / Replacements / Inventory / Distribution modules', () => {
+      const cfg = getTabPreset('service');
+      expect(isPermissionModuleRelevant('warranty', cfg)).toBe(false);
+      expect(isPermissionModuleRelevant('rewards', cfg)).toBe(false);
+      expect(isPermissionModuleRelevant('replacements', cfg)).toBe(false);
+      expect(isPermissionModuleRelevant('inventory', cfg)).toBe(false);
+      expect(isPermissionModuleRelevant('distribution', cfg)).toBe(false);
+      // still relevant for service
+      expect(isPermissionModuleRelevant('dashboard', cfg)).toBe(true);
+      expect(isPermissionModuleRelevant('purchases', cfg)).toBe(true);
+      expect(isPermissionModuleRelevant('finance', cfg)).toBe(true);
+      expect(isPermissionModuleRelevant('settings', cfg)).toBe(true);
+    });
+
+    it('manufacturer tenant: every module is relevant by default', () => {
+      const cfg = getTabPreset('manufacturer');
+      for (const id of Object.keys(PERMISSION_MODULE_TAB_KEY)) {
+        expect(isPermissionModuleRelevant(id, cfg)).toBe(true);
+      }
+    });
+
+    it('respects a Super Admin override on top of the business-type preset', () => {
+      const cfg = fillMissingTabPresetKeys({ finance: { label: 'Finance', visible: false } }, 'manufacturer');
+      expect(isPermissionModuleRelevant('finance', cfg)).toBe(false);
+      // untouched keys keep the manufacturer default (visible)
+      expect(isPermissionModuleRelevant('accounts', cfg)).toBe(true);
     });
   });
 
