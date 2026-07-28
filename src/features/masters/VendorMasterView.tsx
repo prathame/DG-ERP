@@ -1138,8 +1138,11 @@ export function VendorMasterView({
               )}
               <form onSubmit={handleSubmit} className={cn('space-y-4', desktopGlass && 'p-6')}>
                 <div>
-                  <label className={fieldLabel}>Name</label>
+                  <label className={fieldLabel} htmlFor="vendor-form-name">
+                    Name
+                  </label>
                   <input
+                    id="vendor-form-name"
                     required
                     value={form.name}
                     onChange={e => setForm({ ...form, name: e.target.value })}
@@ -1148,8 +1151,11 @@ export function VendorMasterView({
                   />
                 </div>
                 <div>
-                  <label className={fieldLabel}>Contact Person</label>
+                  <label className={fieldLabel} htmlFor="vendor-form-contact-person">
+                    Contact Person
+                  </label>
                   <input
+                    id="vendor-form-contact-person"
                     value={form.contactPerson}
                     onChange={e => setForm({ ...form, contactPerson: e.target.value })}
                     className={fieldInput}
@@ -1159,10 +1165,11 @@ export function VendorMasterView({
                 {desktopGlass ? (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={fieldLabel}>
+                      <label className={fieldLabel} htmlFor="vendor-form-email">
                         Email <span className="normal-case font-normal dg-muted">(optional)</span>
                       </label>
                       <input
+                        id="vendor-form-email"
                         type="email"
                         value={form.email}
                         onChange={e => setForm({ ...form, email: e.target.value })}
@@ -1171,10 +1178,11 @@ export function VendorMasterView({
                       />
                     </div>
                     <div>
-                      <label className={fieldLabel}>
+                      <label className={fieldLabel} htmlFor="vendor-form-phone">
                         Phone * <span className="normal-case font-normal dg-muted">(for WhatsApp)</span>
                       </label>
                       <input
+                        id="vendor-form-phone"
                         required
                         value={form.phone}
                         onChange={e => setForm({ ...form, phone: e.target.value })}
@@ -1190,7 +1198,7 @@ export function VendorMasterView({
                         !editing && label === 'Vendor' ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''
                       }
                     >
-                      <label className={fieldLabel}>
+                      <label className={fieldLabel} htmlFor="vendor-form-email">
                         Email{' '}
                         {label === 'Vendor' ? (
                           <span className="text-brand normal-case font-normal">(optional — vendor login ID)</span>
@@ -1199,6 +1207,7 @@ export function VendorMasterView({
                         )}
                       </label>
                       <input
+                        id="vendor-form-email"
                         type="email"
                         value={form.email}
                         onChange={e => setForm({ ...form, email: e.target.value })}
@@ -1215,10 +1224,11 @@ export function VendorMasterView({
                       )}
                     </div>
                     <div>
-                      <label className={fieldLabel}>
+                      <label className={fieldLabel} htmlFor="vendor-form-phone">
                         Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span>
                       </label>
                       <input
+                        id="vendor-form-phone"
                         required
                         value={form.phone}
                         onChange={e => setForm({ ...form, phone: e.target.value })}
@@ -1229,9 +1239,12 @@ export function VendorMasterView({
                   </>
                 )}
                 <div>
-                  <label className={fieldLabel}>Address</label>
+                  <label className={fieldLabel} htmlFor="vendor-form-address">
+                    Address
+                  </label>
                   {desktopGlass ? (
                     <textarea
+                      id="vendor-form-address"
                       value={form.address}
                       onChange={e => setForm({ ...form, address: e.target.value })}
                       className={fieldInput}
@@ -1240,6 +1253,7 @@ export function VendorMasterView({
                     />
                   ) : (
                     <input
+                      id="vendor-form-address"
                       value={form.address}
                       onChange={e => setForm({ ...form, address: e.target.value })}
                       className={fieldInput}
@@ -1247,8 +1261,11 @@ export function VendorMasterView({
                   )}
                 </div>
                 <div>
-                  <label className={fieldLabel}>GSTIN (optional)</label>
+                  <label className={fieldLabel} htmlFor="vendor-form-gstin">
+                    GSTIN (optional)
+                  </label>
                   <input
+                    id="vendor-form-gstin"
                     value={form.gstNumber}
                     onChange={e => setForm({ ...form, gstNumber: e.target.value.toUpperCase() })}
                     className={cn(fieldInput, 'font-mono')}

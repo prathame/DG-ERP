@@ -86,6 +86,10 @@ test.describe('offline service-mobile smoke', () => {
   });
 
   test('activate → provision → client → invoice modal', async ({ page }) => {
+    // "Masters"/"Invoice" also exist in an off-screen desktop-style sidebar in the DOM —
+    // scope to the phone shell's bottom nav (aria-label="Primary") to avoid strict-mode
+    // violations from matching both.
+    const bottomNav = () => page.getByLabel('Primary');
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Offline Mobile setup' })).toBeVisible({ timeout: 60_000 });
@@ -106,9 +110,9 @@ test.describe('offline service-mobile smoke', () => {
     await page.getByRole('button', { name: /^Login$/i }).click();
 
     // App shutter intro (~5s) then phone shell
-    await expect(page.getByRole('button', { name: 'Masters' })).toBeVisible({ timeout: 60_000 });
+    await expect(bottomNav().getByRole('button', { name: 'Masters' })).toBeVisible({ timeout: 60_000 });
 
-    await page.getByRole('button', { name: 'Masters' }).click();
+    await bottomNav().getByRole('button', { name: 'Masters' }).click();
     await expect(page.getByText('Clients & rates')).toBeVisible({ timeout: 30_000 });
 
     const addClient = page.getByRole('button', { name: /Add Client/i });
@@ -119,13 +123,18 @@ test.describe('offline service-mobile smoke', () => {
       await page.getByRole('button', { name: /Add Client/i }).click();
     }
 
+    // Hub's "Add Client" empty-state action opens the full Client Master screen —
+    // its own toolbar "+ Add Client" button opens the actual create form.
+    await expect(page.getByRole('heading', { name: 'Client Master' })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /Add Client/i }).click();
+
     await expect(page.getByRole('heading', { name: 'Add Client' })).toBeVisible({ timeout: 15_000 });
     await page.getByLabel('Name').fill('E2E Test Client');
     await page.getByLabel(/^Phone/i).fill('9876543210');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('E2E Test Client')).toBeVisible({ timeout: 20_000 });
 
-    await page.getByRole('button', { name: 'Invoice' }).click();
+    await bottomNav().getByRole('button', { name: 'Invoice' }).click();
     await page.getByRole('button', { name: /New Invoice/i }).click();
     await expect(page.getByText(/Party|Customer|Client/i).first()).toBeVisible({ timeout: 20_000 });
   });
