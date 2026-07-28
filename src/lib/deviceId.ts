@@ -2,6 +2,8 @@
  * Stable per-install device id for single-device login binding.
  * Shared storage key with service-cloud seats when present.
  */
+import { isBakedServiceMobile, isBakedServicePhone } from '../platforms/mobileMode';
+
 const STORAGE_KEY = 'dg_sc_device_id';
 
 function toHex32(bytes: Uint8Array): string {
@@ -57,6 +59,8 @@ export function detectClientPlatform(): ClientPlatform {
 
 /** True when running inside Electron or Capacitor (not plain browser). */
 export function isErpAppShell(): boolean {
+  // Cap Vite bakes — same shells as native WebView (local preview / sideload QA).
+  if (isBakedServiceMobile() || isBakedServicePhone()) return true;
   return detectClientPlatform() !== 'web';
 }
 
