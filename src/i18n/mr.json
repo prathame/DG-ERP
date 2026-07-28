@@ -35,6 +35,7 @@
   },
   "common": {
     "save": "जतन करा",
+    "saving": "जतन होत आहे...",
     "cancel": "रद्द करा",
     "delete": "हटवा",
     "edit": "संपादित करा",
@@ -225,8 +226,23 @@
     "upi": "UPI",
     "bankTransfer": "बँक हस्तांतरण",
     "cheque": "धनादेश",
+    "other": "इतर",
     "sendReminder": "स्मरणपत्र पाठवा",
-    "paymentHistory": "देयक इतिहास"
+    "paymentHistory": "देयक इतिहास",
+    "totalInvoiced": "एकूण बिल",
+    "totalReceived": "एकूण मिळालेले",
+    "totalOutstanding": "एकूण थकबाकी",
+    "balance": "शिल्लक रक्कम",
+    "invoices": "इन्व्हॉइस",
+    "pay": "पैसे भरा",
+    "retry": "पुन्हा प्रयत्न करा",
+    "recordAdvancePayment": "आगाऊ देयक नोंदवा",
+    "advancePayment": "आगाऊ देयक",
+    "paymentDate": "देयक तारीख",
+    "reference": "संदर्भ",
+    "notes": "टिपा",
+    "failedToLoadInvoices": "इन्व्हॉइस लोड करण्यात अयशस्वी",
+    "noInvoicesForClient": "या क्लायंटसाठी कोणतेही इन्व्हॉइस नाही"
   },
   "masters": {
     "title": "मास्टर्स",
@@ -374,7 +390,14 @@
     "openFinance": "फायनान्स उघडा",
     "deleteBlockedPrefix": "या इन्व्हॉइसमध्ये",
     "deleteBlockedSuffix": "चे पेमेंट आहे. आधी फायनान्समध्ये ते पेमेंट हटवा, नंतर इन्व्हॉइस हटवा.",
-    "deleteBlockedFinanceHint": "(अधिक → फायनान्स)"
+    "deleteBlockedFinanceHint": "(अधिक → फायनान्स)",
+    "customerName": "ग्राहकाचे नाव",
+    "invoiceDate": "इन्व्हॉइस तारीख",
+    "lineItems": "लाइन आयटम",
+    "saveDraft": "मसुदा जतन करा",
+    "saveAsDraft": "मसुदा म्हणून जतन करा",
+    "createAndSend": "तयार करा आणि पाठवा",
+    "invoiceCreated": "इन्व्हॉइस तयार झाले"
   },
   "quotations": {
     "title": "कोटेशन्स",

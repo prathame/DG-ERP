@@ -63,10 +63,30 @@ async function deleteIdbStore(): Promise<void> {
   });
 }
 
-/** True when we must not auto-wipe (existing IDB, unknown WebView, or activated license). */
-async function mustPreserveLocalDb(): Promise<boolean> {
+/**
+ * Set once a local DB has ever been successfully opened/created in this browser
+ * profile. `indexedDB.databases()` is unreliable in some WebViews (stub that
+ * always resolves `[]` instead of throwing/being undefined) — this localStorage
+ * flag is an independent, non-IDB signal so a buggy `databases()` can't cause a
+ * false "no existing store" wipe decision.
+ */
+const DB_BOOTSTRAPPED_KEY = 'dg_sm_db_bootstrapped';
+
+function markDbBootstrapped(): void {
   try {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('dg_sm_license')) return true;
+    if (typeof localStorage !== 'undefined') localStorage.setItem(DB_BOOTSTRAPPED_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** True when we must not auto-wipe (existing IDB, unknown WebView, or activated license). */
+export async function mustPreserveLocalDb(): Promise<boolean> {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (localStorage.getItem('dg_sm_license')) return true;
+      if (localStorage.getItem(DB_BOOTSTRAPPED_KEY)) return true;
+    }
   } catch {
     /* ignore */
   }
@@ -91,6 +111,7 @@ export async function getLocalDb(): Promise<PGlite> {
       try {
         const instance = await createAndMigrate();
         db = instance;
+        markDbBootstrapped();
         await runDataRepairs();
         return instance;
       } catch (first) {
@@ -100,6 +121,7 @@ export async function getLocalDb(): Promise<PGlite> {
         try {
           const instance = await createAndMigrate();
           db = instance;
+          markDbBootstrapped();
           await runDataRepairs();
           return instance;
         } catch (second) {
@@ -115,6 +137,7 @@ export async function getLocalDb(): Promise<PGlite> {
           await deleteIdbStore();
           const instance = await createAndMigrate();
           db = instance;
+          markDbBootstrapped();
           await runDataRepairs();
           return instance;
         }
@@ -247,6 +270,7 @@ export async function restoreLocalDbFromPgliteDump(bytes: Uint8Array): Promise<v
   await runMigrations(instance);
   db = instance;
   ready = Promise.resolve(instance);
+  markDbBootstrapped();
   await runDataRepairs();
 }
 

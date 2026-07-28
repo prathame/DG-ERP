@@ -59,7 +59,11 @@ export function CustomerMasterView({
     api.customers
       .list(debouncedSearch || undefined, vendorId)
       .then(setList)
-      .catch(() => setList([]))
+      .catch((err: unknown) => {
+        setList([]);
+        // Avoid looking like clients were deleted when local DB/API briefly fails (offline Cap).
+        toast(err instanceof Error ? err.message : `Failed to load ${t('masters.customers').toLowerCase()}`, 'error');
+      })
       .finally(() => setLoading(false));
     onRefresh();
   };

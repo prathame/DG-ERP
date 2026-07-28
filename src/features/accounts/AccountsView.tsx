@@ -1202,6 +1202,7 @@ function NotesView({
   };
   const [noteForm, setNoteForm] = React.useState(emptyNoteForm);
   const [submitting, setSubmitting] = React.useState(false);
+  const { toast } = useToast();
 
   const handleCreate = async () => {
     if (noteForm.items.filter(i => i.description && i.price > 0).length === 0) return;
@@ -1219,7 +1220,8 @@ function NotesView({
       setCreating(false);
       setNoteForm(emptyNoteForm);
       onRefresh();
-    } catch {
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to save note', 'error');
     } finally {
       setSubmitting(false);
     }
