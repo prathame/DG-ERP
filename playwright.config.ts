@@ -5,6 +5,8 @@ const host = '127.0.0.1';
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  // Manufacturer UI e2e targets Vite :3000 + API :3001 — use playwright.manufacturer.config.ts
+  testIgnore: ['**/manufacturer-ui-test.spec.ts'],
   timeout: 180_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
