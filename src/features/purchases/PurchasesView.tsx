@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { Fragment, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt } from 'lucide-react';
+import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt, Truck, UserPlus } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import {
@@ -19,6 +20,10 @@ import {
   formControlClass,
   LineItemCard,
   type LineItemCardField,
+  MobilePillTabs,
+  MobileListRow,
+  MobileEmptyState,
+  MobileFab,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -50,6 +55,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const { toast } = useToast();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
+  const servicePhoneUx = isServicePhoneUx(cfg.type);
   const purchasesLabel = getTabLabel('purchases', 'Purchases & Expenses');
   const { confirm, ConfirmRenderer } = useConfirm();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -652,6 +658,167 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           onAddSupplier={() => setSupplierModal(true)}
           onNewPurchase={() => setModalOpen(true)}
         />
+      ) : servicePhoneUx ? (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold flex items-center gap-1.5 text-gray-900">
+                <ShoppingBag size={18} className="text-brand shrink-0" /> {purchasesLabel}
+              </h2>
+              <p className="text-[11px] text-gray-500 mt-0.5">Suppliers, purchases & business expenses</p>
+            </div>
+            {section === 'purchases' && canEdit && (
+              <button
+                type="button"
+                onClick={() => setSupplierModal(true)}
+                aria-label="Add supplier"
+                className="shrink-0 h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 active:bg-gray-50"
+              >
+                <UserPlus size={15} />
+              </button>
+            )}
+          </div>
+
+          <MobilePillTabs
+            items={[
+              { id: 'purchases', label: 'Purchases' },
+              { id: 'expenses', label: 'Expenses' },
+            ]}
+            value={section}
+            onChange={id => setSection(id as 'purchases' | 'expenses')}
+          />
+
+          {section === 'purchases' ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                {(['unpaid', 'paid'] as const).map(tab => {
+                  const active = paymentFilter === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => {
+                        setPaymentFilter(tab);
+                        setSelectedSupplierId(null);
+                      }}
+                      className={cn(
+                        'h-7 px-3 rounded-full text-[11px] font-bold border transition-colors',
+                        active
+                          ? tab === 'unpaid'
+                            ? 'bg-rose-50 border-rose-200 text-rose-700'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : 'bg-white border-gray-200 text-gray-500',
+                      )}
+                    >
+                      {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search supplier..."
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-xl border border-gray-200 text-[13px] focus:ring-2 focus:ring-brand focus:outline-none"
+                />
+              </div>
+
+              {supplierStats.length === 0 ? (
+                <MobileEmptyState
+                  icon={<ShoppingBag />}
+                  title="No suppliers yet"
+                  subtitle="Add your first supplier to start recording purchases"
+                  actionLabel="Add Supplier"
+                  onAction={() => setSupplierModal(true)}
+                />
+              ) : (
+                <div className="space-y-1.5">
+                  {supplierStats.map(s => (
+                    <Fragment key={s.id}>
+                      <MobileListRow
+                        icon={<Truck />}
+                        title={s.name}
+                        subtitle={
+                          s.batchCount === 0
+                            ? 'No purchases yet'
+                            : `${s.batchCount} purchase${s.batchCount !== 1 ? 's' : ''}`
+                        }
+                        trailing={
+                          s.totalPurchased > 0 ? (s.balance > 0 ? `₹${s.balance.toLocaleString()}` : 'Paid') : undefined
+                        }
+                        meta={s.balance > 0 ? 'Due' : undefined}
+                        onClick={() => setSelectedSupplierId(s.id)}
+                      />
+                    </Fragment>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : expenses.length === 0 ? (
+            <MobileEmptyState
+              icon={<Receipt />}
+              title="No expenses recorded"
+              subtitle="Track rent, electricity, and other business costs"
+              actionLabel={canEdit ? 'Add Expense' : undefined}
+              onAction={canEdit ? openExpenseModal : undefined}
+            />
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                {expenses.map(e => (
+                  <div
+                    key={e.id}
+                    className="w-full flex items-center gap-2.5 rounded-xl border border-gray-100 bg-white px-2.5 py-2"
+                  >
+                    <div className="shrink-0 w-9 h-9 rounded-lg bg-orange-50 text-brand flex items-center justify-center">
+                      <Receipt size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-bold text-gray-900 truncate">{e.category}</div>
+                      <div className="text-[11px] text-gray-500 truncate mt-0.5">
+                        {formatDate(e.expenseDate)} · {e.paymentMethod}
+                        {e.description ? ` · ${e.description}` : ''}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <span className="text-[13px] font-bold text-gray-900 tabular-nums">
+                        ₹{e.amount.toLocaleString()}
+                      </span>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => deleteExpense(e.id)}
+                          aria-label="Delete expense"
+                          className="p-1 text-gray-300 active:text-rose-500"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 flex items-center justify-between">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Total</span>
+                <span className="text-sm font-bold text-gray-900 tabular-nums">
+                  ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                </span>
+              </div>
+            </>
+          )}
+
+          {canEdit && (
+            <MobileFab
+              label={section === 'purchases' ? 'New Purchase' : 'Add Expense'}
+              iconOnly
+              onClick={() => (section === 'purchases' ? setModalOpen(true) : openExpenseModal())}
+            />
+          )}
+        </div>
       ) : (
         <>
           <div className="flex items-center justify-between flex-wrap gap-4">
