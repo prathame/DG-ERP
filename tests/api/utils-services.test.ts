@@ -230,6 +230,48 @@ describe('utils/logger', () => {
     vi.doUnmock('@logtail/node');
     vi.resetModules();
   });
+
+  it('disables Logtail after an Unauthorized rejection instead of crashing or retrying forever', async () => {
+    const error = vi.fn().mockRejectedValue(new Error('Unauthorized'));
+    const info = vi.fn().mockRejectedValue(new Error('Unauthorized'));
+    vi.resetModules();
+    process.env.LOGTAIL_TOKEN = 'x'.repeat(32);
+    process.env.LOG_LEVEL = 'debug';
+    vi.doMock('@logtail/node', () => ({
+      Logtail: class {
+        info = info;
+        warn = vi.fn().mockRejectedValue(new Error('Unauthorized'));
+        error = error;
+        flush = vi.fn().mockResolvedValue(undefined);
+      },
+    }));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { logger: ltLogger } = await import('../../server/utils/logger');
+    ltLogger.setLevel('debug');
+
+    ltLogger.error('first failure');
+    // Let the rejected promise's .catch() microtask run before asserting/continuing.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    ltLogger.info('should be skipped after auth failure');
+    ltLogger.error('should also be skipped after auth failure');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(info).not.toHaveBeenCalled();
+    const authFailureLines = consoleErrorSpy.mock.calls
+      .map(args => String(args[0]))
+      .filter(line => line.includes('Logtail sync disabled'));
+    expect(authFailureLines).toHaveLength(1);
+
+    consoleErrorSpy.mockRestore();
+    delete process.env.LOGTAIL_TOKEN;
+    delete process.env.LOG_LEVEL;
+    vi.doUnmock('@logtail/node');
+    vi.resetModules();
+  });
 });
 
 describe('utils/planLimits', () => {

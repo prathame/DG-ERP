@@ -85,9 +85,28 @@ Production-grade logging strategy for DG-ERP (server + SPA).
 | `SLOW_API_MS` | `500` | Warn on slow HTTP |
 | `SLOW_QUERY_MS` | `200` | Warn via `loggedQuery()` |
 | `SLOW_EXTERNAL_MS` | `3000` | Warn on slow NIC/GST calls |
-| `LOGTAIL_TOKEN` | unset | Enable Better Stack Logtail (source token) |
+| `LOGTAIL_TOKEN` | unset | Enable Better Stack Logtail (source token). **Must be a valid, non-revoked token** — an invalid/expired token causes Better Stack to reject every batch with 401 Unauthorized (see below). |
 | `LOGTAIL_ENDPOINT` | default Better Stack ingest | Required for most new sources — copy **Ingesting host** from the source page |
 | `SERVICE_NAME` | `dg-erp-api` | Service field in logs |
+
+### Logtail auth failures (401 Unauthorized)
+
+If `LOGTAIL_TOKEN` is set but invalid, revoked, or paired with the wrong `LOGTAIL_ENDPOINT` region, Better Stack rejects log batches with HTTP 401. This surfaces as:
+
+```
+Error: Unauthorized
+    at Node.sync (.../@logtail/node/.../node.ts:...)
+    at async handler (.../@logtail/tools/.../throttle.ts:...)
+```
+
+This is a **telemetry-only** failure inside the `@logtail/node` SDK — it is unrelated to application/user authentication (real API 401s go through `handleApiError`/`logAuthEvent` as structured JSON with `statusCode: 401`, not a raw `Error: Unauthorized` stack from `node_modules/@logtail`). It does not crash the process or drop HTTP traffic.
+
+The logger (`server/utils/logger.ts`) hardens against this:
+
+- On the first Unauthorized rejection, it logs **one** clear diagnostic line and then stops sending further logs to Logtail for the rest of the process lifetime (no point retrying a dead token, and no per-batch spam).
+- Other (transient) Logtail failures — network errors, timeouts — are logged once and then suppressed until restart, but sending keeps retrying since these can self-recover.
+
+**To fix:** in Better Stack, open the source → copy a fresh **Source token** and the matching **Ingesting host**; set them as `LOGTAIL_TOKEN` / `LOGTAIL_ENDPOINT` in the Render Dashboard (Environment tab) and redeploy. If Logtail isn't needed, simply leave `LOGTAIL_TOKEN` unset — the logger runs fine with stdout-only JSON logging.
 
 ## 4. Observability Improvements Delivered
 

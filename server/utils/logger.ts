@@ -62,7 +62,12 @@ const LOGTAIL_TOKEN = process.env.LOGTAIL_TOKEN?.trim();
 /** Regional ingest host from Better Stack source settings, e.g. https://sXXXX.eu-nbg-2.betterstackdata.com */
 const LOGTAIL_ENDPOINT = process.env.LOGTAIL_ENDPOINT?.trim();
 const logtail = LOGTAIL_TOKEN
-  ? new Logtail(LOGTAIL_TOKEN, LOGTAIL_ENDPOINT ? { endpoint: LOGTAIL_ENDPOINT } : undefined)
+  ? new Logtail(LOGTAIL_TOKEN, {
+      ...(LOGTAIL_ENDPOINT ? { endpoint: LOGTAIL_ENDPOINT } : undefined),
+      // Surface sync failures to us as rejected promises instead of the SDK's
+      // internal `console.error(e)` (see reportLogtailFailure below).
+      throwExceptions: true,
+    })
   : null;
 
 if (logtail && !IS_TEST) {
@@ -75,6 +80,43 @@ if (logtail && !IS_TEST) {
       ts: new Date().toISOString(),
     }),
   );
+}
+
+/** Set once Better Stack rejects the source token — further sends are skipped so we don't keep retrying a dead token. */
+let logtailAuthFailed = false;
+/** Set once any Logtail sync failure has been reported, so transient errors (network, timeout) log once instead of per-batch. */
+let loggedLogtailFailure = false;
+
+function reportLogtailFailure(err: unknown): void {
+  if (logtailAuthFailed) return;
+  const message = err instanceof Error ? err.message : String(err);
+  const isAuthRejection = /unauthorized/i.test(message);
+  if (isAuthRejection) logtailAuthFailed = true;
+  if (loggedLogtailFailure && !isAuthRejection) return;
+  loggedLogtailFailure = true;
+  console.error(
+    JSON.stringify({
+      level: 'warn',
+      msg: isAuthRejection
+        ? 'Logtail sync disabled: Better Stack rejected the source token (401 Unauthorized). Verify LOGTAIL_TOKEN / LOGTAIL_ENDPOINT in the Render env match the Better Stack source settings.'
+        : 'Logtail sync failed; will keep retrying (further failures of this kind are suppressed until restart).',
+      service: SERVICE_NAME,
+      error: message,
+      ts: new Date().toISOString(),
+    }),
+  );
+}
+
+/** Fire-and-forget send to Logtail; never throws, never spams on repeated/auth failures. */
+function sendToLogtail(level: LogLevel, message: string, context: Record<string, unknown>): void {
+  if (!logtail || logtailAuthFailed) return;
+  const result =
+    level === 'error' || level === 'fatal'
+      ? logtail.error(message, context)
+      : level === 'warn'
+        ? logtail.warn(message, context)
+        : logtail.info(message, context);
+  result?.catch(reportLogtailFailure);
 }
 
 /** Per-request context store — set by request logging middleware. */
@@ -159,12 +201,7 @@ function emit(level: LogLevel, message: string, context?: Record<string, unknown
     console.log(line);
   }
 
-  if (logtail) {
-    const ltCtx = { ...safeCtx, level };
-    if (level === 'error' || level === 'fatal') logtail.error(safeMsg, ltCtx);
-    else if (level === 'warn') logtail.warn(safeMsg, ltCtx);
-    else logtail.info(safeMsg, ltCtx);
-  }
+  sendToLogtail(level, safeMsg, { ...safeCtx, level });
 }
 
 export interface Logger {
@@ -207,7 +244,7 @@ function createLogger(bindings: Record<string, unknown> = {}): Logger {
       return createLogger({ ...bindings, ...childBindings });
     },
     flush() {
-      return logtail?.flush();
+      return logtail?.flush().catch(reportLogtailFailure);
     },
     setLevel(level) {
       minLevel = level;
