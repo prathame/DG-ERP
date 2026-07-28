@@ -37,7 +37,7 @@ const SHELL_KEYS = [
   'invoices.newInvoice',
   'invoices.noInvoicesYet',
   'quotations.newQuote',
-  'settings.showAccounts',
+  'settings.navTabVisibility',
   'settings.dataManagement',
 ];
 

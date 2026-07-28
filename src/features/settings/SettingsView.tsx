@@ -47,7 +47,7 @@ import {
   type RestoreProgress,
 } from '../../platforms/service-mobile';
 import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
-import { fillMissingTabPresetKeys, isToggleableTabId } from '../../../shared/tabPresets';
+import { fillMissingTabPresetKeys, getToggleableNavTabs } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import {
@@ -1058,13 +1058,7 @@ export function SettingsView({
     () => fillMissingTabPresetKeys(user?.tabConfig, user?.businessType),
     [user?.tabConfig, user?.businessType],
   );
-  const toggleableNavTabs = useMemo(
-    () =>
-      Object.entries(filledTabConfig)
-        .filter(([id, cfg]) => isToggleableTabId(id) && cfg.visible !== false)
-        .map(([id, cfg]) => ({ id, label: cfg.label })),
-    [filledTabConfig],
-  );
+  const toggleableNavTabs = useMemo(() => getToggleableNavTabs(filledTabConfig), [filledTabConfig]);
   // Bumped on every toggle click so the switches below re-read localStorage immediately.
   const [, setTabPrefsTick] = useState(0);
   const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');

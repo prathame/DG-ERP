@@ -53,7 +53,7 @@ import {
   isServicePhoneUx,
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
-import { fillMissingTabPresetKeys, isToggleableTabId } from '../shared/tabPresets';
+import { fillMissingTabPresetKeys, isTabVisibleForUser } from '../shared/tabPresets';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -766,11 +766,7 @@ export default function App() {
   );
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
   /** Tenant tabConfig (Super Admin), plus per-device Settings show/hide override. */
-  const tv = (key: string) => {
-    if (tabConfig[key]?.visible === false) return false;
-    if (isToggleableTabId(key)) return getTabVisiblePref(key);
-    return true;
-  };
+  const tv = (key: string) => isTabVisibleForUser(key, tabConfig, getTabVisiblePref(key));
 
   const navSections = [
     {
