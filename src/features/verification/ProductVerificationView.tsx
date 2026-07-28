@@ -27,6 +27,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import {
   DesktopSearchVerifyPanel,
   type DesktopPartyDetail,
@@ -96,10 +98,11 @@ const statusConfig: Record<string, { color: string; bg: string; icon: typeof Che
 
 export function ProductVerificationView() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
-  const partyPlural = cfg.labels.vendors || 'Vendors';
-  const partySingular = partyPlural.replace(/s$/, '');
+  const partyPlural = tb(cfg.labels.vendors || 'Vendors', t);
+  const partySingular = partyPlural.replace(/s$/i, '');
   const [barcode, setBarcode] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
@@ -227,7 +230,7 @@ export function ProductVerificationView() {
         <DesktopSearchVerifyPanel
           partyPlural={partyPlural}
           partySingular={partySingular}
-          distributionLabel={cfg.labels.distribution || 'Distribution'}
+          distributionLabel={tb(cfg.labels.distribution || 'Distribution', t)}
           query={barcode}
           onQueryChange={v => {
             setBarcode(v);

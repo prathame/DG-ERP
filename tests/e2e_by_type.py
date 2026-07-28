@@ -4,13 +4,30 @@ DG ERP — Business Type E2E Test Suite
 Creates one tenant per type (manufacturer, dealer, retail, service, silver_casting,
 hotel_restaurant), runs type-specific tests, reports failures per type.
 
-Usage: python3 tests/e2e_by_type.py [--base http://localhost:3001]
+Usage: python3 tests/e2e_by_type.py [--base http://localhost:3001] [--types service,retail]
 """
-import sys, json, urllib.request, urllib.parse, urllib.error, time, argparse
+import sys, json, urllib.request, urllib.parse, urllib.error, time, argparse, os
+
+def _load_dotenv():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, '.env')
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            k, _, v = line.partition('=')
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            os.environ.setdefault(k, v)
+
+_load_dotenv()
 
 BASE    = "http://localhost:3001"
-SA_EMAIL = "admin@spre.ai"
-SA_PASS  = "superadmin123"
+SA_EMAIL = os.environ.get("SUPER_ADMIN_EMAIL", "admin@spre.ai")
+SA_PASS  = os.environ.get("SUPER_ADMIN_PASSWORD", "superadmin123")
 
 RESULTS = {}   # { businessType: { pass: [...], fail: [...], skipped: [...] } }
 CURRENT_TYPE = ""
@@ -797,7 +814,7 @@ def setup_tenant(sa_h, btype, slug, email):
     tid = d["tenantId"]
     for attempt in range(3):
         s,d = req("POST","/api/auth/login",
-            {"email":email,"password":"Test@123"},{"x-tenant-id":tid})
+            {"email":email,"password":"Test@123","platform":"desktop"},{"x-tenant-id":tid})
         if s == 200: break
         if attempt < 2: time.sleep(1)
     if s != 200:
@@ -1135,8 +1152,16 @@ def cleanup(sa_h, *tids):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://localhost:3001")
+    parser.add_argument(
+        "--types",
+        default=None,
+        help="Comma-separated business types (default: all). Example: service",
+    )
     args = parser.parse_args()
     BASE = args.base
+    selected_types = None
+    if args.types:
+        selected_types = {t.strip() for t in args.types.split(",") if t.strip()}
 
     print("\n" + "═"*60)
     print("  DG ERP — Business Type E2E Test Suite")
@@ -1160,6 +1185,12 @@ if __name__ == "__main__":
         ("silver_casting", f"ag{ts}", f"admin@ag{ts}.com"),
         ("hotel_restaurant", f"ht{ts}", f"admin@ht{ts}.com"),
     ]
+    if selected_types:
+        TYPES = [row for row in TYPES if row[0] in selected_types]
+        if not TYPES:
+            print(f"\n💥 No matching business types in --types {args.types!r}")
+            sys.exit(2)
+        print(f"\n⚙  Filter: {', '.join(t[0] for t in TYPES)}")
 
     print("\n⚙  Creating tenants...")
     for btype, slug, email in TYPES:
@@ -1173,7 +1204,7 @@ if __name__ == "__main__":
 
     for btype, slug, email in TYPES:
         tid = tenant_ids.get(btype)
-        s,d = req("POST","/api/auth/login",{"email":email,"password":"Test@123"},{"x-tenant-id":tid} if tid else {})
+        s,d = req("POST","/api/auth/login",{"email":email,"password":"Test@123","platform":"desktop"},{"x-tenant-id":tid} if tid else {})
         tok = d.get("token","") if s==200 else ""
         if not tid or not tok:
             CURRENT_TYPE = btype
@@ -1202,10 +1233,12 @@ if __name__ == "__main__":
         elif btype == "hotel_restaurant": test_hotel_restaurant(tok, tid, ids, email)
 
     # ── On-Prem API tests (super admin scope, no Electron needed)
-    test_onprem(sa_h)
+    if not selected_types:
+        test_onprem(sa_h)
 
     # ── GST API tests (mock mode — no real credentials needed)
-    test_gst_api(sa_h)
+    if not selected_types:
+        test_gst_api(sa_h)
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n\n{'═'*60}")
@@ -1213,7 +1246,10 @@ if __name__ == "__main__":
     print(f"{'═'*60}")
 
     grand_pass = grand_fail = 0
-    for btype in ["manufacturer","dealer","retail","service","silver_casting","hotel_restaurant","on-prem","gst-api"]:
+    summary_types = [t[0] for t in TYPES]
+    if not selected_types:
+        summary_types += ["on-prem", "gst-api"]
+    for btype in summary_types:
         r = RESULTS.get(btype, {"pass":[],"fail":[],"skip":[]})
         p,f,sk = len(r["pass"]),len(r["fail"]),len(r["skip"])
         grand_pass += p; grand_fail += f

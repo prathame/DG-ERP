@@ -38,3 +38,8 @@ server/**/*.js.map
 !.env.service-cloud.example
 !.env.service-phone.example
 shared/*.js
+
+# Playwright (generated — do not commit)
+test-results/
+playwright-report/
+blob-report/

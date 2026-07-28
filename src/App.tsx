@@ -826,47 +826,47 @@ export default function App() {
       ],
     },
     {
-      label: 'Hospitality',
+      label: t('nav.hospitality'),
       items: [
         {
           id: 'hosp_floor',
-          label: tc('hosp_floor', 'Floor'),
+          label: tc('hosp_floor', t('nav.hospFloor')),
           icon: UtensilsCrossed,
           show: tv('hosp_floor'),
         },
         {
           id: 'hosp_waiter',
-          label: tc('hosp_waiter', 'Waiter Orders'),
+          label: tc('hosp_waiter', t('nav.hospWaiter')),
           icon: ConciergeBell,
           show: tv('hosp_waiter'),
         },
         {
           id: 'hosp_kitchen',
-          label: tc('hosp_kitchen', 'Kitchen'),
+          label: tc('hosp_kitchen', t('nav.hospKitchen')),
           icon: ChefHat,
           show: tv('hosp_kitchen'),
         },
         {
           id: 'hosp_queue',
-          label: tc('hosp_queue', 'Entry Queue'),
+          label: tc('hosp_queue', t('nav.hospQueue')),
           icon: ListOrdered,
           show: tv('hosp_queue'),
         },
         {
           id: 'hosp_parcels',
-          label: tc('hosp_parcels', 'Parcels'),
+          label: tc('hosp_parcels', t('nav.hospParcels')),
           icon: ShoppingBag,
           show: tv('hosp_parcels'),
         },
         {
           id: 'hosp_menu',
-          label: tc('hosp_menu', 'Menu'),
+          label: tc('hosp_menu', t('nav.hospMenu')),
           icon: BookOpen,
           show: tv('hosp_menu'),
         },
         {
           id: 'hosp_members',
-          label: tc('hosp_members', 'Members'),
+          label: tc('hosp_members', t('nav.hospMembers')),
           icon: IdCard,
           show: tv('hosp_members'),
         },
@@ -1772,7 +1772,9 @@ export default function App() {
                     )}
                     {canAccess(activeTab) && activeTab === 'verification' && <ProductVerificationView />}
                     {canAccess(activeTab) && activeTab === 'quotations' && <QuotationsAndOrdersView />}
-                    {canAccess(activeTab) && activeTab === 'invoices' && <InvoicesView />}
+                    {canAccess(activeTab) && activeTab === 'invoices' && (
+                      <InvoicesView onOpenFinance={() => setActiveTab('finance')} />
+                    )}
                     {canAccess(activeTab) &&
                       activeTab === 'finance' &&
                       // Offline Mobile / service phone UX always invoice finance; also hotel_restaurant (financeView: invoice)

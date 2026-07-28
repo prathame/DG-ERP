@@ -27,6 +27,8 @@ import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
 import {
   printStandaloneInvoiceById,
@@ -60,8 +62,9 @@ export function VendorMasterView({
   initialVendorId?: string;
 }) {
   const cfg = useBusinessConfig();
+  const { t } = useTranslation();
   // service → Client | dealer/retail → Customer | manufacturer → Vendor
-  const label = (cfg.labels.vendors || 'Vendors').replace(/s$/, '');
+  const label = tb(cfg.labels.vendors || 'Vendors', t).replace(/s$/i, '');
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const [list, setList] = useState<Vendor[]>([]);
@@ -104,7 +107,11 @@ export function VendorMasterView({
     api.vendors
       .list(debouncedSearch || undefined)
       .then(rows => setList(Array.isArray(rows) ? rows : []))
-      .catch(() => setList([]))
+      .catch((err: unknown) => {
+        setList([]);
+        // Avoid looking like clients were deleted when local DB/API briefly fails (offline Cap).
+        toast(err instanceof Error ? err.message : `Failed to load ${label.toLowerCase()}s`, 'error');
+      })
       .finally(() => setLoading(false));
     onRefresh();
   };

@@ -34,6 +34,8 @@ import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
+import { useTranslation } from '../../i18n';
+import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 import { MobileAccountsPanel } from './MobileAccountsPanel';
 
@@ -60,12 +62,14 @@ function fmtCurrency(n: number) {
 
 export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
   /** Cap non-service immersive accounts — leave service phone layout alone */
   const capMobileGlass = isMobileAppShell() && !isServicePhoneUx(cfg.type);
   const ds = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
-  const partySingular = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
+  const partyLabel = tb(cfg.labels.vendors, t);
+  const partySingular = partyLabel.replace(/s$/i, ''); // Vendor | Customer | Client (EN); other locales keep as-is
   const businessType = cfg.type;
   const [tab, setTab] = useState<AccountTab>('pnl');
   const now = new Date();
@@ -176,13 +180,13 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     },
     {
       key: 'distribution',
-      label: cfg.accounts.distributionRegisterLabel,
-      shortLabel: ds ? 'Sales' : 'Dist.',
+      label: tb(cfg.accounts.distributionRegisterLabel, t),
+      shortLabel: ds ? t('business.sales') : 'Dist.',
       icon: Truck,
       group: 'reports',
       hide: cfg.accounts.hideTabs.includes('distribution'),
     },
-    { key: 'outstanding', label: 'Outstanding', shortLabel: 'Due', icon: Clock, group: 'reports' },
+    { key: 'outstanding', label: t('business.outstanding'), shortLabel: 'Due', icon: Clock, group: 'reports' },
     { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee, group: 'reports' },
     {
       key: 'stock',
@@ -670,6 +674,7 @@ function ProfitLoss({
   ds: boolean;
   cfg: ReturnType<typeof useBusinessConfig>;
 }) {
+  const { t } = useTranslation();
   const rev = data.revenue as {
     distributionRevenue: number;
     salesRevenue: number;
@@ -682,9 +687,12 @@ function ProfitLoss({
   const invoiceRev = rev.invoiceRevenue || 0;
   const revenueLines = [
     cfg.features.distribution &&
-      rev.distributionRevenue > 0 && { label: cfg.labels.distributionRevenue, value: rev.distributionRevenue },
-    cfg.features.distribution && rev.salesRevenue > 0 && { label: 'Direct Sales Revenue', value: rev.salesRevenue },
-    invoiceRev > 0 && { label: 'Invoice Revenue', value: invoiceRev },
+      rev.distributionRevenue > 0 && {
+        label: tb(cfg.labels.distributionRevenue, t),
+        value: rev.distributionRevenue,
+      },
+    cfg.features.distribution && rev.salesRevenue > 0 && { label: tb('Sales Revenue', t), value: rev.salesRevenue },
+    invoiceRev > 0 && { label: tb('Invoice Revenue', t), value: invoiceRev },
   ].filter(Boolean) as { label: string; value: number }[];
   return (
     <div className="space-y-4">
@@ -723,7 +731,7 @@ function ProfitLoss({
           <div className="space-y-3">
             {exp.purchaseCost > 0 && (
               <div className="flex justify-between">
-                <span className="text-sm">{cfg.labels.purchaseCost}</span>
+                <span className="text-sm">{tb(cfg.labels.purchaseCost, t)}</span>
                 <span className="font-bold text-rose-600">{fmtCurrency(exp.purchaseCost)}</span>
               </div>
             )}
