@@ -1,12 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer, MessageCircle } from 'lucide-react';
+import React, { Fragment, useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  FileText,
+  IndianRupee,
+  Clock,
+  Search,
+  Printer,
+  MessageCircle,
+  Users,
+} from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
-import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge, PaidStamp } from '../../components/ui';
+import {
+  useToast,
+  LoadingSpinner,
+  isBillFullyPaid,
+  PaidBadge,
+  PaidStamp,
+  AppModal,
+  MobileKpiCard,
+  MobileListRow,
+} from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
 import {
@@ -328,7 +348,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:hidden">
+              <MobileKpiCard label="Invoiced" value={fmt(detail.totalInvoiced)} accent="blue" />
+              <MobileKpiCard label="Received" value={fmt(detail.totalPaid)} accent="green" />
+              <MobileKpiCard
+                label="Balance"
+                value={detail.balance < 0 ? `${fmt(detail.balance)} cr` : fmt(detail.balance)}
+                accent={detail.balance > 0 ? 'rose' : 'green'}
+              />
+            </div>
+            <div className="hidden sm:grid sm:grid-cols-3 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                 <p className="text-xs font-bold text-gray-400 uppercase">Total Invoiced</p>
                 <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(detail.totalInvoiced)}</p>
@@ -489,104 +518,99 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           />
         )}
 
-        <AnimatePresence>
-          {payModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-black/40" onClick={() => setPayModal(null)} />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto"
-              >
-                <h3 className="text-lg font-bold mb-1">
-                  {payModal.isAdvance ? 'Record Advance Payment' : 'Record Payment'}
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  {payModal.isAdvance ? (
-                    <>
-                      No outstanding invoice — cash is held as advance and applies to the next bill for{' '}
-                      <span className="font-bold text-gray-700">{detail?.clientName}</span>.
-                    </>
-                  ) : (
-                    <>
-                      Invoice {payModal.invoiceNumber} · Balance{' '}
-                      <span className="font-bold text-rose-600">{fmt(payModal.balance)}</span>
-                    </>
-                  )}
-                </p>
-                <form onSubmit={handlePay} className="space-y-4">
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      min={0.01}
-                      step={0.01}
-                      value={payForm.amount}
-                      onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label>
-                    <input
-                      type="date"
-                      value={payForm.paymentDate}
-                      onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Method</label>
-                    <select
-                      value={payForm.paymentMethod}
-                      onChange={e => setPayForm(f => ({ ...f, paymentMethod: e.target.value }))}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    >
-                      {['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'].map(m => (
-                        <option key={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Reference</label>
-                    <input
-                      value={payForm.referenceNumber}
-                      onChange={e => setPayForm(f => ({ ...f, referenceNumber: e.target.value }))}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
-                    <input
-                      value={payForm.notes}
-                      onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setPayModal(null)}
-                      className="flex-1 py-2 border rounded-lg font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold"
-                    >
-                      {submitting ? 'Saving...' : 'Record Payment'}
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+        {payModal && (
+          <AppModal
+            title={payModal.isAdvance ? 'Record Advance Payment' : 'Record Payment'}
+            subtitle={
+              payModal.isAdvance ? (
+                <>
+                  No outstanding invoice — cash is held as advance and applies to the next bill for{' '}
+                  <span className="font-bold text-gray-700">{detail?.clientName}</span>.
+                </>
+              ) : (
+                <>
+                  Invoice {payModal.invoiceNumber} · Balance{' '}
+                  <span className="font-bold text-rose-600">{fmt(payModal.balance)}</span>
+                </>
+              )
+            }
+            onClose={() => setPayModal(null)}
+            size="sm"
+            footer={
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayModal(null)}
+                  className="flex-1 py-2 border rounded-lg font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="invoice-finance-pay-form"
+                  disabled={submitting}
+                  className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold"
+                >
+                  {submitting ? 'Saving...' : 'Record Payment'}
+                </button>
+              </div>
+            }
+          >
+            <form id="invoice-finance-pay-form" onSubmit={handlePay} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label>
+                <input
+                  type="number"
+                  required
+                  min={0.01}
+                  step={0.01}
+                  value={payForm.amount}
+                  onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label>
+                <input
+                  type="date"
+                  value={payForm.paymentDate}
+                  onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Method</label>
+                <select
+                  value={payForm.paymentMethod}
+                  onChange={e => setPayForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                >
+                  {['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'].map(m => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Reference</label>
+                <input
+                  value={payForm.referenceNumber}
+                  onChange={e => setPayForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
+                <input
+                  value={payForm.notes}
+                  onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  placeholder="Optional"
+                />
+              </div>
+            </form>
+          </AppModal>
+        )}
         {ConfirmRenderer}
       </motion.div>
     );
@@ -604,7 +628,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:hidden">
+        <MobileKpiCard label="Invoiced" value={fmt(totalInvoiced)} accent="blue" />
+        <MobileKpiCard label="Received" value={fmt(totalReceived)} accent="green" />
+        <MobileKpiCard
+          label="Outstanding"
+          value={fmt(totalOutstanding)}
+          accent={totalOutstanding > 0 ? 'rose' : 'green'}
+        />
+      </div>
+      <div className="hidden sm:grid sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">Total Invoiced</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(totalInvoiced)}</p>
@@ -654,7 +687,41 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="sm:hidden space-y-2">
+            {filtered.map(c => {
+              const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
+              const kind =
+                c.partyType === 'vendor'
+                  ? isService
+                    ? 'Client'
+                    : 'Vendor'
+                  : c.partyType === 'customer'
+                    ? isService
+                      ? 'Customer'
+                      : 'Client'
+                    : null;
+              return (
+                <Fragment key={c.partyKey}>
+                  <MobileListRow
+                    icon={<Users />}
+                    title={c.clientName || 'Unknown'}
+                    subtitle={[kind, c.clientPhone].filter(Boolean).join(' · ') || `${c.invoiceCount} invoice(s)`}
+                    trailing={
+                      paid ? (
+                        <span className="text-emerald-600">Paid</span>
+                      ) : (
+                        <span className={c.balance > 0 ? 'text-rose-600' : undefined}>{fmt(c.balance)}</span>
+                      )
+                    }
+                    meta={!paid && c.balance > 0 ? 'Due' : undefined}
+                    onClick={() => openClient(c.partyKey)}
+                  />
+                </Fragment>
+              );
+            })}
+          </div>
+
+          <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(c => {
               const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
               const kind =
@@ -716,7 +783,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             })}
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 p-8 text-center">
             <p className="text-gray-500 mb-1">
               Click on a {clientsLabel.replace(/s$/, '').toLowerCase()} card above to see their invoices
             </p>

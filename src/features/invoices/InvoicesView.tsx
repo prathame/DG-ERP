@@ -701,81 +701,72 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
       </AnimatePresence>
 
       {/* Delete confirm — blocked when payments exist (ledger guard) */}
-      <AnimatePresence>
-        {deleteTarget && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center"
-            >
-              {invoiceHasPayments(deleteTarget) ? (
-                <>
-                  <p className="text-lg font-bold mb-2">Cannot delete invoice</p>
-                  <p className="text-sm text-gray-500 mb-1">
-                    {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-4">
-                    This invoice has ₹{Number(deleteTarget.paidAmount).toLocaleString()} in payments. Delete those
-                    payments in Finance first, then delete the invoice.
-                    {servicePhoneUx ? ' (More → Finance)' : ''}
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(null)}
-                      className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-                    >
-                      OK
-                    </button>
-                    {onOpenFinance && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleteTarget(null);
-                          onOpenFinance();
-                        }}
-                        className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold"
-                      >
-                        Open Finance
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-lg font-bold mb-2">Delete Invoice?</p>
-                  <p className="text-sm text-gray-500 mb-4">
-                    {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(null)}
-                      className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {deleteTarget && (
+        <AppModal
+          title={invoiceHasPayments(deleteTarget) ? t('invoices.cannotDeleteTitle') : t('invoices.deleteInvoiceTitle')}
+          onClose={() => setDeleteTarget(null)}
+          size="sm"
+          footer={
+            invoiceHasPayments(deleteTarget) ? (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+                >
+                  {t('common.ok')}
+                </button>
+                {onOpenFinance && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteTarget(null);
+                      onOpenFinance();
+                    }}
+                    className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold"
+                  >
+                    {t('invoices.openFinance')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold"
+                >
+                  {t('common.delete')}
+                </button>
+              </div>
+            )
+          }
+        >
+          {invoiceHasPayments(deleteTarget) ? (
+            <div className="text-center">
+              <p className="text-sm text-gray-500 mb-1">
+                {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
+              </p>
+              <p className="text-sm text-gray-600">
+                {t('invoices.deleteBlockedPrefix')} ₹{Number(deleteTarget.paidAmount).toLocaleString()}{' '}
+                {t('invoices.deleteBlockedSuffix')}
+                {servicePhoneUx ? ` ${t('invoices.deleteBlockedFinanceHint')}` : ''}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center">
+              {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
+            </p>
+          )}
+        </AppModal>
+      )}
     </motion.div>
   );
 }

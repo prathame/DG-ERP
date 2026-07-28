@@ -72,6 +72,8 @@ import { MobileSettingsHub, MobileSettingsSheetChrome, moduleBlurb } from './Mob
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
 const mobileApp = isMobileAppShell();
+// Service phone (offline + online Cap) stays on the Emergent flat shell — never glass.
+const servicePhoneSettingsUx = isServicePhoneUx(getBusinessConfig().type);
 const showBugReport = offersBugReportShare();
 
 /** Soft-deleted (anonymized) rows — hide from Settings Users even if API lags. */
@@ -89,7 +91,7 @@ function settingsPanel(extra = ''): string {
     settingsGlass()
       ? // Inside the desktop tab sheet — flat blocks, not nested glass cards
         'rounded-xl overflow-hidden border border-[var(--dg-card-border)]'
-      : mobileApp
+      : mobileApp && !servicePhoneSettingsUx
         ? 'dg-m-glass-card rounded-2xl overflow-hidden'
         : 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
     extra,
@@ -102,7 +104,7 @@ function settingsPanelHead(extra = '', compact = false): string {
     pad,
     settingsGlass()
       ? 'bg-[var(--dg-input)]/60 border-b border-[var(--dg-card-border)]'
-      : mobileApp
+      : mobileApp && !servicePhoneSettingsUx
         ? 'bg-[var(--dg-input)] border-b border-[var(--dg-card-border)]'
         : 'bg-gray-50 border-b border-gray-100',
     extra,
@@ -1377,7 +1379,7 @@ export function SettingsView({
   const desktopGlass = settingsGlass();
   const capMobileSettings = mobileApp && !desktopGlass;
   // Cap service (online + offline): GSTIN/rate live under Business Identity — hide empty GST sheet.
-  const hideGstModule = isServicePhoneUx(getBusinessConfig().type);
+  const hideGstModule = servicePhoneSettingsUx;
 
   const showTab = (id: DesktopSettingsTabId | DesktopSettingsTabId[]) => {
     const ids = Array.isArray(id) ? id : [id];
@@ -1459,7 +1461,10 @@ export function SettingsView({
 
       {capMobileSettings && mobileSheet && sheetMeta ? (
         <>
-          <div className="fixed inset-0 z-40 bg-[var(--dg-bg,#f7f9fb)]" aria-hidden />
+          <div
+            className={cn('fixed inset-0 z-40', servicePhoneSettingsUx ? 'bg-[#F8F9FA]' : 'bg-[var(--dg-bg,#f7f9fb)]')}
+            aria-hidden
+          />
           <MobileSettingsSheetChrome
             title={sheetMeta.label}
             subtitle={sheetMeta.blurb}
@@ -1480,7 +1485,10 @@ export function SettingsView({
             capMobileSettings && !mobileSheet && 'hidden',
             capMobileSettings &&
               mobileSheet &&
-              'fixed z-50 inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] bottom-0 overflow-y-auto px-3 pb-6 space-y-4 dg-mobile-glass',
+              cn(
+                'fixed z-50 inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] bottom-0 overflow-y-auto px-3 pb-6 space-y-4',
+                servicePhoneSettingsUx ? 'bg-[#F8F9FA]' : 'dg-mobile-glass',
+              ),
           )}
         >
           {/* Auth Section */}

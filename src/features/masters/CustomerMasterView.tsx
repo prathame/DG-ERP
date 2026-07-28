@@ -168,7 +168,62 @@ export function CustomerMasterView({
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
+        {/* Phone: card rows instead of a scrolling table */}
+        <div className="sm:hidden p-3 space-y-2">
+          {loading ? (
+            <div className="py-12 flex justify-center">
+              <LoadingSpinner />
+            </div>
+          ) : list.length === 0 ? (
+            <div className="py-12 text-center text-sm text-gray-400">No customers found</div>
+          ) : (
+            list.map(c => (
+              <div key={c.id} className="rounded-xl border border-gray-100 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(c)}
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-brand"
+                      aria-label={`Edit ${c.name}`}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(c)}
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                      aria-label={`Delete ${c.name}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
+                {!vendorId && (
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    {linkedPartyLabel}:{' '}
+                    {c.vendorId
+                      ? (vendors.find(v => v.id === c.vendorId)?.name ?? c.vendorId)
+                      : cfg.type === 'service'
+                        ? 'None'
+                        : 'Direct'}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openPurchases(c)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-brand mt-2"
+                >
+                  <ShoppingBag size={12} /> View purchases
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">

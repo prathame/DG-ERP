@@ -58,6 +58,7 @@
     "next": "આગળ",
     "yes": "હા",
     "no": "ના",
+    "ok": "ઠીક છે",
     "confirm": "પુષ્ટિ કરો",
     "download": "ડાઉનલોડ",
     "print": "પ્રિન્ટ",
@@ -367,7 +368,13 @@
     "emptySubtitle": "સેવાઓ અથવા કસ્ટમ બિલિંગ માટે તમારું પહેલું ઇન્વૉઇસ બનાવો",
     "outstanding": "બાકી",
     "collected": "એકત્રિત",
-    "printPdf": "પ્રિન્ટ/PDF"
+    "printPdf": "પ્રિન્ટ/PDF",
+    "cannotDeleteTitle": "ઇન્વૉઇસ ડિલીટ કરી શકાતું નથી",
+    "deleteInvoiceTitle": "ઇન્વૉઇસ ડિલીટ કરવું છે?",
+    "openFinance": "ફાઇનાન્સ ખોલો",
+    "deleteBlockedPrefix": "આ ઇન્વૉઇસમાં",
+    "deleteBlockedSuffix": "ની ચુકવણી છે. પહેલા ફાઇનાન્સમાં તે ચુકવણીઓ ડિલીટ કરો, પછી ઇન્વૉઇસ ડિલીટ કરો.",
+    "deleteBlockedFinanceHint": "(વધુ → ફાઇનાન્સ)"
   },
   "quotations": {
     "title": "ક્વોટેશન્સ",

@@ -58,6 +58,7 @@
     "next": "पुढे",
     "yes": "होय",
     "no": "नाही",
+    "ok": "ठीक आहे",
     "confirm": "पुष्टी करा",
     "download": "डाउनलोड",
     "print": "छपाई",
@@ -367,7 +368,13 @@
     "emptySubtitle": "सेवा किंवा कस्टम बिलिंगसाठी तुमचे पहिले इन्व्हॉइस तयार करा",
     "outstanding": "थकबाकी",
     "collected": "गोळा",
-    "printPdf": "प्रिंट/PDF"
+    "printPdf": "प्रिंट/PDF",
+    "cannotDeleteTitle": "इन्व्हॉइस हटवता येत नाही",
+    "deleteInvoiceTitle": "इन्व्हॉइस हटवायचे?",
+    "openFinance": "फायनान्स उघडा",
+    "deleteBlockedPrefix": "या इन्व्हॉइसमध्ये",
+    "deleteBlockedSuffix": "चे पेमेंट आहे. आधी फायनान्समध्ये ते पेमेंट हटवा, नंतर इन्व्हॉइस हटवा.",
+    "deleteBlockedFinanceHint": "(अधिक → फायनान्स)"
   },
   "quotations": {
     "title": "कोटेशन्स",

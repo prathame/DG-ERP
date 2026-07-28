@@ -58,6 +58,7 @@
     "next": "आगे",
     "yes": "हां",
     "no": "नहीं",
+    "ok": "ठीक है",
     "confirm": "पुष्टि करें",
     "download": "डाउनलोड",
     "print": "प्रिंट",
@@ -367,7 +368,13 @@
     "emptySubtitle": "सेवाओं या कस्टम बिलिंग के लिए अपना पहला चालान बनाएं",
     "outstanding": "बकाया",
     "collected": "एकत्रित",
-    "printPdf": "प्रिंट/PDF"
+    "printPdf": "प्रिंट/PDF",
+    "cannotDeleteTitle": "चालान हटाया नहीं जा सकता",
+    "deleteInvoiceTitle": "चालान हटाएं?",
+    "openFinance": "फाइनेंस खोलें",
+    "deleteBlockedPrefix": "इस चालान में",
+    "deleteBlockedSuffix": "का भुगतान है। पहले फाइनेंस में वे भुगतान हटाएं, फिर चालान हटाएं।",
+    "deleteBlockedFinanceHint": "(अधिक → फाइनेंस)"
   },
   "quotations": {
     "title": "कोटेशन",

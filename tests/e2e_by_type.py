@@ -814,7 +814,7 @@ def setup_tenant(sa_h, btype, slug, email):
     tid = d["tenantId"]
     for attempt in range(3):
         s,d = req("POST","/api/auth/login",
-            {"email":email,"password":"Test@123"},{"x-tenant-id":tid})
+            {"email":email,"password":"Test@123","platform":"desktop"},{"x-tenant-id":tid})
         if s == 200: break
         if attempt < 2: time.sleep(1)
     if s != 200:
@@ -1204,7 +1204,7 @@ if __name__ == "__main__":
 
     for btype, slug, email in TYPES:
         tid = tenant_ids.get(btype)
-        s,d = req("POST","/api/auth/login",{"email":email,"password":"Test@123"},{"x-tenant-id":tid} if tid else {})
+        s,d = req("POST","/api/auth/login",{"email":email,"password":"Test@123","platform":"desktop"},{"x-tenant-id":tid} if tid else {})
         tok = d.get("token","") if s==200 else ""
         if not tid or not tok:
             CURRENT_TYPE = btype

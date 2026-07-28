@@ -42,8 +42,30 @@ async function mockServiceMobileCloud(page: Page) {
   });
 }
 
+async function resetOfflineStorage(page: Page) {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.deleteDatabase('/pglite/dhandho-service-mobile');
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => resolve();
+    });
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+}
+
 test.describe('offline service-mobile smoke', () => {
   test.beforeEach(async ({ page }) => {
+    // dist-service-mobile in vite preview is a Cap build — stub native shell so ERP login isn't browser-blocked.
+    await page.addInitScript(() => {
+      (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor = {
+        isNativePlatform: () => true,
+      };
+    });
+    await resetOfflineStorage(page);
     await mockServiceMobileCloud(page);
   });
 
@@ -52,6 +74,15 @@ test.describe('offline service-mobile smoke', () => {
     await expect(page.getByRole('heading', { name: 'Offline Mobile setup' })).toBeVisible();
     await expect(page.getByPlaceholder('DG-SM-…')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Activate this phone' })).toBeVisible();
+  });
+
+  test('activate reaches restore step', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Offline Mobile setup' })).toBeVisible({ timeout: 60_000 });
+    await page.getByPlaceholder('DG-SM-…').fill(LICENSE_KEY);
+    await page.getByRole('button', { name: 'Activate this phone' }).click();
+    await expect(page.getByRole('button', { name: 'Start fresh (no backup)' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('E2E Service Co')).toBeVisible();
   });
 
   test('activate → provision → client → invoice modal', async ({ page }) => {
@@ -69,7 +100,7 @@ test.describe('offline service-mobile smoke', () => {
     await page.locator('input[type="password"]').nth(1).fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: 'Finish setup' }).click();
 
-    await expect(page.locator('#login-email')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('heading', { name: 'E2E Service Co' })).toBeVisible({ timeout: 120_000 });
     await page.locator('#login-email').fill(ADMIN_EMAIL);
     await page.locator('#login-password').fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: /^Login$/i }).click();
