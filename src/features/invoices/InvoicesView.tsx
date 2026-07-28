@@ -1335,24 +1335,24 @@ export function CreateInvoiceModal({
         <ModalActions>
           {step === 0 ? (
             <ModalActionButton variant="ghost" onClick={onClose}>
-              Cancel
+              {t('common.cancel')}
             </ModalActionButton>
           ) : (
             <ModalActionButton variant="ghost" onClick={() => setStep(s => Math.max(0, s - 1))}>
-              Back
+              {t('common.back')}
             </ModalActionButton>
           )}
           {step < 2 ? (
             <ModalActionButton variant="primary" onClick={goNext}>
-              Next
+              {t('common.next')}
             </ModalActionButton>
           ) : (
             <>
               <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
-                {submitting ? 'Saving…' : 'Save Draft'}
+                {submitting ? t('common.saving') : t('invoices.saveDraft')}
               </ModalActionButton>
               <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
-                {submitting ? 'Saving…' : 'Create & Send'}
+                {submitting ? t('common.saving') : t('invoices.createAndSend')}
               </ModalActionButton>
             </>
           )}
@@ -1362,13 +1362,13 @@ export function CreateInvoiceModal({
       <div className="hidden sm:block">
         <ModalActions>
           <ModalActionButton variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </ModalActionButton>
           <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
-            {submitting ? 'Saving…' : 'Save as Draft'}
+            {submitting ? t('common.saving') : t('invoices.saveAsDraft')}
           </ModalActionButton>
           <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
-            {submitting ? 'Saving…' : 'Create & Send'}
+            {submitting ? t('common.saving') : t('invoices.createAndSend')}
           </ModalActionButton>
         </ModalActions>
       </div>
@@ -1377,7 +1377,7 @@ export function CreateInvoiceModal({
 
   return (
     <AppModal
-      title={createdInvoice ? 'Invoice created' : t('invoices.newInvoice')}
+      title={createdInvoice ? t('invoices.invoiceCreated') : t('invoices.newInvoice')}
       subtitle={<span className="font-mono">{createdInvoice?.invoiceNumber || invoiceNumber}</span>}
       onClose={createdInvoice ? finishCreated : onClose}
       footer={footer}
@@ -1412,9 +1412,9 @@ export function CreateInvoiceModal({
           <>
             {/* Step 0 — Party */}
             <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
-              <FormSection title="Customer" description="Type a name — pick a match or leave as custom">
+              <FormSection title={t('masters.customer')} description="Type a name — pick a match or leave as custom">
                 <FormGrid>
-                  <FormField label="Customer Name" required className="sm:col-span-2">
+                  <FormField label={t('invoices.customerName')} required className="sm:col-span-2">
                     <SearchSelect
                       allowCustom
                       value={partyKey}
@@ -1445,7 +1445,7 @@ export function CreateInvoiceModal({
                       placeholder="Optional"
                     />
                   </FormField>
-                  <FormField label="Address" className="sm:col-span-2">
+                  <FormField label={t('common.address')} className="sm:col-span-2">
                     <input
                       value={form.customerAddress}
                       onChange={e => setForm({ ...form, customerAddress: e.target.value })}
@@ -1453,7 +1453,7 @@ export function CreateInvoiceModal({
                       placeholder="Street, City, State"
                     />
                   </FormField>
-                  <FormField label="Phone">
+                  <FormField label={t('common.phone')}>
                     <input
                       type="tel"
                       value={form.customerPhone}
@@ -1462,7 +1462,7 @@ export function CreateInvoiceModal({
                       placeholder="Optional"
                     />
                   </FormField>
-                  <FormField label="Invoice Date" required>
+                  <FormField label={t('invoices.invoiceDate')} required>
                     <input
                       type="date"
                       value={form.invoiceDate}
@@ -1478,7 +1478,7 @@ export function CreateInvoiceModal({
             {/* Step 1 — Items */}
             <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
               <FormSection
-                title="Line Items"
+                title={t('invoices.lineItems')}
                 description={
                   servicePhoneUx
                     ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'

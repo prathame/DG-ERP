@@ -40,6 +40,7 @@
   },
   "common": {
     "save": "Save",
+    "saving": "Saving...",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
@@ -230,8 +231,23 @@
     "upi": "UPI",
     "bankTransfer": "Bank Transfer",
     "cheque": "Cheque",
+    "other": "Other",
     "sendReminder": "Send Reminder",
-    "paymentHistory": "Payment History"
+    "paymentHistory": "Payment History",
+    "totalInvoiced": "Total Invoiced",
+    "totalReceived": "Total Received",
+    "totalOutstanding": "Total Outstanding",
+    "balance": "Balance",
+    "invoices": "Invoices",
+    "pay": "Pay",
+    "retry": "Retry",
+    "recordAdvancePayment": "Record Advance Payment",
+    "advancePayment": "Advance payment",
+    "paymentDate": "Payment Date",
+    "reference": "Reference",
+    "notes": "Notes",
+    "failedToLoadInvoices": "Failed to load invoices",
+    "noInvoicesForClient": "No invoices for this client"
   },
   "masters": {
     "title": "Masters",
@@ -279,7 +295,14 @@
     "openFinance": "Open Finance",
     "deleteBlockedPrefix": "This invoice has",
     "deleteBlockedSuffix": "in payments. Delete those payments in Finance first, then delete the invoice.",
-    "deleteBlockedFinanceHint": "(More → Finance)"
+    "deleteBlockedFinanceHint": "(More → Finance)",
+    "customerName": "Customer Name",
+    "invoiceDate": "Invoice Date",
+    "lineItems": "Line Items",
+    "saveDraft": "Save Draft",
+    "saveAsDraft": "Save as Draft",
+    "createAndSend": "Create & Send",
+    "invoiceCreated": "Invoice created"
   },
   "quotations": {
     "title": "Quotations",

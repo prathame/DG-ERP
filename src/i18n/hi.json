@@ -35,6 +35,7 @@
   },
   "common": {
     "save": "सेव करें",
+    "saving": "सेव हो रहा है...",
     "cancel": "रद्द करें",
     "delete": "हटाएं",
     "edit": "संपादित करें",
@@ -225,8 +226,23 @@
     "upi": "UPI",
     "bankTransfer": "बैंक ट्रांसफर",
     "cheque": "चेक",
+    "other": "अन्य",
     "sendReminder": "रिमाइंडर भेजें",
-    "paymentHistory": "भुगतान इतिहास"
+    "paymentHistory": "भुगतान इतिहास",
+    "totalInvoiced": "कुल बिल",
+    "totalReceived": "कुल प्राप्त",
+    "totalOutstanding": "कुल बकाया",
+    "balance": "शेष राशि",
+    "invoices": "चालान",
+    "pay": "भुगतान करें",
+    "retry": "पुनः प्रयास करें",
+    "recordAdvancePayment": "अग्रिम भुगतान दर्ज करें",
+    "advancePayment": "अग्रिम भुगतान",
+    "paymentDate": "भुगतान तिथि",
+    "reference": "संदर्भ",
+    "notes": "नोट्स",
+    "failedToLoadInvoices": "चालान लोड करने में विफल",
+    "noInvoicesForClient": "इस ग्राहक के लिए कोई चालान नहीं"
   },
   "masters": {
     "title": "मास्टर्स",
@@ -374,7 +390,14 @@
     "openFinance": "फाइनेंस खोलें",
     "deleteBlockedPrefix": "इस चालान में",
     "deleteBlockedSuffix": "का भुगतान है। पहले फाइनेंस में वे भुगतान हटाएं, फिर चालान हटाएं।",
-    "deleteBlockedFinanceHint": "(अधिक → फाइनेंस)"
+    "deleteBlockedFinanceHint": "(अधिक → फाइनेंस)",
+    "customerName": "ग्राहक का नाम",
+    "invoiceDate": "चालान तिथि",
+    "lineItems": "लाइन आइटम",
+    "saveDraft": "ड्राफ्ट सहेजें",
+    "saveAsDraft": "ड्राफ्ट के रूप में सहेजें",
+    "createAndSend": "बनाएं और भेजें",
+    "invoiceCreated": "चालान बनाया गया"
   },
   "quotations": {
     "title": "कोटेशन",

@@ -318,14 +318,14 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 onClick={openRecordPayment}
                 className="flex items-center gap-1.5 px-3 py-2.5 border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50"
               >
-                <IndianRupee size={16} /> Record Payment
+                <IndianRupee size={16} /> {t('finance.recordPayment')}
               </button>
               <button
                 type="button"
                 onClick={openNewInvoice}
                 className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
               >
-                <Plus size={18} /> New Invoice
+                <Plus size={18} /> {t('invoices.newInvoice')}
               </button>
             </div>
           )}
@@ -337,33 +337,33 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           </div>
         ) : !detail ? (
           <div className="bg-white rounded-2xl border border-rose-200 p-12 text-center">
-            <p className="text-rose-600 font-medium mb-2">Failed to load invoices</p>
+            <p className="text-rose-600 font-medium mb-2">{t('finance.failedToLoadInvoices')}</p>
             <button
               type="button"
               onClick={() => loadDetail(selected)}
               className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
             >
-              Retry
+              {t('finance.retry')}
             </button>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2 sm:hidden">
-              <MobileKpiCard label="Invoiced" value={fmt(detail.totalInvoiced)} accent="blue" />
-              <MobileKpiCard label="Received" value={fmt(detail.totalPaid)} accent="green" />
+              <MobileKpiCard label={t('finance.totalInvoiced')} value={fmt(detail.totalInvoiced)} accent="blue" />
+              <MobileKpiCard label={t('finance.totalReceived')} value={fmt(detail.totalPaid)} accent="green" />
               <MobileKpiCard
-                label="Balance"
+                label={t('finance.balance')}
                 value={detail.balance < 0 ? `${fmt(detail.balance)} cr` : fmt(detail.balance)}
                 accent={detail.balance > 0 ? 'rose' : 'green'}
               />
             </div>
             <div className="hidden sm:grid sm:grid-cols-3 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                <p className="text-xs font-bold text-gray-400 uppercase">Total Invoiced</p>
+                <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalInvoiced')}</p>
                 <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(detail.totalInvoiced)}</p>
               </div>
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                <p className="text-xs font-bold text-gray-400 uppercase">Total Received</p>
+                <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalReceived')}</p>
                 <p className="text-2xl font-bold text-emerald-600 mt-1">{fmt(detail.totalPaid)}</p>
               </div>
               <div
@@ -372,7 +372,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   detail.balance > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200',
                 )}
               >
-                <p className="text-xs font-bold text-gray-400 uppercase">Balance</p>
+                <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.balance')}</p>
                 <p className={cn('text-2xl font-bold mt-1', detail.balance > 0 ? 'text-rose-600' : 'text-emerald-600')}>
                   {detail.balance < 0 ? `${fmt(detail.balance)} credit` : fmt(detail.balance)}
                 </p>
@@ -382,12 +382,12 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="font-bold flex items-center gap-2">
-                  <FileText size={16} /> Invoices
+                  <FileText size={16} /> {t('finance.invoices')}
                 </h3>
                 {detailLoading && <LoadingSpinner />}
               </div>
               {detail.invoices.length === 0 ? (
-                <div className="py-12 text-center text-gray-500 text-sm">No invoices for this client</div>
+                <div className="py-12 text-center text-gray-500 text-sm">{t('finance.noInvoicesForClient')}</div>
               ) : (
                 <div className="divide-y divide-gray-100">
                   {detail.invoices.map(inv => {
@@ -434,7 +434,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                             className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50"
                             title="Print invoice"
                           >
-                            <Printer size={12} /> Print
+                            <Printer size={12} /> {t('common.print')}
                           </button>
                           <button
                             type="button"
@@ -452,7 +452,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                               onClick={() => openPay(inv)}
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700"
                             >
-                              <Plus size={12} /> Pay
+                              <Plus size={12} /> {t('finance.pay')}
                             </button>
                           )}
                         </div>
@@ -467,7 +467,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
                   <h3 className="font-bold flex items-center gap-2">
-                    <IndianRupee size={16} /> Payment History
+                    <IndianRupee size={16} /> {t('finance.paymentHistory')}
                   </h3>
                 </div>
                 <div className="divide-y divide-gray-100">
@@ -520,7 +520,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
 
         {payModal && (
           <AppModal
-            title={payModal.isAdvance ? 'Record Advance Payment' : 'Record Payment'}
+            title={payModal.isAdvance ? t('finance.recordAdvancePayment') : t('finance.recordPayment')}
             subtitle={
               payModal.isAdvance ? (
                 <>
@@ -543,7 +543,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   onClick={() => setPayModal(null)}
                   className="flex-1 py-2 border rounded-lg font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -551,14 +551,14 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   disabled={submitting}
                   className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold"
                 >
-                  {submitting ? 'Saving...' : 'Record Payment'}
+                  {submitting ? t('common.saving') : t('finance.recordPayment')}
                 </button>
               </div>
             }
           >
             <form id="invoice-finance-pay-form" onSubmit={handlePay} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.amount')} (₹)</label>
                 <input
                   type="number"
                   required
@@ -570,7 +570,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.paymentDate')}</label>
                 <input
                   type="date"
                   value={payForm.paymentDate}
@@ -579,7 +579,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Method</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.paymentMethod')}</label>
                 <select
                   value={payForm.paymentMethod}
                   onChange={e => setPayForm(f => ({ ...f, paymentMethod: e.target.value }))}
@@ -591,7 +591,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Reference</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.reference')}</label>
                 <input
                   value={payForm.referenceNumber}
                   onChange={e => setPayForm(f => ({ ...f, referenceNumber: e.target.value }))}
@@ -600,7 +600,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.notes')}</label>
                 <input
                   value={payForm.notes}
                   onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))}
@@ -629,21 +629,21 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       </div>
 
       <div className="grid grid-cols-3 gap-2 sm:hidden">
-        <MobileKpiCard label="Invoiced" value={fmt(totalInvoiced)} accent="blue" />
-        <MobileKpiCard label="Received" value={fmt(totalReceived)} accent="green" />
+        <MobileKpiCard label={t('finance.totalInvoiced')} value={fmt(totalInvoiced)} accent="blue" />
+        <MobileKpiCard label={t('finance.totalReceived')} value={fmt(totalReceived)} accent="green" />
         <MobileKpiCard
-          label="Outstanding"
+          label={t('finance.outstanding')}
           value={fmt(totalOutstanding)}
           accent={totalOutstanding > 0 ? 'rose' : 'green'}
         />
       </div>
       <div className="hidden sm:grid sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase">Total Invoiced</p>
+          <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalInvoiced')}</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(totalInvoiced)}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase">Total Received</p>
+          <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalReceived')}</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{fmt(totalReceived)}</p>
         </div>
         <div
@@ -652,7 +652,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             totalOutstanding > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200',
           )}
         >
-          <p className="text-xs font-bold text-gray-400 uppercase">Total Outstanding</p>
+          <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalOutstanding')}</p>
           <p className={cn('text-2xl font-bold mt-1', totalOutstanding > 0 ? 'text-rose-600' : 'text-emerald-600')}>
             {fmt(totalOutstanding)}
           </p>
@@ -664,7 +664,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder={`Search ${clientsLabel.toLowerCase().replace(/s$/, '')}…`}
+          placeholder={`${t('common.search')} ${clientsLabel.toLowerCase().replace(/s$/, '')}…`}
           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         />
       </div>

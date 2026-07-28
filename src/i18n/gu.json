@@ -35,6 +35,7 @@
   },
   "common": {
     "save": "સેવ કરો",
+    "saving": "સેવ થઈ રહ્યું છે...",
     "cancel": "રદ કરો",
     "delete": "કાઢી નાખો",
     "edit": "ફેરફાર કરો",
@@ -225,8 +226,23 @@
     "upi": "UPI",
     "bankTransfer": "બેંક ટ્રાન્સફર",
     "cheque": "ચેક",
+    "other": "અન્ય",
     "sendReminder": "રિમાઇન્ડર મોકલો",
-    "paymentHistory": "ચૂકવણી ઇતિહાસ"
+    "paymentHistory": "ચૂકવણી ઇતિહાસ",
+    "totalInvoiced": "કુલ બિલ",
+    "totalReceived": "કુલ મળેલ",
+    "totalOutstanding": "કુલ બાકી",
+    "balance": "બાકી રકમ",
+    "invoices": "ઇન્વૉઇસ",
+    "pay": "ચૂકવો",
+    "retry": "ફરી પ્રયાસ કરો",
+    "recordAdvancePayment": "એડવાન્સ ચૂકવણી નોંધો",
+    "advancePayment": "એડવાન્સ ચૂકવણી",
+    "paymentDate": "ચૂકવણી તારીખ",
+    "reference": "સંદર્ભ",
+    "notes": "નોંધો",
+    "failedToLoadInvoices": "ઇન્વૉઇસ લોડ કરવામાં નિષ્ફળ",
+    "noInvoicesForClient": "આ ક્લાયન્ટ માટે કોઈ ઇન્વૉઇસ નથી"
   },
   "masters": {
     "title": "માસ્ટર્સ",
@@ -374,7 +390,14 @@
     "openFinance": "ફાઇનાન્સ ખોલો",
     "deleteBlockedPrefix": "આ ઇન્વૉઇસમાં",
     "deleteBlockedSuffix": "ની ચુકવણી છે. પહેલા ફાઇનાન્સમાં તે ચુકવણીઓ ડિલીટ કરો, પછી ઇન્વૉઇસ ડિલીટ કરો.",
-    "deleteBlockedFinanceHint": "(વધુ → ફાઇનાન્સ)"
+    "deleteBlockedFinanceHint": "(વધુ → ફાઇનાન્સ)",
+    "customerName": "ગ્રાહકનું નામ",
+    "invoiceDate": "ઇન્વૉઇસ તારીખ",
+    "lineItems": "લાઇન આઇટમ",
+    "saveDraft": "ડ્રાફ્ટ સેવ કરો",
+    "saveAsDraft": "ડ્રાફ્ટ તરીકે સેવ કરો",
+    "createAndSend": "બનાવો અને મોકલો",
+    "invoiceCreated": "ઇન્વૉઇસ બનાવ્યું"
   },
   "quotations": {
     "title": "ક્વોટેશન્સ",
