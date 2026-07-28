@@ -3,9 +3,12 @@ import {
   CUSTOM_TAB_PRESET,
   fillMissingTabPresetKeys,
   getTabPreset,
+  getToggleableNavTabs,
   isBusinessTypeWithCustom,
   isNamedBusinessType,
   isStaleHotelQuotationsOff,
+  isTabVisibleForUser,
+  isToggleableTabId,
   NAMED_BUSINESS_TYPES,
   TAB_PRESETS,
   tabToggleKeys,
@@ -130,5 +133,110 @@ describe('tabPresets', () => {
     expect(keys).toContain('hosp_menu');
     expect(keys).toContain('hosp_members');
     expect(keys).toContain('masters');
+  });
+
+  describe('isToggleableTabId', () => {
+    it('excludes settings and chatbot from the per-device Settings toggle', () => {
+      expect(isToggleableTabId('settings')).toBe(false);
+      expect(isToggleableTabId('chatbot')).toBe(false);
+    });
+
+    it('includes every other nav tab id, for every business type', () => {
+      for (const id of [
+        'analytics',
+        'masters',
+        'inventory',
+        'distribution',
+        'sales',
+        'purchases',
+        'verification',
+        'quotations',
+        'invoices',
+        'finance',
+        'accounts',
+        'warranty',
+        'replacements',
+        'rewards',
+        'hosp_floor',
+        'hosp_waiter',
+        'hosp_kitchen',
+        'hosp_queue',
+        'hosp_menu',
+        'hosp_parcels',
+        'hosp_members',
+      ]) {
+        expect(isToggleableTabId(id)).toBe(true);
+      }
+    });
+  });
+
+  describe('getToggleableNavTabs (Settings toggle list — SA on/off gating)', () => {
+    it('SA-on tabs get a toggle; SA-off tabs get no toggle, for every named business type', () => {
+      for (const businessType of NAMED_BUSINESS_TYPES) {
+        const preset = getTabPreset(businessType);
+        const toggles = getToggleableNavTabs(preset);
+        const toggleIds = new Set(toggles.map(t => t.id));
+        for (const [id, cfg] of Object.entries(preset)) {
+          if (!isToggleableTabId(id)) {
+            expect(toggleIds.has(id)).toBe(false);
+            continue;
+          }
+          expect(toggleIds.has(id)).toBe(cfg.visible !== false);
+        }
+      }
+    });
+
+    it('never lists settings or chatbot even though they default visible', () => {
+      const toggles = getToggleableNavTabs(getTabPreset('manufacturer'));
+      expect(toggles.some(t => t.id === 'settings')).toBe(false);
+      expect(toggles.some(t => t.id === 'chatbot')).toBe(false);
+    });
+
+    it('reacts live when Super Admin flips a tab off — no stale toggle left behind', () => {
+      const on = fillMissingTabPresetKeys({ finance: { label: 'Finance', visible: true } }, 'manufacturer');
+      expect(getToggleableNavTabs(on).some(t => t.id === 'finance')).toBe(true);
+
+      const off = fillMissingTabPresetKeys({ finance: { label: 'Finance', visible: false } }, 'manufacturer');
+      expect(getToggleableNavTabs(off).some(t => t.id === 'finance')).toBe(false);
+    });
+
+    it('hotel_restaurant: hospitality tabs get toggles, hidden supply-chain tabs do not', () => {
+      const toggles = getToggleableNavTabs(getTabPreset('hotel_restaurant'));
+      const toggleIds = new Set(toggles.map(t => t.id));
+      expect(toggleIds.has('hosp_floor')).toBe(true);
+      expect(toggleIds.has('hosp_waiter')).toBe(true);
+      expect(toggleIds.has('accounts')).toBe(true);
+      // SA-off for hotel_restaurant — must not appear
+      expect(toggleIds.has('masters')).toBe(false);
+      expect(toggleIds.has('inventory')).toBe(false);
+      expect(toggleIds.has('distribution')).toBe(false);
+    });
+
+    it('uses the Super Admin-set label so the toggle matches the nav item exactly', () => {
+      const toggles = getToggleableNavTabs(getTabPreset('dealer'));
+      const distribution = toggles.find(t => t.id === 'distribution');
+      expect(distribution?.label).toBe('Sales');
+    });
+  });
+
+  describe('isTabVisibleForUser (App shell tv() policy)', () => {
+    const config = fillMissingTabPresetKeys(
+      { finance: { label: 'Finance', visible: true }, masters: { label: 'Masters', visible: false } },
+      'manufacturer',
+    );
+
+    it('Super Admin OFF always hides the tab, regardless of the device pref', () => {
+      expect(isTabVisibleForUser('masters', config, true)).toBe(false);
+      expect(isTabVisibleForUser('masters', config, false)).toBe(false);
+    });
+
+    it('Super Admin ON + toggleable tab defers to the device pref', () => {
+      expect(isTabVisibleForUser('finance', config, true)).toBe(true);
+      expect(isTabVisibleForUser('finance', config, false)).toBe(false);
+    });
+
+    it('non-toggleable tabs (settings) ignore the device pref once Super Admin allows them', () => {
+      expect(isTabVisibleForUser('settings', config, false)).toBe(true);
+    });
   });
 });

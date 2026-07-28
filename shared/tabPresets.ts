@@ -191,6 +191,41 @@ export function fillMissingTabPresetKeys(
   return out;
 }
 
+/**
+ * Tab ids excluded from the per-device Settings show/hide nav toggle:
+ * `settings` must always stay reachable (it's the only way back to this toggle),
+ * and `chatbot` is a floating widget, not a nav tab.
+ */
+const NON_TOGGLEABLE_TAB_IDS: ReadonlySet<string> = new Set(['settings', 'chatbot']);
+
+export function isToggleableTabId(tabId: string): boolean {
+  return !NON_TOGGLEABLE_TAB_IDS.has(tabId);
+}
+
+/**
+ * Tabs eligible for a Settings show/hide toggle for this tenant: toggleable ids that
+ * Super Admin has turned ON. SA-off tabs are excluded entirely (no toggle, no nav) —
+ * pass a `tabConfig` already filled via `fillMissingTabPresetKeys` so missing keys
+ * fall back to the business-type preset instead of looking SA-disabled.
+ */
+export function getToggleableNavTabs(tabConfig: TabConfig): { id: string; label: string }[] {
+  return Object.entries(tabConfig)
+    .filter(([id, cfg]) => isToggleableTabId(id) && cfg.visible !== false)
+    .map(([id, cfg]) => ({ id, label: cfg.label }));
+}
+
+/**
+ * Single source of truth for "is this nav tab visible for the current user right now?" —
+ * mirrors the app shell's `tv()`. Super Admin OFF always wins; otherwise a toggleable tab
+ * defers to the per-device Settings preference (`userPrefVisible`), and non-toggleable tabs
+ * (settings, chatbot) are always shown once Super Admin allows them.
+ */
+export function isTabVisibleForUser(tabId: string, tabConfig: TabConfig, userPrefVisible: boolean): boolean {
+  if (tabConfig[tabId]?.visible === false) return false;
+  if (isToggleableTabId(tabId)) return userPrefVisible;
+  return true;
+}
+
 export function isNamedBusinessType(value: unknown): value is NamedBusinessType {
   return typeof value === 'string' && (NAMED_BUSINESS_TYPES as readonly string[]).includes(value);
 }
