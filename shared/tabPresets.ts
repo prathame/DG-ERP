@@ -191,6 +191,17 @@ export function fillMissingTabPresetKeys(
   return out;
 }
 
+/**
+ * Tab ids excluded from the per-device Settings show/hide nav toggle:
+ * `settings` must always stay reachable (it's the only way back to this toggle),
+ * and `chatbot` is a floating widget, not a nav tab.
+ */
+const NON_TOGGLEABLE_TAB_IDS: ReadonlySet<string> = new Set(['settings', 'chatbot']);
+
+export function isToggleableTabId(tabId: string): boolean {
+  return !NON_TOGGLEABLE_TAB_IDS.has(tabId);
+}
+
 export function isNamedBusinessType(value: unknown): value is NamedBusinessType {
   return typeof value === 'string' && (NAMED_BUSINESS_TYPES as readonly string[]).includes(value);
 }

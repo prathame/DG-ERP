@@ -42,7 +42,7 @@ import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { loadLicense } from './platforms/service-mobile/licenseStore';
-import { getAccountsTabVisiblePref } from './platforms/service-mobile/tabPrefs';
+import { getTabVisiblePref, TAB_VISIBLE_PREF_CHANGED_EVENT } from './lib/tabVisibilityPrefs';
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
@@ -53,7 +53,7 @@ import {
   isServicePhoneUx,
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
-import { fillMissingTabPresetKeys } from '../shared/tabPresets';
+import { fillMissingTabPresetKeys, isToggleableTabId } from '../shared/tabPresets';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -608,6 +608,13 @@ export default function App() {
     });
   };
   const [cmdOpen, setCmdOpen] = useState(false);
+  // Bumped when a Settings nav-tab toggle changes, so tv() re-reads the pref live.
+  const [, setTabVisiblePrefTick] = useState(0);
+  useEffect(() => {
+    const onPrefChange = () => setTabVisiblePrefTick(n => n + 1);
+    window.addEventListener(TAB_VISIBLE_PREF_CHANGED_EVENT, onPrefChange);
+    return () => window.removeEventListener(TAB_VISIBLE_PREF_CHANGED_EVENT, onPrefChange);
+  }, []);
   const [user, setUser] = useState<{
     id: string;
     email: string;
@@ -758,10 +765,10 @@ export default function App() {
     userConfig?.businessType as string | undefined,
   );
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
-  /** Tenant tabConfig, plus Offline Mobile Settings override for Accounts. */
+  /** Tenant tabConfig (Super Admin), plus per-device Settings show/hide override. */
   const tv = (key: string) => {
     if (tabConfig[key]?.visible === false) return false;
-    if (key === 'accounts' && serviceMobile) return getAccountsTabVisiblePref();
+    if (isToggleableTabId(key)) return getTabVisiblePref(key);
     return true;
   };
 

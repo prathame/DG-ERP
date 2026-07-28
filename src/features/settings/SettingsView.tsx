@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LogIn,
@@ -43,11 +43,11 @@ import { isMobileAppShell, offersBugReportShare } from '../../lib/mobileAppShell
 import {
   exportLocalBackupNow,
   restoreFromLocalBackupFile,
-  getAccountsTabVisiblePref,
-  setAccountsTabVisiblePref,
   restoreProgress,
   type RestoreProgress,
 } from '../../platforms/service-mobile';
+import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
+import { fillMissingTabPresetKeys, isToggleableTabId } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import {
@@ -1031,6 +1031,7 @@ export function SettingsView({
     role?: string;
     companyName?: string;
     autoWhatsapp?: boolean;
+    businessType?: string;
     tabConfig?: Record<string, { label?: string; visible?: boolean }> | null;
   } | null;
   onUserChange: (u: typeof user) => void;
@@ -1051,9 +1052,21 @@ export function SettingsView({
       return true;
     }
   });
-  const [accountsTabVisible, setAccountsTabVisible] = useState(() =>
-    serviceMobile ? getAccountsTabVisiblePref() : true,
+  // Super Admin tab_config (filled with business-type preset defaults for any missing keys) —
+  // the source of truth for which nav tabs are eligible for a per-device show/hide toggle.
+  const filledTabConfig: Record<string, { label: string; visible: boolean }> = useMemo(
+    () => fillMissingTabPresetKeys(user?.tabConfig, user?.businessType),
+    [user?.tabConfig, user?.businessType],
   );
+  const toggleableNavTabs = useMemo(
+    () =>
+      Object.entries(filledTabConfig)
+        .filter(([id, cfg]) => isToggleableTabId(id) && cfg.visible !== false)
+        .map(([id, cfg]) => ({ id, label: cfg.label })),
+    [filledTabConfig],
+  );
+  // Bumped on every toggle click so the switches below re-read localStorage immediately.
+  const [, setTabPrefsTick] = useState(0);
   const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');
   /** Cap phone module sheet (incl. service) — null = hub */
   const [mobileSheet, setMobileSheet] = useState<DesktopSettingsTabId | null>(null);
@@ -1980,52 +1993,47 @@ export function SettingsView({
                       ))}
                     </div>
                   </div>
-                  {serviceMobile && (
-                    <div className="flex items-start justify-between gap-3 pt-1 border-t border-gray-100">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-sm">{st('settings.showAccounts')}</p>
+                  {toggleableNavTabs.length > 0 && (
+                    <div className="space-y-3 pt-1 border-t border-gray-100">
+                      <div>
+                        <p className="font-semibold text-sm">{st('settings.navTabVisibility')}</p>
                         <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                          {st('settings.showAccountsDesc')}
+                          {st('settings.navTabVisibilityDesc')}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={accountsTabVisible}
-                        aria-label={st('settings.showAccounts')}
-                        onClick={() => {
-                          if (!user) return;
-                          const next = !accountsTabVisible;
-                          setAccountsTabVisiblePref(next);
-                          setAccountsTabVisible(next);
-                          const prevTc =
-                            (user.tabConfig as Record<string, { label?: string; visible?: boolean }> | null) || {};
-                          const tabConfig = {
-                            ...prevTc,
-                            accounts: {
-                              label: prevTc.accounts?.label || 'Accounts',
-                              visible: next,
-                            },
-                          };
-                          const merged = { ...user, tabConfig };
-                          session.setUser(merged);
-                          onUserChange(merged);
-                          toast(next ? 'Accounts tab shown' : 'Accounts tab hidden', 'success');
-                        }}
-                        className={cn(
-                          'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
-                          accountsTabVisible ? 'bg-brand' : 'bg-gray-300',
-                        )}
-                      >
-                        <span
-                          aria-hidden
-                          className={cn(
-                            'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                            accountsTabVisible ? 'translate-x-5' : 'translate-x-0',
-                          )}
-                          style={{ backgroundColor: '#FFFFFF' }}
-                        />
-                      </button>
+                      {toggleableNavTabs.map(tab => {
+                        const visible = getTabVisiblePref(tab.id);
+                        return (
+                          <div key={tab.id} className="flex items-center justify-between gap-3">
+                            <p className="min-w-0 flex-1 text-sm truncate">{tab.label}</p>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={visible}
+                              aria-label={tab.label}
+                              onClick={() => {
+                                const next = !visible;
+                                setTabVisiblePref(tab.id, next);
+                                setTabPrefsTick(n => n + 1);
+                                toast(next ? `${tab.label} tab shown` : `${tab.label} tab hidden`, 'success');
+                              }}
+                              className={cn(
+                                'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                                visible ? 'bg-brand' : 'bg-gray-300',
+                              )}
+                            >
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                                  visible ? 'translate-x-5' : 'translate-x-0',
+                                )}
+                                style={{ backgroundColor: '#FFFFFF' }}
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
