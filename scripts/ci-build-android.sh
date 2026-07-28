@@ -4,8 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-# shellcheck source=android-env.sh
-source "$ROOT/scripts/android-env.sh"
+# Note: scripts/android-env.sh is for local dev shells only (sets macOS Homebrew JDK/SDK
+# defaults) — CI already gets JAVA_HOME/ANDROID_HOME from actions/setup-java + the runner image.
 OUT_DIR="${ANDROID_OUT_DIR:-dist-apk}"
 
 log() { printf '+ %s\n' "$*" >&2; }

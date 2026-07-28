@@ -66,6 +66,8 @@ function mapStandaloneInvoice(r: Record<string, unknown>) {
     invoiceDate: r.invoice_date,
     dueDate: r.due_date,
     createdAt: r.created_at,
+    // Only present when the query joins invoice_payments (list/get below) — else 0.
+    paidAmount: Number(r.paid_amount) || 0,
   };
 }
 
@@ -90,9 +92,12 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
       ).rows[0]?.c ?? 0,
     );
     const { rows } = await pool.query(
-      `SELECT * FROM standalone_invoices
-       WHERE tenant_id = $1 AND status != 'cancelled'
-       ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
+       FROM standalone_invoices si
+       LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
+       WHERE si.tenant_id = $1 AND si.status != 'cancelled'
+       GROUP BY si.id
+       ORDER BY si.created_at DESC LIMIT $2 OFFSET $3`,
       [tenantId, limit, offset],
     );
     res.setHeader('X-Total-Count', String(total));
@@ -138,10 +143,14 @@ router.get('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { rows } = await pool.query('SELECT * FROM standalone_invoices WHERE id = $1 AND tenant_id = $2', [
-      req.params.id,
-      tenantId,
-    ]);
+    const { rows } = await pool.query(
+      `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
+       FROM standalone_invoices si
+       LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $2
+       WHERE si.id = $1 AND si.tenant_id = $2
+       GROUP BY si.id`,
+      [req.params.id, tenantId],
+    );
     if (!rows[0]) return res.status(404).json({ error: 'Invoice not found' });
     res.json(mapStandaloneInvoice(rows[0] as Record<string, unknown>));
   } catch (err) {
