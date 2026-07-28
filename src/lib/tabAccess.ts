@@ -14,6 +14,21 @@ export const HOTEL_ROLE_TABS: Record<string, readonly string[]> = {
 };
 
 /**
+ * Nav tabs with no dedicated permission checkbox in Settings → Users (see `PERMISSION_LABELS` in
+ * SettingsView.tsx). They still need *some* permission-map entry to check once a user has an
+ * explicit `permissions` object — which every SA-created service-cloud user and every user
+ * created/edited via Settings → Users has (see `normalizePermissions`) — otherwise a missing key
+ * falls into the deny-by-default branch below and the tab silently disappears from nav for
+ * *any* role, including Admin. Mirrors the module that already gates each tab's API server-side
+ * (`PATH_MODULE` in server/middleware/permissions.ts).
+ */
+const UNMAPPED_TAB_FALLBACK: Record<string, string> = {
+  masters: 'settings',
+  invoices: 'sales',
+  chatbot: 'dashboard',
+};
+
+/**
  * Resolve access for a nav tab id from user.permissions + role defaults.
  *
  * - `null` / `undefined` / `[]` / `{}` → role defaults (empty object is the Offline Mobile DB default)
@@ -61,9 +76,13 @@ export function resolveTabAccess(
         (tabId === 'analytics' ? map.dashboard : undefined) ??
         (tabId === 'dashboard' ? map.analytics : undefined) ??
         // API RBAC module key → hospitality nav tabs
-        (tabId.startsWith('hosp_') ? map.hospitality : undefined)) as string | undefined;
+        (tabId.startsWith('hosp_') ? map.hospitality : undefined) ??
+        (UNMAPPED_TAB_FALLBACK[tabId] ? map[UNMAPPED_TAB_FALLBACK[tabId]] : undefined)) as string | undefined;
       if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
-      return 'hidden';
+      // `verification` has no backend permission module (unmapped in PATH_MODULE) — an explicit
+      // permissions map was never meant to gate it, so fall through to the role default instead
+      // of denying by default.
+      if (tabId !== 'verification') return 'hidden';
     }
   } else if (Array.isArray(perms)) {
     // Empty array is also an unset Offline default — do not deny-all.
@@ -74,7 +93,8 @@ export function resolveTabAccess(
       if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
       if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
       if (tabId.startsWith('hosp_') && perms.includes('hospitality')) return 'full';
-      return 'hidden';
+      if (UNMAPPED_TAB_FALLBACK[tabId] && perms.includes(UNMAPPED_TAB_FALLBACK[tabId])) return 'full';
+      if (tabId !== 'verification') return 'hidden';
     }
   }
 

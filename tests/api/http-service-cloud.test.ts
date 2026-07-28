@@ -437,6 +437,67 @@ describe('HTTP: service-cloud seats', () => {
     expect(unbound + bound).toBe(alice!.devices.length);
   });
 
+  it('SA seat-user create is capped by the tenant plan max_users, for any business type', async () => {
+    // Plan cap applies regardless of business type — try both service and manufacturer.
+    for (const businessType of ['service', 'manufacturer']) {
+      const tid = `T-SC-CAP-${businessType.slice(0, 3).toUpperCase()}`;
+      const adminId = `U-SC-CAP-${businessType.slice(0, 3).toUpperCase()}`;
+      await cleanupTestData(tid);
+      const planId = `plan-seat-cap-${businessType}`;
+      await pool.query(
+        `INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
+         VALUES ($1, 'SeatCap', -1, -1, 1, -1, '[]', 0, 0)
+         ON CONFLICT (id) DO UPDATE SET max_users = 1`,
+        [planId],
+      );
+      const hash = bcrypt.hashSync('password12', 4);
+      await pool.query(
+        `INSERT INTO tenants (id, company_name, slug, status, business_type, admin_email, admin_name, plan_id)
+         VALUES ($1, 'Seat Cap Co', $2, 'active', $3, 'admin@seatcap.test', 'Admin', $4)`,
+        [tid, `seat-cap-${businessType}`, businessType, planId],
+      );
+      await pool.query(
+        `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+         VALUES ($1,$2,'admin@seatcap.test',$3,'Admin','Admin')`,
+        [adminId, tid, hash],
+      );
+
+      // Plan allows exactly 1 user; the admin already fills that seat.
+      const blocked = await api()
+        .post(`/api/super-admin/tenants/${tid}/service-cloud/users`)
+        .set({ Authorization: `Bearer ${saToken()}` })
+        .send({ name: 'Extra', email: 'extra@seatcap.test', password: 'password12', mobileSlots: 1, desktopSlots: 0 });
+      expect(blocked.status).toBe(403);
+      expect(blocked.body.error).toMatch(/Plan limit reached/i);
+
+      // Same cap also blocks Tenant Settings → Add User (server/routes/admin.ts) — kept in sync.
+      const tenantAdminToken = createTestToken({
+        userId: adminId,
+        tenantId: tid,
+        email: 'admin@seatcap.test',
+        role: 'Admin',
+        name: 'Admin',
+      });
+      const blockedSettings = await api()
+        .post('/api/admin/users')
+        .set({ Authorization: `Bearer ${tenantAdminToken}` })
+        .send({ email: 'extra2@seatcap.test', password: 'password12', name: 'Extra2', role: 'Staff' });
+      expect(blockedSettings.status).toBe(403);
+      expect(blockedSettings.body.error).toMatch(/Plan limit reached/i);
+
+      // Seats payload reports the same plan cap for the SA UI to display before hitting the 403.
+      const seats = await api()
+        .get(`/api/super-admin/tenants/${tid}/service-cloud`)
+        .set({ Authorization: `Bearer ${saToken()}` });
+      expect(seats.status).toBe(200);
+      expect(seats.body.planMaxUsers).toBe(1);
+      expect(seats.body.activeUserCount).toBe(1);
+
+      await cleanupTestData(tid);
+      await pool.query('DELETE FROM plans WHERE id = $1', [planId]);
+    }
+  });
+
   it('SA soft-deletes seat user and blocks deleting last admin', async () => {
     const tid = 'T-SC-DEL';
     const adminId = 'U-SC-DEL-A';

@@ -35,6 +35,9 @@ type SeatsPayload = {
   clientAccessMode: AccessMode | null;
   businessType?: string;
   companySessionLock?: boolean;
+  /** Plan-wide login user cap (-1 = unlimited) — separate from per-user device slots below. */
+  planMaxUsers?: number;
+  activeUserCount?: number;
   mobileFeatures?: MobileFeatures;
   whatsappBusinessEnabled?: boolean;
   whatsappSendMode?: string | null;
@@ -337,6 +340,9 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
   const mode = data?.clientAccessMode;
   const isService = data?.businessType === 'service';
   const companyLock = data?.companySessionLock ?? isService;
+  const planMaxUsers = data?.planMaxUsers ?? -1;
+  const activeUserCount = data?.activeUserCount ?? (data?.users.length || 0);
+  const atUserCap = planMaxUsers !== -1 && activeUserCount >= planMaxUsers;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -419,16 +425,33 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-bold text-gray-500 uppercase">Users (password, devices, notify)</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase">Users (password, devices, notify)</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {planMaxUsers === -1
+                ? `${activeUserCount} user${activeUserCount === 1 ? '' : 's'} · plan: unlimited`
+                : `${activeUserCount} of ${planMaxUsers} users on plan`}
+              {' — device slots below are separate from this plan cap.'}
+            </p>
+          </div>
           <button
             type="button"
+            disabled={atUserCap}
+            title={atUserCap ? 'Plan user limit reached — upgrade the plan to add more users' : undefined}
             onClick={() => setShowAdd(v => !v)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand/10 text-brand text-sm font-semibold"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand/10 text-brand text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={14} /> Add user
           </button>
         </div>
+
+        {atUserCap && (
+          <p className="text-xs text-amber-600 -mt-2">
+            Plan limit reached: this tenant's plan allows {planMaxUsers} users. Upgrade the plan (Tenant → Change Plan)
+            to add more.
+          </p>
+        )}
 
         {showAdd && (
           <form
