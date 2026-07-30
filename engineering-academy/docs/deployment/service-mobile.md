@@ -49,6 +49,8 @@ npx cap open ios       # Xcode → simulator / device / TestFlight
 
 Evergreen downloads: tag `dhandho-mobile` (`dhandho-mobile-debug.apk` / `.app.zip`). Label `mobile` on merge.
 
+**Real iPhone:** simulator `.app.zip` will not install. Use **TestFlight** — see [docs/TESTFLIGHT.md](../../../docs/TESTFLIGHT.md). CI: Actions → APK Build → `ios_ipa=true` (Apple secrets required).
+
 ### CI: Offline Mobile (GitLab — Android + iOS)
 
 Same pattern as the GitHub Offline APK job: **debug** artifacts, label/path triggers, evergreen package.
