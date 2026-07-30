@@ -21,4 +21,4 @@ Evergreen release tag: `dhandho-desktop` (Mac arm64/x64 DMGs + Windows x64 exe).
 Renderer platform code: `src/platforms/desktop/`.  
 Phone Capacitor: `src/platforms/service-mobile/` / unified phone shell.
 
-Public downloads: **`/download`**.
+Public downloads: **`/download`**. iPhone device installs: [TestFlight](../docs/TESTFLIGHT.md).

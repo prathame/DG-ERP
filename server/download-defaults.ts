@@ -27,3 +27,6 @@ export const DEFAULT_DESKTOP_WIN_URL =
 
 /** @deprecated Prefer desktop_mac_* / desktop_win_url. Kept for SA/API backward compat. */
 export const DEFAULT_DESKTOP_APP_URL = DEFAULT_DESKTOP_MAC_ARM64_URL;
+
+/** Optional public TestFlight invite / app link — set via SA when TestFlight is live. */
+export const DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL: string | null = null;

@@ -17,6 +17,7 @@ import {
   DEFAULT_DESKTOP_MAC_X64_URL,
   DEFAULT_DESKTOP_WIN_URL,
   DEFAULT_DESKTOP_APP_URL,
+  DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
 } from './download-defaults';
 import { enforceModulePermissions, normalizePermissions } from './middleware/permissions';
 
@@ -618,6 +619,7 @@ export function createApp(): express.Application {
            WHERE key IN (
              'service_cloud_app_url', 'service_cloud_ios_url',
              'service_mobile_app_url', 'service_mobile_ios_url',
+             'service_mobile_testflight_url',
              'desktop_app_url', 'desktop_mac_arm64_url', 'desktop_mac_x64_url', 'desktop_win_url'
            )`,
         )
@@ -634,6 +636,7 @@ export function createApp(): express.Application {
         serviceCloudIosUrl: cfg.service_cloud_ios_url || DEFAULT_SERVICE_CLOUD_IOS_URL,
         serviceMobileAppUrl: cfg.service_mobile_app_url || DEFAULT_SERVICE_MOBILE_APP_URL,
         serviceMobileIosUrl: cfg.service_mobile_ios_url || DEFAULT_SERVICE_MOBILE_IOS_URL,
+        serviceMobileTestflightUrl: cfg.service_mobile_testflight_url || DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
         desktopMacArm64Url: desktopMacArm64,
         desktopMacX64Url: desktopMacX64,
         desktopWinUrl: desktopWin,

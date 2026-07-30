@@ -7,6 +7,7 @@ type DownloadLinks = {
   serviceCloudIosUrl: string | null;
   serviceMobileAppUrl: string | null;
   serviceMobileIosUrl: string | null;
+  serviceMobileTestflightUrl: string | null;
   desktopMacArm64Url: string | null;
   desktopMacX64Url: string | null;
   desktopWinUrl: string | null;
@@ -52,6 +53,7 @@ export function DownloadPage() {
 
   const androidUrl = links?.serviceMobileAppUrl || links?.serviceCloudAppUrl;
   const iosUrl = links?.serviceMobileIosUrl || links?.serviceCloudIosUrl;
+  const testflightUrl = links?.serviceMobileTestflightUrl;
   const macArm = links?.desktopMacArm64Url || links?.desktopAppUrl;
   const macX64 = links?.desktopMacX64Url;
   const winUrl = links?.desktopWinUrl;
@@ -125,10 +127,23 @@ export function DownloadPage() {
                 </p>
               </div>
               <div className="px-4 sm:px-6 py-4 space-y-3">
-                {androidUrl || iosUrl ? (
+                {androidUrl || testflightUrl || iosUrl ? (
                   <>
                     {androidUrl && <DownloadButton href={androidUrl} label="Android APK" accent="emerald" />}
-                    {iosUrl && <DownloadButton href={iosUrl} label="iOS (.app.zip)" accent="emerald" />}
+                    {testflightUrl ? (
+                      <DownloadButton href={testflightUrl} label="iPhone — TestFlight" accent="emerald" />
+                    ) : (
+                      <p className="text-sm text-white/40 rounded-xl border border-white/10 px-4 py-3">
+                        iPhone: TestFlight link not set yet. See{' '}
+                        <span className="font-mono text-white/55">docs/TESTFLIGHT.md</span> — Apple Developer + CI IPA
+                        upload, then paste the invite URL in Super Admin → Analytics.
+                      </p>
+                    )}
+                    {iosUrl && !testflightUrl && (
+                      <p className="text-xs text-white/35">
+                        Simulator-only .app.zip is still published for Mac/Xcode — not for physical iPhones.
+                      </p>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-white/40">
@@ -137,7 +152,7 @@ export function DownloadPage() {
                 )}
                 <p className="text-xs text-white/40">
                   Offline mode needs a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license. Online
-                  mode uses company cloud seats. iOS is a simulator debug build (not App Store).
+                  mode uses company cloud seats. Real iPhones use TestFlight (not the simulator zip).
                 </p>
               </div>
             </motion.div>
