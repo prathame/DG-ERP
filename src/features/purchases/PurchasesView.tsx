@@ -1,6 +1,17 @@
 import React, { Fragment, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt, Truck, UserPlus } from 'lucide-react';
+import {
+  ShoppingBag,
+  Plus,
+  Pencil,
+  ArrowLeft,
+  Search,
+  IndianRupee,
+  Trash2,
+  Receipt,
+  Truck,
+  UserPlus,
+} from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
@@ -67,7 +78,8 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [batchDetail, setBatchDetail] = useState<Record<string, unknown> | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [supplierModal, setSupplierModal] = useState(false);
-  const [supplierForm, setSupplierForm] = useState({
+  const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
+  const emptySupplierForm = () => ({
     name: '',
     contactPerson: '',
     phone: '',
@@ -75,6 +87,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     address: '',
     gstNumber: '',
   });
+  const [supplierForm, setSupplierForm] = useState(emptySupplierForm);
   const [purchaseForm, setPurchaseForm] = useState({
     supplierId: '',
     date: new Date().toISOString().slice(0, 10),
@@ -141,13 +154,38 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   >({});
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const closeSupplierModal = () => {
+    setSupplierModal(false);
+    setEditingSupplierId(null);
+    setSupplierForm(emptySupplierForm());
+  };
+
+  const openAddSupplier = () => {
+    setEditingSupplierId(null);
+    setSupplierForm(emptySupplierForm());
+    setSupplierModal(true);
+  };
+
+  const openEditSupplier = (s: Supplier) => {
+    setEditingSupplierId(s.id);
+    setSupplierForm({
+      name: s.name || '',
+      contactPerson: s.contactPerson || '',
+      phone: s.phone || '',
+      email: s.email || '',
+      address: s.address || '',
+      gstNumber: s.gstNumber || '',
+    });
+    setSupplierModal(true);
+  };
+
   useEscapeKey(() => {
     if (paymentModal) {
       setPaymentModal(null);
       return true;
     }
     if (supplierModal) {
-      setSupplierModal(false);
+      closeSupplierModal();
       return true;
     }
     if (modalOpen) {
@@ -222,7 +260,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     { gross: 0, gst: 0, billed: 0, items: 0 },
   );
 
-  const handleCreateSupplier = async (e: React.FormEvent) => {
+  const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supplierForm.name) {
       toast('Enter supplier name', 'error');
@@ -230,17 +268,95 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     }
     setSubmitting(true);
     try {
-      await fetchApi('/suppliers', { method: 'POST', body: JSON.stringify(supplierForm) });
-      setSupplierModal(false);
-      setSupplierForm({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
+      if (editingSupplierId) {
+        await fetchApi(`/suppliers/${editingSupplierId}`, {
+          method: 'PUT',
+          body: JSON.stringify(supplierForm),
+        });
+        toast('Supplier updated', 'success');
+      } else {
+        await fetchApi('/suppliers', { method: 'POST', body: JSON.stringify(supplierForm) });
+        toast('Supplier added', 'success');
+      }
+      closeSupplierModal();
       load();
-      toast('Supplier added', 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const supplierModalNode = supplierModal ? (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={closeSupplierModal} />
+      <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+        <h3 className="text-lg font-bold mb-4">{editingSupplierId ? 'Edit Supplier' : 'Add Supplier'}</h3>
+        <form onSubmit={handleSaveSupplier} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+            <input
+              required
+              value={supplierForm.name}
+              onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person</label>
+              <input
+                value={supplierForm.contactPerson}
+                onChange={e => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+              <input
+                value={supplierForm.phone}
+                onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">GSTIN</label>
+            <input
+              value={supplierForm.gstNumber}
+              onChange={e => setSupplierForm({ ...supplierForm, gstNumber: e.target.value })}
+              placeholder="e.g. 24AABCU9603R1ZM"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+            <input
+              value={supplierForm.address}
+              onChange={e => setSupplierForm({ ...supplierForm, address: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={closeSupplierModal}
+              className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold text-sm disabled:opacity-60"
+            >
+              {submitting ? 'Saving...' : editingSupplierId ? 'Save Changes' : 'Add Supplier'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  ) : null;
 
   const handleCreatePurchase = async () => {
     if (!purchaseForm.supplierId) {
@@ -571,6 +687,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       );
     }
 
+    const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId);
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -582,7 +699,17 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             >
               <ArrowLeft size={20} className="text-gray-600" />
             </button>
-            <h3 className="font-bold text-lg">{supplierName}</h3>
+            <h3 className="font-bold text-lg flex-1 min-w-0 truncate">{supplierName}</h3>
+            {canEdit && selectedSupplier && (
+              <button
+                type="button"
+                onClick={() => openEditSupplier(selectedSupplier)}
+                className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg"
+                title="Edit supplier"
+              >
+                <Pencil size={18} />
+              </button>
+            )}
           </div>
           <div className="divide-y divide-gray-100">
             <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">
@@ -627,6 +754,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             )}
           </div>
         </div>
+        {supplierModalNode}
       </motion.div>
     );
   }
@@ -655,7 +783,11 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           onSearchText={setSearchText}
           suppliers={supplierStats}
           onSelectSupplier={setSelectedSupplierId}
-          onAddSupplier={() => setSupplierModal(true)}
+          onAddSupplier={openAddSupplier}
+          onEditSupplier={s => {
+            const full = suppliers.find(x => x.id === s.id);
+            if (full) openEditSupplier(full);
+          }}
           onNewPurchase={() => setModalOpen(true)}
         />
       ) : servicePhoneUx ? (
@@ -670,7 +802,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             {section === 'purchases' && canEdit && (
               <button
                 type="button"
-                onClick={() => setSupplierModal(true)}
+                onClick={openAddSupplier}
                 aria-label="Add supplier"
                 className="shrink-0 h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 active:bg-gray-50"
               >
@@ -733,26 +865,45 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   title="No suppliers yet"
                   subtitle="Add your first supplier to start recording purchases"
                   actionLabel="Add Supplier"
-                  onAction={() => setSupplierModal(true)}
+                  onAction={openAddSupplier}
                 />
               ) : (
                 <div className="space-y-1.5">
                   {supplierStats.map(s => (
                     <Fragment key={s.id}>
-                      <MobileListRow
-                        icon={<Truck />}
-                        title={s.name}
-                        subtitle={
-                          s.batchCount === 0
-                            ? 'No purchases yet'
-                            : `${s.batchCount} purchase${s.batchCount !== 1 ? 's' : ''}`
-                        }
-                        trailing={
-                          s.totalPurchased > 0 ? (s.balance > 0 ? `₹${s.balance.toLocaleString()}` : 'Paid') : undefined
-                        }
-                        meta={s.balance > 0 ? 'Due' : undefined}
-                        onClick={() => setSelectedSupplierId(s.id)}
-                      />
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                        <MobileListRow
+                          icon={<Truck />}
+                          title={s.name}
+                          subtitle={
+                            s.batchCount === 0
+                              ? 'No purchases yet'
+                              : `${s.batchCount} purchase${s.batchCount !== 1 ? 's' : ''}`
+                          }
+                          trailing={
+                            s.totalPurchased > 0
+                              ? s.balance > 0
+                                ? `₹${s.balance.toLocaleString()}`
+                                : 'Paid'
+                              : undefined
+                          }
+                          meta={s.balance > 0 ? 'Due' : undefined}
+                          onClick={() => setSelectedSupplierId(s.id)}
+                        />
+                        {canEdit && (
+                          <div className="flex justify-end border-t border-gray-50 px-1.5 py-0.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditSupplier(s)}
+                              className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-lg"
+                              title="Edit supplier"
+                              aria-label="Edit supplier"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </Fragment>
                   ))}
                 </div>
@@ -833,7 +984,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 <>
                   <button
                     type="button"
-                    onClick={() => setSupplierModal(true)}
+                    onClick={openAddSupplier}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"
                   >
                     <Plus size={16} /> Add Supplier
@@ -979,7 +1130,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   <p className="text-sm mb-4">Add your first supplier to start recording purchases</p>
                   <button
                     type="button"
-                    onClick={() => setSupplierModal(true)}
+                    onClick={openAddSupplier}
                     className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
                   >
                     + Add Supplier
@@ -988,32 +1139,48 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {supplierStats.map(s => (
-                    <button
+                    <div
                       key={s.id}
-                      type="button"
-                      onClick={() => setSelectedSupplierId(s.id)}
                       className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-all"
                     >
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{s.name}</p>
-                      {s.totalPurchased > 0 && (
-                        <div className="mt-2 flex gap-4 text-sm flex-wrap">
-                          <span className="text-blue-600">
-                            <strong>₹{s.totalPurchased.toLocaleString()}</strong> purchased
-                          </span>
-                          <span className="text-emerald-600">
-                            <strong>₹{s.totalPaid.toLocaleString()}</strong> paid
-                          </span>
-                          {s.balance > 0 ? (
-                            <span className="text-rose-600">
-                              <strong>₹{s.balance.toLocaleString()}</strong> due
-                            </span>
-                          ) : (
-                            s.totalPurchased > 0 && <PaidBadge size="sm" />
+                      <div className="flex items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSupplierId(s.id)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{s.name}</p>
+                          {s.totalPurchased > 0 && (
+                            <div className="mt-2 flex gap-4 text-sm flex-wrap">
+                              <span className="text-blue-600">
+                                <strong>₹{s.totalPurchased.toLocaleString()}</strong> purchased
+                              </span>
+                              <span className="text-emerald-600">
+                                <strong>₹{s.totalPaid.toLocaleString()}</strong> paid
+                              </span>
+                              {s.balance > 0 ? (
+                                <span className="text-rose-600">
+                                  <strong>₹{s.balance.toLocaleString()}</strong> due
+                                </span>
+                              ) : (
+                                s.totalPurchased > 0 && <PaidBadge size="sm" />
+                              )}
+                            </div>
                           )}
-                        </div>
-                      )}
-                      {s.batchCount === 0 && <p className="mt-2 text-xs text-gray-400">No purchases yet</p>}
-                    </button>
+                          {s.batchCount === 0 && <p className="mt-2 text-xs text-gray-400">No purchases yet</p>}
+                        </button>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => openEditSupplier(s)}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg shrink-0"
+                            title="Edit supplier"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1545,77 +1712,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
         )}
       </AnimatePresence>
 
-      {/* Add Supplier Modal */}
-      {supplierModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSupplierModal(false)} />
-          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
-            <h3 className="text-lg font-bold mb-4">Add Supplier</h3>
-            <form onSubmit={handleCreateSupplier} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                <input
-                  required
-                  value={supplierForm.name}
-                  onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person</label>
-                  <input
-                    value={supplierForm.contactPerson}
-                    onChange={e => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                  <input
-                    value={supplierForm.phone}
-                    onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">GSTIN</label>
-                <input
-                  value={supplierForm.gstNumber}
-                  onChange={e => setSupplierForm({ ...supplierForm, gstNumber: e.target.value })}
-                  placeholder="e.g. 24AABCU9603R1ZM"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
-                <input
-                  value={supplierForm.address}
-                  onChange={e => setSupplierForm({ ...supplierForm, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSupplierModal(false)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold text-sm disabled:opacity-60"
-                >
-                  {submitting ? 'Saving...' : 'Add Supplier'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {supplierModalNode}
       <ConfirmRenderer />
     </motion.div>
   );

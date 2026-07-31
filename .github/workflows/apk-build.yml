@@ -8,7 +8,9 @@
 #   apk build | /apk
 #
 # Evergreen release tag `dhandho-mobile`:
-#   dhandho-mobile-debug.apk + dhandho-mobile-debug.app.zip
+#   dhandho-mobile-debug.apk + dhandho-mobile-debug.app.zip (simulator)
+# Device IPA / TestFlight: workflow_dispatch ios_ipa=true (needs Apple secrets)
+# See docs/TESTFLIGHT.md
 name: APK Build
 
 on:
@@ -31,8 +33,10 @@ on:
       - 'scripts/ci-build-android.sh'
       - 'scripts/ci-build-ios.sh'
       - 'scripts/ci-upload-evergreen-asset.sh'
+      - 'scripts/ci-upload-testflight.sh'
       - 'scripts/android-set-product.sh'
       - 'scripts/ios-set-product.sh'
+      - 'docs/TESTFLIGHT.md'
       - 'src/platforms/service-mobile/**'
       - 'src/platforms/service-cloud/**'
       - 'src/App.tsx'
@@ -65,6 +69,10 @@ on:
         description: 'Upload matching evergreen release(s)'
         type: boolean
         default: true
+      ios_ipa:
+        description: 'Also build signed iPhone IPA + upload TestFlight (needs Apple secrets)'
+        type: boolean
+        default: false
 
 concurrency:
   # Merged PR + push-to-main both fire for the same commit — pin both to `main`
@@ -85,6 +93,7 @@ jobs:
     outputs:
       build_offline: ${{ steps.check.outputs.build_offline }}
       build_online: ${{ steps.check.outputs.build_online }}
+      build_ios_ipa: ${{ steps.check.outputs.build_ios_ipa }}
       pr_number: ${{ steps.check.outputs.pr_number }}
       head_sha: ${{ steps.check.outputs.head_sha }}
       head_ref: ${{ steps.check.outputs.head_ref }}
@@ -164,14 +173,16 @@ jobs:
               // Unified phone only — former "online" Cap jobs are retired.
               const offline = !!(opts.offline || opts.online);
               const online = false;
+              const iosIpa = !!opts.iosIpa;
               core.setOutput('build_offline', offline ? 'true' : 'false');
               core.setOutput('build_online', 'false');
+              core.setOutput('build_ios_ipa', iosIpa ? 'true' : 'false');
               core.setOutput('pr_number', opts.pr || '');
               core.setOutput('head_sha', opts.sha || '');
               core.setOutput('head_ref', opts.ref || '');
               core.setOutput('push_release', opts.pushRelease ?? 'true');
               core.setOutput('trigger', opts.trigger || event);
-              core.info(`APK gate: unified_phone=${offline} trigger=${opts.trigger || event}`);
+              core.info(`APK gate: unified_phone=${offline} ios_ipa=${iosIpa} trigger=${opts.trigger || event}`);
             };
 
             // ── Merge to main → evergreen for labeled product(s) ───────────
@@ -325,8 +336,9 @@ jobs:
               const prNum = String(context.payload.inputs?.pr_number || '').trim();
               const push = String(context.payload.inputs?.push_release ?? 'true');
               const product = String(context.payload.inputs?.product || 'both');
-              const offline = product === 'both' || product === 'offline';
-              const online = product === 'both' || product === 'online';
+              const iosIpa = String(context.payload.inputs?.ios_ipa ?? 'false') === 'true';
+              const offline = product === 'both' || product === 'offline' || product === 'online' || iosIpa;
+              const online = false;
               if (prNum) {
                 const { data: pr } = await github.rest.pulls.get({
                   owner: context.repo.owner,
@@ -336,6 +348,7 @@ jobs:
                 set({
                   offline,
                   online,
+                  iosIpa,
                   pr: String(pr.number),
                   sha: pr.head.sha,
                   ref: pr.head.ref,
@@ -346,6 +359,7 @@ jobs:
                 set({
                   offline,
                   online,
+                  iosIpa,
                   sha: context.sha,
                   ref: context.ref,
                   pushRelease: push,
@@ -355,7 +369,7 @@ jobs:
               return;
             }
 
-            set({ offline: false, online: false });
+            set({ offline: false, online: false, iosIpa: false });
 
   build-apk:
     name: Build Dhandho Mobile APK
@@ -526,3 +540,81 @@ jobs:
                 `| Product | Unified Cap iOS simulator (\`in.dhandho.service\`) — debug .app.zip |`,
               ].join('\n'),
             });
+
+  # Signed device IPA → App Store Connect / TestFlight (manual dispatch + Apple secrets)
+  build-ios-ipa:
+    name: Build iOS IPA + TestFlight
+    needs: gate
+    if: needs.gate.outputs.build_ios_ipa == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Require Apple signing secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          missing=0
+          for v in APPLE_TEAM_ID IOS_CERTIFICATE_BASE64 IOS_CERTIFICATE_PASSWORD IOS_PROVISION_PROFILE_BASE64; do
+            if [ -z "${!v}" ]; then echo "Missing secret: $v"; missing=1; fi
+          done
+          if [ "$missing" = 1 ]; then
+            echo "::error::Set Apple secrets — see docs/TESTFLIGHT.md"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build signed IPA
+        env:
+          VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
+          MOBILE_PRODUCT: phone
+          IOS_BUILD_MODE: ipa
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          IOS_EXPORT_METHOD: ${{ secrets.IOS_EXPORT_METHOD }}
+        run: |
+          chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
+          bash scripts/ci-build-ios.sh
+          # Stable name for upload step
+          if [ -f dist-apk/dhandho-mobile-debug.ipa ]; then
+            cp dist-apk/dhandho-mobile-debug.ipa dist-apk/dhandho-mobile.ipa
+          fi
+          ls -lh dist-apk/*.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dhandho-mobile-ipa
+          path: dist-apk/dhandho-mobile.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload to TestFlight
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPSTORE_API_PRIVATE_KEY_BASE64 }}
+        run: |
+          if [ -z "${APPSTORE_API_KEY_ID:-}" ] || [ -z "${APPSTORE_API_ISSUER_ID:-}" ] || [ -z "${APPSTORE_API_PRIVATE_KEY_BASE64:-}" ]; then
+            echo "Skipping TestFlight upload — set APPSTORE_API_* secrets (docs/TESTFLIGHT.md)"
+            exit 0
+          fi
+          chmod +x scripts/ci-upload-testflight.sh
+          bash scripts/ci-upload-testflight.sh dist-apk/dhandho-mobile.ipa

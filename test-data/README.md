@@ -9,6 +9,7 @@
 | banks.csv | 3 banks | Valid account numbers, IFSC codes |
 | distribution.csv | 6 rows | Valid product names, with/without custom price, with discount |
 | hotel-veg-restaurant/*.csv | veg restaurant | Tables, modifiers, menu dishes, membership plans (vegetarian only) |
+| plywood-hardware-wholesaler/*.csv | plywood & furniture hardware wholesaler | 24 products, 8 trade customers, distribution sample — use with Dealer/Wholesaler tenant |
 
 ## `invalid/` — All should FAIL with clear error messages
 | File | Errors | What it tests |

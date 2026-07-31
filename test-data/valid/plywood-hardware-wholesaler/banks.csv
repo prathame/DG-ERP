@@ -1,0 +1,4 @@
+name,accountNumber,bankName,branch,ifscCode
+Main Trading Account,50200011223344,HDFC Bank,Naroda Road Ahmedabad,HDFC0000456
+Cash Credit Limit,1234567890123456,State Bank of India,Odhav GIDC Ahmedabad,SBIN0002345
+UPI Collections,98765000112233,ICICI Bank,CG Road Ahmedabad,ICIC0000789

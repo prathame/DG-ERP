@@ -17,6 +17,7 @@ import {
   DEFAULT_DESKTOP_MAC_X64_URL,
   DEFAULT_DESKTOP_WIN_URL,
   DEFAULT_DESKTOP_APP_URL,
+  DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
 } from './download-defaults';
 import { enforceModulePermissions, normalizePermissions } from './middleware/permissions';
 
@@ -514,22 +515,29 @@ export function createApp(): express.Application {
     }
 
     res.json({
+      id: startUrl === '/' ? '/' : startUrl,
       name,
       short_name: shortName,
       description: 'ERP for Inventory, Sales, Distribution & Billing',
       start_url: startUrl,
+      scope: startUrl === '/' ? '/' : `${startUrl}/`,
       display: 'standalone',
+      display_override: ['standalone', 'minimal-ui'],
       background_color: '#151619',
       theme_color: '#F27D26',
       orientation: 'any',
       icons: [
         { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
         { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         { src: '/icons/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
         { src: '/icons/icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
       ],
       categories: ['business', 'productivity'],
       lang: 'en',
+      dir: 'ltr',
+      prefer_related_applications: false,
     });
   });
 
@@ -618,6 +626,7 @@ export function createApp(): express.Application {
            WHERE key IN (
              'service_cloud_app_url', 'service_cloud_ios_url',
              'service_mobile_app_url', 'service_mobile_ios_url',
+             'service_mobile_testflight_url',
              'desktop_app_url', 'desktop_mac_arm64_url', 'desktop_mac_x64_url', 'desktop_win_url'
            )`,
         )
@@ -634,6 +643,7 @@ export function createApp(): express.Application {
         serviceCloudIosUrl: cfg.service_cloud_ios_url || DEFAULT_SERVICE_CLOUD_IOS_URL,
         serviceMobileAppUrl: cfg.service_mobile_app_url || DEFAULT_SERVICE_MOBILE_APP_URL,
         serviceMobileIosUrl: cfg.service_mobile_ios_url || DEFAULT_SERVICE_MOBILE_IOS_URL,
+        serviceMobileTestflightUrl: cfg.service_mobile_testflight_url || DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
         desktopMacArm64Url: desktopMacArm64,
         desktopMacX64Url: desktopMacX64,
         desktopWinUrl: desktopWin,

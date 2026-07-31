@@ -51,8 +51,9 @@
     "cap:run:android": "npm run cap:sync && npx cap run android",
     "cap:run:ios": "npm run cap:sync && npx cap run ios",
     "ci:android": "bash scripts/ci-build-android.sh",
-    "ci:ios": "MOBILE_PRODUCT=offline bash scripts/ci-build-ios.sh",
-    "ci:ios:online": "MOBILE_PRODUCT=online bash scripts/ci-build-ios.sh"
+    "ci:ios": "MOBILE_PRODUCT=phone bash scripts/ci-build-ios.sh",
+    "ci:ios:ipa": "MOBILE_PRODUCT=phone IOS_BUILD_MODE=ipa bash scripts/ci-build-ios.sh",
+    "ci:ios:online": "MOBILE_PRODUCT=phone bash scripts/ci-build-ios.sh"
   },
   "main": "electron/desktop/main.js",
   "dependencies": {

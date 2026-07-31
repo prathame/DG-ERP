@@ -292,6 +292,7 @@ function VersionControlPanel() {
     serviceCloudIosUrl: string | null;
     serviceMobileAppUrl: string | null;
     serviceMobileIosUrl: string | null;
+    serviceMobileTestflightUrl: string | null;
     desktopMacArm64Url: string | null;
     desktopMacX64Url: string | null;
     desktopWinUrl: string | null;
@@ -308,6 +309,7 @@ function VersionControlPanel() {
   const [serviceCloudIosUrl, setServiceCloudIosUrl] = useState('');
   const [serviceMobileUrl, setServiceMobileUrl] = useState('');
   const [serviceMobileIosUrl, setServiceMobileIosUrl] = useState('');
+  const [serviceMobileTestflightUrl, setServiceMobileTestflightUrl] = useState('');
   const [desktopMacArm64Url, setDesktopMacArm64Url] = useState('');
   const [desktopMacX64Url, setDesktopMacX64Url] = useState('');
   const [desktopWinUrl, setDesktopWinUrl] = useState('');
@@ -329,6 +331,7 @@ function VersionControlPanel() {
       setServiceCloudIosUrl(d.serviceCloudIosUrl || '');
       setServiceMobileUrl(d.serviceMobileAppUrl || '');
       setServiceMobileIosUrl(d.serviceMobileIosUrl || '');
+      setServiceMobileTestflightUrl(d.serviceMobileTestflightUrl || '');
       setDesktopMacArm64Url(d.desktopMacArm64Url || '');
       setDesktopMacX64Url(d.desktopMacX64Url || '');
       setDesktopWinUrl(d.desktopWinUrl || '');
@@ -353,6 +356,7 @@ function VersionControlPanel() {
         serviceCloudIosUrl: serviceCloudIosUrl || null,
         serviceMobileAppUrl: serviceMobileUrl || null,
         serviceMobileIosUrl: serviceMobileIosUrl || null,
+        serviceMobileTestflightUrl: serviceMobileTestflightUrl || null,
         desktopMacArm64Url: desktopMacArm64Url || null,
         desktopMacX64Url: desktopMacX64Url || null,
         desktopWinUrl: desktopWinUrl || null,
@@ -441,7 +445,17 @@ function VersionControlPanel() {
           />
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Phone — iOS (.app.zip)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">Phone — iPhone TestFlight</label>
+          <input
+            value={serviceMobileTestflightUrl}
+            onChange={e => setServiceMobileTestflightUrl(e.target.value)}
+            placeholder="https://testflight.apple.com/join/…"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Shown on /download for real iPhones — see docs/TESTFLIGHT.md</p>
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Phone — iOS simulator (.app.zip)</label>
           <input
             value={serviceMobileIosUrl}
             onChange={e => setServiceMobileIosUrl(e.target.value)}

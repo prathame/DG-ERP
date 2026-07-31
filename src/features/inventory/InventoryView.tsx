@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Package,
   Plus,
+  Pencil,
   Trash2,
   AlertCircle,
   AlertTriangle,
@@ -32,6 +33,25 @@ import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { MetalIntakeModal } from './MetalIntakeModal';
 import { DesktopInventoryPanel, type StockFilter } from './DesktopInventoryPanel';
 import { MobileInventoryPanel } from './MobileInventoryPanel';
+
+const emptyAddForm = () => ({
+  name: '',
+  barcodePrefix: '',
+  quantity: 10,
+  packs: 0,
+  loosePieces: 0,
+  description: '',
+  rewardPointsValue: 0,
+  warrantyApplicable: true,
+  warrantyMonths: 24,
+  price: 0,
+  hsnCode: '',
+  gstRate: 18,
+  packSize: 1,
+  packName: 'Piece',
+  barcodePerBox: true,
+  priceIncludesGst: false,
+});
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
@@ -69,14 +89,16 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       return true;
     }
   })();
+  const stockWithVendors = bizCfg.features.stockWithVendors;
   const invCols = [
     { key: 'price', label: 'Price', default: true },
     { key: 'total', label: 'Total Stock', default: true },
     { key: 'admin', label: 'Admin Stock', default: true },
-    { key: 'vendors', label: 'With Vendors', default: true },
+    ...(stockWithVendors ? [{ key: 'vendors', label: 'With Vendors', default: true }] : []),
     { key: 'sold', label: 'Sold', default: true },
   ];
-  const { visible: colVisible, toggle: colToggle, show: colShow } = useColumnPicker('inventory', invCols);
+  const { visible: colVisible, toggle: colToggle, show: colShowBase } = useColumnPicker('inventory', invCols);
+  const colShow = (key: string) => (key === 'vendors' ? stockWithVendors && colShowBase(key) : colShowBase(key));
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [products, setProducts] = useState<Product[]>([]);
@@ -88,24 +110,8 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({
-    name: '',
-    barcodePrefix: '',
-    quantity: 10,
-    packs: 0,
-    loosePieces: 0,
-    description: '',
-    rewardPointsValue: 0,
-    warrantyApplicable: true,
-    warrantyMonths: 24,
-    price: 0,
-    hsnCode: '',
-    gstRate: 18,
-    packSize: 1,
-    packName: 'Piece',
-    barcodePerBox: true,
-    priceIncludesGst: false,
-  });
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState(emptyAddForm);
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
@@ -113,6 +119,40 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     product: Product;
     batches: { date: string; barcodeFirst: string; barcodeLast: string; count: number }[];
   } | null>(null);
+
+  const closeAddModal = () => {
+    setAddModalOpen(false);
+    setEditingProductId(null);
+    setAddForm(emptyAddForm());
+  };
+
+  const openAddProduct = () => {
+    setEditingProductId(null);
+    setAddForm(emptyAddForm());
+    setAddModalOpen(true);
+  };
+
+  const openEditProduct = (p: Product) => {
+    setEditingProductId(p.id);
+    setAddForm({
+      ...emptyAddForm(),
+      name: p.name,
+      barcodePrefix: '',
+      description: p.description || '',
+      rewardPointsValue: p.rewardPointsValue ?? 0,
+      warrantyApplicable: p.warrantyApplicable !== false && (p.warrantyMonths ?? 0) > 0,
+      warrantyMonths: p.warrantyMonths ?? 0,
+      price: p.price ?? 0,
+      hsnCode: p.hsnCode || '',
+      gstRate: p.gstRate ?? 18,
+      packSize: p.packSize && p.packSize > 1 ? p.packSize : 1,
+      packName: p.packName || (p.packSize && p.packSize > 1 ? 'Box' : 'Piece'),
+      barcodePerBox: p.barcodeUnitType === 'box',
+      priceIncludesGst: !!p.priceIncludesGst,
+    });
+    setAddModalOpen(true);
+  };
+
   useEscapeKey(() => {
     if (productToDelete) {
       setProductToDelete(null);
@@ -131,7 +171,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       return true;
     }
     if (addModalOpen) {
-      setAddModalOpen(false);
+      closeAddModal();
       return true;
     }
     return false;
@@ -252,7 +292,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           onDeleteAll={deleteAllInventory}
           onImportCsv={() => setCsvImportOpen(true)}
           onMetalIntake={() => setMetalIntakeOpen(true)}
-          onAddProduct={() => setAddModalOpen(true)}
+          onAddProduct={openAddProduct}
           onBarcodeDetails={p =>
             api.products
               .barcodeDetails(p.id)
@@ -263,6 +303,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             setAddStockModal(p);
             setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
           }}
+          onEdit={openEditProduct}
           onDelete={setProductToDelete}
           onToggleGst={toggleGstInclusive}
         />
@@ -273,6 +314,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           loading={loading}
           canEdit={canEdit}
           inventoryTrackingEnabled={inventoryTrackingEnabled}
+          stockWithVendors={stockWithVendors}
           metalMode={metalMode}
           barcodeSearch={barcodeSearch}
           onBarcodeSearch={setBarcodeSearch}
@@ -283,7 +325,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           onToggleSort={field => toggleSort(field)}
           onImportCsv={() => setCsvImportOpen(true)}
           onMetalIntake={() => setMetalIntakeOpen(true)}
-          onAddProduct={() => setAddModalOpen(true)}
+          onAddProduct={openAddProduct}
           onBarcodeDetails={p =>
             api.products
               .barcodeDetails(p.id)
@@ -294,6 +336,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             setAddStockModal(p);
             setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
           }}
+          onEdit={openEditProduct}
           onDelete={setProductToDelete}
           onToggleGst={toggleGstInclusive}
         />
@@ -352,7 +395,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               {canEdit && (
                 <button
                   type="button"
-                  onClick={() => setAddModalOpen(true)}
+                  onClick={openAddProduct}
                   className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
                 >
                   <Plus size={18} /> Add Product
@@ -401,7 +444,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               <p className="text-gray-400 text-sm mt-1">Add your first product to get started</p>
               <button
                 type="button"
-                onClick={() => setAddModalOpen(true)}
+                onClick={openAddProduct}
                 className="mt-4 px-6 py-2 bg-brand text-white rounded-xl text-sm font-bold"
               >
                 Add Product
@@ -615,6 +658,16 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                               {canEdit && (
                                 <button
                                   type="button"
+                                  onClick={() => openEditProduct(p)}
+                                  className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg"
+                                  title="Edit"
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                              )}
+                              {canEdit && (
+                                <button
+                                  type="button"
                                   onClick={() => setProductToDelete(p)}
                                   className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
                                   title="Delete"
@@ -674,9 +727,11 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           <span>
                             Admin: <strong className="text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</strong>
                           </span>
-                          <span>
-                            Vendors: <strong className="text-purple-700">{p.withVendors ?? 0}</strong>
-                          </span>
+                          {stockWithVendors && (
+                            <span>
+                              Vendors: <strong className="text-purple-700">{p.withVendors ?? 0}</strong>
+                            </span>
+                          )}
                           <span>
                             Sold: <strong className="text-emerald-700">{p.soldCount ?? 0}</strong>
                           </span>
@@ -711,6 +766,14 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                         )}
                         <button
                           type="button"
+                          onClick={() => openEditProduct(p)}
+                          className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setProductToDelete(p)}
                           className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
                           title="Delete"
@@ -727,67 +790,71 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
         </>
       )}
 
-      {/* Add Product Modal */}
+      {/* Add / Edit Product Modal */}
       <AnimatePresence>
         {addModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setAddModalOpen(false)} />
+            <div className="absolute inset-0 bg-black/40" onClick={closeAddModal} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             >
-              <h3 className="text-lg font-bold mb-4">Add Product</h3>
+              <h3 className="text-lg font-bold mb-4">{editingProductId ? 'Edit Product' : 'Add Product'}</h3>
               <form
                 onSubmit={async e => {
                   e.preventDefault();
-                  if (!addForm.barcodePrefix.trim()) {
+                  const isEdit = !!editingProductId;
+                  if (!isEdit && inventoryTrackingEnabled && !addForm.barcodePrefix.trim()) {
                     toast('Enter barcode prefix', 'error');
                     return;
                   }
-                  const totalQty = addForm.packSize > 1 ? addForm.packs : addForm.quantity;
-                  if (!totalQty || totalQty < 1) {
-                    toast('Enter quantity', 'error');
-                    return;
+                  if (!isEdit) {
+                    const totalQty = addForm.packSize > 1 ? addForm.packs : addForm.quantity;
+                    if (!totalQty || totalQty < 1) {
+                      toast('Enter quantity', 'error');
+                      return;
+                    }
                   }
                   setAddSubmitting(true);
                   try {
-                    await api.products.create({
-                      name: addForm.name,
-                      barcodeMode: 'prefix',
-                      barcodePrefix: addForm.barcodePrefix.trim(),
-                      quantity: addForm.packSize > 1 ? addForm.packs : addForm.quantity,
-                      description: addForm.description || undefined,
-                      rewardPointsValue: addForm.rewardPointsValue,
-                      warrantyApplicable: addForm.warrantyApplicable,
-                      warrantyMonths: addForm.warrantyApplicable ? addForm.warrantyMonths : 0,
-                      price: addForm.price,
-                      packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
-                      packName: addForm.packSize > 1 ? addForm.packName : undefined,
-                      barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
-                      priceIncludesGst: addForm.priceIncludesGst || undefined,
-                    });
-                    setAddModalOpen(false);
-                    setAddForm({
-                      name: '',
-                      barcodePrefix: '',
-                      quantity: 10,
-                      packs: 0,
-                      loosePieces: 0,
-                      description: '',
-                      rewardPointsValue: 0,
-                      warrantyApplicable: true,
-                      warrantyMonths: 24,
-                      price: 0,
-                      hsnCode: '',
-                      gstRate: 18,
-                      packSize: 1,
-                      packName: 'Piece',
-                      barcodePerBox: true,
-                      priceIncludesGst: false,
-                    });
+                    const warrantyMonths = addForm.warrantyApplicable ? addForm.warrantyMonths : 0;
+                    if (isEdit && editingProductId) {
+                      await api.products.update(editingProductId, {
+                        name: addForm.name,
+                        description: addForm.description || undefined,
+                        rewardPointsValue: addForm.rewardPointsValue,
+                        warrantyMonths,
+                        price: addForm.price,
+                        hsnCode: addForm.hsnCode || undefined,
+                        gstRate: addForm.gstRate,
+                        packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
+                        packName: addForm.packSize > 1 ? addForm.packName : undefined,
+                        priceIncludesGst: addForm.priceIncludesGst,
+                      });
+                      toast('Product updated', 'success');
+                    } else {
+                      await api.products.create({
+                        name: addForm.name,
+                        barcodeMode: 'prefix',
+                        barcodePrefix: addForm.barcodePrefix.trim() || undefined,
+                        quantity: addForm.packSize > 1 ? addForm.packs : addForm.quantity,
+                        description: addForm.description || undefined,
+                        rewardPointsValue: addForm.rewardPointsValue,
+                        warrantyApplicable: addForm.warrantyApplicable,
+                        warrantyMonths,
+                        price: addForm.price,
+                        hsnCode: addForm.hsnCode || undefined,
+                        gstRate: addForm.gstRate,
+                        packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
+                        packName: addForm.packSize > 1 ? addForm.packName : undefined,
+                        barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
+                        priceIncludesGst: addForm.priceIncludesGst || undefined,
+                      });
+                      toast('Product added successfully', 'success');
+                    }
+                    closeAddModal();
                     api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
-                    toast('Product added successfully', 'success');
                   } catch (err) {
                     toast((err as Error).message, 'error');
                   } finally {
@@ -805,20 +872,23 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                   />
                 </div>
-                {inventoryTrackingEnabled && (
-                  <>
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label>
-                      <input
-                        required
-                        placeholder="e.g. SP, PUMP, A"
-                        value={addForm.barcodePrefix}
-                        onChange={e => setAddForm({ ...addForm, barcodePrefix: e.target.value })}
-                        className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
-                        autoComplete="off"
-                      />
-                    </div>
-                  </>
+                {!editingProductId && inventoryTrackingEnabled && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label>
+                    <input
+                      required
+                      placeholder="e.g. SP, PUMP, A"
+                      value={addForm.barcodePrefix}
+                      onChange={e => setAddForm({ ...addForm, barcodePrefix: e.target.value })}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
+                {editingProductId && (
+                  <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                    Stock and barcodes are unchanged here — use Add Stock to increase quantity.
+                  </p>
                 )}
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Description</label>
@@ -945,33 +1015,37 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                         placeholder="e.g. 10, 12, 100"
                       />
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">
-                        Number of {addForm.packName || 'Box'}es
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={10000}
-                        value={addForm.packs || ''}
-                        onChange={e => setAddForm({ ...addForm, packs: parseInt(e.target.value) || 0 })}
-                        className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                        placeholder="0"
-                      />
-                      <p className="text-xs text-emerald-600 font-medium mt-1">
-                        = {(addForm.packs || 0) * addForm.packSize} pieces ({addForm.packs || 0} × {addForm.packSize}{' '}
-                        pcs)
-                      </p>
-                    </div>
-                    {inventoryTrackingEnabled && (
-                      <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
-                        📦 {addForm.packs || 0} barcode labels (1 per {addForm.packName || 'box'}):{' '}
-                        <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to{' '}
-                        <span className="font-mono font-medium">
-                          {addForm.barcodePrefix || 'SP'}
-                          {String(addForm.packs || 1).padStart(3, '0')}
-                        </span>
-                      </p>
+                    {!editingProductId && (
+                      <>
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase">
+                            Number of {addForm.packName || 'Box'}es
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10000}
+                            value={addForm.packs || ''}
+                            onChange={e => setAddForm({ ...addForm, packs: parseInt(e.target.value) || 0 })}
+                            className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                            placeholder="0"
+                          />
+                          <p className="text-xs text-emerald-600 font-medium mt-1">
+                            = {(addForm.packs || 0) * addForm.packSize} pieces ({addForm.packs || 0} ×{' '}
+                            {addForm.packSize} pcs)
+                          </p>
+                        </div>
+                        {inventoryTrackingEnabled && (
+                          <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                            📦 {addForm.packs || 0} barcode labels (1 per {addForm.packName || 'box'}):{' '}
+                            <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to{' '}
+                            <span className="font-mono font-medium">
+                              {addForm.barcodePrefix || 'SP'}
+                              {String(addForm.packs || 1).padStart(3, '0')}
+                            </span>
+                          </p>
+                        )}
+                      </>
                     )}
                     <div>
                       <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
@@ -996,7 +1070,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   </>
                 ) : (
                   <>
-                    {inventoryTrackingEnabled && (
+                    {!editingProductId && inventoryTrackingEnabled && (
                       <>
                         <div>
                           <label className="text-xs font-bold text-gray-400 uppercase">Quantity</label>
@@ -1081,11 +1155,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setAddModalOpen(false)}
-                    className="flex-1 py-2 border rounded-xl font-medium"
-                  >
+                  <button type="button" onClick={closeAddModal} className="flex-1 py-2 border rounded-xl font-medium">
                     Cancel
                   </button>
                   <button
@@ -1093,7 +1163,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     disabled={addSubmitting}
                     className="flex-1 py-2 bg-brand text-white rounded-xl font-bold"
                   >
-                    {addSubmitting ? 'Saving...' : 'Save'}
+                    {addSubmitting ? 'Saving...' : editingProductId ? 'Save Changes' : 'Save'}
                   </button>
                 </div>
               </form>

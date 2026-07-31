@@ -197,7 +197,7 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
   }
 });
 
-// Record a payment against one or more invoices
+// Record a payment against one invoice, or collectively (partyKey) across open invoices FIFO
 router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
@@ -207,14 +207,14 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const { readIdempotencyKey } = await import('../utils/idempotency');
     const idemKey = readIdempotencyKey(req);
 
-    const { invoiceId, amount, paymentDate, paymentMethod, referenceNumber, notes } = req.body;
+    const { invoiceId, partyKey: partyKeyRaw, amount, paymentDate, paymentMethod, referenceNumber, notes } = req.body;
     const payAmt = Number(amount);
     // Reject NaN/Infinity — `Number("abc") <= 0` is false, so a bare `<= 0` check is not enough
-    if (!invoiceId || !Number.isFinite(payAmt) || payAmt <= 0)
-      return res.status(400).json({ error: 'Invoice ID and positive amount required' });
+    if (!Number.isFinite(payAmt) || payAmt <= 0) return res.status(400).json({ error: 'Positive amount required' });
     if (payAmt > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
+    if (!invoiceId && !partyKeyRaw) return res.status(400).json({ error: 'Invoice ID or partyKey required' });
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
-    const id = uid('IP');
+    const pMethod = paymentMethod || 'Cash';
 
     await client.query('BEGIN');
     if (idemKey) {
@@ -239,6 +239,116 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
       }
     }
 
+    // Collective: apply toward party's total due, oldest invoice first
+    if (!invoiceId && partyKeyRaw) {
+      const { partyType, partyId, clientName, partyKey } = parsePartyKey(String(partyKeyRaw));
+      let openInvoices: { id: string; grand_total: number; customer_name: string; paid: number }[] = [];
+      if (partyType && partyId) {
+        openInvoices = (
+          await client.query(
+            `
+            SELECT si.id, si.grand_total, si.customer_name,
+              COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.invoice_id = si.id AND ip.tenant_id = $1), 0) AS paid
+            FROM standalone_invoices si
+            WHERE si.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3 AND si.status != 'cancelled'
+            ORDER BY si.invoice_date ASC, si.created_at ASC
+          `,
+            [tenantId, partyType, partyId],
+          )
+        ).rows as { id: string; grand_total: number; customer_name: string; paid: number }[];
+      } else if (clientName) {
+        openInvoices = (
+          await client.query(
+            `
+            SELECT si.id, si.grand_total, si.customer_name,
+              COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.invoice_id = si.id AND ip.tenant_id = $1), 0) AS paid
+            FROM standalone_invoices si
+            WHERE si.tenant_id = $1 AND si.customer_name = $2
+              AND (si.party_type IS NULL OR si.party_id IS NULL)
+              AND si.status != 'cancelled'
+            ORDER BY si.invoice_date ASC, si.created_at ASC
+          `,
+            [tenantId, clientName],
+          )
+        ).rows as { id: string; grand_total: number; customer_name: string; paid: number }[];
+      } else {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Invalid partyKey' });
+      }
+
+      const dues = openInvoices
+        .map(inv => ({
+          ...inv,
+          remaining: Number(inv.grand_total) - Number(inv.paid),
+        }))
+        .filter(inv => inv.remaining > 0.001);
+      const totalDue = dues.reduce((s, inv) => s + inv.remaining, 0);
+      if (totalDue <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No outstanding balance for this party' });
+      }
+      if (payAmt > totalDue + 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Amount exceeds remaining balance of ₹${totalDue.toFixed(2)}` });
+      }
+
+      let remaining = payAmt;
+      let firstId: string | null = null;
+      let appliedCount = 0;
+      const partyLabel = dues[0]?.customer_name || clientName || partyKey;
+      for (const inv of dues) {
+        if (remaining <= 0.001) break;
+        const apply = Math.min(remaining, inv.remaining);
+        const id = uid('IP');
+        if (!firstId) firstId = id;
+        await client.query(
+          `INSERT INTO invoice_payments
+             (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [
+            id,
+            tenantId,
+            inv.id,
+            apply,
+            pDate,
+            pMethod,
+            referenceNumber || null,
+            notes ? `${notes} (collective)` : `Collective payment toward ${partyLabel}`,
+            firstId === id ? idemKey : null,
+          ],
+        );
+        if (Number(inv.paid) + apply >= Number(inv.grand_total) - 0.001) {
+          await client.query("UPDATE standalone_invoices SET status = 'paid' WHERE id = $1 AND tenant_id = $2", [
+            inv.id,
+            tenantId,
+          ]);
+        }
+        remaining -= apply;
+        appliedCount += 1;
+      }
+      await client.query('COMMIT');
+      await logAudit(
+        pool,
+        tenantId,
+        'Invoice Payment',
+        'invoice_payment',
+        firstId || '',
+        `₹${payAmt.toLocaleString()} collective across ${appliedCount} invoice(s) for ${partyLabel}`,
+        req.user?.userId,
+        req.user?.name,
+      );
+      return res.status(201).json({
+        id: firstId,
+        invoiceId: null,
+        partyKey,
+        amount: payAmt,
+        paymentDate: pDate,
+        paymentMethod: pMethod,
+        appliedInvoices: appliedCount,
+      });
+    }
+
+    const id = uid('IP');
     const inv = (
       await client.query(
         'SELECT id, grand_total, customer_name FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 AND status != $3 FOR UPDATE',
@@ -271,17 +381,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
         `INSERT INTO invoice_payments
            (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [
-          id,
-          tenantId,
-          invoiceId,
-          payAmt,
-          pDate,
-          paymentMethod || 'Cash',
-          referenceNumber || null,
-          notes || null,
-          idemKey,
-        ],
+        [id, tenantId, invoiceId, payAmt, pDate, pMethod, referenceNumber || null, notes || null, idemKey],
       );
     } catch (insErr) {
       const code = (insErr as { code?: string }).code;
@@ -329,7 +429,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
       req.user?.userId,
       req.user?.name,
     );
-    res.status(201).json({ id, invoiceId, amount: payAmt, paymentDate: pDate, paymentMethod: paymentMethod || 'Cash' });
+    res.status(201).json({ id, invoiceId, amount: payAmt, paymentDate: pDate, paymentMethod: pMethod });
   } catch (err) {
     await client.query('ROLLBACK');
     return handleApiError(req, res, err);

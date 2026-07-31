@@ -815,6 +815,22 @@ html.dark .dg-desktop-glass .bg-white,
 html.dark .dg-desktop-glass [class*="bg-white"] {
   background-color: var(--dg-card) !important;
 }
+/*
+ * Modals, dialogs, and floating menus must stay opaque. --dg-card is see-through
+ * in dark glass, so remapping bg-white → card lets tables/lists bleed through
+ * (Add Product, ConfirmDialog, ColumnPicker, NotificationCenter, etc.).
+ * Same opaque token as chat surfaces.
+ */
+html.dark .dg-desktop-glass .fixed.inset-0 [class*="bg-white"],
+html.dark .dg-desktop-glass .fixed[class*="inset-0"] [class*="bg-white"],
+html.dark .dg-desktop-glass .fixed[class*="bg-white"],
+html.dark .dg-desktop-glass .absolute.shadow-lg[class*="bg-white"],
+html.dark .dg-desktop-glass .absolute.shadow-xl[class*="bg-white"],
+html.dark .dg-desktop-glass .absolute.shadow-2xl[class*="bg-white"] {
+  background-color: var(--dg-chat-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 html.dark .dg-desktop-glass .bg-white\/90,
 html.dark .dg-desktop-glass .bg-white\/80,
 html.dark .dg-desktop-glass .bg-white\/95 {
@@ -899,6 +915,7 @@ html.dark .dg-mobile-glass {
   --dg-input: rgba(255, 255, 255, 0.08);
   --dg-header: rgba(15, 17, 19, 0.92);
   --dg-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  --dg-chat-surface: #1a1c1e;
   background-color: var(--dg-bg) !important;
   color: var(--dg-ink) !important;
   color-scheme: dark;
@@ -941,6 +958,17 @@ html.dark .dg-mobile-glass {
 html.dark .dg-mobile-glass .bg-white,
 html.dark .dg-mobile-glass [class*="bg-white"] {
   background-color: var(--dg-card) !important;
+}
+/* Same opaque overlay rule as desktop glass (Cap Online dark). */
+html.dark .dg-mobile-glass .fixed.inset-0 [class*="bg-white"],
+html.dark .dg-mobile-glass .fixed[class*="inset-0"] [class*="bg-white"],
+html.dark .dg-mobile-glass .fixed[class*="bg-white"],
+html.dark .dg-mobile-glass .absolute.shadow-lg[class*="bg-white"],
+html.dark .dg-mobile-glass .absolute.shadow-xl[class*="bg-white"],
+html.dark .dg-mobile-glass .absolute.shadow-2xl[class*="bg-white"] {
+  background-color: var(--dg-chat-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 html.dark .dg-mobile-glass .bg-white\/90,
 html.dark .dg-mobile-glass .bg-white\/80,

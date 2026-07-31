@@ -32,10 +32,11 @@ import { Tab } from './types';
 import { ToastProvider, LoadingSpinner, NotificationCenter } from './components/ui';
 import { BrandMark } from './components/ui/BrandMark';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { PwaInstallPrompt } from './components/ui/PwaInstallPrompt';
 import { useTranslation } from './i18n';
 import { session } from './lib/session';
 import { startSessionHeartbeat, stopSessionHeartbeat } from './lib/singleSession';
-import { isErpAppShell } from './lib/deviceId';
+import { isPwaStandalone } from './lib/deviceId';
 import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
 import type { MasterType } from './features/masters/MastersView';
@@ -213,7 +214,7 @@ function CapSlugOnboardingShare({ lastError, note }: { lastError?: string; note:
   );
 }
 
-/** Cloud Electron + Online Cap: company slug → /{slug} login (not marketing LandingPage). */
+/** Cloud Electron / Online Cap / installed PWA: company slug → /{slug} login (not marketing LandingPage). */
 function CompanySlugEntry() {
   const [slug, setSlug] = React.useState(() => getLastCompanySlug());
   const [slugError, setSlugError] = React.useState('');
@@ -1019,31 +1020,8 @@ export default function App() {
     );
   }
 
-  // Tenant ERP: desktop + mobile apps only — block plain browser (keep /admin + marketing)
-  if (!isSuperAdminRoute && !isErpAppShell()) {
-    const tryingTenantErp = !!user || !!urlSlug || authState.hasTenant;
-    if (tryingTenantErp) {
-      if (session.getToken()) session.clearAll();
-      return (
-        <div className="min-h-[100dvh] bg-[#151619] text-white flex flex-col items-center justify-center px-6 text-center">
-          <BrandMark relative alt="Dhandho" className="h-14 w-14 object-contain rounded-xl mb-6" />
-          <h1 className="text-2xl font-semibold mb-2">Use the Dhandho app</h1>
-          <p className="text-gray-400 text-sm max-w-md mb-6">
-            Sign-in and the company workspace are available only in the desktop or mobile app — not in the browser.
-          </p>
-          <a
-            href="/download"
-            className="inline-flex items-center justify-center rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
-          >
-            Download app
-          </a>
-          <a href="/" className="mt-4 text-sm text-gray-500 hover:text-gray-300">
-            Back to home
-          </a>
-        </div>
-      );
-    }
-  }
+  // Cloud ERP is available in browser + installed PWA (iPhone has no App Store build).
+  // Electron / Cap / standalone PWA still preferred; install tip is shown via PwaInstallPrompt.
 
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
@@ -1200,6 +1178,7 @@ export default function App() {
           <Suspense fallback={<LazyFallback />}>
             <LoginScreen onLogin={handleLogin} tenant={tenantBranding} onChangeCompany={changeCompany} />
           </Suspense>
+          <PwaInstallPrompt />
         </ToastProvider>
       );
     }
@@ -1213,15 +1192,16 @@ export default function App() {
       );
     }
 
-    // Cloud Electron + Online Cap: company slug entry → /{slug} login (not marketing LandingPage)
-    if (isServiceCloudDesktop() || isServiceCloudMobile()) {
+    // Cloud Electron / Online Cap / installed PWA: company slug → login (never marketing landing)
+    if (isServiceCloudDesktop() || isServiceCloudMobile() || isPwaStandalone()) {
       return <CompanySlugEntry />;
     }
 
-    // Public web: marketing landing
+    // Public web (browser tab only): marketing landing
     return (
       <Suspense fallback={<LazyFallback />}>
         <LandingPage />
+        <PwaInstallPrompt />
       </Suspense>
     );
   }
@@ -1906,6 +1886,7 @@ export default function App() {
             />
           </Suspense>
         )}
+        <PwaInstallPrompt />
       </ServiceCloudGate>
     </ToastProvider>
   );

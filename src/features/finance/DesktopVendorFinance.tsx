@@ -5,7 +5,7 @@
 import React from 'react';
 import { Clock, FileSpreadsheet, IndianRupee, MessageCircle, Plus, Printer, Search, Send, X } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
-import { LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
+import { LoadingSpinner, PaidBadge, PartialBadge, isBillFullyPaid, isBillPartiallyPaid } from '../../components/ui';
 import { canSendPaymentReminder, type CompanyReminderSettings } from '../../lib/paymentReminders';
 
 export type DesktopVendorSummaryRow = {
@@ -134,7 +134,11 @@ export function DesktopVendorFinance({
         <div className="min-w-0">
           <h3 className="text-lg font-bold dg-ink truncate flex items-center gap-2 flex-wrap">
             {isVendor ? 'My Finance' : detail.vendor.name}
-            {isBillFullyPaid(detail.totalDistributedValue, detail.balance) && <PaidBadge size="sm" />}
+            {isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
+              <PaidBadge size="sm" />
+            ) : isBillPartiallyPaid(detail.totalDistributedValue, detail.balance, detail.totalPaid) ? (
+              <PartialBadge size="sm" />
+            ) : null}
           </h3>
           <p className="text-xs dg-muted mt-0.5 truncate">
             {detail.vendor.phone || detail.vendor.email || detail.vendor.contactPerson || '—'}
@@ -168,7 +172,9 @@ export function DesktopVendorFinance({
               ? `${fmt(detail.balance)} credit`
               : isBillFullyPaid(detail.totalDistributedValue, detail.balance)
                 ? 'Paid'
-                : fmt(detail.balance)}
+                : isBillPartiallyPaid(detail.totalDistributedValue, detail.balance, detail.totalPaid)
+                  ? `${fmt(detail.balance)} due`
+                  : fmt(detail.balance)}
           </p>
         </div>
       </div>
@@ -472,7 +478,11 @@ export function DesktopVendorFinance({
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium dg-ink text-sm">{v.vendorName}</p>
-                              {isBillFullyPaid(v.totalDistributedValue, v.balance) && <PaidBadge size="sm" />}
+                              {isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
+                                <PaidBadge size="sm" />
+                              ) : isBillPartiallyPaid(v.totalDistributedValue, v.balance, v.totalPaid) ? (
+                                <PartialBadge size="sm" />
+                              ) : null}
                             </div>
                             <p className="text-[11px] dg-muted">{v.unitsDistributed} units</p>
                           </td>
@@ -485,6 +495,11 @@ export function DesktopVendorFinance({
                               <span className="font-bold dg-primary tabular-nums">{fmt(v.balance)} credit</span>
                             ) : isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
                               <PaidBadge size="sm" />
+                            ) : isBillPartiallyPaid(v.totalDistributedValue, v.balance, v.totalPaid) ? (
+                              <div className="flex flex-col gap-1 items-start">
+                                <PartialBadge size="sm" />
+                                <span className="font-bold dg-error tabular-nums">{fmt(v.balance)} due</span>
+                              </div>
                             ) : (
                               <span className="font-bold dg-error tabular-nums">{fmt(v.balance)}</span>
                             )}

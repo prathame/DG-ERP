@@ -3,7 +3,18 @@
  * Service phone keeps InventoryView’s existing list chrome.
  */
 import React from 'react';
-import { AlertTriangle, ArrowUpDown, Barcode, Package, Plus, Scale, Search, Trash2, Upload } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowUpDown,
+  Barcode,
+  Package,
+  Pencil,
+  Plus,
+  Scale,
+  Search,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
@@ -17,6 +28,8 @@ type Props = {
   loading: boolean;
   canEdit: boolean;
   inventoryTrackingEnabled: boolean;
+  /** Manufacturer consignment column; false for dealer/wholesaler direct-sell. */
+  stockWithVendors?: boolean;
   metalMode?: boolean;
   barcodeSearch: string;
   onBarcodeSearch: (v: string) => void;
@@ -30,6 +43,7 @@ type Props = {
   onAddProduct: () => void;
   onBarcodeDetails: (p: Product) => void;
   onAddStock: (p: Product) => void;
+  onEdit: (p: Product) => void;
   onDelete: (p: Product) => void;
   onToggleGst: (p: Product) => void;
 };
@@ -68,6 +82,7 @@ export function MobileInventoryPanel({
   loading,
   canEdit,
   inventoryTrackingEnabled,
+  stockWithVendors = true,
   metalMode = false,
   barcodeSearch,
   onBarcodeSearch,
@@ -81,6 +96,7 @@ export function MobileInventoryPanel({
   onAddProduct,
   onBarcodeDetails,
   onAddStock,
+  onEdit,
   onDelete,
   onToggleGst,
 }: Props) {
@@ -294,11 +310,11 @@ export function MobileInventoryPanel({
                 </div>
 
                 {inventoryTrackingEnabled && (
-                  <div className="grid grid-cols-4 gap-1.5 mb-3">
+                  <div className={cn('grid gap-1.5 mb-3', stockWithVendors ? 'grid-cols-4' : 'grid-cols-3')}>
                     {[
                       { label: 'Total', value: displayTotal },
                       { label: 'Admin', value: displayAdmin },
-                      { label: 'Vend', value: p.withVendors ?? 0 },
+                      ...(stockWithVendors ? [{ label: 'Vend', value: p.withVendors ?? 0 }] : []),
                       { label: 'Sold', value: p.soldCount ?? 0 },
                     ].map(cell => (
                       <div key={cell.label} className="rounded-xl bg-[var(--dg-input)] px-2 py-2 text-center">
@@ -329,6 +345,16 @@ export function MobileInventoryPanel({
                       aria-label="Add stock"
                     >
                       <Plus size={16} />
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(p)}
+                      className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-ink"
+                      aria-label="Edit product"
+                    >
+                      <Pencil size={16} />
                     </button>
                   )}
                   {canEdit && (

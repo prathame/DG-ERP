@@ -929,7 +929,7 @@ export const api = {
     recordPayment: (data: {
       /** Apply to a specific invoice (must have remaining balance). */
       invoiceId?: string;
-      /** Offline: record unallocated advance when there is no outstanding invoice. */
+      /** Toward party total due (FIFO across open invoices), or advance when none outstanding (offline). */
       partyKey?: string;
       amount: number;
       paymentDate: string;

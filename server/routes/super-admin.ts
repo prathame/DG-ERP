@@ -13,6 +13,7 @@ import {
   DEFAULT_SERVICE_CLOUD_IOS_URL,
   DEFAULT_SERVICE_MOBILE_APP_URL,
   DEFAULT_SERVICE_MOBILE_IOS_URL,
+  DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
   DEFAULT_DESKTOP_MAC_ARM64_URL,
   DEFAULT_DESKTOP_MAC_X64_URL,
   DEFAULT_DESKTOP_WIN_URL,
@@ -1157,6 +1158,7 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       serviceCloudIosUrl: cfg['service_cloud_ios_url'] || DEFAULT_SERVICE_CLOUD_IOS_URL,
       serviceMobileAppUrl: cfg['service_mobile_app_url'] || DEFAULT_SERVICE_MOBILE_APP_URL,
       serviceMobileIosUrl: cfg['service_mobile_ios_url'] || DEFAULT_SERVICE_MOBILE_IOS_URL,
+      serviceMobileTestflightUrl: cfg['service_mobile_testflight_url'] || DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
       desktopMacArm64Url: cfg['desktop_mac_arm64_url'] || DEFAULT_DESKTOP_MAC_ARM64_URL,
       desktopMacX64Url: cfg['desktop_mac_x64_url'] || DEFAULT_DESKTOP_MAC_X64_URL,
       desktopWinUrl: cfg['desktop_win_url'] || DEFAULT_DESKTOP_WIN_URL,
@@ -1181,6 +1183,7 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       serviceCloudIosUrl,
       serviceMobileAppUrl,
       serviceMobileIosUrl,
+      serviceMobileTestflightUrl,
       desktopAppUrl,
       desktopMacArm64Url,
       desktopMacX64Url,
@@ -1194,6 +1197,7 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       serviceCloudIosUrl?: string | null;
       serviceMobileAppUrl?: string | null;
       serviceMobileIosUrl?: string | null;
+      serviceMobileTestflightUrl?: string | null;
       desktopAppUrl?: string | null;
       desktopMacArm64Url?: string | null;
       desktopMacX64Url?: string | null;
@@ -1232,6 +1236,7 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       const cloudIos = normalizeUrl(serviceCloudIosUrl);
       const mobile = normalizeUrl(serviceMobileAppUrl);
       const mobileIos = normalizeUrl(serviceMobileIosUrl);
+      const mobileTf = normalizeUrl(serviceMobileTestflightUrl);
       const desktop = normalizeUrl(desktopAppUrl);
       const desktopMacArm64 = normalizeUrl(desktopMacArm64Url);
       const desktopMacX64 = normalizeUrl(desktopMacX64Url);
@@ -1240,6 +1245,7 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       if (cloudIos !== undefined) await upsert('service_cloud_ios_url', cloudIos);
       if (mobile !== undefined) await upsert('service_mobile_app_url', mobile);
       if (mobileIos !== undefined) await upsert('service_mobile_ios_url', mobileIos);
+      if (mobileTf !== undefined) await upsert('service_mobile_testflight_url', mobileTf);
       if (desktop !== undefined) await upsert('desktop_app_url', desktop);
       if (desktopMacArm64 !== undefined) await upsert('desktop_mac_arm64_url', desktopMacArm64);
       if (desktopMacX64 !== undefined) await upsert('desktop_mac_x64_url', desktopMacX64);
