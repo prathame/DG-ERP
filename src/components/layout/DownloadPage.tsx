@@ -160,6 +160,41 @@ export function DownloadPage() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="rounded-2xl border border-brand/25 bg-brand/5 overflow-hidden"
+            >
+              <div className="px-4 sm:px-6 py-5 border-b border-white/10">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <Smartphone size={18} className="text-brand shrink-0" />
+                  <span className="font-bold text-base sm:text-lg">iPhone — Install from Safari</span>
+                  <span className="text-[10px] bg-brand/20 text-brand px-2 py-0.5 rounded-full font-bold">PWA</span>
+                </div>
+                <p className="text-sm text-white/45">
+                  No App Store needed. Open your company link in Safari, then add it to the Home Screen.
+                </p>
+              </div>
+              <div className="px-4 sm:px-6 py-4 space-y-3 text-sm text-white/70">
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>
+                    Open <span className="font-mono text-white/90">dhandho.app/your-company</span> in{' '}
+                    <span className="font-semibold text-white">Safari</span> (not Chrome).
+                  </li>
+                  <li>
+                    Tap the Share button <span className="text-white/90">□↑</span>.
+                  </li>
+                  <li>
+                    Tap <span className="font-semibold text-white">Add to Home Screen</span> → Add.
+                  </li>
+                </ol>
+                <p className="text-xs text-white/40">
+                  The icon opens full-screen like an app. Works for cloud ERP on any iPhone.
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
               className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"
             >

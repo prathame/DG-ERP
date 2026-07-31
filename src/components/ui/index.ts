@@ -3,7 +3,7 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { PercentProgressBar } from './PercentProgressBar';
 export { DateRangeFilter, dateControlClass } from './DateRangeFilter';
 export { PaginationControls } from './Pagination';
-export { PaidBadge, PaidStamp, isBillFullyPaid } from './PaidBadge';
+export { PaidBadge, PartialBadge, PaidStamp, isBillFullyPaid, isBillPartiallyPaid } from './PaidBadge';
 export { PasswordInput } from './PasswordInput';
 export { Skeleton, DashboardSkeleton, TableSkeleton } from './Skeleton';
 export { NotificationCenter } from './NotificationCenter';

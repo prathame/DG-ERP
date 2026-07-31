@@ -5,7 +5,7 @@
 import React from 'react';
 import { ArrowLeft, MessageCircle, Plus, Search } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
-import { LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
+import { LoadingSpinner, PaidBadge, PartialBadge, isBillFullyPaid, isBillPartiallyPaid } from '../../components/ui';
 import { canSendPaymentReminder, type CompanyReminderSettings } from '../../lib/paymentReminders';
 import {
   isEmptyVendorFinanceRow,
@@ -103,7 +103,11 @@ export function MobileVendorFinance({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-lg font-bold dg-m-ink truncate">{detail.vendor.name}</h2>
-              {isBillFullyPaid(detail.totalDistributedValue, detail.balance) && <PaidBadge size="sm" />}
+              {isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
+                <PaidBadge size="sm" />
+              ) : isBillPartiallyPaid(detail.totalDistributedValue, detail.balance, detail.totalPaid) ? (
+                <PartialBadge size="sm" />
+              ) : null}
             </div>
             <p className="text-[12px] dg-m-muted mt-0.5 truncate">
               {detail.vendor.phone || detail.vendor.email || detail.vendor.contactPerson || 'Vendor finance'}
@@ -335,12 +339,15 @@ export function MobileVendorFinance({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-[15px] font-bold dg-m-ink truncate">{v.vendorName}</h3>
-                      {isBillFullyPaid(v.totalDistributedValue, v.balance) && <PaidBadge size="sm" />}
-                      {!settled && (
+                      {isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
+                        <PaidBadge size="sm" />
+                      ) : isBillPartiallyPaid(v.totalDistributedValue, v.balance, v.totalPaid) ? (
+                        <PartialBadge size="sm" />
+                      ) : !settled ? (
                         <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--dg-error)_12%,transparent)] dg-m-error">
                           Unpaid
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <p className="text-[11px] dg-m-muted mt-0.5">
                       Vendor ID: #{v.vendorId.slice(0, 8)}

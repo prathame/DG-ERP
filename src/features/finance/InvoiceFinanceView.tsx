@@ -21,7 +21,9 @@ import {
   useToast,
   LoadingSpinner,
   isBillFullyPaid,
+  isBillPartiallyPaid,
   PaidBadge,
+  PartialBadge,
   PaidStamp,
   AppModal,
   MobileKpiCard,
@@ -39,10 +41,11 @@ import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type PayModal = {
+  /** collective = toward party total (FIFO); invoice = one bill; advance = no outstanding */
+  mode: 'collective' | 'invoice' | 'advance';
   invoiceId: string | null;
   invoiceNumber: string;
   balance: number;
-  isAdvance: boolean;
 };
 
 const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
@@ -172,10 +175,10 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       notes: '',
     });
     setPayModal({
+      mode: 'invoice',
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       balance: inv.balance,
-      isAdvance: false,
     });
   };
 
@@ -189,18 +192,43 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       notes: 'Advance payment',
     });
     setPayModal({
+      mode: 'advance',
       invoiceId: null,
       invoiceNumber: 'Advance',
       balance: 0,
-      isAdvance: true,
+    });
+  };
+
+  const openCollectivePay = () => {
+    if (!selected || !detail) return;
+    const totalDue = Math.max(0, Number(detail.balance) || 0);
+    if (totalDue <= 0) {
+      if (offlineAdvance) {
+        openAdvancePay();
+        return;
+      }
+      toast('No outstanding balance', 'info');
+      return;
+    }
+    setPayForm({
+      amount: '',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'Cash',
+      referenceNumber: '',
+      notes: '',
+    });
+    setPayModal({
+      mode: 'collective',
+      invoiceId: null,
+      invoiceNumber: 'Total due',
+      balance: totalDue,
     });
   };
 
   const openRecordPayment = () => {
-    const invoices = detail?.invoices || [];
-    const unpaid = invoices.find(i => i.balance > 0);
-    if (unpaid) {
-      openPay(unpaid);
+    const unpaid = (detail?.invoices || []).filter(i => i.balance > 0);
+    if (unpaid.length > 0) {
+      openCollectivePay();
       return;
     }
     if (offlineAdvance) {
@@ -219,9 +247,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       return;
     }
 
-    if (!payModal.isAdvance) {
+    if (payModal.mode !== 'advance') {
       if (payModal.balance <= 0) {
-        toast('Invoice is already fully paid', 'error');
+        toast(payModal.mode === 'collective' ? 'No outstanding balance' : 'Invoice is already fully paid', 'error');
         return;
       }
       if (amount > payModal.balance + 0.001) {
@@ -233,14 +261,27 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setSubmitting(true);
     try {
       await api.invoiceFinance.recordPayment({
-        ...(payModal.isAdvance ? { partyKey: selected } : { invoiceId: payModal.invoiceId || undefined }),
+        ...(payModal.mode === 'invoice' ? { invoiceId: payModal.invoiceId || undefined } : { partyKey: selected }),
         amount,
         paymentDate: payForm.paymentDate,
         paymentMethod: payForm.paymentMethod,
         referenceNumber: payForm.referenceNumber || undefined,
-        notes: payForm.notes || (payModal.isAdvance ? 'Advance payment' : undefined),
+        notes:
+          payForm.notes ||
+          (payModal.mode === 'advance'
+            ? 'Advance payment'
+            : payModal.mode === 'collective'
+              ? 'Collective payment'
+              : undefined),
       });
-      toast(payModal.isAdvance ? 'Advance payment recorded' : 'Payment recorded', 'success');
+      toast(
+        payModal.mode === 'advance'
+          ? 'Advance payment recorded'
+          : payModal.mode === 'collective'
+            ? 'Payment applied toward total due'
+            : 'Payment recorded',
+        'success',
+      );
       setPayModal(null);
       loadDetail(selected);
       loadSummary();
@@ -287,6 +328,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   // ── Client detail workspace (Distribution-style drill-down) ───────────────
   if (selected) {
     const overallPaid = detail ? isBillFullyPaid(detail.totalInvoiced, detail.balance) : false;
+    const overallPartial = detail ? isBillPartiallyPaid(detail.totalInvoiced, detail.balance, detail.totalPaid) : false;
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
@@ -301,7 +343,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
               <span className="truncate">{detail?.clientName || clientsLabel.replace(/s$/, '') || 'Client'}</span>
-              {overallPaid && <PaidBadge />}
+              {overallPaid ? <PaidBadge /> : overallPartial ? <PartialBadge /> : null}
             </h2>
             <p className="text-sm text-gray-500">
               {detailLoading
@@ -392,6 +434,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 <div className="divide-y divide-gray-100">
                   {detail.invoices.map(inv => {
                     const paid = isBillFullyPaid(inv.grandTotal, inv.balance);
+                    const partial = isBillPartiallyPaid(inv.grandTotal, inv.balance, inv.paid);
                     return (
                       <div key={inv.id} className="px-5 py-4 space-y-2.5">
                         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -419,6 +462,8 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                           </div>
                           {paid ? (
                             <PaidBadge size="sm" />
+                          ) : partial ? (
+                            <PartialBadge size="sm" />
                           ) : (
                             inv.balance > 0 && (
                               <span className="text-xs bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
@@ -520,17 +565,17 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
 
         {payModal && (
           <AppModal
-            title={payModal.isAdvance ? t('finance.recordAdvancePayment') : t('finance.recordPayment')}
+            title={payModal.mode === 'advance' ? t('finance.recordAdvancePayment') : t('finance.recordPayment')}
             subtitle={
-              payModal.isAdvance ? (
+              payModal.mode === 'advance' ? (
                 <>
                   No outstanding invoice — cash is held as advance and applies to the next bill for{' '}
                   <span className="font-bold text-gray-700">{detail?.clientName}</span>.
                 </>
               ) : (
                 <>
-                  Invoice {payModal.invoiceNumber} · Balance{' '}
-                  <span className="font-bold text-rose-600">{fmt(payModal.balance)}</span>
+                  {detail?.clientName || 'Client'} · Open balance{' '}
+                  <span className="font-bold text-rose-600">{fmt(Math.max(0, Number(detail?.balance) || 0))}</span>
                 </>
               )
             }
@@ -557,6 +602,54 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             }
           >
             <form id="invoice-finance-pay-form" onSubmit={handlePay} className="space-y-4">
+              {payModal.mode !== 'advance' && (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase">Apply payment</label>
+                  <select
+                    value={payModal.mode === 'collective' ? '__ALL__' : payModal.invoiceId || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const unpaid = (detail?.invoices || []).filter(i => i.balance > 0);
+                      const totalDue = Math.max(0, Number(detail?.balance) || 0);
+                      if (val === '__ALL__') {
+                        setPayModal({
+                          mode: 'collective',
+                          invoiceId: null,
+                          invoiceNumber: 'Total due',
+                          balance: totalDue,
+                        });
+                        return;
+                      }
+                      const inv = unpaid.find(i => i.id === val);
+                      if (!inv) return;
+                      setPayModal({
+                        mode: 'invoice',
+                        invoiceId: inv.id,
+                        invoiceNumber: inv.invoiceNumber,
+                        balance: inv.balance,
+                      });
+                      setPayForm(f => ({ ...f, amount: String(inv.balance) }));
+                    }}
+                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  >
+                    <option value="__ALL__">
+                      Pay toward total due — {fmt(Math.max(0, Number(detail?.balance) || 0))} (oldest first)
+                    </option>
+                    {(detail?.invoices || [])
+                      .filter(i => i.balance > 0)
+                      .map(inv => (
+                        <option key={inv.id} value={inv.id}>
+                          Specific: {inv.invoiceNumber} — {fmt(inv.balance)} due
+                        </option>
+                      ))}
+                  </select>
+                  {payModal.mode === 'collective' && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Any amount is split across open invoices, oldest first.
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.amount')} (₹)</label>
                 <input
@@ -567,7 +660,17 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   value={payForm.amount}
                   onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
                   className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  placeholder="e.g. 10000"
                 />
+                {payModal.mode === 'collective' && payModal.balance > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPayForm(f => ({ ...f, amount: String(payModal.balance) }))}
+                    className="mt-1 text-xs font-medium text-brand"
+                  >
+                    Use full due ({fmt(payModal.balance)})
+                  </button>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.paymentDate')}</label>
@@ -690,6 +793,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           <div className="sm:hidden space-y-2">
             {filtered.map(c => {
               const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
+              const partial = isBillPartiallyPaid(
+                Number(c.totalInvoiced) || 0,
+                Number(c.balance) || 0,
+                Number(c.totalPaid) || 0,
+              );
               const kind =
                 c.partyType === 'vendor'
                   ? isService
@@ -713,7 +821,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                         <span className={c.balance > 0 ? 'text-rose-600' : undefined}>{fmt(c.balance)}</span>
                       )
                     }
-                    meta={!paid && c.balance > 0 ? 'Due' : undefined}
+                    meta={paid ? undefined : partial ? 'Partial' : c.balance > 0 ? 'Due' : undefined}
                     onClick={() => openClient(c.partyKey)}
                   />
                 </Fragment>
@@ -724,6 +832,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(c => {
               const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
+              const partial = isBillPartiallyPaid(
+                Number(c.totalInvoiced) || 0,
+                Number(c.balance) || 0,
+                Number(c.totalPaid) || 0,
+              );
               const kind =
                 c.partyType === 'vendor'
                   ? isService
@@ -744,6 +857,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   {paid && (
                     <div className="absolute top-2 right-2 z-10">
                       <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
+                    </div>
+                  )}
+                  {!paid && partial && (
+                    <div className="absolute top-2 right-2 z-10">
+                      <PartialBadge size="sm" />
                     </div>
                   )}
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">
@@ -771,6 +889,13 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                     </span>
                     {paid ? (
                       <PaidBadge size="sm" />
+                    ) : partial ? (
+                      <>
+                        <PartialBadge size="sm" />
+                        <span className="text-gray-500">
+                          Due: <strong className="text-rose-600">{fmt(c.balance)}</strong>
+                        </span>
+                      </>
                     ) : (
                       <span className="text-gray-500">
                         Due: <strong className="text-rose-600">{fmt(c.balance)}</strong>

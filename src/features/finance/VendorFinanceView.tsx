@@ -25,7 +25,15 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
-import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
+import {
+  useToast,
+  LoadingSpinner,
+  PaidBadge,
+  PartialBadge,
+  PaidStamp,
+  isBillFullyPaid,
+  isBillPartiallyPaid,
+} from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import {
   DEFAULT_REMINDER_SETTINGS,
@@ -213,7 +221,7 @@ export function VendorFinanceView({
     e.preventDefault();
     if (!selectedVendorId || !paymentForm.amount) return;
     if (vendorBatches.length > 0 && !paymentForm.batchId) {
-      toast('Select a distribution batch or "All Distributions"', 'error');
+      toast('Select how to apply this payment', 'error');
       return;
     }
 
@@ -295,6 +303,15 @@ export function VendorFinanceView({
   const openPaymentModal = (preselectBatchId?: string) => {
     const vendorId = selectedVendorId;
     if (!vendorId) return;
+    setPaymentForm(f => ({
+      ...f,
+      amount: '',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: f.paymentMethod || 'Cash',
+      referenceNumber: '',
+      notes: '',
+      batchId: preselectBatchId || '__ALL__',
+    }));
     setPaymentModal(true);
     loadUnpaidBatches(vendorId).then(unpaid => {
       if (preselectBatchId) {
@@ -304,6 +321,8 @@ export function VendorFinanceView({
           batchId: preselectBatchId,
           amount: batch ? String(batch.balanceRemaining) : f.amount,
         }));
+      } else {
+        setPaymentForm(f => ({ ...f, batchId: unpaid.length ? '__ALL__' : '' }));
       }
     });
   };
@@ -317,7 +336,7 @@ export function VendorFinanceView({
       paymentMethod: 'Cash',
       referenceNumber: '',
       notes: '',
-      batchId: preselectBatchId || '',
+      batchId: preselectBatchId || '__ALL__',
     });
     api.vendorFinance
       .detail(vendorId)
@@ -332,13 +351,16 @@ export function VendorFinanceView({
         return loadUnpaidBatches(vendorId);
       })
       .then(unpaid => {
-        if (!preselectBatchId) return;
-        const batch = unpaid.find(b => b.batchId === preselectBatchId);
-        setPaymentForm(f => ({
-          ...f,
-          batchId: preselectBatchId,
-          amount: batch ? String(batch.balanceRemaining) : f.amount,
-        }));
+        if (preselectBatchId) {
+          const batch = unpaid.find(b => b.batchId === preselectBatchId);
+          setPaymentForm(f => ({
+            ...f,
+            batchId: preselectBatchId,
+            amount: batch ? String(batch.balanceRemaining) : f.amount,
+          }));
+          return;
+        }
+        setPaymentForm(f => ({ ...f, batchId: unpaid.length ? '__ALL__' : '' }));
       })
       .catch(() => {
         setDetail(null);
@@ -590,98 +612,100 @@ export function VendorFinanceView({
               </p>
               <form onSubmit={handleRecordPayment} className="space-y-4">
                 {vendorBatches.length > 0 &&
-                  (capMobileGlass ? (
-                    <div>
-                      <label className="text-xs font-bold dg-m-faint uppercase tracking-wider">
-                        Distribution batch *
-                      </label>
-                      <p className="text-[11px] dg-m-muted mt-0.5 mb-2">
-                        Choose which distribution this payment applies to
-                      </p>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const totalDue = vendorBatches.reduce((sum, b) => sum + b.balanceRemaining, 0);
-                            setPaymentForm({ ...paymentForm, batchId: '__ALL__', amount: String(totalDue) });
-                          }}
-                          className={cn(
-                            'w-full text-left rounded-xl px-3 py-2.5 border border-solid transition-colors',
-                            paymentForm.batchId === '__ALL__'
-                              ? 'border-[var(--dg-primary-bright)] dg-m-surface-muted'
-                              : 'border-[var(--dg-card-border)] dg-m-surface',
-                          )}
-                        >
-                          <p className="text-[13px] font-bold dg-m-ink">All distributions</p>
-                          <p className="text-[11px] dg-m-error font-bold tabular-nums mt-0.5">
-                            ₹{vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0).toLocaleString()} total due
-                          </p>
-                        </button>
-                        {vendorBatches.map(b => (
+                  (() => {
+                    const totalDue = vendorBatches.reduce((sum, b) => sum + b.balanceRemaining, 0);
+                    const towardTotal = paymentForm.batchId === '__ALL__';
+                    return capMobileGlass ? (
+                      <div>
+                        <label className="text-xs font-bold dg-m-faint uppercase tracking-wider">Apply payment</label>
+                        <p className="text-[11px] dg-m-muted mt-0.5 mb-2">
+                          Toward total due applies oldest distributions first
+                        </p>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
                           <button
-                            key={b.batchId}
                             type="button"
-                            onClick={() =>
-                              setPaymentForm({
-                                ...paymentForm,
-                                batchId: b.batchId,
-                                amount: String(b.balanceRemaining),
-                              })
-                            }
+                            onClick={() => setPaymentForm({ ...paymentForm, batchId: '__ALL__' })}
                             className={cn(
                               'w-full text-left rounded-xl px-3 py-2.5 border border-solid transition-colors',
-                              paymentForm.batchId === b.batchId
+                              towardTotal
                                 ? 'border-[var(--dg-primary-bright)] dg-m-surface-muted'
                                 : 'border-[var(--dg-card-border)] dg-m-surface',
                             )}
                           >
-                            <p className="text-[13px] font-bold dg-m-ink truncate">
-                              {b.productNames.length ? b.productNames.join(', ') : `Batch ${b.batchId.slice(-6)}`}
-                            </p>
-                            <p className="text-[11px] dg-m-muted mt-0.5">{formatDate(b.distributionDate)}</p>
-                            <p className="text-[12px] font-bold dg-m-error tabular-nums mt-0.5">
-                              ₹{b.balanceRemaining.toLocaleString()} due
+                            <p className="text-[13px] font-bold dg-m-ink">Pay toward total due</p>
+                            <p className="text-[11px] dg-m-error font-bold tabular-nums mt-0.5">
+                              ₹{totalDue.toLocaleString()} open across {vendorBatches.length} distribution
+                              {vendorBatches.length !== 1 ? 's' : ''}
                             </p>
                           </button>
-                        ))}
+                          {vendorBatches.map(b => (
+                            <button
+                              key={b.batchId}
+                              type="button"
+                              onClick={() =>
+                                setPaymentForm({
+                                  ...paymentForm,
+                                  batchId: b.batchId,
+                                  amount: String(b.balanceRemaining),
+                                })
+                              }
+                              className={cn(
+                                'w-full text-left rounded-xl px-3 py-2.5 border border-solid transition-colors',
+                                paymentForm.batchId === b.batchId
+                                  ? 'border-[var(--dg-primary-bright)] dg-m-surface-muted'
+                                  : 'border-[var(--dg-card-border)] dg-m-surface',
+                              )}
+                            >
+                              <p className="text-[13px] font-bold dg-m-ink truncate">
+                                {b.productNames.length ? b.productNames.join(', ') : `Batch ${b.batchId.slice(-6)}`}
+                              </p>
+                              <p className="text-[11px] dg-m-muted mt-0.5">{formatDate(b.distributionDate)}</p>
+                              <p className="text-[12px] font-bold dg-m-error tabular-nums mt-0.5">
+                                ₹{b.balanceRemaining.toLocaleString()} due
+                              </p>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">Distribution Batch *</label>
-                      <select
-                        required
-                        value={paymentForm.batchId}
-                        onChange={e => {
-                          const val = e.target.value;
-                          if (val === '__ALL__') {
-                            const totalDue = vendorBatches.reduce((sum, b) => sum + b.balanceRemaining, 0);
-                            setPaymentForm({ ...paymentForm, batchId: val, amount: String(totalDue) });
-                          } else {
-                            const batch = vendorBatches.find(b => b.batchId === val);
-                            setPaymentForm({
-                              ...paymentForm,
-                              batchId: val,
-                              amount: batch ? String(batch.balanceRemaining) : '',
-                            });
-                          }
-                        }}
-                        className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      >
-                        <option value="">Select distribution</option>
-                        <option value="__ALL__">
-                          All Distributions — ₹
-                          {vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0).toLocaleString()} total due
-                        </option>
-                        {vendorBatches.map(b => (
-                          <option key={b.batchId} value={b.batchId}>
-                            {formatDate(b.distributionDate)} — {b.productNames.join(', ')} — ₹
-                            {b.balanceRemaining.toLocaleString()} due
+                    ) : (
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase">Apply payment</label>
+                        <select
+                          required
+                          value={paymentForm.batchId}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '__ALL__') {
+                              setPaymentForm({ ...paymentForm, batchId: val });
+                            } else {
+                              const batch = vendorBatches.find(b => b.batchId === val);
+                              setPaymentForm({
+                                ...paymentForm,
+                                batchId: val,
+                                amount: batch ? String(batch.balanceRemaining) : '',
+                              });
+                            }
+                          }}
+                          className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                        >
+                          <option value="__ALL__">
+                            Pay toward total due — ₹{totalDue.toLocaleString()} (oldest first)
                           </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                          {vendorBatches.map(b => (
+                            <option key={b.batchId} value={b.batchId}>
+                              Specific: {formatDate(b.distributionDate)} — {b.productNames.join(', ')} — ₹
+                              {b.balanceRemaining.toLocaleString()} due
+                            </option>
+                          ))}
+                        </select>
+                        {towardTotal && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Any amount is split across open distributions, oldest first.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 <div>
                   <label
                     className={cn(
@@ -704,8 +728,23 @@ export function VendorFinanceView({
                         ? 'dg-m-surface border border-[var(--dg-card-border)] dg-m-ink focus:ring-[var(--dg-primary-bright)]'
                         : 'border border-gray-200 focus:ring-brand',
                     )}
-                    placeholder="0.00"
+                    placeholder="e.g. 10000"
                   />
+                  {paymentForm.batchId === '__ALL__' && vendorBatches.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          amount: String(vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0)),
+                        })
+                      }
+                      className={cn('mt-1 text-xs font-medium', capMobileGlass ? 'dg-m-primary' : 'text-brand')}
+                    >
+                      Use full due (₹
+                      {vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0).toLocaleString()})
+                    </button>
+                  )}
                 </div>
                 <div>
                   <label
@@ -1213,7 +1252,11 @@ export function VendorFinanceView({
             <div>
               <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
                 {isVendor ? 'My Finance' : `${detail.vendor.name} — Finance`}
-                {isBillFullyPaid(detail.totalDistributedValue, detail.balance) && <PaidBadge />}
+                {isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
+                  <PaidBadge />
+                ) : isBillPartiallyPaid(detail.totalDistributedValue, detail.balance, detail.totalPaid) ? (
+                  <PartialBadge />
+                ) : null}
               </h2>
               <p className="text-sm text-gray-500">{detail.vendor.phone || detail.vendor.email || ''}</p>
             </div>
@@ -1298,6 +1341,11 @@ export function VendorFinanceView({
               ) : isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
                 <span className="inline-flex items-center gap-2">
                   <PaidBadge size="md" className="text-sm px-3 py-1.5" />
+                </span>
+              ) : isBillPartiallyPaid(detail.totalDistributedValue, detail.balance, detail.totalPaid) ? (
+                <span className="inline-flex flex-col items-start gap-1">
+                  <PartialBadge size="sm" />
+                  <span>₹{detail.balance.toLocaleString()} due</span>
                 </span>
               ) : (
                 <>₹{detail.balance.toLocaleString()}</>
@@ -1529,7 +1577,11 @@ export function VendorFinanceView({
                         <td className="px-3 py-3 sm:px-6 sm:py-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium">{v.vendorName}</p>
-                            {isBillFullyPaid(v.totalDistributedValue, v.balance) && <PaidBadge size="sm" />}
+                            {isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
+                              <PaidBadge size="sm" />
+                            ) : isBillPartiallyPaid(v.totalDistributedValue, v.balance, v.totalPaid) ? (
+                              <PartialBadge size="sm" />
+                            ) : null}
                           </div>
                           <p className="text-xs text-gray-500">{v.unitsDistributed} units</p>
                         </td>
@@ -1546,6 +1598,11 @@ export function VendorFinanceView({
                             </span>
                           ) : isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
                             <PaidBadge size="sm" />
+                          ) : isBillPartiallyPaid(v.totalDistributedValue, v.balance, v.totalPaid) ? (
+                            <div className="flex flex-col gap-1 items-start">
+                              <PartialBadge size="sm" />
+                              <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()} due</span>
+                            </div>
                           ) : (
                             <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()}</span>
                           )}

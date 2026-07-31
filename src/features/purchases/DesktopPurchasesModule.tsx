@@ -9,6 +9,7 @@ import {
   CreditCard,
   FileText,
   MapPin,
+  Pencil,
   Plus,
   Receipt,
   Search,
@@ -58,6 +59,7 @@ type Props = {
   suppliers: DesktopSupplierCard[];
   onSelectSupplier: (id: string) => void;
   onAddSupplier: () => void;
+  onEditSupplier: (s: DesktopSupplierCard) => void;
   onNewPurchase: () => void;
 };
 
@@ -94,6 +96,7 @@ export function DesktopPurchasesModule({
   suppliers,
   onSelectSupplier,
   onAddSupplier,
+  onEditSupplier,
   onNewPurchase,
 }: Props) {
   const expenseTotal = expenses.reduce((s, e) => s + e.amount, 0);
@@ -231,7 +234,7 @@ export function DesktopPurchasesModule({
                       <div className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-sm font-bold bg-[color-mix(in_srgb,var(--dg-primary)_14%,transparent)] text-[var(--dg-primary)]">
                         {initials(s.name)}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <h3 className="font-bold dg-ink text-[15px] truncate">{s.name}</h3>
                         {s.address ? (
                           <p className="text-xs dg-muted mt-0.5 flex items-center gap-1 truncate">
@@ -244,11 +247,19 @@ export function DesktopPurchasesModule({
                           </p>
                         )}
                       </div>
-                      {paidOff && (
-                        <div className="ml-auto shrink-0">
-                          <PaidBadge size="sm" />
-                        </div>
-                      )}
+                      <div className="ml-auto shrink-0 flex items-center gap-1">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => onEditSupplier(s)}
+                            className="p-2 rounded-lg dg-muted hover:bg-[var(--dg-input)]"
+                            title="Edit supplier"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
+                        {paidOff && <PaidBadge size="sm" />}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

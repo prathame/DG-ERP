@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText,
   Plus,
+  Pencil,
   ArrowLeft,
   Send,
   MessageCircle,
@@ -997,6 +998,17 @@ export function QuotationsView() {
                     }}
                   />
                   <div className="flex items-center justify-end gap-0.5 border-t border-gray-50 px-1.5 py-0.5">
+                    {q.status === 'Draft' && (
+                      <button
+                        type="button"
+                        onClick={() => openEditDraft(q)}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-lg"
+                        title="Edit Draft"
+                        aria-label="Edit draft quotation"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => void printQuotation(q)}
@@ -1025,18 +1037,20 @@ export function QuotationsView() {
           {/* Desktop list */}
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
             {filtered.map(q => (
-              <button
+              <div
                 key={q.id}
-                type="button"
-                onClick={() => {
-                  setSelectedId(q.id);
-                  fetchApi<Quotation>(`/quotations/${q.id}`)
-                    .then(setSelected)
-                    .catch(err => toast(err.message, 'error'));
-                }}
                 className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
               >
-                <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(q.id);
+                    fetchApi<Quotation>(`/quotations/${q.id}`)
+                      .then(setSelected)
+                      .catch(err => toast(err.message, 'error'));
+                  }}
+                  className="min-w-0 flex-1 text-left"
+                >
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold">{q.quotationNumber}</p>
                     {statusBadge(q.status)}
@@ -1045,9 +1059,22 @@ export function QuotationsView() {
                     {q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length}{' '}
                     item{q.items.length !== 1 ? 's' : ''}
                   </p>
+                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {q.status === 'Draft' && (
+                    <button
+                      type="button"
+                      onClick={() => openEditDraft(q)}
+                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                      title="Edit Draft"
+                      aria-label="Edit draft quotation"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
+                  <span className="text-sm font-bold text-brand">₹{q.total.toLocaleString()}</span>
                 </div>
-                <span className="text-sm font-bold text-brand shrink-0">₹{q.total.toLocaleString()}</span>
-              </button>
+              </div>
             ))}
           </div>
         </>

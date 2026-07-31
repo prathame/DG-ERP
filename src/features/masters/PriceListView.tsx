@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, Tag, MessageCircle, Mail, Download, Upload, FileDown } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Tag, MessageCircle, Mail, Download, Upload, FileDown } from 'lucide-react';
 import {
   cn,
   openPrintWindow,
@@ -79,6 +79,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const [tenant, setTenant] = useState<TenantHeader>({ companyName: 'Dhandho' });
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const emptyForm = () => ({
@@ -101,8 +102,31 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const genericCount = rules.filter(r => !r.vendorId).length;
   const vendorCount = rules.filter(r => !!r.vendorId).length;
 
-  const openCreate = () => {
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingId(null);
     setForm(emptyForm());
+  };
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm());
+    setModalOpen(true);
+  };
+
+  const openEdit = (rule: PriceRule) => {
+    setEditingId(rule.id);
+    setForm({
+      name: rule.name || '',
+      productId: rule.productId || '',
+      newItemName: '',
+      vendorId: rule.vendorId || '',
+      minQty: String(rule.minQty ?? 1),
+      maxQty: rule.maxQty != null ? String(rule.maxQty) : '',
+      price: String(rule.price ?? ''),
+      validFrom: rule.validFrom ? String(rule.validFrom).slice(0, 10) : '',
+      validTo: rule.validTo ? String(rule.validTo).slice(0, 10) : '',
+    });
     setModalOpen(true);
   };
 
@@ -142,9 +166,33 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     load();
   }, []);
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!form.price) {
       toast('Price is required', 'error');
+      return;
+    }
+    if (editingId) {
+      setSubmitting(true);
+      try {
+        await fetchApi(`/price-lists/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: form.name || undefined,
+            minQty: Number(form.minQty) || 1,
+            maxQty: form.maxQty ? Number(form.maxQty) : null,
+            price: Number(form.price),
+            validFrom: form.validFrom || null,
+            validTo: form.validTo || null,
+          }),
+        });
+        closeModal();
+        load();
+        toast('Price rule updated', 'success');
+      } catch (err) {
+        toast((err as Error).message, 'error');
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     if (tab === 'vendor' && !form.vendorId) {
@@ -188,8 +236,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         method: 'POST',
         body: JSON.stringify(body),
       });
-      setModalOpen(false);
-      setForm(emptyForm());
+      closeModal();
       load();
       toast('Price rule added', 'success');
     } catch (err) {
@@ -566,13 +613,24 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       )}
                       {rule.name && <span className="text-xs text-gray-400">{rule.name}</span>}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(rule.id)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(rule)}
+                        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(rule.id)}
+                        className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -588,13 +646,24 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       {rule.productName} — ₹{Number(rule.price).toLocaleString()} (
                       {rule.vendorName || `All ${partyLabel}`})
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(rule.id)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 rounded-lg"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(rule)}
+                        className="p-1.5 text-gray-500 hover:text-gray-700 rounded-lg"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(rule.id)}
+                        className="p-1.5 text-rose-400 hover:text-rose-600 rounded-lg"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
             </div>
@@ -605,19 +674,25 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
+            <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-1">
-                {tab === 'generic' ? 'Add catalog rate' : `Add ${partySingular.toLowerCase()} rate`}
+                {editingId
+                  ? 'Edit price rule'
+                  : tab === 'generic'
+                    ? 'Add catalog rate'
+                    : `Add ${partySingular.toLowerCase()} rate`}
               </h3>
               <p className="text-xs text-gray-500 mb-4">
-                {tab === 'generic'
-                  ? `Applies to all ${partyLabel.toLowerCase()} when no specific rule matches.`
-                  : `Overrides catalog / product price for the selected ${partySingular.toLowerCase()}.`}
+                {editingId
+                  ? 'Product and party stay the same — update qty, price, or validity.'
+                  : tab === 'generic'
+                    ? `Applies to all ${partyLabel.toLowerCase()} when no specific rule matches.`
+                    : `Overrides catalog / product price for the selected ${partySingular.toLowerCase()}.`}
               </p>
               <div className="space-y-4">
                 <div>
@@ -626,9 +701,10 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   </label>
                   <select
                     required
+                    disabled={!!editingId}
                     value={form.productId}
                     onChange={e => setForm({ ...form, productId: e.target.value, newItemName: '' })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm disabled:bg-gray-50 disabled:text-gray-500"
                   >
                     {serviceMobile ? (
                       <option value={NEW_ITEM}>+ New item</option>
@@ -641,7 +717,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       </option>
                     ))}
                   </select>
-                  {serviceMobile && form.productId === NEW_ITEM && (
+                  {serviceMobile && !editingId && form.productId === NEW_ITEM && (
                     <input
                       className="w-full mt-2 px-4 py-2 border border-gray-200 rounded-xl text-sm"
                       value={form.newItemName}
@@ -655,9 +731,10 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase block mb-1">{partySingular} *</label>
                     <select
+                      disabled={!!editingId}
                       value={form.vendorId}
                       onChange={e => setForm({ ...form, vendorId: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm disabled:bg-gray-50 disabled:text-gray-500"
                     >
                       <option value="">Select {partySingular.toLowerCase()}</option>
                       {vendors.map(v => (
@@ -736,20 +813,16 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   />
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="flex-1 py-2.5 border rounded-xl font-medium"
-                  >
+                  <button type="button" onClick={closeModal} className="flex-1 py-2.5 border rounded-xl font-medium">
                     Cancel
                   </button>
                   <button
                     type="button"
-                    onClick={handleCreate}
+                    onClick={handleSave}
                     disabled={submitting}
                     className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
                   >
-                    {submitting ? 'Saving...' : 'Add Rule'}
+                    {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Add Rule'}
                   </button>
                 </div>
               </div>

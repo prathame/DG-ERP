@@ -11,7 +11,12 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailsWarranty, setDetailsWarranty] = useState<Warranty | null>(null);
-  const [detailsForm, setDetailsForm] = useState({ status: '' as string, replacedBarcode: '' });
+  const [detailsForm, setDetailsForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    status: '' as string,
+    replacedBarcode: '',
+  });
   const [detailsSubmitting, setDetailsSubmitting] = useState(false);
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,21 +78,41 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
 
   const openDetails = (w: Warranty) => {
     setDetailsWarranty(w);
-    setDetailsForm({ status: w.status, replacedBarcode: w.replacedBarcode ?? '' });
+    setDetailsForm({
+      customerName: w.customerName || '',
+      customerPhone: w.customerPhone || '',
+      status: w.status,
+      replacedBarcode: w.replacedBarcode ?? '',
+    });
   };
 
   const handleDetailsSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!detailsWarranty) return;
+    if (!detailsForm.customerName.trim()) {
+      toast('Customer name is required', 'error');
+      return;
+    }
+    if (!detailsForm.customerPhone.trim()) {
+      toast('Customer phone is required', 'error');
+      return;
+    }
     setDetailsSubmitting(true);
     api.warranties
       .update(detailsWarranty.id, {
+        customerName: detailsForm.customerName.trim(),
+        customerPhone: detailsForm.customerPhone.trim(),
         status: detailsForm.status,
         replacedBarcode: detailsForm.replacedBarcode || null,
       })
       .then(updated => {
         setDetailsWarranty(updated);
-        setDetailsForm({ status: updated.status, replacedBarcode: updated.replacedBarcode ?? '' });
+        setDetailsForm({
+          customerName: updated.customerName || '',
+          customerPhone: updated.customerPhone || '',
+          status: updated.status,
+          replacedBarcode: updated.replacedBarcode ?? '',
+        });
         refreshWarranties();
         toast('Warranty updated', 'success');
       })
@@ -368,14 +393,6 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                       <p className="font-mono font-medium">{detailsWarranty.barcode ?? '-'}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase">Customer</p>
-                      <p className="font-medium">{detailsWarranty.customerName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase">Phone</p>
-                      <p className="font-medium">{detailsWarranty.customerPhone}</p>
-                    </div>
-                    <div>
                       <p className="text-xs font-bold text-gray-400 uppercase">Activation</p>
                       <p className="font-medium">{formatDate(detailsWarranty.activationDate)}</p>
                     </div>
@@ -384,26 +401,43 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                       <p className="font-medium">{formatDate(detailsWarranty.expiryDate)}</p>
                     </div>
                   </div>
-                  <p className="text-xs font-bold text-gray-400 uppercase">Item Replaced</p>
                   {detailsWarranty.replacedBarcode ? (
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
                       <p className="text-sm text-emerald-800 flex items-center gap-2">
-                        <Package size={14} /> New barcode:{' '}
+                        <Package size={14} /> Current replacement:{' '}
                         <span className="font-mono font-bold">{detailsWarranty.replacedBarcode}</span>
                       </p>
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No replacement recorded</p>
-                  )}
+                  ) : null}
                 </div>
                 <form onSubmit={handleDetailsSave} className="space-y-4 border-t border-gray-100 pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer *</label>
+                      <input
+                        required
+                        value={detailsForm.customerName}
+                        onChange={e => setDetailsForm({ ...detailsForm, customerName: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Phone *</label>
+                      <input
+                        required
+                        value={detailsForm.customerPhone}
+                        onChange={e => setDetailsForm({ ...detailsForm, customerPhone: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                  </div>
                   <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Status</label>
                       <select
                         value={detailsForm.status}
                         onChange={e => setDetailsForm({ ...detailsForm, status: e.target.value })}
-                        className="w-full px-6 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                       >
                         <option value="Active">Active</option>
                         <option value="Under Claim">Under Claim (Under Repair)</option>
@@ -416,7 +450,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                         placeholder="New barcode if item replaced"
                         value={detailsForm.replacedBarcode}
                         onChange={e => setDetailsForm({ ...detailsForm, replacedBarcode: e.target.value })}
-                        className="w-full px-6 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand"
                       />
                     </div>
                   </div>

@@ -16,6 +16,8 @@
     <link rel="icon" type="image/png" href="/icons/favicon.png?v=20260721" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=20260721" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png?v=20260721" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png?v=20260721" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png?v=20260721" />
 
     <!-- Open Graph (WhatsApp, LinkedIn, Facebook) -->
     <meta property="og:type" content="website" />
@@ -33,11 +35,14 @@
     <meta name="twitter:description" content="Inventory, billing, GST, vendor management — ₹0 से शुरू करें। Made in Rajkot." />
     <meta name="twitter:image" content="https://dhandho.app/icons/logo-brand.png" />
 
-    <!-- PWA -->
-    <meta name="theme-color" content="#F27D26" />
+    <!-- PWA (iOS needs apple-mobile-web-app-capable for Add to Home Screen standalone) -->
+    <meta name="theme-color" content="#F27D26" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151619" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Dhandho" />
+    <meta name="format-detection" content="telephone=no" />
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Font preconnect + non-blocking load (no inline handlers — CSP safe) -->

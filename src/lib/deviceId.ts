@@ -38,7 +38,24 @@ export async function getOrCreateDeviceId(): Promise<string> {
 
 export type ClientPlatform = 'desktop' | 'mobile' | 'web';
 
-/** Best-effort client kind for session metadata. Electron / Cap only — no browser query bypass. */
+/** Installed PWA (Add to Home Screen / Chrome install) — not a normal browser tab. */
+export function isPwaStandalone(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    if (nav.standalone === true) return true;
+    if (typeof window.matchMedia === 'function') {
+      if (window.matchMedia('(display-mode: standalone)').matches) return true;
+      if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
+      if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+/** Best-effort client kind for session metadata. */
 export function detectClientPlatform(): ClientPlatform {
   try {
     const ea = (window as unknown as { electronAPI?: { isElectron?: boolean; deploymentMode?: string } }).electronAPI;
@@ -54,17 +71,23 @@ export function detectClientPlatform(): ClientPlatform {
   } catch {
     /* ignore */
   }
+  // Home-screen / installed PWA counts as mobile for device binding.
+  if (isPwaStandalone()) return 'mobile';
   return 'web';
 }
 
-/** True when running inside Electron or Capacitor (not plain browser). */
+/**
+ * True when running inside Electron, Capacitor, Cap Vite bake, or installed PWA.
+ * Plain Safari/Chrome tabs are also allowed for cloud ERP (iPhone has no App Store build).
+ */
 export function isErpAppShell(): boolean {
   // Cap Vite bakes — same shells as native WebView (local preview / sideload QA).
   if (isBakedServiceMobile() || isBakedServicePhone()) return true;
+  if (isPwaStandalone()) return true;
   return detectClientPlatform() !== 'web';
 }
 
-/** Header identifying native/desktop shells (not set in plain browser). */
+/** Header identifying native/desktop/PWA shells (not set in plain browser tabs). */
 export function appClientHeader(): string | null {
   try {
     const ea = (window as unknown as { electronAPI?: { isElectron?: boolean; deploymentMode?: string } }).electronAPI;
@@ -79,5 +102,6 @@ export function appClientHeader(): string | null {
   } catch {
     /* ignore */
   }
+  if (isPwaStandalone()) return 'pwa';
   return null;
 }

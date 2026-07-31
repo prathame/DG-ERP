@@ -10,6 +10,7 @@ import {
   Download,
   IndianRupee,
   Package,
+  Pencil,
   Plus,
   Scale,
   Trash2,
@@ -50,6 +51,7 @@ type Props = {
   onAddProduct: () => void;
   onBarcodeDetails: (p: Product) => void;
   onAddStock: (p: Product) => void;
+  onEdit: (p: Product) => void;
   onDelete: (p: Product) => void;
   onToggleGst: (p: Product) => void;
 };
@@ -129,6 +131,7 @@ export function DesktopInventoryPanel({
   onAddProduct,
   onBarcodeDetails,
   onAddStock,
+  onEdit,
   onDelete,
   onToggleGst,
 }: Props) {
@@ -452,6 +455,16 @@ export function DesktopInventoryPanel({
                                 title="Add Stock"
                               >
                                 <Plus size={16} />
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => onEdit(p)}
+                                className="p-2 rounded-lg dg-muted hover:bg-[var(--dg-input)]"
+                                title="Edit"
+                              >
+                                <Pencil size={16} />
                               </button>
                             )}
                             {canEdit && (

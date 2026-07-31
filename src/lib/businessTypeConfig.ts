@@ -30,6 +30,8 @@ export interface BusinessConfig {
     weighScale: boolean; // scale capture on intake
     jewelleryTags: boolean; // jewellery tag print fields
     hospitality: boolean; // floor / waiter / kitchen / queue
+    /** Inventory "With Vendors" column — hide when sales auto-mark Sold (dealer / retail / silver). */
+    stockWithVendors: boolean;
   };
 
   // Finance tab variant
@@ -76,6 +78,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      stockWithVendors: true,
     },
     financeView: 'vendor',
     analytics: {
@@ -115,6 +118,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      stockWithVendors: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -154,6 +158,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      stockWithVendors: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -193,6 +198,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      stockWithVendors: false,
     },
     financeView: 'invoice',
     analytics: {
@@ -232,6 +238,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: true,
       jewelleryTags: true,
       hospitality: false,
+      stockWithVendors: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -272,6 +279,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: true,
+      stockWithVendors: false,
     },
     financeView: 'invoice',
     analytics: {
