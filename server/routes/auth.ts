@@ -22,11 +22,11 @@ router.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    // ERP is desktop + mobile apps only — reject browser / unknown clients
+    // Cloud ERP: desktop, Cap mobile, browser tab, or installed PWA (single-session still applies)
     const loginPlatform = req.body?.platform;
-    if (loginPlatform !== 'desktop' && loginPlatform !== 'mobile') {
+    if (loginPlatform !== 'desktop' && loginPlatform !== 'mobile' && loginPlatform !== 'web') {
       return res.status(403).json({
-        error: 'Sign in is only available in the Dhandho desktop or mobile app.',
+        error: 'Sign in requires a supported Dhandho client (app, PWA, or browser).',
         code: 'APP_ONLY',
       });
     }

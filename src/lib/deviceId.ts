@@ -89,8 +89,11 @@ export function isErpAppShell(): boolean {
   return detectClientPlatform() !== 'web';
 }
 
-/** Header identifying native/desktop/PWA shells (not set in plain browser tabs). */
-export function appClientHeader(): string | null {
+/**
+ * Client id for APP_ONLY + session metadata.
+ * Always set for cloud ERP (including plain browser tabs → `web`).
+ */
+export function appClientHeader(): string {
   try {
     const ea = (window as unknown as { electronAPI?: { isElectron?: boolean; deploymentMode?: string } }).electronAPI;
     if (ea?.deploymentMode === 'onprem') return 'electron-onprem';
@@ -105,5 +108,5 @@ export function appClientHeader(): string | null {
     /* ignore */
   }
   if (isPwaStandalone()) return 'pwa';
-  return null;
+  return 'web';
 }

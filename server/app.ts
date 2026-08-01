@@ -347,13 +347,14 @@ export function createApp(): express.Application {
       if (decoded.tenantId && decoded.userId) {
         req.headers['x-tenant-id'] = decoded.tenantId;
 
-        // Tenant ERP is desktop/mobile apps only (browser blocked). Impersonation + tests exempt.
+        // Tenant ERP: Cap / Electron / browser / PWA. Impersonation + tests exempt.
+        // Single-session (user_sessions) still kicks every other device on new login.
         if (!decoded.impersonatedBy && !isTest) {
           const dgClient = String(req.headers['x-dg-client'] || '');
-          const allowed = new Set(['electron-cloud', 'electron-onprem', 'capacitor', 'capacitor-cloud']);
+          const allowed = new Set(['electron-cloud', 'electron-onprem', 'capacitor', 'capacitor-cloud', 'pwa', 'web']);
           if (!allowed.has(dgClient)) {
             return res.status(403).json({
-              error: 'Dhandho ERP is only available in the desktop or mobile app.',
+              error: 'Dhandho ERP requires the desktop app, mobile app, PWA, or browser login.',
               code: 'APP_ONLY',
             });
           }

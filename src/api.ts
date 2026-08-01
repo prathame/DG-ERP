@@ -251,8 +251,8 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
   const scClient = serviceCloudClientHeader();
-  const dgClient = scClient || appClientHeader();
-  if (dgClient) authHeaders['X-DG-Client'] = dgClient;
+  // Cap Online header wins when set; otherwise Electron / PWA / browser (`web`)
+  authHeaders['X-DG-Client'] = scClient || appClientHeader();
   const correlationId = ensureCorrelationId();
   authHeaders['X-Correlation-ID'] = correlationId;
 
