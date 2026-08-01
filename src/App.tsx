@@ -1192,12 +1192,27 @@ export default function App() {
       );
     }
 
-    // Cloud Electron / Online Cap / installed PWA: company slug → login (never marketing landing)
-    if (isServiceCloudDesktop() || isServiceCloudMobile() || isPwaStandalone()) {
+    // Cloud Electron / Online Cap: company slug entry (never marketing landing)
+    if (isServiceCloudDesktop() || isServiceCloudMobile()) {
       return <CompanySlugEntry />;
     }
 
-    // Public web (browser tab only): marketing landing
+    // Any OS: installed PWA with a remembered company → that tenant's login.
+    // All other browser tabs (and fresh PWA) get marketing landing — never gate `/`
+    // on display-mode alone (false positives hid the landing site-wide).
+    if (isPwaStandalone()) {
+      const last = getLastCompanySlug();
+      if (last) {
+        window.location.replace(`/${last}`);
+        return (
+          <div className="min-h-[100dvh] flex items-center justify-center bg-[#151619]">
+            <LoadingSpinner size="lg" />
+          </div>
+        );
+      }
+    }
+
+    // Public web (+ fresh PWA): marketing landing — Windows / Mac / Linux / mobile browsers
     return (
       <Suspense fallback={<LazyFallback />}>
         <LandingPage />
