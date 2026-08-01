@@ -1430,15 +1430,19 @@ router.get('/api/super-admin/service-mobile-analytics', superAdminMiddleware, as
   }
 });
 
-// Real-time active users (active in last 15 min)
+// Real-time active users — driven by login heartbeat (`user_sessions.last_seen_at`), not a users column
 router.get('/api/super-admin/tenants/:id/active-users', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const rows = (
       await pool.query(
-        `SELECT id, name, email, role, last_active_at
-       FROM users WHERE tenant_id=$1 AND last_active_at > NOW() - INTERVAL '15 minutes'
-       ORDER BY last_active_at DESC`,
+        `SELECT u.id, u.name, u.email, u.role, s.last_seen_at AS last_active_at, s.platform
+         FROM user_sessions s
+         JOIN users u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+         WHERE s.tenant_id = $1
+           AND s.last_seen_at > NOW() - INTERVAL '15 minutes'
+           AND u.${ACTIVE_USER_SQL}
+         ORDER BY s.last_seen_at DESC`,
         [id],
       )
     ).rows;

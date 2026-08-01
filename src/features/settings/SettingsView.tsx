@@ -1098,6 +1098,7 @@ export function SettingsView({
   const [users, setUsers] = useState<
     { id: string; email: string; name: string; phone?: string; role?: string; permissions?: string[] | null }[]
   >([]);
+  const [planMaxUsers, setPlanMaxUsers] = useState(-1);
   const [usersLoading, setUsersLoading] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserTarget, setEditUserTarget] = useState<{
@@ -1227,14 +1228,24 @@ export function SettingsView({
   }, [user?.id]);
 
   const isAdmin = user && ADMIN_ROLES.includes(user.role ?? '');
+  const loadUsers = () => {
+    if (!user) return Promise.resolve();
+    return api.admin
+      .listUsers(user.id)
+      .then(payload => {
+        setPlanMaxUsers(Number(payload?.planMaxUsers ?? -1));
+        const rows = Array.isArray(payload?.users) ? payload.users : [];
+        setUsers(rows.filter(u => !isSoftDeletedUser(u)));
+      })
+      .catch(() => {
+        setUsers([]);
+        setPlanMaxUsers(-1);
+      });
+  };
   useEffect(() => {
     if (isAdmin && user && !serviceMobile) {
       setUsersLoading(true);
-      api.admin
-        .listUsers(user.id)
-        .then(rows => setUsers(Array.isArray(rows) ? rows.filter(u => !isSoftDeletedUser(u)) : []))
-        .catch(() => setUsers([]))
-        .finally(() => setUsersLoading(false));
+      loadUsers().finally(() => setUsersLoading(false));
     }
   }, [isAdmin, user?.id]);
   useEffect(() => {
@@ -1339,9 +1350,16 @@ export function SettingsView({
     }
   };
 
+  const activeUserCount = users.filter(u => u && !isSoftDeletedUser(u)).length;
+  const atUserCap = planMaxUsers !== -1 && activeUserCount >= planMaxUsers;
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (atUserCap) {
+      toast(`Plan limit reached: your plan allows ${planMaxUsers} users. Upgrade to add more.`, 'error');
+      return;
+    }
     if (addUserForm.role === 'Vendor' && !addUserForm.vendorId) {
       toast('Select vendor for Vendor role', 'error');
       return;
@@ -1362,9 +1380,7 @@ export function SettingsView({
         permissions: { ...ROLE_PRESETS.Staff },
         vendorId: '',
       });
-      api.admin
-        .listUsers(user.id)
-        .then(rows => setUsers(Array.isArray(rows) ? rows.filter(u => !isSoftDeletedUser(u)) : []));
+      await loadUsers();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to create user', 'error');
     } finally {
@@ -1387,9 +1403,7 @@ export function SettingsView({
         vendorId: editUserForm.role === 'Vendor' ? editUserForm.vendorId : undefined,
       });
       setEditUserTarget(null);
-      api.admin
-        .listUsers(user.id)
-        .then(rows => setUsers(Array.isArray(rows) ? rows.filter(u => !isSoftDeletedUser(u)) : []));
+      await loadUsers();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to update user', 'error');
     } finally {
@@ -2932,18 +2946,33 @@ export function SettingsView({
               {/* User Management - Admin only (hidden on offline mobile) */}
               {isAdmin && !serviceMobile && (
                 <div className={cn(settingsPanel(), !showTab('users') && 'hidden')}>
-                  <div className={settingsPanelHead('flex items-center justify-between')}>
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <UserCog size={20} /> {st('settings.userManagement')}
-                    </h3>
+                  <div className={settingsPanelHead('flex items-center justify-between gap-3')}>
+                    <div>
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        <UserCog size={20} /> {st('settings.userManagement')}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {planMaxUsers === -1
+                          ? `${activeUserCount} user${activeUserCount === 1 ? '' : 's'} · plan: unlimited`
+                          : `${activeUserCount} of ${planMaxUsers} users on plan`}
+                      </p>
+                    </div>
                     <button
                       type="button"
+                      disabled={atUserCap}
+                      title={atUserCap ? 'Plan user limit reached — contact Dhandho to upgrade' : undefined}
                       onClick={() => setAddUserOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+                      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <UserPlus size={16} /> {st('settings.addUser')}
                     </button>
                   </div>
+                  {atUserCap && (
+                    <p className="px-6 pt-3 text-xs text-amber-600">
+                      Plan limit reached: your plan allows {planMaxUsers} users. Contact Dhandho to upgrade and add
+                      more.
+                    </p>
+                  )}
                   <div className="p-6">
                     {usersLoading ? (
                       <div className="py-8">

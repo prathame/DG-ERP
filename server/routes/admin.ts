@@ -110,8 +110,15 @@ router.get('/api/admin/users', async (req, res) => {
         [tenantId],
       )
     ).rows as Record<string, unknown>[];
-    res.json(
-      rows.map(r => ({
+    const planRow = (
+      await pool.query(`SELECT p.max_users AS lim FROM plans p JOIN tenants t ON t.plan_id = p.id WHERE t.id = $1`, [
+        tenantId,
+      ])
+    ).rows[0] as { lim: number } | undefined;
+    const planMaxUsers = planRow ? Number(planRow.lim) : -1;
+    res.json({
+      planMaxUsers: Number.isFinite(planMaxUsers) ? planMaxUsers : -1,
+      users: rows.map(r => ({
         id: r.id,
         email: r.email,
         name: r.name,
@@ -120,7 +127,7 @@ router.get('/api/admin/users', async (req, res) => {
         permissions: normalizePermissions(r.permissions ?? null, r.role as string),
         vendorId: r.vendor_id ?? null,
       })),
-    );
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
