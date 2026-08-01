@@ -38,16 +38,18 @@ export async function getOrCreateDeviceId(): Promise<string> {
 
 export type ClientPlatform = 'desktop' | 'mobile' | 'web';
 
-/** Installed PWA (Add to Home Screen / Chrome install) — not a normal browser tab. */
+/**
+ * Installed PWA (Add to Home Screen / installed web app) on any OS/browser.
+ * Only `display-mode: standalone` / iOS `navigator.standalone` — not fullscreen
+ * or minimal-ui (those false-positived normal browser tabs and hid marketing `/`).
+ */
 export function isPwaStandalone(): boolean {
   try {
     if (typeof window === 'undefined') return false;
     const nav = window.navigator as Navigator & { standalone?: boolean };
     if (nav.standalone === true) return true;
-    if (typeof window.matchMedia === 'function') {
-      if (window.matchMedia('(display-mode: standalone)').matches) return true;
-      if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
-      if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) {
+      return true;
     }
   } catch {
     /* ignore */
