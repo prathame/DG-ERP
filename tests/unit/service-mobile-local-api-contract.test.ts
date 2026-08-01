@@ -377,7 +377,9 @@ describe('service-mobile local API — Mark Paid + Client payment does not doubl
     });
     expect(duplicate.status).toBe(400);
 
-    const overview = await api('GET', '/analytics/overview?from=2026-07-01&to=2026-07-31');
+    // Mark Paid records payment_date as today (UTC) — range must include that, not only invoice month
+    const today = new Date().toISOString().slice(0, 10);
+    const overview = await api('GET', `/analytics/overview?from=2026-07-01&to=${today}`);
     expect(overview.status).toBe(200);
     const money = (overview.json as { money: { collections: number; invoiceOutstanding: number } }).money;
     expect(money.collections).toBe(23);
