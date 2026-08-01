@@ -47,10 +47,18 @@ describe('HTTP Auth', () => {
     expect(res.body.tenantId).toBe(TEST_TENANT);
   });
 
-  it('POST /api/auth/login rejects browser / web clients', async () => {
+  it('POST /api/auth/login allows browser / web clients (PWA / Safari)', async () => {
     const res = await api()
       .post('/api/auth/login')
       .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'web' });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeTruthy();
+  });
+
+  it('POST /api/auth/login rejects unknown platform', async () => {
+    const res = await api()
+      .post('/api/auth/login')
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'toaster' });
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('APP_ONLY');
   });
