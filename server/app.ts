@@ -76,6 +76,7 @@ const PUBLIC_PATHS = [
   '/api/super-admin/login',
   '/api/tenant/by-slug/',
   '/api/health',
+  '/api/hello',
   '/api/live',
   '/api/ready',
   '/manifest.json',
@@ -240,8 +241,17 @@ export function createApp(): express.Application {
   if (!isTest) {
     app.use((req, res, next) => {
       if (!req.originalUrl.startsWith('/api/')) return next();
-      // Skip noisy health checks at INFO; log only when unhealthy via handler
-      if (req.path === '/health' || req.path === '/api/health') return next();
+      // Skip noisy probes at INFO; log only when unhealthy via handler
+      if (
+        req.path === '/health' ||
+        req.path === '/api/health' ||
+        req.path === '/hello' ||
+        req.path === '/api/hello' ||
+        req.path === '/live' ||
+        req.path === '/api/live'
+      ) {
+        return next();
+      }
       const start = Date.now();
       const startBytes = typeof res.getHeader === 'function' ? 0 : 0;
       void startBytes;
@@ -305,7 +315,7 @@ export function createApp(): express.Application {
         message: { error: 'Too many requests, please slow down' },
         standardHeaders: true,
         legacyHeaders: false,
-        skip: req => req.path === '/health',
+        skip: req => req.path === '/health' || req.path === '/hello' || req.path === '/live' || req.path === '/ready',
       }),
     );
   }
@@ -586,6 +596,11 @@ export function createApp(): express.Application {
   /** Liveness — process is up (no DB). Use for container kill/restart probes. */
   app.get('/api/live', (_req, res) => {
     res.json({ ok: true, message: 'alive' });
+  });
+
+  /** Tiny public ping (no DB) — keep-alive cron / manual click. */
+  app.get('/api/hello', (_req, res) => {
+    res.json({ ok: true, message: 'hello', ts: new Date().toISOString() });
   });
 
   /** Readiness — DB reachable. Use for load-balancer / Render health. */

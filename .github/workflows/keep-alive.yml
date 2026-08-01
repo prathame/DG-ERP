@@ -1,0 +1,29 @@
+# Ping Render every 10 minutes so the free web service does not sleep.
+# Manual run: GitHub → Actions → "Keep Render Awake" → Run workflow
+name: Keep Render Awake
+
+on:
+  schedule:
+    # ~every 10 min (GitHub cron can drift a few minutes)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  hello:
+    name: Ping /api/hello
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: GET hello
+        env:
+          # Optional repo variable; defaults to current Render URL
+          KEEP_ALIVE_URL: ${{ vars.RENDER_KEEP_ALIVE_URL }}
+        run: |
+          set -euo pipefail
+          URL="${KEEP_ALIVE_URL:-https://dhandho-2kdx.onrender.com/api/hello}"
+          echo "Pinging $URL"
+          code=$(curl -sS -o /tmp/hello.json -w '%{http_code}' --max-time 60 "$URL")
+          echo "HTTP $code"
+          cat /tmp/hello.json || true
+          echo
+          test "$code" = "200"
