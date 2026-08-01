@@ -1192,12 +1192,27 @@ export default function App() {
       );
     }
 
-    // Cloud Electron / Online Cap / installed PWA: company slug → login (never marketing landing)
-    if (isServiceCloudDesktop() || isServiceCloudMobile() || isPwaStandalone()) {
+    // Cloud Electron / Online Cap: company slug entry (never marketing landing)
+    if (isServiceCloudDesktop() || isServiceCloudMobile()) {
       return <CompanySlugEntry />;
     }
 
-    // Public web (browser tab only): marketing landing
+    // Installed PWA + remembered company → that tenant's login. Otherwise always show
+    // marketing landing on `/` (browser tabs and fresh PWA). Never use CompanySlugEntry
+    // here — display-mode false positives were hiding the landing on Mac Safari/Chrome.
+    if (isPwaStandalone()) {
+      const last = getLastCompanySlug();
+      if (last) {
+        window.location.replace(`/${last}`);
+        return (
+          <div className="min-h-[100dvh] flex items-center justify-center bg-[#151619]">
+            <LoadingSpinner size="lg" />
+          </div>
+        );
+      }
+    }
+
+    // Public web (+ fresh PWA): marketing landing
     return (
       <Suspense fallback={<LazyFallback />}>
         <LandingPage />
