@@ -406,7 +406,7 @@ jobs:
           bash scripts/ci-build-android.sh
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dhandho-mobile-debug
           path: dist-apk/dhandho-mobile-debug.apk
@@ -489,7 +489,7 @@ jobs:
           bash scripts/ci-build-ios.sh
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dhandho-mobile-debug-ios
           path: dist-apk/dhandho-mobile-debug.app.zip
@@ -599,7 +599,7 @@ jobs:
           ls -lh dist-apk/*.ipa
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dhandho-mobile-ipa
           path: dist-apk/dhandho-mobile.ipa
