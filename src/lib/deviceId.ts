@@ -39,9 +39,9 @@ export async function getOrCreateDeviceId(): Promise<string> {
 export type ClientPlatform = 'desktop' | 'mobile' | 'web';
 
 /**
- * Installed PWA (Add to Home Screen / Chrome install / Mac Dock web app).
- * Only `standalone` — do not treat fullscreen/minimal-ui as PWA (false positives
- * in normal browser tabs have skipped the marketing landing).
+ * Installed PWA (Add to Home Screen / installed web app) on any OS/browser.
+ * Only `display-mode: standalone` / iOS `navigator.standalone` — not fullscreen
+ * or minimal-ui (those false-positived normal browser tabs and hid marketing `/`).
  */
 export function isPwaStandalone(): boolean {
   try {

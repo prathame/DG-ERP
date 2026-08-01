@@ -1197,9 +1197,9 @@ export default function App() {
       return <CompanySlugEntry />;
     }
 
-    // Installed PWA + remembered company → that tenant's login. Otherwise always show
-    // marketing landing on `/` (browser tabs and fresh PWA). Never use CompanySlugEntry
-    // here — display-mode false positives were hiding the landing on Mac Safari/Chrome.
+    // Any OS: installed PWA with a remembered company → that tenant's login.
+    // All other browser tabs (and fresh PWA) get marketing landing — never gate `/`
+    // on display-mode alone (false positives hid the landing site-wide).
     if (isPwaStandalone()) {
       const last = getLastCompanySlug();
       if (last) {
@@ -1212,7 +1212,7 @@ export default function App() {
       }
     }
 
-    // Public web (+ fresh PWA): marketing landing
+    // Public web (+ fresh PWA): marketing landing — Windows / Mac / Linux / mobile browsers
     return (
       <Suspense fallback={<LazyFallback />}>
         <LandingPage />
