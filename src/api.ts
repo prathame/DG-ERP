@@ -1380,8 +1380,9 @@ export const api = {
   },
   admin: {
     listUsers: (adminUserId: string) =>
-      fetchApi<
-        {
+      fetchApi<{
+        planMaxUsers: number;
+        users: {
           id: string;
           email: string;
           name: string;
@@ -1391,8 +1392,8 @@ export const api = {
           companyName?: string;
           permissions?: string[] | null;
           vendorId?: string | null;
-        }[]
-      >(`/admin/users?adminUserId=${encodeURIComponent(adminUserId)}`),
+        }[];
+      }>(`/admin/users?adminUserId=${encodeURIComponent(adminUserId)}`),
     createUser: (
       adminUserId: string,
       data: {

@@ -862,13 +862,20 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 return;
               }
               setActiveUsersLoading(true);
-              const saToken = session.getToken();
-              const r = await fetch(`/api/super-admin/tenants/${tenantId}/active-users`, {
-                headers: { Authorization: `Bearer ${saToken}` },
-              });
-              const d = await r.json();
-              setActiveUsers(d);
-              setActiveUsersLoading(false);
+              try {
+                const saToken = session.getToken();
+                const r = await fetch(`/api/super-admin/tenants/${tenantId}/active-users`, {
+                  headers: { Authorization: `Bearer ${saToken}` },
+                });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error || 'Failed to load active users');
+                setActiveUsers(d);
+              } catch (err) {
+                toast((err as Error).message, 'error');
+                setActiveUsers(null);
+              } finally {
+                setActiveUsersLoading(false);
+              }
             }}
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left"
           >
