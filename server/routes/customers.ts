@@ -101,6 +101,14 @@ router.put('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => 
       [name, phone, email, address, vendorId === '' || vendorId === undefined ? null : vendorId, id, tenantId],
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
+    // Keep linked invoices' WhatsApp/print phone in sync when Masters phone changes.
+    if (req.body.phone !== undefined) {
+      await pool.query(
+        `UPDATE standalone_invoices SET customer_phone = $1
+         WHERE tenant_id = $2 AND party_type = 'customer' AND party_id = $3`,
+        [typeof phone === 'string' ? phone.trim() || null : null, tenantId, id],
+      );
+    }
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({
       id: row.id,

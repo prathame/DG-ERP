@@ -141,6 +141,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     try {
       const { how, errorHint } = await shareStandaloneInvoiceWhatsAppById(invoiceId, {
         businessType: cfg.type,
+        phone: detail?.clientPhone || undefined,
         onPreparing: () => toast('Preparing PDF…', 'info'),
       });
       if (how === 'cancelled') return;
