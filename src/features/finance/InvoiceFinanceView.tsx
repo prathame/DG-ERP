@@ -435,6 +435,8 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   {detail.invoices.map(inv => {
                     const paid = isBillFullyPaid(inv.grandTotal, inv.balance);
                     const partial = isBillPartiallyPaid(inv.grandTotal, inv.balance, inv.paid);
+                    const advance = inv.advanceApplied || 0;
+                    const cashPaid = Math.max(0, inv.paid - advance);
                     return (
                       <div key={inv.id} className="px-5 py-4 space-y-2.5">
                         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -443,19 +445,10 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                             <p className="text-xs text-gray-500">{formatDate(inv.invoiceDate)}</p>
                             {inv.notes && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{inv.notes}</p>}
                             <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
-                            {(inv.advanceApplied || 0) > 0 && (
-                              <p className="text-xs text-emerald-600">
-                                Advance payment: {fmt(inv.advanceApplied || 0)}
-                              </p>
+                            {advance > 0.001 && (
+                              <p className="text-xs text-emerald-600">Advance payment: {fmt(advance)}</p>
                             )}
-                            {inv.paid > (inv.advanceApplied || 0) + 0.001 && (
-                              <p className="text-xs text-emerald-600">
-                                Paid: {fmt(inv.paid - (inv.advanceApplied || 0))}
-                              </p>
-                            )}
-                            {inv.paid > 0.001 && (inv.advanceApplied || 0) <= 0.001 && (
-                              <p className="text-xs text-emerald-600">Paid: {fmt(inv.paid)}</p>
-                            )}
+                            {cashPaid > 0.001 && <p className="text-xs text-emerald-600">Paid: {fmt(cashPaid)}</p>}
                             {inv.balance > 0.001 && (
                               <p className="text-xs text-rose-600">Outstanding: {fmt(inv.balance)}</p>
                             )}
