@@ -52,6 +52,7 @@ import {
   isServiceCloudDesktop,
   isServiceCloudMobile,
   isServicePhoneUx,
+  isServiceProductUx,
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
 import { fillMissingTabPresetKeys, isTabVisibleForUser } from '../shared/tabPresets';
@@ -1223,6 +1224,7 @@ export default function App() {
 
   /** Emergent phone IA: Offline Mobile + online Service Cloud Capacitor (not manufacturer cloud). */
   const servicePhoneUx = isServicePhoneUx(userConfig?.businessType as string | undefined);
+  const serviceProductUx = isServiceProductUx(userConfig?.businessType as string | undefined);
   const desktopGlass = isDesktopGlassUi(userConfig?.businessType as string | undefined);
   /** Cap non-service glass header (Analytics / Accounts mock) — denser Live · search · notify · refresh · avatar */
   const capGlassHeader = isMobileAppShell() && !servicePhoneUx;
@@ -1776,9 +1778,7 @@ export default function App() {
                     {canAccess(activeTab) &&
                       activeTab === 'finance' &&
                       // Offline Mobile / service phone UX always invoice finance; also hotel_restaurant (financeView: invoice)
-                      (servicePhoneUx ||
-                      (userConfig?.businessType as string) === 'service' ||
-                      (userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                      (serviceProductUx || (userConfig?.businessType as string) === 'hotel_restaurant' ? (
                         <InvoiceFinanceView accessLevel={getAccess('finance')} />
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
@@ -1895,7 +1895,7 @@ export default function App() {
               onClose={() => setCmdOpen(false)}
               inventoryVisible={tv('inventory')}
               distributionVisible={tv('distribution')}
-              serviceMobile={servicePhoneUx}
+              serviceMobile={serviceProductUx}
               businessType={(userConfig?.businessType as string) || undefined}
               mastersVisible={tv('masters')}
             />

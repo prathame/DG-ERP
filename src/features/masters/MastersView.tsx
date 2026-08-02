@@ -16,7 +16,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isServicePhoneUx, isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
@@ -76,8 +76,11 @@ export function MastersView({
 }) {
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
-  const servicePhoneUx = isServicePhoneUx(businessType ?? cfg.type);
-  const desktopGlass = isDesktopGlassUi(businessType ?? cfg.type);
+  const bizType = businessType ?? cfg.type;
+  const servicePhoneUx = isServicePhoneUx(bizType);
+  /** Service business type only (desktop + Cap) — manufacturer/dealer Masters unchanged. */
+  const serviceCatalogUx = isServiceProductUx(bizType);
+  const desktopGlass = isDesktopGlassUi(bizType);
   /** Cap non-service tile hub — service keeps pill+list */
   const capMobileHub = isMobileAppShell() && !servicePhoneUx;
   /** Short pill labels for phone hub (Emergent-style). Vendor/Client uses `m.name` from cfg.labels.vendors. */
@@ -155,7 +158,13 @@ export function MastersView({
       onLaunchConsumed?.();
       return;
     }
-    if (master === 'item' && !servicePhoneUx) {
+    // Service: no Inventory Products — Price List is the catalog (same as Cap service).
+    if (master === 'item' && serviceCatalogUx) {
+      setSelectedMaster('priceList');
+      onLaunchConsumed?.();
+      return;
+    }
+    if (master === 'item' && !serviceCatalogUx) {
       setActiveTab('inventory');
       onLaunchConsumed?.();
       return;
@@ -182,10 +191,10 @@ export function MastersView({
       setSelectedMaster(master);
     }
     onLaunchConsumed?.();
-  }, [launch, servicePhoneUx, setActiveTab, onLaunchConsumed, businessType, cfg.type]);
+  }, [launch, serviceCatalogUx, setActiveTab, onLaunchConsumed, businessType, cfg.type]);
 
-  // Service phone UX: no stock Products pill — Price List (Catalog + Clients) is the sellable catalog.
-  const productsMaster = !servicePhoneUx
+  // Service (phone + desktop): no stock Products — Price List (Catalog + Clients) is the sellable catalog.
+  const productsMaster = !serviceCatalogUx
     ? [
         {
           id: 'item' as const,
@@ -199,7 +208,7 @@ export function MastersView({
     : [];
   const priceListMaster = {
     id: 'priceList' as const,
-    name: 'Price List',
+    name: serviceCatalogUx ? t('masters.prices') : 'Price List',
     count: '' as number | string,
     icon: Tag,
     color: 'text-rose-600',
@@ -215,9 +224,10 @@ export function MastersView({
       color: 'text-brand',
       bg: 'bg-orange-50',
     },
-    // Service phone: Price List next to Clients — Catalog/Clients scope tabs live inside Price ListView.
-    ...(servicePhoneUx ? [priceListMaster] : []),
-    ...(hasCustomerTracking && !isDirectSell
+    // Service: Prices next to Clients — Catalog/Clients scope tabs live inside Price ListView.
+    ...(serviceCatalogUx ? [priceListMaster] : []),
+    // End-customer master is manufacturer/dealer — not used on service (Clients cover parties).
+    ...(hasCustomerTracking && !isDirectSell && !serviceCatalogUx
       ? [
           {
             id: 'customer' as const,
@@ -258,7 +268,7 @@ export function MastersView({
           },
         ]
       : []),
-    ...(!servicePhoneUx ? [priceListMaster] : []),
+    ...(!serviceCatalogUx ? [priceListMaster] : []),
     ...(tv('rewards')
       ? [
           {
@@ -271,8 +281,8 @@ export function MastersView({
           },
         ]
       : []),
-    // Service phone has no mapping routes — hide (manufacturer cloud keeps it).
-    ...(hasCustomerTracking && !servicePhoneUx
+    // Service has no vendor↔customer mapping — hide (manufacturer cloud keeps it).
+    ...(hasCustomerTracking && !serviceCatalogUx
       ? [
           {
             id: 'mapping' as const,
@@ -286,7 +296,7 @@ export function MastersView({
       : []),
   ];
   const roleFiltered = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
-  const masters = filterMastersForBusinessType(roleFiltered, businessType ?? cfg.type);
+  const masters = filterMastersForBusinessType(roleFiltered, bizType);
   const masterIdsKey = masters.map(m => m.id).join(',');
 
   // Hotel deep-link / stale state: close disallowed detail panes.
@@ -317,13 +327,17 @@ export function MastersView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- masters identity changes every render
   }, [masterIdsKey, hubTab]);
 
-  // Non-service phone: Products pill opens Inventory. Service phone never shows Products (Price List is catalog).
+  // Non-service: Products opens Inventory. Service never shows Products (Price List is catalog).
   useEffect(() => {
-    if (selectedMaster === 'item' && !servicePhoneUx) {
+    if (selectedMaster === 'item' && serviceCatalogUx) {
+      setSelectedMaster('priceList');
+      return;
+    }
+    if (selectedMaster === 'item' && !serviceCatalogUx) {
       setSelectedMaster(null);
       setActiveTab('inventory');
     }
-  }, [selectedMaster, servicePhoneUx, setActiveTab]);
+  }, [selectedMaster, serviceCatalogUx, setActiveTab]);
 
   // Load list for active hub pill (use resolved `active`, not stale hubTab)
   useEffect(() => {
@@ -555,7 +569,7 @@ export function MastersView({
       {/* Phone hub — Emergent-style: pills + list + FAB */}
       <div className="sm:hidden space-y-3">
         <p className="text-[11px] text-gray-500 px-0.5">
-          {servicePhoneUx ? t('masters.clientsRates') : t('masters.catalogPartners')}
+          {serviceCatalogUx ? t('masters.clientsRates') : t('masters.catalogPartners')}
         </p>
         <MobilePillTabs
           items={masters.map(m => {

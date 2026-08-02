@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { isHotelRestaurantBusiness } from '../../../shared/hotelMasters';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
 import {
@@ -157,7 +157,7 @@ export function QuotationsView() {
   const businessType = String(sessionUser?.businessType || '');
   const isService = businessType === 'service';
   const isHotel = isHotelRestaurantBusiness(businessType);
-  const offlinePdf = isServicePhoneUx(businessType);
+  const offlinePdf = isServiceProductUx(businessType);
   /** Free-text lines for service Cap / hotel party catering (no product barcodes). */
   const allowCustomLines = offlinePdf || isHotel;
   const partyLabel = isHotel ? 'Customer' : isService ? 'Client' : 'Vendor';
@@ -1353,7 +1353,9 @@ export function QuotationsView() {
                       <th className="px-3 py-3 w-16">Disc%</th>
                       {showGstControls && <th className="px-3 py-3 w-12 text-center">GST</th>}
                       <th className="px-3 py-3 w-24 text-right">Total</th>
-                      <th className="px-3 py-3 w-8"></th>
+                      <th className="px-3 py-3 w-12 text-center">
+                        <span className="sr-only">Delete</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1465,16 +1467,18 @@ export function QuotationsView() {
                           <td className="px-3 py-2 text-right text-sm font-bold">
                             {lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : '—'}
                           </td>
-                          <td className="px-3 py-2">
-                            {rows.length > 1 && (
+                          <td className="px-3 py-2 text-center">
+                            {rows.length > 1 ? (
                               <button
                                 type="button"
                                 onClick={() => setRows(rows.filter((_, i) => i !== idx))}
-                                className="text-rose-400 hover:text-rose-600"
+                                aria-label={`Delete row ${idx + 1}`}
+                                title="Delete row"
+                                className="inline-flex items-center justify-center min-h-9 min-w-9 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600"
                               >
-                                ×
+                                <Trash2 size={16} />
                               </button>
-                            )}
+                            ) : null}
                           </td>
                         </tr>
                       );

@@ -48,12 +48,22 @@ export function serviceCloudClientHeader(): string | null {
 }
 
 /**
- * Shared service phone presentation (Emergent shell, Price List as catalog, etc.).
+ * Shared service phone presentation (Emergent shell, bottom nav, Cap glass).
  * True for Offline Mobile OR online Service Cloud Capacitor with businessType=service.
  * Never use for PGlite / Sync / license / demo seed — those stay Offline-only.
+ * Never use for product IA that must match on desktop/browser — use isServiceProductUx.
  */
 export function isServicePhoneUx(businessType?: string | null): boolean {
   if (isServiceMobileMode()) return true;
   if (businessType !== 'service') return false;
   return isServiceCloudMobile();
+}
+
+/**
+ * Service business product UX — Cap + desktop Electron + browser.
+ * Catalog via Prices, GST opt-in, invoice/quote labels, analytics net-in, search → Price List.
+ * Manufacturer / dealer / hotel: always false. Does not change phone shell chrome.
+ */
+export function isServiceProductUx(businessType?: string | null): boolean {
+  return businessType === 'service';
 }

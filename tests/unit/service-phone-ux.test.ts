@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { isServicePhoneUx } from '../../src/platforms/service-cloud/mode';
+import { isServicePhoneUx, isServiceProductUx } from '../../src/platforms/service-cloud/mode';
 import { isServiceMobileMode } from '../../src/platforms/service-mobile/mode';
 import { __resetPhoneModeForTests, setPhoneModeOnce } from '../../src/platforms/mobileMode';
 
@@ -75,5 +75,16 @@ describe('isServicePhoneUx', () => {
     if (isServiceMobileMode()) return;
     stubWindow({ Capacitor: { isNativePlatform: () => false } });
     expect(isServicePhoneUx('service')).toBe(false);
+  });
+});
+
+describe('isServiceProductUx', () => {
+  it('is true only for businessType=service (desktop/browser/Cap parity)', () => {
+    expect(isServiceProductUx('service')).toBe(true);
+    expect(isServiceProductUx('manufacturer')).toBe(false);
+    expect(isServiceProductUx('dealer')).toBe(false);
+    expect(isServiceProductUx('hotel_restaurant')).toBe(false);
+    expect(isServiceProductUx(null)).toBe(false);
+    expect(isServiceProductUx(undefined)).toBe(false);
   });
 });
