@@ -1156,28 +1156,15 @@ export function CreateInvoiceModal({
         label: serviceProductUx ? 'Price List item' : 'Product',
         wide: true as const,
         node: (
-          <select
-            value={row.productId}
-            onChange={e => applyCatalogItem(idx, e.target.value)}
-            className={formControlClass}
-          >
-            <option value="">Custom item</option>
-            {productSelectOptions(row.qty || 1)}
-          </select>
-        ),
-      },
-      {
-        key: 'description',
-        label: 'Description',
-        wide: true as const,
-        node: (
           <>
-            <input
-              value={row.description}
-              onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))}
+            <select
+              value={row.productId}
+              onChange={e => applyCatalogItem(idx, e.target.value)}
               className={formControlClass}
-              placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
-            />
+            >
+              <option value="">Custom item</option>
+              {productSelectOptions(row.qty || 1)}
+            </select>
             {catalogPrice != null && row.rate !== catalogPrice && (
               <p className="text-[10px] text-amber-600 mt-1">
                 Rate edited from price list ₹{catalogPrice.toLocaleString()}
@@ -1187,6 +1174,22 @@ export function CreateInvoiceModal({
         ),
       },
     ];
+    // Service + catalog pick: one control only (name comes from Price List). Custom / non-service keep description.
+    if (!serviceProductUx || !row.productId) {
+      fields.push({
+        key: 'description',
+        label: serviceProductUx ? 'Item name' : 'Description',
+        wide: true as const,
+        node: (
+          <input
+            value={row.description}
+            onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))}
+            className={formControlClass}
+            placeholder={serviceProductUx ? 'Type custom service' : 'Type custom service or item'}
+          />
+        ),
+      });
+    }
     if (gstBilling) {
       fields.push({
         key: 'hsn',
@@ -1550,15 +1553,17 @@ export function CreateInvoiceModal({
                                 <option value="">Custom item</option>
                                 {productSelectOptions(row.qty || 1)}
                               </select>
-                              <input
-                                value={row.description}
-                                onChange={e =>
-                                  setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
-                                }
-                                title={row.description}
-                                className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
-                                placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
-                              />
+                              {(!serviceProductUx || !row.productId) && (
+                                <input
+                                  value={row.description}
+                                  onChange={e =>
+                                    setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                                  }
+                                  title={row.description}
+                                  className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                  placeholder={serviceProductUx ? 'Type custom service' : 'Type custom service or item'}
+                                />
+                              )}
                               {catalogPrice != null && row.rate !== catalogPrice && (
                                 <p className="text-[10px] text-amber-600">
                                   Rate edited from price list ₹{catalogPrice.toLocaleString()}

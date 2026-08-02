@@ -504,6 +504,8 @@ export function VendorMasterView({
                 <ul className="space-y-2">
                   {detail.invoices.map(inv => {
                     const paid = isBillFullyPaid(inv.grandTotal, inv.balance);
+                    const advance = inv.advanceApplied || 0;
+                    const cashPaid = Math.max(0, inv.paid - advance);
                     return (
                       <li key={inv.id} className="p-3 rounded-xl border border-gray-100 bg-white space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
@@ -511,19 +513,10 @@ export function VendorMasterView({
                             <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
                             <p className="text-xs text-gray-500">{formatDate(inv.invoiceDate)}</p>
                             <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
-                            {(inv.advanceApplied || 0) > 0 && (
-                              <p className="text-xs text-emerald-600">
-                                Advance payment: {fmt(inv.advanceApplied || 0)}
-                              </p>
+                            {advance > 0.001 && (
+                              <p className="text-xs text-emerald-600">Advance payment: {fmt(advance)}</p>
                             )}
-                            {inv.paid > (inv.advanceApplied || 0) + 0.001 && (
-                              <p className="text-xs text-emerald-600">
-                                Paid: {fmt(inv.paid - (inv.advanceApplied || 0))}
-                              </p>
-                            )}
-                            {inv.paid > 0.001 && (inv.advanceApplied || 0) <= 0.001 && (
-                              <p className="text-xs text-emerald-600">Paid: {fmt(inv.paid)}</p>
-                            )}
+                            {cashPaid > 0.001 && <p className="text-xs text-emerald-600">Paid: {fmt(cashPaid)}</p>}
                             {inv.balance > 0.001 && (
                               <p className="text-xs text-rose-600">Outstanding: {fmt(inv.balance)}</p>
                             )}

@@ -10,7 +10,7 @@ describe('GST bill settings flags', () => {
       session: { getUser: () => ({ businessType: 'manufacturer' }) },
     }));
     vi.doMock('../../src/platforms/service-cloud/mode', () => ({
-      isServicePhoneUx: () => false,
+      isServiceProductUx: (bt: string | null | undefined) => bt === 'service',
     }));
     const { isGstBillingEnabled, invoiceHasGst } = await import('../../src/lib/billSettingsFlags');
     expect(isGstBillingEnabled(null)).toBe(true);
@@ -25,12 +25,12 @@ describe('GST bill settings flags', () => {
     expect(invoiceHasGst({ taxTotal: 0 })).toBe(false);
   });
 
-  it('service phone UX: GST off by default (opt-in)', async () => {
+  it('service business type: GST off by default (opt-in) on any client', async () => {
     vi.doMock('../../src/lib/session', () => ({
       session: { getUser: () => ({ businessType: 'service' }) },
     }));
     vi.doMock('../../src/platforms/service-cloud/mode', () => ({
-      isServicePhoneUx: () => true,
+      isServiceProductUx: (bt: string | null | undefined) => bt === 'service',
     }));
     const { isGstBillingEnabled, isServicePhoneBillUx } = await import('../../src/lib/billSettingsFlags');
     expect(isServicePhoneBillUx()).toBe(true);
@@ -46,7 +46,7 @@ describe('GST bill settings flags', () => {
       session: { getUser: () => ({ businessType: 'manufacturer' }) },
     }));
     vi.doMock('../../src/platforms/service-cloud/mode', () => ({
-      isServicePhoneUx: () => false,
+      isServiceProductUx: (bt: string | null | undefined) => bt === 'service',
     }));
     const { isGstBillingEnabled } = await import('../../src/lib/billSettingsFlags');
     expect(isGstBillingEnabled({ showGst: false, showHsnSac: true })).toBe(false);
@@ -58,7 +58,7 @@ describe('GST bill settings flags', () => {
       session: { getUser: () => ({ businessType: 'service' }) },
     }));
     vi.doMock('../../src/platforms/service-cloud/mode', () => ({
-      isServicePhoneUx: () => true,
+      isServiceProductUx: (bt: string | null | undefined) => bt === 'service',
     }));
     const { quotationLineWithGst } = await import('../../src/lib/billSettingsFlags');
     expect(quotationLineWithGst(false, false, true)).toBe(false);
