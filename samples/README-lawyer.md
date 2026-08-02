@@ -3,16 +3,13 @@
 Sample pack for a **revenue-focused law practice** demo (clients, fee schedule, quotes).
 Use a Super Admin tenant with **business type = Service**.
 
-## Import order (Cap Offline / Online + cloud desktop)
+## Import order (Cap Offline / Online + cloud desktop / browser)
 
 1. **Masters → Clients → Import CSV** → `lawyer-clients.csv`
 2. **Masters → Prices → Import** → `lawyer-price-list.csv`  
-   - Cap Offline auto-creates fee items from the price CSV.  
-   - Cloud desktop: fee items must exist first — use  
-     `npx tsx scripts/seed-lawyer-service-sample.ts --slug=YOUR_SLUG`  
-     (creates products + prices + invoices), **or** add each fee once via Prices → Add Rule.
+   - Service tenants auto-create fee items from the CSV (Prices is the catalog — no Inventory Products).
 3. **Quotes → Import CSV** → `lawyer-quotations.csv`  
-   - Needs matching client + product names from steps 1–2.
+   - Needs matching client + item names from steps 1–2.
 4. **Revenue:** convert a quote → invoice, or run the seed script (creates paid + unpaid invoices for Invoice Finance / dashboard).
 
 ## Fee items (SAC 9982 — legal services)

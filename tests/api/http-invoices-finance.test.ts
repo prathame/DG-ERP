@@ -209,4 +209,65 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     const res = await api().post('/api/price-lists/bulk').set(authHeaders(token, TENANT)).send({ rules: [] });
     expect(res.status).toBe(400);
   });
+
+  it('POST /api/price-lists/bulk auto-creates fee items for service tenants', async () => {
+    const serviceTenant = 'T-TEST-HTTP-PL-SVC';
+    const serviceUser = 'U-HTTP-PL-SVC';
+    await cleanupTestData(serviceTenant);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
+       VALUES ($1, 'HTTP Price Service', 'http-pl-svc', 'http-pl-svc@test.com', 'Admin', 'active', 'service')
+       ON CONFLICT (id) DO UPDATE SET business_type = 'service'`,
+      [serviceTenant],
+    );
+    const hash = bcrypt.hashSync('password123', 12);
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1, $2, 'http-pl-svc@test.com', $3, 'Admin', 'Admin')
+       ON CONFLICT DO NOTHING`,
+      [serviceUser, serviceTenant, hash],
+    );
+    const svcToken = createTestToken({
+      userId: serviceUser,
+      tenantId: serviceTenant,
+      email: 'http-pl-svc@test.com',
+      role: 'Admin',
+      name: 'Admin',
+    });
+
+    try {
+      const res = await api()
+        .post('/api/price-lists/bulk')
+        .set(authHeaders(svcToken, serviceTenant))
+        .send({
+          rules: [
+            {
+              productName: 'Legal consultation (per hour)',
+              minQty: 1,
+              price: 2500,
+              name: 'Catalog rate',
+            },
+          ],
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(1);
+      expect(res.body.errors).toEqual([]);
+
+      const products = await pool.query(
+        `SELECT id, name, price FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)`,
+        [serviceTenant, 'Legal consultation (per hour)'],
+      );
+      expect(products.rows.length).toBe(1);
+      expect(Number(products.rows[0].price)).toBe(2500);
+
+      const rules = await pool.query(
+        `SELECT price, product_id FROM price_lists WHERE tenant_id = $1 AND product_id = $2`,
+        [serviceTenant, products.rows[0].id],
+      );
+      expect(rules.rows.length).toBe(1);
+      expect(Number(rules.rows[0].price)).toBe(2500);
+    } finally {
+      await cleanupTestData(serviceTenant);
+    }
+  });
 });

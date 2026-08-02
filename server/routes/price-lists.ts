@@ -70,7 +70,8 @@ router.get('/api/price-lists/resolve', async (req, res) => {
   }
 });
 
-// Bulk import price rules (CSV) — resolve product/vendor by name
+// Bulk import price rules (CSV) — resolve product/vendor by name.
+// Service tenants: Prices is the catalog (no Inventory Products) — create missing fee items (Cap Offline parity).
 router.post('/api/price-lists/bulk', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -80,6 +81,11 @@ router.post('/api/price-lists/bulk', blockVendors, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'rules array required' });
     }
     if (rules.length > 500) return res.status(400).json({ error: 'Maximum 500 rules per import' });
+
+    const businessType = (
+      await pool.query<{ business_type: string | null }>('SELECT business_type FROM tenants WHERE id = $1', [tenantId])
+    ).rows[0]?.business_type;
+    const autoCreateItems = businessType === 'service';
 
     const products = (await pool.query('SELECT id, name FROM products WHERE tenant_id = $1', [tenantId])).rows as {
       id: string;
@@ -116,15 +122,35 @@ router.post('/api/price-lists/bulk', blockVendors, async (req: AuthRequest, res)
         errors.push(`Row ${rowNum}: productName is required`);
         continue;
       }
-      const productId = productByName.get(productName.toLowerCase());
-      if (!productId) {
-        errors.push(`Row ${rowNum}: product "${productName}" not found — add it in Masters first`);
-        continue;
-      }
       if (!price || price <= 0 || Number.isNaN(price)) {
         errors.push(`Row ${rowNum}: price must be greater than 0`);
         continue;
       }
+
+      let productId = productByName.get(productName.toLowerCase());
+      if (!productId) {
+        if (!autoCreateItems) {
+          errors.push(`Row ${rowNum}: product "${productName}" not found — add it in Masters first`);
+          continue;
+        }
+        // Service: Price List is the sellable catalog — create fee item (same as Cap Offline / Add Rule).
+        productId = uid('P');
+        try {
+          await pool.query(
+            `INSERT INTO products
+               (id, tenant_id, name, price, gst_rate, stock, warranty_months, price_includes_gst, status)
+             VALUES ($1,$2,$3,$4,18,0,0,false,'Active')`,
+            [productId, tenantId, productName, price],
+          );
+          productByName.set(productName.toLowerCase(), productId);
+        } catch (err) {
+          errors.push(
+            `Row ${rowNum}: could not create item "${productName}": ${err instanceof Error ? err.message : 'failed'}`,
+          );
+          continue;
+        }
+      }
+
       let vendorId: string | null = null;
       if (vendorName) {
         vendorId = vendorByName.get(vendorName.toLowerCase()) || null;
