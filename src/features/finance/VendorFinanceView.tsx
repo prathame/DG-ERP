@@ -251,8 +251,9 @@ export function VendorFinanceView({
       return;
     }
 
-    const towardTotal = !paymentForm.batchId || paymentForm.batchId === '__ALL__';
-    const batchId = towardTotal ? undefined : paymentForm.batchId;
+    const batchIdRaw = typeof paymentForm.batchId === 'string' ? paymentForm.batchId : '';
+    const towardTotal = !batchIdRaw || batchIdRaw === '__ALL__';
+    const batchId = towardTotal ? undefined : batchIdRaw;
     setSubmitting(true);
     try {
       await api.vendorFinance.recordPayment(selectedVendorId, {
@@ -300,6 +301,8 @@ export function VendorFinanceView({
   };
 
   const openPaymentModal = (preselectBatchId?: string) => {
+    // Guard: onClick={openPaymentModal} would pass the MouseEvent as batchId → JSON.stringify boom
+    const batchPreselect = typeof preselectBatchId === 'string' ? preselectBatchId : undefined;
     const vendorId = selectedVendorId;
     if (!vendorId) return;
     setPaymentForm(f => ({
@@ -309,15 +312,15 @@ export function VendorFinanceView({
       paymentMethod: f.paymentMethod || 'Cash',
       referenceNumber: '',
       notes: '',
-      batchId: preselectBatchId || '__ALL__',
+      batchId: batchPreselect || '__ALL__',
     }));
     setPaymentModal(true);
     loadUnpaidBatches(vendorId).then(unpaid => {
-      if (preselectBatchId) {
-        const batch = unpaid.find(b => b.batchId === preselectBatchId);
+      if (batchPreselect) {
+        const batch = unpaid.find(b => b.batchId === batchPreselect);
         setPaymentForm(f => ({
           ...f,
-          batchId: preselectBatchId,
+          batchId: batchPreselect,
           amount: batch ? String(batch.balanceRemaining) : f.amount,
         }));
       } else {
@@ -328,6 +331,7 @@ export function VendorFinanceView({
 
   /** Cap/list PAY — ensure detail + batches before modal (no setTimeout race). */
   const openPaymentForVendor = (vendorId: string, preselectBatchId?: string) => {
+    const batchPreselect = typeof preselectBatchId === 'string' ? preselectBatchId : undefined;
     setSelectedVendorId(vendorId);
     setPaymentForm({
       amount: '',
@@ -335,7 +339,7 @@ export function VendorFinanceView({
       paymentMethod: 'Cash',
       referenceNumber: '',
       notes: '',
-      batchId: preselectBatchId || '__ALL__',
+      batchId: batchPreselect || '__ALL__',
     });
     api.vendorFinance
       .detail(vendorId)
@@ -350,11 +354,11 @@ export function VendorFinanceView({
         return loadUnpaidBatches(vendorId);
       })
       .then(unpaid => {
-        if (preselectBatchId) {
-          const batch = unpaid.find(b => b.batchId === preselectBatchId);
+        if (batchPreselect) {
+          const batch = unpaid.find(b => b.batchId === batchPreselect);
           setPaymentForm(f => ({
             ...f,
-            batchId: preselectBatchId,
+            batchId: batchPreselect,
             amount: batch ? String(batch.balanceRemaining) : f.amount,
           }));
           return;
@@ -1168,7 +1172,7 @@ export function VendorFinanceView({
             setSelectedVendorId(null);
             setDetail(null);
           }}
-          onOpenPayment={openPaymentModal}
+          onOpenPayment={() => openPaymentModal()}
           onSendReminder={handleSendReminder}
           onOpenReminderModal={v =>
             setReminderModal({
@@ -1308,7 +1312,7 @@ export function VendorFinanceView({
           {isAdmin && (
             <button
               type="button"
-              onClick={openPaymentModal}
+              onClick={() => openPaymentModal()}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"
             >
               <Plus size={18} /> Record Payment
