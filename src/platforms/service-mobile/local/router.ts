@@ -563,6 +563,16 @@ export async function handleLocalApiRequest(
            address=COALESCE($4,address), gstin=COALESCE($5,gstin) WHERE id=$6 AND tenant_id=$7`,
           [b.name ?? null, b.phone ?? null, email, b.address ?? null, gstin, id, tid],
         );
+        // Keep linked invoices' WhatsApp phone in sync with Masters client phone.
+        if (b.phone !== undefined) {
+          const nextPhone =
+            typeof b.phone === 'string' ? b.phone.trim() || null : b.phone == null ? null : String(b.phone);
+          await localQuery(
+            `UPDATE standalone_invoices SET customer_phone=$1
+             WHERE tenant_id=$2 AND party_type='vendor' AND party_id=$3`,
+            [nextPhone, tid, id],
+          );
+        }
         const { rows } = await localQuery(`SELECT * FROM vendors WHERE id=$1`, [id]);
         return json(200, mapVendor(rows[0] as Record<string, unknown>));
       }
@@ -604,6 +614,15 @@ export async function handleLocalApiRequest(
            address=COALESCE($4,address) WHERE id=$5 AND tenant_id=$6`,
           [b.name ?? null, b.phone ?? null, b.email ?? null, b.address ?? null, id, tid],
         );
+        if (b.phone !== undefined) {
+          const nextPhone =
+            typeof b.phone === 'string' ? b.phone.trim() || null : b.phone == null ? null : String(b.phone);
+          await localQuery(
+            `UPDATE standalone_invoices SET customer_phone=$1
+             WHERE tenant_id=$2 AND party_type='customer' AND party_id=$3`,
+            [nextPhone, tid, id],
+          );
+        }
         const { rows } = await localQuery(`SELECT * FROM customers WHERE id=$1 AND tenant_id=$2`, [id, tid]);
         return rows[0] ? json(200, mapCustomer(rows[0] as Record<string, unknown>)) : json(404, { error: 'Not found' });
       }

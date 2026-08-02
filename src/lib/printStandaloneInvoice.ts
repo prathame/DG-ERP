@@ -74,7 +74,18 @@ export type ShareStandaloneInvoiceWhatsAppOptions = {
   docType?: BillDocType;
   /** Cap: called after breadcrumb so UI can toast "Preparing PDF…". */
   onPreparing?: () => void;
+  /** Prefer live Masters phone over invoice.customerPhone (edited client). */
+  phone?: string | null;
 };
+
+function withSharePhone(
+  inv: PrintableStandaloneInvoice,
+  options?: ShareStandaloneInvoiceWhatsAppOptions,
+): PrintableStandaloneInvoice {
+  const override = typeof options?.phone === 'string' ? options.phone.trim() : '';
+  if (override) return { ...inv, customerPhone: override };
+  return inv;
+}
 
 function waLog(level: 'info' | 'warn' | 'error', message: string, ctx: Record<string, unknown>): void {
   const full = { correlationId: ensureCorrelationId(), ...ctx };
@@ -341,34 +352,35 @@ export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,
   options?: ShareStandaloneInvoiceWhatsAppOptions,
 ): Promise<WhatsAppInvoiceShareResult> {
+  const shareInv = withSharePhone(inv, options);
   const docType = options?.docType || 'invoice';
-  const message = invoiceWhatsAppMessage(inv, docType);
+  const message = invoiceWhatsAppMessage(shareInv, docType);
   const correlationId = ensureCorrelationId();
   const ctx = {
     correlationId,
-    invoiceNumber: inv.invoiceNumber,
+    invoiceNumber: shareInv.invoiceNumber,
     docType,
     native: isNativeCapacitor(),
   };
 
   // Cap / phone — unchanged path (Filesystem + Share / Cap timeout fallback).
   if (isNativeCapacitor()) {
-    return shareCapInvoicePdfWithFallback(inv, message, options);
+    return shareCapInvoicePdfWithFallback(shareInv, message, options);
   }
 
   // Electron Cloud / Offline desktop only — dynamic import keeps Cap helpers untouched.
   if (isElectronAppShell()) {
     const { shareElectronInvoiceWhatsApp } = await import('./electronWhatsAppInvoiceShare');
-    const electronResult = await shareElectronInvoiceWhatsApp(inv, message, options);
+    const electronResult = await shareElectronInvoiceWhatsApp(shareInv, message, options);
     if (electronResult) return electronResult;
   }
 
   waLog('info', 'WhatsApp invoice share start', { ...ctx, path: 'pdf' });
-  const { html, filename } = await buildStandaloneInvoiceHtml(inv, options);
+  const { html, filename } = await buildStandaloneInvoiceHtml(shareInv, options);
   const how = await shareHtmlPdfViaWhatsApp({
     html,
     filename,
-    phone: inv.customerPhone,
+    phone: shareInv.customerPhone,
     message,
     logCtx: ctx,
   });

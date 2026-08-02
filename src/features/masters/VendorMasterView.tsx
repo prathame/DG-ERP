@@ -202,6 +202,8 @@ export function VendorMasterView({
     try {
       const { how, errorHint } = await shareStandaloneInvoiceWhatsAppById(invoiceId, {
         businessType: cfg.type,
+        // Live Masters phone — invoices may still have the number from create time.
+        phone: selected?.phone || detail?.clientPhone || undefined,
         onPreparing: () => toast('Preparing PDF…', 'info'),
       });
       if (how === 'cancelled') return;
