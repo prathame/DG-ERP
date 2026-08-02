@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
 import {
@@ -158,7 +158,7 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
   const { t } = useTranslation();
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
-  const servicePhoneUx = isServicePhoneUx(cfg.type);
+  const serviceProductUx = isServiceProductUx(cfg.type);
   /** Non-service only: unified create (sale vs standalone). Service paths stay frozen. */
   const useUnifiedCreate = cfg.type !== 'service';
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -331,7 +331,7 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
           {/* Offline Mobile: template lives in Settings → Bill Customization */}
-          {!servicePhoneUx && (
+          {!serviceProductUx && (
             <select
               value={pdfStyle}
               onChange={e => {
@@ -363,7 +363,7 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
 
       {/* Phone summary + filters — Outstanding/Collected live on Analytics for Offline Mobile */}
       <div className="sm:hidden space-y-2">
-        {!servicePhoneUx && (
+        {!serviceProductUx && (
           <div className="grid grid-cols-2 gap-2">
             <MobileKpiCard label={t('invoices.outstanding')} value={`₹${outstanding.toLocaleString()}`} accent="rose" />
             <MobileKpiCard label={t('invoices.collected')} value={`₹${paidTotal.toLocaleString()}`} accent="green" />
@@ -757,7 +757,7 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
               <p className="text-sm text-gray-600">
                 {t('invoices.deleteBlockedPrefix')} ₹{Number(deleteTarget.paidAmount).toLocaleString()}{' '}
                 {t('invoices.deleteBlockedSuffix')}
-                {servicePhoneUx ? ` ${t('invoices.deleteBlockedFinanceHint')}` : ''}
+                {serviceProductUx ? ` ${t('invoices.deleteBlockedFinanceHint')}` : ''}
               </p>
             </div>
           ) : (
@@ -805,7 +805,7 @@ export function CreateInvoiceModal({
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const isService = cfg.type === 'service';
-  const servicePhoneUx = isServicePhoneUx(cfg.type);
+  const serviceProductUx = isServiceProductUx(cfg.type);
   const vendorPartyKind = isService ? 'Client' : 'Vendor';
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
@@ -1065,7 +1065,7 @@ export function CreateInvoiceModal({
         method: 'POST',
         body: JSON.stringify({
           ...form,
-          ...(servicePhoneUx ? { notes: '', terms: '' } : {}),
+          ...(serviceProductUx ? { notes: '', terms: '' } : {}),
           invoiceNumber,
           gstEnabled: gstBilling,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
@@ -1153,7 +1153,7 @@ export function CreateInvoiceModal({
     const fields: LineItemCardField[] = [
       {
         key: 'product',
-        label: servicePhoneUx ? 'Price List item' : 'Product',
+        label: serviceProductUx ? 'Price List item' : 'Product',
         wide: true as const,
         node: (
           <select
@@ -1480,7 +1480,7 @@ export function CreateInvoiceModal({
               <FormSection
                 title={t('invoices.lineItems')}
                 description={
-                  servicePhoneUx
+                  serviceProductUx
                     ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
                     : 'Pick from Masters / Price List, or choose Custom'
                 }
@@ -1692,7 +1692,7 @@ export function CreateInvoiceModal({
               </div>
               {totalsBar}
               {/* Offline: Notes / payment terms / bank / T&C are set in Settings → Bill Customization */}
-              {!servicePhoneUx && (
+              {!serviceProductUx && (
                 <FormGrid>
                   <FormField label="Notes">
                     <textarea

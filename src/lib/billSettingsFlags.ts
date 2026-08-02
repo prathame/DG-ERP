@@ -1,11 +1,11 @@
 import { session } from './session';
-import { isServicePhoneUx } from '../platforms/service-cloud/mode';
+import { isServiceProductUx } from '../platforms/service-cloud/mode';
 
-/** Offline Mobile or online Cap + service — GST opt-in; manufacturer cloud stays opt-out. */
+/** Service business type (any client) — GST opt-in; manufacturer stays opt-out. */
 export function isServicePhoneBillUx(): boolean {
   try {
     const user = session.getUser() as { businessType?: string } | null;
-    return isServicePhoneUx(user?.businessType);
+    return isServiceProductUx(user?.businessType);
   } catch {
     return false;
   }
@@ -16,7 +16,7 @@ export type GstBillSettings = { showGst?: boolean; showHsnSac?: boolean } | null
 /**
  * Single bill-settings flag: GST invoices (GST %, tax columns, HSN/SAC, Tax Invoice layout).
  * Prefer `showGst`; fall back to legacy `showHsnSac` (same toggle, renamed).
- * Service phone UX: opt-in. Manufacturer / desktop: opt-out (historical default on).
+ * Service: opt-in. Manufacturer / dealer: opt-out (historical default on).
  */
 export function isGstBillingEnabled(settings?: GstBillSettings): boolean {
   const flag = settings?.showGst !== undefined ? settings.showGst : settings?.showHsnSac;

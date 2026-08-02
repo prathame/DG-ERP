@@ -16,7 +16,7 @@ import { useToast, LoadingSpinner, MobilePillTabs } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 
@@ -70,7 +70,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const cfg = useBusinessConfig();
   const partyLabel = tb(cfg.labels.vendors, t); // Vendors | Customers | Clients
   const isService = cfg.type === 'service';
-  const serviceMobile = isServicePhoneUx(cfg.type);
+  /** Service business type only — + New item from Prices (no separate Products master). */
+  const serviceCatalogUx = isServiceProductUx(cfg.type);
   const [tab, setTab] = useState<PriceTab>(isService ? 'generic' : 'vendor');
   const [rules, setRules] = useState<PriceRule[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,7 +85,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const emptyForm = () => ({
     name: '',
-    productId: serviceMobile ? NEW_ITEM : '',
+    productId: serviceCatalogUx ? NEW_ITEM : '',
     newItemName: '',
     vendorId: '',
     minQty: '1',
@@ -199,7 +200,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       toast(`Select a ${partyLabel.replace(/s$/, '').toLowerCase()}`, 'error');
       return;
     }
-    const creatingNew = serviceMobile && (form.productId === NEW_ITEM || !form.productId);
+    const creatingNew = serviceCatalogUx && (form.productId === NEW_ITEM || !form.productId);
     if (creatingNew && !form.newItemName.trim()) {
       toast('Item name is required', 'error');
       return;
@@ -697,7 +698,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    {serviceMobile ? 'Item *' : 'Product *'}
+                    {serviceCatalogUx ? 'Item *' : 'Product *'}
                   </label>
                   <select
                     required
@@ -706,7 +707,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                     onChange={e => setForm({ ...form, productId: e.target.value, newItemName: '' })}
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm disabled:bg-gray-50 disabled:text-gray-500"
                   >
-                    {serviceMobile ? (
+                    {serviceCatalogUx ? (
                       <option value={NEW_ITEM}>+ New item</option>
                     ) : (
                       <option value="">Select product</option>
@@ -717,7 +718,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       </option>
                     ))}
                   </select>
-                  {serviceMobile && !editingId && form.productId === NEW_ITEM && (
+                  {serviceCatalogUx && !editingId && form.productId === NEW_ITEM && (
                     <input
                       className="w-full mt-2 px-4 py-2 border border-gray-200 rounded-xl text-sm"
                       value={form.newItemName}

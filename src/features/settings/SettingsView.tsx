@@ -34,7 +34,7 @@ import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isServicePhoneUx, isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSettingsFlags';
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
@@ -74,6 +74,7 @@ const serviceMobile = isServiceMobileMode();
 const mobileApp = isMobileAppShell();
 // Service phone (offline + online Cap) stays on the Emergent flat shell — never glass.
 const servicePhoneSettingsUx = isServicePhoneUx(getBusinessConfig().type);
+const serviceProductSettingsUx = isServiceProductUx(getBusinessConfig().type);
 const showBugReport = offersBugReportShare();
 
 /** Soft-deleted (anonymized) rows — hide from Settings Users even if API lags. */
@@ -1414,7 +1415,7 @@ export function SettingsView({
   const desktopGlass = settingsGlass();
   const capMobileSettings = mobileApp && !desktopGlass;
   // Cap service (online + offline): GSTIN/rate live under Business Identity — hide empty GST sheet.
-  const hideGstModule = servicePhoneSettingsUx;
+  const hideGstModule = serviceProductSettingsUx;
 
   const showTab = (id: DesktopSettingsTabId | DesktopSettingsTabId[]) => {
     const ids = Array.isArray(id) ? id : [id];

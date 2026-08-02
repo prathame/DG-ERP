@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDate, getTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isServicePhoneUx, isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { api } from '../../api';
@@ -68,6 +68,7 @@ export function AnalyticsView({
   const cfg = useBusinessConfig();
   /** Offline Mobile + online Cap service — same phone analytics chrome */
   const servicePhoneUx = isServicePhoneUx(cfg.type);
+  const serviceProductUx = isServiceProductUx(cfg.type);
   const desktopGlass = isDesktopGlassUi(cfg.type);
   /** Cap non-service immersive analytics — leave service phone layout alone */
   const capMobileGlass = isMobileAppShell() && !servicePhoneUx;
@@ -202,10 +203,10 @@ export function AnalyticsView({
             label: t('dashboard.netIn'),
             // Offline Service: collections = invoice_payments and revenue = invoice totals —
             // summing both double-counts the same money. Use cash in − expenses instead.
-            value: servicePhoneUx
+            value: serviceProductUx
               ? money.collections - money.expenses
               : money.collections + money.revenue - money.expenses,
-            accent: ((servicePhoneUx
+            accent: ((serviceProductUx
               ? money.collections - money.expenses
               : money.collections + money.revenue - money.expenses) >= 0
               ? 'green'
@@ -600,7 +601,7 @@ export function AnalyticsView({
         </div>
       )}
 
-      {!servicePhoneUx && counts && (
+      {!serviceProductUx && counts && (
         <div>
           <MobileSectionTitle title={t('dashboard.masterSummary')} className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">

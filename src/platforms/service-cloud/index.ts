@@ -3,6 +3,7 @@ export {
   isServiceCloudDesktop,
   isServiceCloudMobile,
   isServicePhoneUx,
+  isServiceProductUx,
   serviceCloudClientHeader,
   serviceCloudClientKind,
 } from './mode';

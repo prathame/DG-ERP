@@ -3,7 +3,7 @@ import { api } from '../api';
 import { generateStandaloneInvoiceHtml, type BillDocType, type StandaloneInvoicePrint } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
 import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
-import { isServicePhoneUx } from '../platforms/service-cloud/mode';
+import { isServiceProductUx } from '../platforms/service-cloud/mode';
 import { session } from './session';
 import { loadFreshCapBillPdfCache } from './capBillPdfCache';
 import { isNativeCapacitor } from './dhandhoFiles';
@@ -134,7 +134,7 @@ async function buildStandaloneInvoiceHtml(
           `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
         )
       : '';
-  const phoneUx = isServicePhoneUx(options?.businessType);
+  const phoneUx = isServiceProductUx(options?.businessType);
   const hasGst = invoiceHasGst(inv);
   const html = generateStandaloneInvoiceHtml(
     inv,
