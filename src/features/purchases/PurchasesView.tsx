@@ -1713,7 +1713,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       </AnimatePresence>
 
       {supplierModalNode}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

@@ -1473,7 +1473,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           }}
         />
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

@@ -352,19 +352,21 @@ async function handleResponse<T>(
       const slug = session.getSlug();
       const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
       session.clearAll();
+      const sessionMsg = replaced
+        ? (errBody as { error?: string }).error || 'Your account was signed in on another device. Please log in again.'
+        : 'Session expired. Please log in again.';
       if (replaced) {
-        const msg =
-          (errBody as { error?: string }).error || 'Your account was signed in on another device. Please log in again.';
         try {
-          sessionStorage.setItem('dg_session_replaced_msg', msg);
+          sessionStorage.setItem('dg_session_replaced_msg', sessionMsg);
         } catch {
           /* ignore */
         }
-        alert(msg);
+        alert(sessionMsg);
       }
       const redirectSlug = slug || pathSlug;
       window.location.href = redirectSlug ? `/${redirectSlug}` : '/';
-      return new Promise(() => {}) as T;
+      // Reject so callers' finally/catch run (never-resolving promises left Saving… stuck)
+      throw new Error(sessionMsg);
     }
   }
   if (res.status === 403) {
@@ -380,7 +382,7 @@ async function handleResponse<T>(
       session.clearAll();
       alert(msg);
       window.location.href = slug ? `/${slug}` : '/';
-      return new Promise(() => {}) as T;
+      throw new Error(msg);
     }
     clientLogger.warn('API forbidden', { path, method, statusCode: 403, correlationId: serverCorrelation, durationMs });
     throw new Error(msg);

@@ -1,0 +1,11 @@
+Product Name,Client Name (empty = generic / all),Min Qty,Max Qty,Price,Rule Name,Valid From (YYYY-MM-DD),Valid To (YYYY-MM-DD)
+Legal consultation (per hour),,1,,2500,Catalog rate,,
+Case filing / vakalatnama,,1,,5000,Catalog rate,,
+Court appearance (per hearing),,1,,7500,Catalog rate,,
+Legal notice drafting,,1,,3500,Catalog rate,,
+Contract / agreement drafting,,1,,15000,Catalog rate,,
+Due diligence review,,1,,25000,Catalog rate,,
+Monthly retainership,,1,,40000,Catalog rate,,
+Arbitration representation,,1,,50000,Catalog rate,,
+Trademark filing assistance,,1,,12000,Catalog rate,,
+Property title opinion,,1,,8000,Catalog rate,,

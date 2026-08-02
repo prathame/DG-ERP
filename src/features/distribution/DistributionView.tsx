@@ -3816,7 +3816,7 @@ export function DistributionView({
           </motion.div>
         </div>
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

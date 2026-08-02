@@ -443,9 +443,11 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
       let remaining = parsedAmount;
       let firstId: string | null = null;
       for (const b of batches) {
-        if (remaining <= 0) break;
+        if (remaining <= 0.001) break;
         const due = Number(b.bill_value) - Number(b.paid);
-        const pay = Math.min(remaining, due);
+        if (!(due > 0)) continue;
+        const pay = Math.round(Math.min(remaining, due) * 100) / 100;
+        if (!(pay > 0)) break;
         const id = uid('VP');
         if (!firstId) firstId = id;
         await client.query(
@@ -466,9 +468,13 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
             firstId === id ? idemKey : null,
           ],
         );
-        remaining -= pay;
+        remaining = Math.round((remaining - pay) * 100) / 100;
       }
-      responseId = firstId || responseId;
+      if (!firstId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Vendor balance is already fully paid' });
+      }
+      responseId = firstId;
       await client.query('COMMIT');
       logAudit(
         pool,
@@ -491,7 +497,11 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
       notes: notes || null,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* no open transaction */
+    }
     return handleApiError(req, res, err, 'Vendor payment failed');
   } finally {
     client.release();
