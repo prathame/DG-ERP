@@ -1607,7 +1607,7 @@ export function QuotationsView() {
           }}
         />
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </>
   );
 }

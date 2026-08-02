@@ -520,7 +520,7 @@ export function StaffMasterView({
             </div>
           )}
         </AnimatePresence>
-        <ConfirmRenderer />
+        {ConfirmRenderer}
       </motion.div>
     );
   }
@@ -827,7 +827,7 @@ export function StaffMasterView({
           }}
         />
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

@@ -724,7 +724,7 @@ export function VendorMasterView({
             </div>
           )}
         </AnimatePresence>
-        <ConfirmRenderer />
+        {ConfirmRenderer}
       </motion.div>
     );
   }
@@ -1480,7 +1480,7 @@ export function VendorMasterView({
           }}
         />
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

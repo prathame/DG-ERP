@@ -3368,7 +3368,7 @@ export function SettingsView({
           </p>
         </div>
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

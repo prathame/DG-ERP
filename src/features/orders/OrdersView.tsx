@@ -402,7 +402,7 @@ export function OrdersView() {
             </div>
           )}
         </motion.div>
-        <ConfirmRenderer />
+        {ConfirmRenderer}
       </>
     );
   }
@@ -790,7 +790,7 @@ export function OrdersView() {
           }}
         />
       )}
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </motion.div>
   );
 }

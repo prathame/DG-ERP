@@ -219,69 +219,68 @@ export function VendorFinanceView({
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVendorId || !paymentForm.amount) return;
+    if (!selectedVendorId || !paymentForm.amount || submitting) return;
     if (vendorBatches.length > 0 && !paymentForm.batchId) {
       toast('Select how to apply this payment', 'error');
       return;
     }
 
     const amount = parseFloat(paymentForm.amount);
+    if (!amount || amount <= 0 || Number.isNaN(amount)) {
+      toast('Enter a valid amount', 'error');
+      return;
+    }
 
-    // Determine the due amount for the selected scope
-    let due = detail?.balance ?? 0;
+    // Due for selected scope (toward-total uses party balance / open batches)
+    let due =
+      paymentForm.batchId === '__ALL__' && vendorBatches.length > 0
+        ? vendorBatches.reduce((sum, b) => sum + b.balanceRemaining, 0)
+        : (detail?.balance ?? 0);
     if (paymentForm.batchId && paymentForm.batchId !== '__ALL__') {
       const batch = vendorBatches.find(b => b.batchId === paymentForm.batchId);
       due = batch?.balanceRemaining ?? due;
     }
 
-    // Overpayment / already-in-credit confirmation
+    // Server rejects overpay / credit — match Invoice Finance (no confirm that can hang)
     if (due <= 0) {
-      const credit = Math.abs(due);
-      const ok = await confirm({
-        title: 'Already in Credit',
-        message: `This vendor already has ₹${credit.toLocaleString()} in credit. Recording ₹${amount.toLocaleString()} will add ₹${(credit + amount).toLocaleString()} total credit. Continue?`,
-        confirmLabel: 'Yes, Record Payment',
-        variant: 'info',
-      });
-      if (!ok) return;
-    } else if (amount > due) {
-      const extra = amount - due;
-      const ok = await confirm({
-        title: 'Extra Payment',
-        message: `Due is ₹${due.toLocaleString()} but you're recording ₹${amount.toLocaleString()}. ₹${due.toLocaleString()} will clear the balance and ₹${extra.toLocaleString()} will be recorded as credit. Continue?`,
-        confirmLabel: `Record ₹${amount.toLocaleString()} (₹${extra.toLocaleString()} extra)`,
-        variant: 'info',
-      });
-      if (!ok) return;
+      toast('No outstanding balance', 'error');
+      return;
+    }
+    if (amount > due + 0.001) {
+      toast(`Amount exceeds remaining balance (₹${due.toLocaleString()})`, 'error');
+      return;
     }
 
+    const towardTotal = !paymentForm.batchId || paymentForm.batchId === '__ALL__';
+    const batchId = towardTotal ? undefined : paymentForm.batchId;
     setSubmitting(true);
-    api.vendorFinance
-      .recordPayment(selectedVendorId, {
+    try {
+      await api.vendorFinance.recordPayment(selectedVendorId, {
         amount,
         paymentDate: paymentForm.paymentDate,
         paymentMethod: paymentForm.paymentMethod,
         referenceNumber: paymentForm.referenceNumber || undefined,
         notes: paymentForm.notes || undefined,
-        batchId: paymentForm.batchId === '__ALL__' ? undefined : paymentForm.batchId || undefined,
-      })
-      .then(() => {
-        setPaymentModal(false);
-        setPaymentForm({
-          amount: '',
-          paymentDate: new Date().toISOString().slice(0, 10),
-          paymentMethod: 'Cash',
-          referenceNumber: '',
-          notes: '',
-          batchId: '',
-        });
-        loadDetail(selectedVendorId!);
-        loadSummary();
-        if (capMobileGlass) void loadUnpaidBatches(selectedVendorId!);
-        toast('Payment recorded', 'success');
-      })
-      .catch(err => toast(err.message, 'error'))
-      .finally(() => setSubmitting(false));
+        batchId,
+      });
+      setPaymentModal(false);
+      setPaymentForm({
+        amount: '',
+        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: 'Cash',
+        referenceNumber: '',
+        notes: '',
+        batchId: '',
+      });
+      loadDetail(selectedVendorId);
+      loadSummary();
+      if (capMobileGlass) void loadUnpaidBatches(selectedVendorId);
+      toast(towardTotal ? 'Payment applied toward total due' : 'Payment recorded', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Payment failed', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const loadUnpaidBatches = (vendorId: string) => {
@@ -1132,7 +1131,7 @@ export function VendorFinanceView({
           </motion.div>
         )}
       </AnimatePresence>
-      <ConfirmRenderer />
+      {ConfirmRenderer}
     </>
   );
 
