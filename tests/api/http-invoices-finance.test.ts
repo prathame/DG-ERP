@@ -153,6 +153,24 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(res.body.totalInvoiced).toBeGreaterThan(0);
   });
 
+  it('invoice-finance client detail returns Masters name when vendor has no invoices', async () => {
+    const emptyVendor = 'V-HTTP-INV-EMPTY';
+    await pool.query(
+      `INSERT INTO vendors (id, tenant_id, name, phone, address, gst_number)
+       VALUES ($1, $2, 'Neha Kapoor Client', '9988776655', 'Pune', null)
+       ON CONFLICT DO NOTHING`,
+      [emptyVendor, TENANT],
+    );
+    const res = await api()
+      .get(`/api/invoice-finance/client/${encodeURIComponent(`vendor:${emptyVendor}`)}`)
+      .set(authHeaders(token, TENANT));
+    expect(res.status).toBe(200);
+    expect(res.body.invoices).toEqual([]);
+    expect(res.body.clientName).toBe('Neha Kapoor Client');
+    expect(res.body.clientName).not.toBe(emptyVendor);
+    expect(res.body.clientPhone).toBe('9988776655');
+  });
+
   it('invoice-finance client detail loads legacy name: keys', async () => {
     const res = await api()
       .get(`/api/invoice-finance/client/${encodeURIComponent('name:Walk-in')}`)

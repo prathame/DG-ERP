@@ -153,7 +153,42 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
       ).rows;
     }
 
-    const displayName = (invoices[0]?.customer_name as string) || clientName || partyId || 'Client';
+    // Prefer invoice customer_name; with no invoices look up Masters (Cap Offline parity — never return raw party id).
+    let displayName = (invoices[0]?.customer_name as string) || clientName || null;
+    let displayPhone = (invoices[0]?.customer_phone as string) || null;
+    let displayGstin = (invoices[0]?.customer_gstin as string) || null;
+    let displayAddress = (invoices[0]?.customer_address as string) || null;
+    if ((!displayName || !invoices[0]) && partyType && partyId) {
+      if (partyType === 'vendor') {
+        const v = (
+          await pool.query('SELECT name, phone, gst_number, address FROM vendors WHERE id = $1 AND tenant_id = $2', [
+            partyId,
+            tenantId,
+          ])
+        ).rows[0] as
+          { name: string; phone: string | null; gst_number: string | null; address: string | null } | undefined;
+        if (v) {
+          displayName = displayName || v.name;
+          displayPhone = displayPhone || v.phone;
+          displayGstin = displayGstin || v.gst_number;
+          displayAddress = displayAddress || v.address;
+        }
+      } else if (partyType === 'customer') {
+        const c = (
+          await pool.query('SELECT name, phone, address FROM customers WHERE id = $1 AND tenant_id = $2', [
+            partyId,
+            tenantId,
+          ])
+        ).rows[0] as { name: string; phone: string | null; address: string | null } | undefined;
+        if (c) {
+          displayName = displayName || c.name;
+          displayPhone = displayPhone || c.phone;
+          displayAddress = displayAddress || c.address;
+        }
+      }
+    }
+    displayName = displayName || 'Client';
+
     const totalInvoiced = invoices.reduce((s, r) => s + (Number(r.grand_total) || 0), 0);
     const totalPaid = invoices.reduce((s, r) => s + (Number(r.paid) || 0), 0);
 
@@ -162,9 +197,9 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
       partyType,
       partyId,
       clientName: displayName,
-      clientPhone: (invoices[0]?.customer_phone as string) || null,
-      customerGstin: (invoices[0]?.customer_gstin as string) || null,
-      customerAddress: (invoices[0]?.customer_address as string) || null,
+      clientPhone: displayPhone,
+      customerGstin: displayGstin,
+      customerAddress: displayAddress,
       totalInvoiced,
       totalPaid,
       balance: totalInvoiced - totalPaid,

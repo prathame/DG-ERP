@@ -138,7 +138,8 @@ export function VendorMasterView({
           totalInvoiced: Number(d.totalInvoiced) || 0,
           totalPaid: Number(d.totalPaid) || 0,
           balance: Number(d.balance) || 0,
-          clientName: d.clientName || v.name || label,
+          // Prefer Masters name — API used to return party id when the client had no invoices yet.
+          clientName: v.name || d.clientName || label,
           clientPhone: d.clientPhone || v.phone || null,
           customerAddress: d.customerAddress || v.address || null,
           customerGstin: d.customerGstin || v.gstNumber || null,
@@ -413,7 +414,7 @@ export function VendorMasterView({
           </button>
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
-              <span className="truncate">{detail?.clientName || selected.name}</span>
+              <span className="truncate">{selected.name || detail?.clientName}</span>
               {overallPaid && <PaidBadge />}
             </h2>
             <p className="text-sm text-gray-500">
