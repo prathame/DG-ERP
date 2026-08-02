@@ -1,0 +1,7 @@
+groupId,vendorName,customerName,customerPhone,customerEmail,date,validUntil,productName,barcode,quantity,price,discountPercent,withGst,notes
+Q-MEHTA-RETAINER,Mehta Industries Pvt Ltd,Mehta Industries Pvt Ltd,9810011223,anil@mehtaindustries.in,2026-07-01,2026-08-01,Monthly retainership,,1,40000,0,true,FY26 Q1 corporate retainership
+Q-MEHTA-RETAINER,Mehta Industries Pvt Ltd,Mehta Industries Pvt Ltd,9810011223,anil@mehtaindustries.in,2026-07-01,2026-08-01,Legal consultation (per hour),,4,2500,0,true,
+Q-GREEN-DD,Greenfield Developers,Greenfield Developers,9876543210,rahul@greenfield.dev,2026-07-10,2026-08-10,Due diligence review,,1,25000,0,true,Land parcel due diligence
+Q-GREEN-DD,Greenfield Developers,Greenfield Developers,9876543210,rahul@greenfield.dev,2026-07-10,2026-08-10,Property title opinion,,1,8000,0,true,
+Q-APEX-NOTICE,Apex Retail LLP,Apex Retail LLP,9988776655,neha@apexretail.in,2026-07-15,2026-08-15,Legal notice drafting,,1,3500,0,true,Vendor dispute notice
+Q-APEX-NOTICE,Apex Retail LLP,Apex Retail LLP,9988776655,neha@apexretail.in,2026-07-15,2026-08-15,Court appearance (per hearing),,2,7500,0,true,
