@@ -1381,7 +1381,8 @@ export function CreateInvoiceModal({
       subtitle={<span className="font-mono">{createdInvoice?.invoiceNumber || invoiceNumber}</span>}
       onClose={createdInvoice ? finishCreated : onClose}
       footer={footer}
-      size="lg"
+      size="2xl"
+      className="sm:w-[min(96vw,72rem)]"
     >
       <div className="space-y-4">
         {createdInvoice ? (
@@ -1505,19 +1506,19 @@ export function CreateInvoiceModal({
                   })}
                 </div>
 
-                {/* Desktop table */}
+                {/* Desktop table — wide item column so long service names stay readable */}
                 <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-sm min-w-[720px]">
+                  <table className="w-full text-sm min-w-[960px] table-fixed">
                     <thead className="bg-gray-50">
                       <tr className="text-xs font-bold text-gray-400 uppercase">
-                        <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
-                        {gstBilling && <th className="px-3 py-2 w-24">HSN/SAC</th>}
-                        <th className="px-3 py-2 w-16">Qty</th>
-                        <th className="px-3 py-2 w-24">Rate</th>
-                        <th className="px-3 py-2 w-16">Disc%</th>
-                        {gstBilling && <th className="px-3 py-2 w-16">GST%</th>}
-                        <th className="px-3 py-2 w-24 text-right">Total</th>
-                        <th className="px-3 py-2 w-8"></th>
+                        <th className="px-3 py-2 text-left w-[38%]">Item</th>
+                        {gstBilling && <th className="px-3 py-2 w-[9%]">HSN/SAC</th>}
+                        <th className="px-3 py-2 w-[7%]">Qty</th>
+                        <th className="px-3 py-2 w-[11%]">Rate</th>
+                        <th className="px-3 py-2 w-[7%]">Disc%</th>
+                        {gstBilling && <th className="px-3 py-2 w-[8%]">GST%</th>}
+                        <th className="px-3 py-2 w-[12%] text-right">Total</th>
+                        <th className="px-3 py-2 w-10"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1535,11 +1536,16 @@ export function CreateInvoiceModal({
                             : null;
                         return (
                           <tr key={idx}>
-                            <td className="px-3 py-2 space-y-1.5">
+                            <td className="px-3 py-2 space-y-1.5 align-top">
                               <select
                                 value={row.productId}
                                 onChange={e => applyCatalogItem(idx, e.target.value)}
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                                title={
+                                  row.productId
+                                    ? products.find(p => p.id === row.productId)?.name || row.description
+                                    : 'Custom item'
+                                }
+                                className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
                               >
                                 <option value="">Custom item</option>
                                 {productSelectOptions(row.qty || 1)}
@@ -1549,7 +1555,8 @@ export function CreateInvoiceModal({
                                 onChange={e =>
                                   setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
                                 }
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                title={row.description}
+                                className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
                                 placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
                               />
                               {catalogPrice != null && row.rate !== catalogPrice && (
