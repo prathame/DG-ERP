@@ -836,8 +836,17 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         <CsvImport
           templateName="price_list_template"
           itemLabel="price rules"
+          hint={
+            serviceCatalogUx
+              ? 'Service catalog: missing items are created from this import (Prices is your inventory).'
+              : undefined
+          }
           columns={[
-            { key: 'productName', label: 'Product Name', required: true },
+            {
+              key: 'productName',
+              label: serviceCatalogUx ? 'Item Name' : 'Product Name',
+              required: true,
+            },
             {
               key: 'vendorName',
               label: `${partySingular} Name (empty = generic / all)`,
