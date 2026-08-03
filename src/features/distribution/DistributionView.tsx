@@ -405,7 +405,8 @@ export function DistributionView({
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const canEdit = accessLevel === 'full';
-  const canPrint = accessLevel === 'print' || accessLevel === 'full';
+  // Read (view) includes print — warehouse staff can print without write.
+  const canPrint = accessLevel === 'view' || accessLevel === 'print' || accessLevel === 'full';
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const isVendorUser = !!vendorId;
   const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
