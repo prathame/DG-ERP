@@ -192,7 +192,9 @@ export function SalesEntryView({
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
       <div>
         <h2 className="text-xl font-bold">{getTabLabel('sales', 'Sales')}</h2>
-        <p className="text-sm text-gray-500">Scan barcode, verify product, enter customer details to complete sale</p>
+        <p className="text-sm text-gray-500">
+          Scan barcode or QR, verify product, enter customer details to complete sale
+        </p>
         <p className="text-xs text-amber-600 mt-1 bg-amber-50 px-3 py-2 rounded-lg inline-block">
           {vendorId
             ? 'Scan or enter barcode assigned to your vendor.'
