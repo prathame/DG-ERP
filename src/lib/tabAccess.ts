@@ -3,6 +3,15 @@ import { isHotelRestaurantBusiness } from '../../shared/hotelMasters';
 /** Tab RBAC levels used by the app shell nav and route guards. */
 export type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
 
+/** Read-only tabs may still print (warehouse / staff). Legacy `print` counts as read. */
+export function canPrintAccess(level: AccessLevel | string | undefined): boolean {
+  return level === 'view' || level === 'print' || level === 'full';
+}
+
+export function canWriteAccess(level: AccessLevel | string | undefined): boolean {
+  return level === 'full';
+}
+
 /**
  * Hotel floor roles → allowed nav tab ids.
  * Admin/Manager/Staff keep broader defaults; these roles are allowlist-only.

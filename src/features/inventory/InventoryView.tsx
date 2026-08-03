@@ -55,7 +55,8 @@ const emptyAddForm = () => ({
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
-  const canPrint = accessLevel === 'print' || accessLevel === 'full';
+  // Read (view) includes print — warehouse staff can print without write.
+  const canPrint = accessLevel === 'view' || accessLevel === 'print' || accessLevel === 'full';
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const bizCfg = useBusinessConfig();

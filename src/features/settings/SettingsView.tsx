@@ -1019,7 +1019,18 @@ const ROLE_PRESETS: Record<string, Record<string, string>> = {
   },
 };
 
-const ACCESS_LEVELS = ['hidden', 'view', 'print', 'full'] as const;
+/** Settings UI: Hidden / Read (view+print) / Write. Legacy stored `print` shows as Read. */
+const PERMISSION_UI_LEVELS = [
+  { id: 'hidden' as const, label: 'Hidden' },
+  { id: 'view' as const, label: 'Read' },
+  { id: 'full' as const, label: 'Write' },
+];
+
+function permissionUiSelected(stored: string | undefined, uiLevel: 'hidden' | 'view' | 'full'): boolean {
+  const cur = stored || 'hidden';
+  if (uiLevel === 'view') return cur === 'view' || cur === 'print';
+  return cur === uiLevel;
+}
 
 /**
  * Permission modules relevant to this tenant: hides checkboxes for modules the business-type
@@ -3225,32 +3236,53 @@ export function SettingsView({
                           <tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
                             <th className="text-left px-3 py-2">Module</th>
                             <th className="text-center px-2 py-2">Hidden</th>
-                            <th className="text-center px-2 py-2">View</th>
-                            <th className="text-center px-2 py-2">Print</th>
-                            <th className="text-center px-2 py-2">Full</th>
+                            <th className="text-center px-2 py-2" title="See and print — no create/edit/delete">
+                              Read
+                            </th>
+                            <th className="text-center px-2 py-2" title="Create, edit, delete, and print">
+                              Write
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {visiblePermissionModules(filledTabConfig).map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
                               <td className="px-3 py-1.5 text-sm">{p.label}</td>
-                              {ACCESS_LEVELS.map(level => {
+                              {PERMISSION_UI_LEVELS.map(({ id: level, label }) => {
                                 const disabled = settingsLevelDisabled(p.id, level, addUserForm.role);
+                                const selected = permissionUiSelected(addUserForm.permissions[p.id], level);
                                 return (
                                   <td key={level} className="text-center px-2 py-1.5">
                                     <input
-                                      id="settings-field-35"
                                       type="radio"
                                       name={`perm-add-${p.id}`}
+                                      aria-label={`${p.label} ${label}`}
                                       disabled={disabled}
-                                      title={disabled ? 'Full Settings access requires the Admin role' : undefined}
-                                      checked={(addUserForm.permissions[p.id] || 'hidden') === level}
+                                      title={
+                                        disabled
+                                          ? 'Write access to Settings requires the Admin role'
+                                          : level === 'view'
+                                            ? 'Read: view and print only'
+                                            : level === 'full'
+                                              ? 'Write: create, edit, delete, print'
+                                              : 'Hidden: not in menu'
+                                      }
+                                      checked={selected}
                                       onChange={() =>
                                         setAddUserForm({
                                           ...addUserForm,
                                           permissions: { ...addUserForm.permissions, [p.id]: level },
                                         })
                                       }
+                                      onClick={() => {
+                                        if (disabled) return;
+                                        if (selected && level !== 'hidden') {
+                                          setAddUserForm({
+                                            ...addUserForm,
+                                            permissions: { ...addUserForm.permissions, [p.id]: 'hidden' },
+                                          });
+                                        }
+                                      }}
                                       className="text-brand disabled:opacity-40"
                                     />
                                   </td>
@@ -3348,32 +3380,53 @@ export function SettingsView({
                           <tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
                             <th className="text-left px-3 py-2">Module</th>
                             <th className="text-center px-2 py-2">Hidden</th>
-                            <th className="text-center px-2 py-2">View</th>
-                            <th className="text-center px-2 py-2">Print</th>
-                            <th className="text-center px-2 py-2">Full</th>
+                            <th className="text-center px-2 py-2" title="See and print — no create/edit/delete">
+                              Read
+                            </th>
+                            <th className="text-center px-2 py-2" title="Create, edit, delete, and print">
+                              Write
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {visiblePermissionModules(filledTabConfig).map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
                               <td className="px-3 py-1.5 text-sm">{p.label}</td>
-                              {ACCESS_LEVELS.map(level => {
+                              {PERMISSION_UI_LEVELS.map(({ id: level, label }) => {
                                 const disabled = settingsLevelDisabled(p.id, level, editUserForm.role);
+                                const selected = permissionUiSelected(editUserForm.permissions[p.id], level);
                                 return (
                                   <td key={level} className="text-center px-2 py-1.5">
                                     <input
-                                      id="settings-field-36"
                                       type="radio"
                                       name={`perm-edit-${p.id}`}
+                                      aria-label={`${p.label} ${label}`}
                                       disabled={disabled}
-                                      title={disabled ? 'Full Settings access requires the Admin role' : undefined}
-                                      checked={(editUserForm.permissions[p.id] || 'hidden') === level}
+                                      title={
+                                        disabled
+                                          ? 'Write access to Settings requires the Admin role'
+                                          : level === 'view'
+                                            ? 'Read: view and print only'
+                                            : level === 'full'
+                                              ? 'Write: create, edit, delete, print'
+                                              : 'Hidden: not in menu'
+                                      }
+                                      checked={selected}
                                       onChange={() =>
                                         setEditUserForm({
                                           ...editUserForm,
                                           permissions: { ...editUserForm.permissions, [p.id]: level },
                                         })
                                       }
+                                      onClick={() => {
+                                        if (disabled) return;
+                                        if (selected && level !== 'hidden') {
+                                          setEditUserForm({
+                                            ...editUserForm,
+                                            permissions: { ...editUserForm.permissions, [p.id]: 'hidden' },
+                                          });
+                                        }
+                                      }}
                                       className="text-brand disabled:opacity-40"
                                     />
                                   </td>
