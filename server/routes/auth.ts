@@ -13,6 +13,20 @@ import { fillMissingTabPresetKeys, isStaleHotelQuotationsOff } from '../../share
 
 const router = Router();
 
+/** Resolve display plan name from tenants.plan_id (+ status fallback). Not hardcoded in the UI. */
+async function resolveTenantPlanName(
+  planId: string | null | undefined,
+  tenantStatus: string | null | undefined,
+): Promise<string> {
+  const pid = planId || null;
+  if (!pid) return tenantStatus === 'trial' ? 'Trial' : 'Standard';
+  const planRow = (await pool.query('SELECT name FROM plans WHERE id = $1', [pid])).rows[0] as
+    { name: string } | undefined;
+  if (planRow?.name) return planRow.name;
+  if (pid === 'TRIAL' || tenantStatus === 'trial') return 'Trial';
+  return pid.charAt(0).toUpperCase() + pid.slice(1).toLowerCase();
+}
+
 // Signup removed — provisionTenant creates Admin on provisioning; all user
 // creation goes through POST /api/admin/users (admin) or /api/super-admin/tenants.
 router.post('/api/auth/signup', (_req, res) => res.status(410).json({ error: 'Signup disabled. Contact your admin.' }));
@@ -216,15 +230,7 @@ router.post('/api/auth/login', async (req, res) => {
       whatsappSendMode: (row.whatsapp_send_mode as string) || null,
       whatsappApiAllowed: !!row.whatsapp_api_allowed,
       whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,
-      planName: await (async () => {
-        const pid = row.plan_id as string | null;
-        if (!pid) return row.tenant_status === 'trial' ? 'Free Trial' : 'Standard';
-        const planRow = (await pool.query('SELECT name FROM plans WHERE id = $1', [pid])).rows[0] as
-          { name: string } | undefined;
-        if (planRow) return planRow.name;
-        if (pid === 'TRIAL' || (row.tenant_status as string) === 'trial') return 'Free Trial';
-        return pid.charAt(0).toUpperCase() + pid.slice(1).toLowerCase();
-      })(),
+      planName: await resolveTenantPlanName(row.plan_id as string | null, row.tenant_status as string | null),
       businessType: (row.business_type as string) || 'manufacturer',
       clientAccessMode: (row.client_access_mode as string) || null,
       mobileFeatures: normalizeMobileFeatures(
@@ -284,7 +290,8 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
                 u.whatsapp_api_allowed,
                 t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
                 t.tab_config, t.business_type, t.client_access_mode, t.mobile_features,
-                t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone
+                t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone,
+                t.plan_id, t.status AS tenant_status, t.trial_ends_at, t.subscription_ends_at
          FROM users u JOIN tenants t ON u.tenant_id = t.id
          WHERE u.id = $1 AND u.tenant_id = $2`,
         [userId, tenantId],
@@ -350,6 +357,10 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       whatsappSendMode: (row.whatsapp_send_mode as string) || null,
       whatsappApiAllowed: !!row.whatsapp_api_allowed,
       whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,
+      // Refresh plan badge after SA Change Plan (login session used to keep stale planName).
+      planName: await resolveTenantPlanName(row.plan_id as string | null, row.tenant_status as string | null),
+      trialEndsAt: row.trial_ends_at ?? null,
+      subscriptionEndsAt: row.subscription_ends_at ?? null,
       tabConfig: fillMissingTabPresetKeys(
         typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null),
         (row.business_type as string) || 'manufacturer',
