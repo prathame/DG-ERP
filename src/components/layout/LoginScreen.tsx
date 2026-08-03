@@ -172,7 +172,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
 
   return (
     <div
-      className="min-h-[100dvh] bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center px-4 py-8"
+      className="min-h-[100dvh] bg-gradient-to-br from-[#0f1113] via-[#141618] to-[#0f1113] flex items-center justify-center px-4 py-8"
       style={{
         paddingTop: 'max(2rem, var(--safe-top))',
         paddingBottom: 'max(2rem, var(--safe-bottom))',

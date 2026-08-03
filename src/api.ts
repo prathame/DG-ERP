@@ -1357,6 +1357,9 @@ export const api = {
         whatsappSendMode?: string | null;
         whatsappApiAllowed?: boolean;
         whatsappDisplayPhone?: string | null;
+        planName?: string;
+        trialEndsAt?: string | null;
+        subscriptionEndsAt?: string | null;
       }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
     changePassword: (userId: string, currentPassword: string, newPassword: string) =>
       fetchApi<{ ok: boolean }>('/settings/change-password', {

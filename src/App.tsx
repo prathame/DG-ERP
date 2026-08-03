@@ -1614,7 +1614,11 @@ export default function App() {
                       desktopGlass ? 'dg-primary' : 'text-amber-700',
                     )}
                   >
-                    {(userConfig?.planName as string) || 'Standard'} Plan
+                    {(() => {
+                      const raw = String(userConfig?.planName || 'Standard').trim();
+                      // plans.name is "Basic" / "Trial" — avoid "Basic Plan Plan"
+                      return /plan$/i.test(raw) ? raw : `${raw} Plan`;
+                    })()}
                   </span>
                 </div>
                 <NotificationCenter
