@@ -44,6 +44,7 @@ import { OnlineStatus } from './platforms/desktop/offline';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { loadLicense } from './platforms/service-mobile/licenseStore';
 import { getTabVisiblePref, TAB_VISIBLE_PREF_CHANGED_EVENT } from './lib/tabVisibilityPrefs';
+import { getChatbotPref, CHATBOT_PREF_CHANGED_EVENT } from './lib/chatbotPref';
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
@@ -616,6 +617,13 @@ export default function App() {
     const onPrefChange = () => setTabVisiblePrefTick(n => n + 1);
     window.addEventListener(TAB_VISIBLE_PREF_CHANGED_EVENT, onPrefChange);
     return () => window.removeEventListener(TAB_VISIBLE_PREF_CHANGED_EVENT, onPrefChange);
+  }, []);
+  // Bumped when Settings → Appearance chatbot toggle changes.
+  const [, setChatbotPrefTick] = useState(0);
+  useEffect(() => {
+    const onChatbotPref = () => setChatbotPrefTick(n => n + 1);
+    window.addEventListener(CHATBOT_PREF_CHANGED_EVENT, onChatbotPref);
+    return () => window.removeEventListener(CHATBOT_PREF_CHANGED_EVENT, onChatbotPref);
   }, []);
   const [user, setUser] = useState<{
     id: string;
@@ -1422,6 +1430,7 @@ export default function App() {
             >
               {!serviceMobile &&
                 tv('chatbot') &&
+                getChatbotPref() &&
                 // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
                 // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
                 (!companionFeatures || companionFeatures.chatbot) && (
