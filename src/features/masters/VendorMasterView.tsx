@@ -37,6 +37,7 @@ import {
 } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type PayModal = {
@@ -172,6 +173,40 @@ export function VendorMasterView({
     setCreatePrefill(null);
     setPayModal(null);
   };
+
+  // Cap/PWA back: pay/create/modals → client detail → clients list (before Masters hub).
+  useEscapeKey(() => {
+    if (payModal) {
+      setPayModal(null);
+      return true;
+    }
+    if (createOpen) {
+      setCreateOpen(false);
+      setCreatePrefill(null);
+      return true;
+    }
+    if (credsModal) {
+      setCredsModal(null);
+      return true;
+    }
+    if (deleteTarget) {
+      setDeleteTarget(null);
+      return true;
+    }
+    if (csvImportOpen) {
+      setCsvImportOpen(false);
+      return true;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return true;
+    }
+    if (selected) {
+      backFromDetail();
+      return true;
+    }
+    return false;
+  });
 
   const openNewInvoice = () => {
     if (!selected) return;

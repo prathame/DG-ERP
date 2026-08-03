@@ -7,6 +7,7 @@ import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type Staff = {
   id: string;
@@ -120,6 +121,32 @@ export function StaffMasterView({
     setPayments([]);
     setPayModalOpen(false);
   };
+
+  // Cap/PWA back: pay/modals → staff detail → staff list (or hub when deep-linked).
+  useEscapeKey(() => {
+    if (payModalOpen) {
+      setPayModalOpen(false);
+      return true;
+    }
+    if (deleteTarget) {
+      setDeleteTarget(null);
+      return true;
+    }
+    if (csvImportOpen) {
+      setCsvImportOpen(false);
+      return true;
+    }
+    if (addStaffOpen || editing) {
+      setAddStaffOpen(false);
+      setEditing(null);
+      return true;
+    }
+    if (selected) {
+      backFromDetail();
+      return true;
+    }
+    return false;
+  });
 
   const openPayModal = () => {
     if (!selected) return;
