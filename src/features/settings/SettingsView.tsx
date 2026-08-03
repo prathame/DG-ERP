@@ -47,6 +47,7 @@ import {
   type RestoreProgress,
 } from '../../platforms/service-mobile';
 import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
+import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
@@ -1076,6 +1077,8 @@ export function SettingsView({
   const toggleableNavTabs = useMemo(() => getToggleableNavTabs(filledTabConfig), [filledTabConfig]);
   // Bumped on every toggle click so the switches below re-read localStorage immediately.
   const [, setTabPrefsTick] = useState(0);
+  const [, setChatbotPrefsTick] = useState(0);
+  const chatbotSaEnabled = !serviceMobile && filledTabConfig.chatbot?.visible !== false;
   const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');
   /** Cap phone module sheet (incl. service) — null = hub */
   const [mobileSheet, setMobileSheet] = useState<DesktopSettingsTabId | null>(null);
@@ -2005,6 +2008,39 @@ export function SettingsView({
                       />
                     </button>
                   </div>
+                  {chatbotSaEnabled && (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm">{st('settings.chatbot')}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{st('settings.chatbotDesc')}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={getChatbotPref()}
+                        aria-label={st('settings.chatbot')}
+                        onClick={() => {
+                          const next = !getChatbotPref();
+                          setChatbotPref(next);
+                          setChatbotPrefsTick(n => n + 1);
+                          toast(next ? st('settings.chatbotShown') : st('settings.chatbotHidden'), 'success');
+                        }}
+                        className={cn(
+                          'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                          getChatbotPref() ? 'bg-brand' : 'bg-gray-300',
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                            getChatbotPref() ? 'translate-x-5' : 'translate-x-0',
+                          )}
+                          style={{ backgroundColor: '#FFFFFF' }}
+                        />
+                      </button>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <p className="font-semibold text-sm">{st('settings.language')}</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">

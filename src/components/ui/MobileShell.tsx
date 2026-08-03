@@ -62,13 +62,14 @@ export function MobileKpiCard({
   className?: string;
   onClick?: () => void;
 }): JSX.Element {
+  // Solid *-50 (not /80) so html.dark remaps apply — Cap Analytics was unreadable in dark mode.
   const accentBar: Record<string, string> = {
-    brand: 'border-l-brand bg-orange-50/80',
-    blue: 'border-l-blue-500 bg-blue-50/80',
-    green: 'border-l-emerald-500 bg-emerald-50/80',
-    rose: 'border-l-rose-500 bg-rose-50/80',
-    amber: 'border-l-amber-500 bg-amber-50/80',
-    indigo: 'border-l-indigo-500 bg-indigo-50/80',
+    brand: 'border-l-brand bg-orange-50',
+    blue: 'border-l-blue-500 bg-blue-50',
+    green: 'border-l-emerald-500 bg-emerald-50',
+    rose: 'border-l-rose-500 bg-rose-50',
+    amber: 'border-l-amber-500 bg-amber-50',
+    indigo: 'border-l-indigo-500 bg-indigo-50',
     gray: 'border-l-gray-400 bg-gray-50',
   };
   const body = (
