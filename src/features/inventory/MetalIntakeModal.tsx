@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Scale, X, Printer } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Scale, X, Printer, Unplug, Plug } from 'lucide-react';
 import { api } from '../../api';
 import type { Product } from '../../types';
 import { useToast } from '../../components/ui';
-import { isWebSerialSupported, parseScaleText, readWeightFromSerial } from '../../lib/scaleBridge';
+import { isWebSerialSupported, parseScaleText, ScaleSession, type ScaleConnectionState } from '../../lib/scaleBridge';
 import { computeFineWeight, computeMakingAmount, computeMetalSalePrice } from '../../../shared/metal';
 import { cn } from '../../lib/utils';
 
@@ -37,12 +37,22 @@ export function MetalIntakeModal({
   const [barcodePrefix, setBarcodePrefix] = useState('AG');
   const [wedgeBuffer, setWedgeBuffer] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [readingScale, setReadingScale] = useState(false);
+  const scaleRef = useRef(new ScaleSession());
+  const [scaleState, setScaleState] = useState<ScaleConnectionState>(() => scaleRef.current.getState());
 
   useEffect(() => {
     const p = products.find(x => x.id === productId);
     if (p && !metalRate) setMetalRate(String(p.price ?? ''));
   }, [productId, products]);
+
+  useEffect(() => {
+    const session = scaleRef.current;
+    const unsub = session.subscribe(setScaleState);
+    return () => {
+      unsub();
+      void session.disconnect();
+    };
+  }, []);
 
   const net = parseFloat(netWeight || grossWeight) || 0;
   const pur = parseFloat(purity) || 0;
@@ -51,6 +61,10 @@ export function MetalIntakeModal({
   const makingAmt = computeMakingAmount(net, mRate);
   const rate = parseFloat(metalRate) || 0;
   const suggested = computeMetalSalePrice(net, rate, makingAmt);
+  const serialOk = isWebSerialSupported();
+  const scaleBusy = scaleState.status === 'connecting' || scaleState.status === 'reading';
+  const scaleLinked =
+    scaleState.status === 'connected' || scaleState.status === 'reading' || scaleState.status === 'error';
 
   const applyWeight = (grams: number, source: string) => {
     const v = String(grams);
@@ -59,17 +73,43 @@ export function MetalIntakeModal({
     toast(`Weight from ${source}: ${grams} g`, 'success');
   };
 
-  const handleReadScale = async () => {
-    setReadingScale(true);
+  const handleConnectScale = async () => {
     try {
-      const reading = await readWeightFromSerial();
+      await scaleRef.current.connect();
+      toast('Scale connected', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Scale connect failed', 'error');
+    }
+  };
+
+  const handleDisconnectScale = async () => {
+    await scaleRef.current.disconnect();
+    toast('Scale disconnected', 'info');
+  };
+
+  const handleReadScale = async () => {
+    try {
+      const reading = await scaleRef.current.readWeight();
       applyWeight(reading.weight, 'scale');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Scale read failed', 'error');
-    } finally {
-      setReadingScale(false);
     }
   };
+
+  const scaleStatusLabel = (() => {
+    switch (scaleState.status) {
+      case 'connecting':
+        return 'Connecting…';
+      case 'connected':
+        return scaleState.lastWeightG != null ? `Connected · last ${scaleState.lastWeightG} g` : 'Connected';
+      case 'reading':
+        return 'Reading…';
+      case 'error':
+        return scaleState.message || 'Connection issue';
+      default:
+        return serialOk ? 'Not connected' : 'Scale unavailable';
+    }
+  })();
 
   const handleWedgeApply = () => {
     const parsed = parseScaleText(wedgeBuffer);
@@ -173,23 +213,74 @@ export function MetalIntakeModal({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={!isWebSerialSupported() || readingScale}
-              onClick={handleReadScale}
-              className={cn(
-                'inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border',
-                isWebSerialSupported()
-                  ? 'border-brand text-brand hover:bg-orange-50'
-                  : 'border-gray-200 text-gray-400 cursor-not-allowed',
+          <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2.5 space-y-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className={cn(
+                  'inline-block h-2.5 w-2.5 shrink-0 rounded-full',
+                  scaleState.status === 'connected' && 'bg-emerald-500',
+                  scaleState.status === 'reading' && 'bg-amber-400 animate-pulse',
+                  scaleState.status === 'connecting' && 'bg-amber-400 animate-pulse',
+                  scaleState.status === 'error' && 'bg-rose-500',
+                  scaleState.status === 'disconnected' && 'bg-gray-300',
+                )}
+                aria-hidden
+              />
+              <p
+                className={cn(
+                  'text-xs font-semibold truncate',
+                  scaleState.status === 'error' ? 'text-rose-700' : 'text-gray-700',
+                )}
+                title={scaleState.message || scaleStatusLabel}
+              >
+                Scale: {scaleStatusLabel}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {!scaleLinked ? (
+                <button
+                  type="button"
+                  disabled={!serialOk || scaleBusy}
+                  onClick={handleConnectScale}
+                  className={cn(
+                    'inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border',
+                    serialOk
+                      ? 'border-brand text-brand hover:bg-orange-50'
+                      : 'border-gray-200 text-gray-400 cursor-not-allowed',
+                  )}
+                >
+                  <Plug size={16} />
+                  Connect scale
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={scaleBusy}
+                  onClick={handleDisconnectScale}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border border-gray-300 text-gray-700 hover:bg-white"
+                >
+                  <Unplug size={16} />
+                  Disconnect
+                </button>
               )}
-            >
-              <Scale size={16} />
-              {readingScale ? 'Reading…' : 'Read from scale'}
-            </button>
-            {!isWebSerialSupported() && (
-              <span className="text-[11px] text-gray-400 self-center">Web Serial needs Chrome/Edge on HTTPS</span>
+              <button
+                type="button"
+                disabled={!serialOk || scaleBusy}
+                onClick={handleReadScale}
+                className={cn(
+                  'inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border',
+                  serialOk
+                    ? 'border-brand bg-brand text-white hover:bg-brand-dark'
+                    : 'border-gray-200 text-gray-400 cursor-not-allowed',
+                )}
+              >
+                <Scale size={16} />
+                {scaleState.status === 'reading' ? 'Reading…' : 'Read weight'}
+              </button>
+            </div>
+            {!serialOk && <p className="text-[11px] text-gray-400">Web Serial needs Chrome/Edge on HTTPS (desktop).</p>}
+            {scaleState.status === 'error' && scaleState.message && (
+              <p className="text-[11px] text-rose-600">{scaleState.message}</p>
             )}
           </div>
 
