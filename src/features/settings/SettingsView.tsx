@@ -48,6 +48,7 @@ import {
 } from '../../platforms/service-mobile';
 import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
 import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
@@ -1085,6 +1086,15 @@ export function SettingsView({
   useEffect(() => {
     if (!user) setMobileSheet(null);
   }, [user]);
+  // Cap/PWA: hardware back from Account Settings (etc.) → Settings hub, not app exit.
+  useEscapeKey(
+    () => {
+      if (!mobileSheet) return false;
+      setMobileSheet(null);
+      return true;
+    },
+    !!(mobileApp && !settingsGlass() && mobileSheet),
+  );
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
   const [authError, setAuthError] = useState('');

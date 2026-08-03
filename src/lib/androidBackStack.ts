@@ -7,8 +7,14 @@ export type AndroidBackHandler = () => boolean;
 
 const handlers: AndroidBackHandler[] = [];
 
-export function pushAndroidBackHandler(handler: AndroidBackHandler): () => void {
-  handlers.push(handler);
+/**
+ * Register a back handler. Newest runs first (LIFO).
+ * Pass `asRoot: true` for app-level fallbacks (e.g. tab → Analytics) so nested
+ * sheets/details always win — root handlers stay at the bottom of the stack.
+ */
+export function pushAndroidBackHandler(handler: AndroidBackHandler, opts?: { asRoot?: boolean }): () => void {
+  if (opts?.asRoot) handlers.unshift(handler);
+  else handlers.push(handler);
   return () => {
     const i = handlers.lastIndexOf(handler);
     if (i >= 0) handlers.splice(i, 1);

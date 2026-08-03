@@ -37,6 +37,7 @@ import {
   whatsAppInvoiceShareToast,
 } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
@@ -75,6 +76,25 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   });
   const [submitting, setSubmitting] = useState(false);
   const offlineAdvance = isServiceMobileMode();
+
+  // Cap/PWA back: pay/create → client detail → finance list.
+  useEscapeKey(() => {
+    if (payModal) {
+      setPayModal(null);
+      return true;
+    }
+    if (createOpen) {
+      setCreateOpen(false);
+      setCreatePrefill(null);
+      return true;
+    }
+    if (selected) {
+      setSelected(null);
+      setDetail(null);
+      return true;
+    }
+    return false;
+  });
 
   const loadSummary = () => {
     setLoading(true);

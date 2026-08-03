@@ -596,7 +596,8 @@ html.dg-mobile-dense aside nav button {
   animation: dg-toast-in 0.2s ease-out;
 }
 .dg-toast-progress {
-  animation: dg-toast-progress 4s linear forwards;
+  /* Keep in sync with TOAST_DURATION in Toast.tsx */
+  animation: dg-toast-progress 2s linear forwards;
 }
 .dg-menu-enter {
   animation: dg-menu-in 0.15s ease-out;

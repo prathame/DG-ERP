@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -72,6 +72,7 @@ import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
 import { isDesktopGlassUi } from './lib/desktopGlass';
 import { applyDesktopFontPrefs } from './lib/desktopFontPrefs';
 import { useEscapeKey } from './lib/useEscapeKey';
+import { consumeAndroidBack } from './lib/androidBackStack';
 import { normalizeCompanySlug, validateCompanySlug, getLastCompanySlug, clearLastCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
 import { getApiOrigin, getPublicAppHostPrefix } from './platforms/shared';
@@ -559,6 +560,8 @@ export default function App() {
   }, [serviceMobile]);
 
   const [activeTab, setActiveTabRaw] = useState<Tab>('analytics');
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
   const [tabKey, setTabKey] = useState(0);
   /** Deep-link payload for Masters when picking a global search hit. */
   const [mastersLaunch, setMastersLaunch] = useState<{
@@ -679,6 +682,12 @@ export default function App() {
 
   useEffect(() => {
     const onPopState = (e: PopStateEvent) => {
+      // PWA/browser back: close nested sheet/detail first (same LIFO stack as Cap hardware back).
+      if (consumeAndroidBack()) {
+        const path = window.location.pathname;
+        window.history.pushState({ tab: activeTabRef.current }, '', path);
+        return;
+      }
       if (e.state?.tab) {
         setActiveTabRaw(e.state.tab);
       } else {
@@ -729,6 +738,19 @@ export default function App() {
     setIsSidebarOpen(false);
     return true;
   }, isSidebarOpen);
+
+  // Cap/PWA: at a tab root (no nested UI), first back goes home to Analytics; only Analytics exits.
+  // asRoot so nested Settings/Masters/Invoice handlers always run first.
+  useEscapeKey(
+    () => {
+      if (!(isMobileAppShell() || isPwaStandalone())) return false;
+      if (!user || activeTabRef.current === 'analytics') return false;
+      setActiveTab('analytics');
+      return true;
+    },
+    !!(user && (isMobileAppShell() || isPwaStandalone())),
+    true,
+  );
 
   const handleLogout = () => {
     stopSessionHeartbeat();

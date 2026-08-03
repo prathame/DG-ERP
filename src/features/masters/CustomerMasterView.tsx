@@ -9,6 +9,7 @@ import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 export function CustomerMasterView({
   onBack,
@@ -38,6 +39,22 @@ export function CustomerMasterView({
   } | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', vendorId: '' as string | '' });
   const [submitting, setSubmitting] = useState(false);
+
+  useEscapeKey(() => {
+    if (purchasesModal) {
+      setPurchasesModal(null);
+      return true;
+    }
+    if (deleteTarget) {
+      setDeleteTarget(null);
+      return true;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return true;
+    }
+    return false;
+  });
 
   useEffect(() => {
     api.vendors

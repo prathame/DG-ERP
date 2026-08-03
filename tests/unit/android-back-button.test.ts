@@ -39,6 +39,23 @@ describe('androidBackStack', () => {
     expect(__androidBackHandlerCountForTests()).toBe(0);
     expect(consumeAndroidBack()).toBe(false);
   });
+
+  it('asRoot stays under nested handlers', () => {
+    const order: string[] = [];
+    pushAndroidBackHandler(
+      () => {
+        order.push('root');
+        return true;
+      },
+      { asRoot: true },
+    );
+    pushAndroidBackHandler(() => {
+      order.push('nested');
+      return true;
+    });
+    expect(consumeAndroidBack()).toBe(true);
+    expect(order).toEqual(['nested']);
+  });
 });
 
 describe('shouldExitOnRootBack', () => {

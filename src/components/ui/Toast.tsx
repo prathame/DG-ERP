@@ -6,7 +6,8 @@ import { initAndroidBackButton } from '../../lib/androidBackButton';
 type ToastType = 'success' | 'error' | 'info';
 type Toast = { id: number; message: string; type: ToastType };
 
-const TOAST_DURATION = 4000;
+/** Keep in sync with `.dg-toast-progress` animation in index.css */
+const TOAST_DURATION = 2000;
 
 export const ToastContext = createContext<{ toast: (message: string, type?: ToastType) => void }>({ toast: () => {} });
 export const useToast = () => useContext(ToastContext);
