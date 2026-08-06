@@ -3,5 +3,7 @@
  */
 import { app } from 'electron';
 import { bootOffline } from './boot';
+import { applyWindowsElectronFontClarity } from '../shared/windowsFontClarity';
 
+applyWindowsElectronFontClarity();
 app.whenReady().then(() => bootOffline());

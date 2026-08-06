@@ -3,5 +3,7 @@
  */
 import { app } from 'electron';
 import { bootOnline } from './boot';
+import { applyWindowsElectronFontClarity } from '../shared/windowsFontClarity';
 
+applyWindowsElectronFontClarity();
 app.whenReady().then(() => bootOnline());

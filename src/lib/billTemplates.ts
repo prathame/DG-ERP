@@ -24,12 +24,13 @@ function billDocCss(color: string): string {
   return `
   *{margin:0;padding:0;box-sizing:border-box;}
   html,body{width:100%;background:#fff;color:#111;}
-  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:8mm;margin:0;font-size:11px;}
+  /* Arial + no faux-bold: Windows print often fattens thin stems (I) at weight 800/900 */
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:8mm;margin:0;font-size:11px;-webkit-font-smoothing:auto;text-rendering:geometricPrecision;font-synthesis:none;}
   table{border-collapse:collapse;width:100%;}
   .outer{border:1px solid #222;width:100%;}
   .outer td,.outer th{border:1px solid #222;padding:4px 8px;font-size:11px;}
-  .doc-title{text-align:center;font-size:18px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;margin:0 0 10px;color:#111;}
-  .title-box td{text-align:center;font-size:16px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;padding:6px 8px;border:1px solid #222;}
+  .doc-title{text-align:center;font-size:18px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;margin:0 0 10px;color:#111;}
+  .title-box td{text-align:center;font-size:16px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;padding:6px 8px;border:1px solid #222;}
   .hdr td{border:none;padding:8px 12px;vertical-align:top;}
   .hdr{border-bottom:1px solid #222;}
   .tagline{border:1px solid ${color};color:${color};background:transparent;text-align:center;padding:4px;font-size:11px;font-weight:600;}
@@ -48,13 +49,13 @@ function billDocCss(color: string): string {
   .items .total-row,.items .total-row td{font-weight:700;background:transparent!important;border-top:1px solid #222;}
   .items .fill-row td{height:200px;border-left:1px solid #222;border-right:1px solid #222;border-top:none;border-bottom:none;padding:0;}
   .summary-label{font-weight:700;color:#555;}
-  .grand-total{font-size:14px;font-weight:800;color:#111;}
+  .grand-total{font-size:14px;font-weight:700;color:#111;}
   .bank-section td{padding:3px 8px;font-size:11px;border:none;}
   .bank-label{font-weight:600;color:#555;width:90px;}
   .footer-text{font-size:9px;color:#666;text-align:center;margin-top:8px;}
   .reward-badge{display:inline-block;margin:8px auto;padding:6px 16px;background:transparent;border:1px solid #666;border-radius:4px;font-size:12px;font-weight:600;color:#333;}
   .repeat-banner th{background:transparent!important;border-bottom:1px solid #222;text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
-  .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:2px solid #222;color:#111;background:transparent;border-radius:4px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;transform:rotate(-12deg);}
+  .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:2px solid #222;color:#111;background:transparent;border-radius:4px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;transform:rotate(-12deg);}
   @media print{body{padding:0;} @page{margin:8mm;size:A4;} thead{display:table-header-group;} .no-print{display:none;}
     *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}}
 `;

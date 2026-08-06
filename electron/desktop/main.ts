@@ -10,6 +10,10 @@ import { bootOnline } from '../cloud/boot';
 import { bootOffline } from '../onprem/boot';
 import { resolveDesktopMode, setDesktopModeOnce, type DesktopMode } from './mode-store';
 import { migrateLegacyOnPremUserData } from './migrate-onprem-userdata';
+import { applyWindowsElectronFontClarity } from '../shared/windowsFontClarity';
+
+// Must run before app.whenReady() — Windows ClearType / DPI text sharpness.
+applyWindowsElectronFontClarity();
 
 let pickerWin: BrowserWindow | null = null;
 let booting = false;

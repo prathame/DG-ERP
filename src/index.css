@@ -213,6 +213,48 @@ select:focus-visible {
   outline: none;
 }
 
+/*
+ * Windows Electron font clarity (html.dg-win32 set in App.tsx).
+ * Mac uses Core Text; Win + backdrop-filter + fractional DPI often softens UI text
+ * and makes thin stems (I, l, 1) look unevenly bold.
+ */
+html.dg-win32 {
+  -webkit-font-smoothing: auto;
+  text-rendering: geometricPrecision;
+  font-synthesis: none;
+}
+html.dg-win32 .dg-desktop-glass {
+  /* Opaque cards — skip translucent glass that forces blur compositing */
+  --dg-card: #ffffff;
+  --dg-card-hover: #f3f4f6;
+  --dg-header: #f7f9fb;
+  --dg-sidebar: #ffffff;
+  --dg-input: #eceef0;
+}
+html.dark.dg-win32 .dg-desktop-glass {
+  --dg-card: #1a1c1e;
+  --dg-card-hover: #222528;
+  --dg-header: #0f1113;
+  --dg-sidebar: #141618;
+  --dg-input: #25282c;
+}
+html.dg-win32 .dg-desktop-glass .dg-glass-card,
+html.dg-win32 .dg-desktop-glass aside.dg-glass-sidebar,
+html.dg-win32 .dg-desktop-glass header.dg-glass-header,
+html.dg-win32 .dg-desktop-glass .dg-glass-header {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Prefer Segoe UI metrics on Windows when System font is chosen (already); default Geist → Inter */
+html.dg-win32.dg-desktop-glass,
+html.dg-win32 .dg-desktop-glass {
+  --dg-font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+html.dg-win32[data-dg-font="geist"] .dg-desktop-glass,
+html.dg-win32[data-dg-font="geist"] .dg-glass-scope {
+  --dg-font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
