@@ -403,7 +403,7 @@ export function generateSalesInvoiceHtml(
       ${showGst ? `<td>${gstRate}.00</td><td class="right">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>` : ''}
       <td class="right" style="font-weight:700;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
     </tr>
-    <tr class="total-row"><td></td>${showBarcode ? '<td></td>' : ''}<td class="right"><strong>Total</strong></td>${showHsnCol ? '<td></td>' : ''}<td><strong>1</strong></td><td></td><td class="right"><strong>${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}<td class="right" style="font-weight:900;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+    <tr class="total-row"><td></td>${showBarcode ? '<td></td>' : ''}<td class="right"><strong>Total</strong></td>${showHsnCol ? '<td></td>' : ''}<td><strong>1</strong></td><td></td><td class="right"><strong>${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}<td class="right" style="font-weight:700;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
   </tbody>
 </table>
 <div class="print-end avoid-break">
@@ -1042,7 +1042,7 @@ ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
     <td></td>
     <td class="right"><strong>${netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
     ${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}
-    <td class="right" style="font-weight:900;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+    <td class="right" style="font-weight:700;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
   </tr>
   </tbody>
 </table>
