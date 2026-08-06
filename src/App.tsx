@@ -466,6 +466,15 @@ if (typeof window !== 'undefined') {
   const savedTheme = localStorage.getItem('dhandho_theme');
   if (savedTheme === 'dark') document.documentElement.classList.add('dark');
   applyDesktopFontPrefs();
+  // Windows Electron: sharper glyphs + solid glass (backdrop-filter blurs text on Win).
+  try {
+    const ea = (window as unknown as { electronAPI?: { isElectron?: boolean; platform?: string } }).electronAPI;
+    if (ea?.isElectron && ea.platform === 'win32') {
+      document.documentElement.classList.add('dg-win32');
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export default function App() {
