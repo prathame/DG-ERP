@@ -79,7 +79,7 @@
     "helmet": "^8.2.0",
     "html2pdf.js": "^0.14.0",
     "html5-qrcode": "^2.3.8",
-    "jose": "^6.2.3",
+    "jose": "^6.2.8",
     "jsbarcode": "^3.12.3",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
