@@ -3,7 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
-  __resetDesktopModeForTests,
+  clearDesktopMode,
   readDesktopMode,
   resolveDesktopMode,
   setDesktopModeOnce,
@@ -17,7 +17,7 @@ describe('desktop mode-store', () => {
   });
 
   afterEach(() => {
-    __resetDesktopModeForTests(dir);
+    clearDesktopMode(dir);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
@@ -31,13 +31,16 @@ describe('desktop mode-store', () => {
     expect(setDesktopModeOnce(dir, 'online')).toEqual({ ok: true, mode: 'online' });
   });
 
-  it('rejects flip after latch', () => {
+  it('rejects flip after latch until cleared', () => {
     setDesktopModeOnce(dir, 'online');
     const r = setDesktopModeOnce(dir, 'offline');
     expect(r.ok).toBe(false);
     expect(r.mode).toBe('online');
-    expect(r.reason).toMatch(/reinstall/i);
+    expect(r.reason).toMatch(/Change mode/i);
     expect(readDesktopMode(dir)).toBe('online');
+    clearDesktopMode(dir);
+    expect(readDesktopMode(dir)).toBeNull();
+    expect(setDesktopModeOnce(dir, 'offline')).toEqual({ ok: true, mode: 'offline' });
   });
 
   it('resolve upgrades from offline license when unset', () => {

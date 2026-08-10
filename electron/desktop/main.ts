@@ -9,8 +9,12 @@ import { loadLicense } from '../onprem/license-store';
 import { bootOnline } from '../cloud/boot';
 import { bootOffline } from '../onprem/boot';
 import { resolveDesktopMode, setDesktopModeOnce, type DesktopMode } from './mode-store';
-import { migrateLegacyOnPremUserData } from './migrate-onprem-userdata';
+import { migrateLegacyOnPremUserData, migrateLegacySplendorErpUserData } from './migrate-onprem-userdata';
+import { registerResetDesktopModeIpc } from './reset-mode-ipc';
 import { applyWindowsElectronFontClarity } from '../shared/windowsFontClarity';
+
+// Stable userData folder (~/Library/Application Support/Dhandho) — not package.json "name".
+app.setName('Dhandho');
 
 // Must run before app.whenReady() — Windows ClearType / DPI text sharpness.
 applyWindowsElectronFontClarity();
@@ -84,11 +88,18 @@ async function startWithMode(mode: DesktopMode): Promise<void> {
 
 app.whenReady().then(async () => {
   const userData = app.getPath('userData');
+  // Legacy package name folder → Dhandho (mode latch + Offline DB).
+  const migPkg = migrateLegacySplendorErpUserData(userData);
+  if (migPkg.migrated) {
+    console.log(`[desktop] migrated userData from ${migPkg.from}`);
+  }
   // Legacy On-Prem installs used productName "Dhandho On-Prem" (different userData).
   const mig = migrateLegacyOnPremUserData(userData);
   if (mig.migrated) {
     console.log(`[desktop] migrated Offline data from ${mig.from}`);
   }
+
+  registerResetDesktopModeIpc();
 
   let mode = resolveDesktopMode(userData, Boolean(loadLicense()));
 

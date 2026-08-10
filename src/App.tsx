@@ -41,6 +41,7 @@ import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
 import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
+import { canChangeDesktopMode, requestChangeDesktopMode } from './platforms/desktop/changeDesktopMode';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { loadLicense } from './platforms/service-mobile/licenseStore';
 import { getTabVisiblePref, TAB_VISIBLE_PREF_CHANGED_EVENT } from './lib/tabVisibilityPrefs';
@@ -350,6 +351,17 @@ function CompanySlugEntry() {
           </button>
         </form>
         {!checking && <CapSlugOnboardingShare lastError={slugError || undefined} note="Company slug entry" />}
+        {canChangeDesktopMode() && (
+          <button
+            type="button"
+            onClick={() => {
+              void requestChangeDesktopMode();
+            }}
+            className="w-full mt-3 py-2.5 text-xs text-white/45 hover:text-white/80 border border-white/10 rounded-xl transition-colors"
+          >
+            Use Offline instead…
+          </button>
+        )}
       </div>
     </div>
   );

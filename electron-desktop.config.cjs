@@ -21,6 +21,7 @@ module.exports = {
   extraMetadata: {
     main: 'electron/desktop/main.js',
     type: 'commonjs',
+    productName: 'Dhandho',
   },
   asarUnpack: [
     'node_modules/embedded-postgres/**',

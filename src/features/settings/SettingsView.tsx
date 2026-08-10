@@ -41,6 +41,11 @@ import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionF
 import { isNativeCapacitor, saveDhandhoFile } from '../../lib/dhandhoFiles';
 import { isMobileAppShell, offersBugReportShare } from '../../lib/mobileAppShell';
 import {
+  canChangeDesktopMode,
+  desktopModeLabel,
+  requestChangeDesktopMode,
+} from '../../platforms/desktop/changeDesktopMode';
+import {
   exportLocalBackupNow,
   restoreFromLocalBackupFile,
   restoreProgress,
@@ -78,6 +83,7 @@ const mobileApp = isMobileAppShell();
 const servicePhoneSettingsUx = isServicePhoneUx(getBusinessConfig().type);
 const serviceProductSettingsUx = isServiceProductUx(getBusinessConfig().type);
 const showBugReport = offersBugReportShare();
+const showDesktopModeSwitch = canChangeDesktopMode();
 
 /** Soft-deleted (anonymized) rows — hide from Settings Users even if API lags. */
 function isSoftDeletedUser(u: { email?: string | null; name?: string | null }): boolean {
@@ -2472,7 +2478,7 @@ export function SettingsView({
                 </div>
               </div>
 
-              {showBugReport && (
+              {(showBugReport || showDesktopModeSwitch) && (
                 <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
                   <div className={settingsPanelHead('', true)}>
                     <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
@@ -2481,26 +2487,47 @@ export function SettingsView({
                     </h3>
                   </div>
                   <div className="p-4 sm:p-6 space-y-3">
-                    <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-                      Share a bug report with support. Includes app version, device info, and recent errors — not your
-                      password
-                      {serviceMobile ? ' or full license key' : ''}.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const how = await shareBugReport();
-                          toast(bugReportFeedbackMessage(how), 'success');
-                        } catch (e) {
-                          toast((e as Error).message || 'Could not create bug report', 'error');
-                        }
-                      }}
-                      className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-800"
-                    >
-                      <Bug size={15} className="shrink-0" />
-                      Share bug report
-                    </button>
+                    {showBugReport && (
+                      <>
+                        <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+                          Share a bug report with support. Includes app version, device info, and recent errors — not
+                          your password
+                          {serviceMobile ? ' or full license key' : ''}.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const how = await shareBugReport();
+                              toast(bugReportFeedbackMessage(how), 'success');
+                            } catch (e) {
+                              toast((e as Error).message || 'Could not create bug report', 'error');
+                            }
+                          }}
+                          className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-800"
+                        >
+                          <Bug size={15} className="shrink-0" />
+                          Share bug report
+                        </button>
+                      </>
+                    )}
+                    {showDesktopModeSwitch && (
+                      <div className={cn(showBugReport && 'pt-2 border-t border-gray-100')}>
+                        <p className="text-xs sm:text-sm text-gray-500 leading-relaxed mb-3">
+                          This computer is set to <strong className="text-gray-700">{desktopModeLabel()}</strong>.
+                          Change to Online (cloud) or Offline (on this computer) — the app restarts and asks again.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void requestChangeDesktopMode();
+                          }}
+                          className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold border border-gray-200 text-gray-800 hover:bg-gray-50"
+                        >
+                          Change Online / Offline mode…
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

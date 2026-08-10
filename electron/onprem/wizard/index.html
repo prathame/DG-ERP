@@ -59,6 +59,11 @@
     }
     button:hover { background: #e06b15; }
     button:disabled { background: #d1d5db; cursor: not-allowed; }
+    button.linkish {
+      background: transparent; color: #6b7280; font-weight: 600; font-size: 13px;
+      margin-top: 12px; padding: 10px; border: 1px solid #e5e7eb;
+    }
+    button.linkish:hover { background: #f9fafb; color: #1a1a1a; }
     .error {
       background: #fef2f2; border: 1px solid #fecaca;
       color: #dc2626; border-radius: 8px;
@@ -100,6 +105,7 @@
       <input id="licenseKey" class="key" placeholder="DG-XXXXXXXX-XXXXXXXX-XXXXXXXX" maxlength="29" autocomplete="off" />
       <p class="hint">You received this key from Dhandho</p>
       <button id="activateBtn" onclick="activate()">Activate License</button>
+      <button type="button" class="linkish" onclick="useOnlineInstead()">Use Online (cloud) instead…</button>
     </div>
 
     <!-- Step 2: Set Admin Password -->
@@ -150,6 +156,19 @@
       if (v.length > 18) parts.push(v.slice(18, 26));
       this.value = parts.join('-');
     });
+
+    async function useOnlineInstead() {
+      if (!window.electronAPI?.resetDesktopMode) return;
+      const ok = window.confirm(
+        'Switch to Online / Offline picker?\n\nThe app will restart. Offline setup on this computer is kept if you choose Offline again later.'
+      );
+      if (!ok) return;
+      try {
+        await window.electronAPI.resetDesktopMode();
+      } catch (e) {
+        showError('error1', 'Could not switch mode. Quit and reopen the app, or contact support.');
+      }
+    }
 
     async function activate() {
       hideError('error1');

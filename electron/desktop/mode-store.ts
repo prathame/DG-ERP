@@ -34,7 +34,7 @@ export function setDesktopModeOnce(
   const existing = readDesktopMode(userDataDir);
   if (existing != null) {
     if (existing === mode) return { ok: true, mode: existing };
-    return { ok: false, mode: existing, reason: 'Desktop mode already set; reinstall to change' };
+    return { ok: false, mode: existing, reason: 'Desktop mode already set; use Change mode in the app' };
   }
   fs.mkdirSync(userDataDir, { recursive: true });
   fs.writeFileSync(desktopModePath(userDataDir), JSON.stringify({ mode }), {
@@ -42,6 +42,15 @@ export function setDesktopModeOnce(
     mode: 0o600,
   });
   return { ok: true, mode };
+}
+
+/** Clear the Online/Offline latch so the next launch shows the picker. */
+export function clearDesktopMode(userDataDir: string): void {
+  try {
+    fs.unlinkSync(desktopModePath(userDataDir));
+  } catch {
+    /* missing */
+  }
 }
 
 /**
@@ -57,11 +66,7 @@ export function resolveDesktopMode(userDataDir: string, hasOfflineLicense: boole
   return null;
 }
 
-/** Test helper */
+/** @deprecated use clearDesktopMode */
 export function __resetDesktopModeForTests(userDataDir: string): void {
-  try {
-    fs.unlinkSync(desktopModePath(userDataDir));
-  } catch {
-    /* ignore */
-  }
+  clearDesktopMode(userDataDir);
 }

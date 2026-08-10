@@ -16,4 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   sharePdfWhatsApp: (payload: { base64: string; filename: string; phone?: string; message?: string }) =>
     ipcRenderer.invoke('share-pdf-whatsapp', payload),
+  /** Clear Online/Offline latch and relaunch into the mode picker. */
+  resetDesktopMode: () => ipcRenderer.invoke('reset-desktop-mode'),
 });

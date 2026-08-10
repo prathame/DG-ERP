@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { hasOfflineLicense, migrateLegacyOnPremUserData } from '../../electron/desktop/migrate-onprem-userdata';
+import {
+  hasOfflineLicense,
+  migrateLegacyOnPremUserData,
+  migrateLegacySplendorErpUserData,
+} from '../../electron/desktop/migrate-onprem-userdata';
 
 describe('migrateLegacyOnPremUserData', () => {
   let root: string;
@@ -51,5 +55,45 @@ describe('migrateLegacyOnPremUserData', () => {
     const r = migrateLegacyOnPremUserData(current);
     expect(r.migrated).toBe(false);
     expect(fs.readFileSync(path.join(current, 'license.dat'), 'utf8')).toBe('current');
+  });
+});
+
+describe('migrateLegacySplendorErpUserData', () => {
+  let root: string;
+  let current: string;
+  let legacy: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'dg-migrate-splendor-'));
+    current = path.join(root, 'Dhandho');
+    legacy = path.join(root, 'splendor-erp');
+    fs.mkdirSync(current, { recursive: true });
+    fs.mkdirSync(legacy, { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('copies desktop-mode and offline files from splendor-erp', () => {
+    fs.writeFileSync(path.join(legacy, 'desktop-mode.json'), JSON.stringify({ mode: 'offline' }));
+    fs.writeFileSync(path.join(legacy, 'license.dat'), 'enc');
+    fs.mkdirSync(path.join(legacy, 'postgres-data'));
+    fs.writeFileSync(path.join(legacy, 'postgres-data', 'PG_VERSION'), '16');
+
+    const r = migrateLegacySplendorErpUserData(current);
+    expect(r.migrated).toBe(true);
+    expect(r.from).toBe(legacy);
+    expect(fs.readFileSync(path.join(current, 'desktop-mode.json'), 'utf8')).toContain('offline');
+    expect(hasOfflineLicense(current)).toBe(true);
+    expect(migrateLegacySplendorErpUserData(current).reason).toBe('already-migrated');
+  });
+
+  it('no-ops when legacy folder missing', () => {
+    fs.rmSync(legacy, { recursive: true, force: true });
+    expect(migrateLegacySplendorErpUserData(current)).toEqual({
+      migrated: false,
+      reason: 'no-legacy-dir',
+    });
   });
 });
