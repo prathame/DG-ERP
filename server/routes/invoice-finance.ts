@@ -27,11 +27,91 @@ export function parsePartyKey(raw: string): {
   return { partyType: null, partyId: null, clientName: name, partyKey: `name:${name}` };
 }
 
+export type InvoiceFinancePaymentRow = {
+  id: string;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  amount: number;
+  paymentDate: unknown;
+  paymentMethod: string;
+  referenceNumber?: string | null;
+  notes?: string | null;
+  isAdvance?: boolean;
+};
+
+/**
+ * Service-only: Miracle unallocated cash lives in vendor_payments (clients are vendors).
+ * Dealer/manufacturer use vendor_payments for distribution — do not merge there.
+ */
+export function mergeServiceVendorAdvances(input: {
+  businessType: string | null | undefined;
+  partyType: string | null;
+  totalInvoiced: number;
+  invoicePaid: number;
+  invoicePayments: InvoiceFinancePaymentRow[];
+  vendorPayments: {
+    id: string;
+    amount: unknown;
+    payment_date: unknown;
+    payment_method?: string | null;
+    reference_number?: string | null;
+    notes?: string | null;
+  }[];
+}): {
+  totalPaid: number;
+  advanceBalance: number;
+  balance: number;
+  payments: InvoiceFinancePaymentRow[];
+} {
+  const isServiceVendor = input.businessType === 'service' && input.partyType === 'vendor';
+  if (!isServiceVendor || input.vendorPayments.length === 0) {
+    return {
+      totalPaid: input.invoicePaid,
+      advanceBalance: 0,
+      balance: input.totalInvoiced - input.invoicePaid,
+      payments: input.invoicePayments,
+    };
+  }
+
+  const advances: InvoiceFinancePaymentRow[] = input.vendorPayments.map(vp => ({
+    id: String(vp.id),
+    invoiceId: null,
+    invoiceNumber: 'Advance',
+    amount: Number(vp.amount) || 0,
+    paymentDate: vp.payment_date,
+    paymentMethod: (vp.payment_method as string) || 'Cash',
+    referenceNumber: vp.reference_number || null,
+    notes: vp.notes || null,
+    isAdvance: true,
+  }));
+  const advanceBalance = advances.reduce((s, p) => s + p.amount, 0);
+  const totalPaid = input.invoicePaid + advanceBalance;
+  const payments = [...input.invoicePayments, ...advances].sort((a, b) => {
+    const da = String(a.paymentDate || '');
+    const db = String(b.paymentDate || '');
+    return db.localeCompare(da);
+  });
+  return {
+    totalPaid,
+    advanceBalance,
+    balance: input.totalInvoiced - totalPaid,
+    payments,
+  };
+}
+
+async function tenantBusinessType(tenantId: string): Promise<string> {
+  const row = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+    { business_type?: string } | undefined;
+  return (row?.business_type as string) || 'manufacturer';
+}
+
 // Client-wise summary: prefer stable party_id grouping; fall back to customer_name
 router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const businessType = await tenantBusinessType(tenantId);
 
     const rows = (
       await pool.query(
@@ -63,19 +143,81 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
       )
     ).rows;
 
-    res.json(
-      rows.map((r: Record<string, unknown>) => ({
+    type SummaryRow = {
+      partyKey: string;
+      partyType: string | null;
+      partyId: string | null;
+      clientName: string;
+      clientPhone: string | null;
+      invoiceCount: number;
+      totalInvoiced: number;
+      totalPaid: number;
+      advanceBalance: number;
+      balance: number;
+    };
+
+    const byKey = new Map<string, SummaryRow>();
+    for (const r of rows) {
+      const totalInvoiced = Number(r.total_invoiced) || 0;
+      const totalPaid = Number(r.total_paid) || 0;
+      byKey.set(r.party_key as string, {
         partyKey: r.party_key as string,
         partyType: (r.party_type as string) || null,
         partyId: (r.party_id as string) || null,
         clientName: r.customer_name as string,
         clientPhone: (r.customer_phone as string) || null,
         invoiceCount: Number(r.invoice_count) || 0,
-        totalInvoiced: Number(r.total_invoiced) || 0,
-        totalPaid: Number(r.total_paid) || 0,
-        balance: (Number(r.total_invoiced) || 0) - (Number(r.total_paid) || 0),
-      })),
-    );
+        totalInvoiced,
+        totalPaid,
+        advanceBalance: 0,
+        balance: totalInvoiced - totalPaid,
+      });
+    }
+
+    // Service: fold Miracle vendor_payments (unallocated receipts) into client totals
+    if (businessType === 'service') {
+      const vpRows = (
+        await pool.query(
+          `
+          SELECT vp.vendor_id, v.name, v.phone,
+                 COALESCE(SUM(vp.amount), 0) AS advance
+          FROM vendor_payments vp
+          JOIN vendors v ON v.id = vp.vendor_id AND v.tenant_id = vp.tenant_id
+          WHERE vp.tenant_id = $1
+          GROUP BY vp.vendor_id, v.name, v.phone
+        `,
+          [tenantId],
+        )
+      ).rows as { vendor_id: string; name: string; phone: string | null; advance: number }[];
+
+      for (const vp of vpRows) {
+        const advance = Number(vp.advance) || 0;
+        if (advance <= 0) continue;
+        const partyKey = `vendor:${vp.vendor_id}`;
+        const existing = byKey.get(partyKey);
+        if (existing) {
+          existing.totalPaid += advance;
+          existing.advanceBalance = advance;
+          existing.balance = existing.totalInvoiced - existing.totalPaid;
+        } else {
+          byKey.set(partyKey, {
+            partyKey,
+            partyType: 'vendor',
+            partyId: vp.vendor_id,
+            clientName: vp.name,
+            clientPhone: vp.phone || null,
+            invoiceCount: 0,
+            totalInvoiced: 0,
+            totalPaid: advance,
+            advanceBalance: advance,
+            balance: -advance,
+          });
+        }
+      }
+    }
+
+    const merged = [...byKey.values()].sort((a, b) => b.balance - a.balance);
+    res.json(merged);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -190,7 +332,53 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
     displayName = displayName || 'Client';
 
     const totalInvoiced = invoices.reduce((s, r) => s + (Number(r.grand_total) || 0), 0);
-    const totalPaid = invoices.reduce((s, r) => s + (Number(r.paid) || 0), 0);
+    const invoicePaid = invoices.reduce((s, r) => s + (Number(r.paid) || 0), 0);
+    const invoicePaymentRows: InvoiceFinancePaymentRow[] = payments.map((r: Record<string, unknown>) => ({
+      id: String(r.id),
+      invoiceId: (r.invoice_id as string) || null,
+      invoiceNumber: (r.invoice_number as string) || null,
+      amount: Number(r.amount) || 0,
+      paymentDate: r.payment_date,
+      paymentMethod: (r.payment_method as string) || 'Cash',
+      referenceNumber: (r.reference_number as string) || null,
+      notes: (r.notes as string) || null,
+      isAdvance: false,
+    }));
+
+    const businessType = await tenantBusinessType(tenantId);
+    let vendorPaymentRows: {
+      id: string;
+      amount: unknown;
+      payment_date: unknown;
+      payment_method?: string | null;
+      reference_number?: string | null;
+      notes?: string | null;
+    }[] = [];
+    if (businessType === 'service' && partyType === 'vendor' && partyId) {
+      vendorPaymentRows = (
+        await pool.query(
+          `SELECT id, amount, payment_date, payment_method, reference_number, notes
+           FROM vendor_payments
+           WHERE tenant_id = $1 AND vendor_id = $2
+           ORDER BY payment_date DESC, created_at DESC`,
+          [tenantId, partyId],
+        )
+      ).rows;
+    }
+
+    const {
+      totalPaid,
+      advanceBalance,
+      balance,
+      payments: mergedPayments,
+    } = mergeServiceVendorAdvances({
+      businessType,
+      partyType,
+      totalInvoiced,
+      invoicePaid,
+      invoicePayments: invoicePaymentRows,
+      vendorPayments: vendorPaymentRows,
+    });
 
     res.json({
       partyKey,
@@ -202,7 +390,8 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
       customerAddress: displayAddress,
       totalInvoiced,
       totalPaid,
-      balance: totalInvoiced - totalPaid,
+      advanceBalance,
+      balance,
       invoices: invoices.map((r: Record<string, unknown>) => ({
         id: r.id,
         invoiceNumber: r.invoice_number,
@@ -216,16 +405,7 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
         status: r.status,
         notes: r.notes,
       })),
-      payments: payments.map((r: Record<string, unknown>) => ({
-        id: r.id,
-        invoiceId: r.invoice_id,
-        invoiceNumber: r.invoice_number,
-        amount: Number(r.amount) || 0,
-        paymentDate: r.payment_date,
-        paymentMethod: r.payment_method,
-        referenceNumber: r.reference_number,
-        notes: r.notes,
-      })),
+      payments: mergedPayments,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -488,6 +668,32 @@ router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: Aut
       )
     ).rows[0] as { id: string; invoice_id: string; amount: number } | undefined;
     if (!payment) {
+      // Service: Miracle unallocated cash is in vendor_payments (shown as advances)
+      const biz = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+        { business_type?: string } | undefined;
+      if (biz?.business_type === 'service') {
+        const vp = (
+          await client.query('SELECT id, amount FROM vendor_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
+            req.params.id,
+            tenantId,
+          ])
+        ).rows[0] as { id: string; amount: number } | undefined;
+        if (vp) {
+          await client.query('DELETE FROM vendor_payments WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+          await client.query('COMMIT');
+          await logAudit(
+            pool,
+            tenantId,
+            'Vendor Payment',
+            'vendor_payment',
+            vp.id,
+            `Deleted ₹${Number(vp.amount).toLocaleString()} (service advance)`,
+            req.user?.userId,
+            req.user?.name,
+          );
+          return res.json({ success: true });
+        }
+      }
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Payment not found' });
     }
