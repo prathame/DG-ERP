@@ -341,9 +341,18 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     const q = search.toLowerCase();
     return (c.clientName || '').toLowerCase().includes(q) || (c.clientPhone || '').includes(search);
   });
-  const totalOutstanding = safeSummary.reduce((s, c) => s + Math.max(0, Number(c.balance) || 0), 0);
   const totalReceived = safeSummary.reduce((s, c) => s + (Number(c.totalPaid) || 0), 0);
   const totalInvoiced = safeSummary.reduce((s, c) => s + (Number(c.totalInvoiced) || 0), 0);
+  /**
+   * Dealer/manufacturer: sum of positive client dues (credits ignored).
+   * Service: Miracle advances live in vendor_payments and are folded into totalPaid —
+   * Outstanding must be Invoiced − Received so over-collection shows as credit, not
+   * “Received > Invoiced” with a still-positive outstanding.
+   */
+  const totalOutstanding = isService
+    ? totalInvoiced - totalReceived
+    : safeSummary.reduce((s, c) => s + Math.max(0, Number(c.balance) || 0), 0);
+  const totalAdvances = isService ? safeSummary.reduce((s, c) => s + (Number(c.advanceBalance) || 0), 0) : 0;
   const clientsLabel = tb(cfg.labels.vendors || 'Clients', t);
 
   // ── Client detail workspace (Distribution-style drill-down) ───────────────
@@ -750,7 +759,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <MobileKpiCard label={t('finance.totalReceived')} value={fmt(totalReceived)} accent="green" />
         <MobileKpiCard
           label={t('finance.outstanding')}
-          value={fmt(totalOutstanding)}
+          value={totalOutstanding < 0 ? `${fmt(totalOutstanding)} cr` : fmt(totalOutstanding)}
           accent={totalOutstanding > 0 ? 'rose' : 'green'}
         />
       </div>
@@ -762,6 +771,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalReceived')}</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{fmt(totalReceived)}</p>
+          {isService && totalAdvances > 0.001 && (
+            <p className="text-[10px] text-gray-400 mt-1">Includes {fmt(totalAdvances)} advances / unallocated cash</p>
+          )}
         </div>
         <div
           className={cn(
@@ -771,7 +783,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         >
           <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalOutstanding')}</p>
           <p className={cn('text-2xl font-bold mt-1', totalOutstanding > 0 ? 'text-rose-600' : 'text-emerald-600')}>
-            {fmt(totalOutstanding)}
+            {totalOutstanding < 0 ? `${fmt(totalOutstanding)} credit` : fmt(totalOutstanding)}
           </p>
         </div>
       </div>
