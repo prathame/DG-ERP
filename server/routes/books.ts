@@ -295,7 +295,7 @@ router.post('/api/books/import/miracle', requireAdmin, upload.single('file'), as
       [jobId, tenantId],
     );
 
-    extractRoot = await extractArchive(req.file.path);
+    extractRoot = await extractArchive(req.file.path, req.file.originalname);
     const companyDir = locateCompanyDir(extractRoot);
 
     await client.query('BEGIN');

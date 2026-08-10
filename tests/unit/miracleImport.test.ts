@@ -732,7 +732,15 @@ describe('miracleImport', () => {
     const company = locateCompanyDir(extracted);
     expect(path.basename(company)).toBe('CMP0001');
 
+    // Multer `dest` saves without an extension — use originalName for format detection
+    const multerPath = path.join(root, 'upload-no-ext');
+    fs.copyFileSync(zipPath, multerPath);
+    const extractedMulter = await extractArchive(multerPath, 'CMP0001.zip');
+    tmpDirs.push(extractedMulter);
+    expect(path.basename(locateCompanyDir(extractedMulter))).toBe('CMP0001');
+
     await expect(extractArchive(path.join(root, 'nope.txt'))).rejects.toThrow(/Unsupported/);
+    await expect(extractArchive(multerPath)).rejects.toThrow(/Unsupported/);
   });
 
   it('fails when year folder or ledger master is missing', async () => {

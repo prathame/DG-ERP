@@ -217,9 +217,13 @@ export function locateCompanyDir(root: string): string {
   throw new MiracleImportValidationError('Could not find Miracle company folder (version.txt + year folder YRxx)');
 }
 
-export async function extractArchive(archivePath: string): Promise<string> {
+/**
+ * Extract Miracle CMP .zip / .rar.
+ * `originalName` is required when the on-disk path has no extension (multer `dest` uploads).
+ */
+export async function extractArchive(archivePath: string, originalName?: string): Promise<string> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-import-'));
-  const lower = archivePath.toLowerCase();
+  const lower = (originalName || archivePath).toLowerCase();
   try {
     if (lower.endsWith('.zip')) {
       await execFileAsync('unzip', ['-q', archivePath, '-d', tmp]);
