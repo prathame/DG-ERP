@@ -9,7 +9,13 @@ import path from 'path';
 import { pool, cleanupTestData } from '../helpers';
 import { uid } from '../../server/utils/helpers';
 import { findDbf, num, readDbf, str, dateStr } from '../../server/utils/dbf';
-import { extractArchive, importMiracleCompany, locateCompanyDir } from '../../server/services/miracleImport';
+import {
+  extractArchive,
+  importMiracleCompany,
+  isCashIncomeLedgerType,
+  isOpsPartyLedgerType,
+  locateCompanyDir,
+} from '../../server/services/miracleImport';
 
 const TENANT = 'T-TEST-MIRACLE';
 
@@ -171,6 +177,34 @@ function buildMiracleCompany(root: string): string {
         FIELD05: 'GORPHAN1',
         FIELD06: '',
         FIELD07: 'GL',
+        FIELD10: 0,
+        FIELD31: '',
+        FIELD40: '',
+        M01F05: '',
+        M01F15: '',
+        M01F18: '',
+      },
+      {
+        FIELD01: 'ALIABIL1',
+        FIELD02: 'MANOJBHAI LOAN',
+        FIELD04: 'L',
+        FIELD05: 'G0000001',
+        FIELD06: 'G0000001',
+        FIELD07: 'LI',
+        FIELD10: 0,
+        FIELD31: '',
+        FIELD40: '',
+        M01F05: '',
+        M01F15: '',
+        M01F18: '',
+      },
+      {
+        FIELD01: 'AINCOME1',
+        FIELD02: 'JOB WORK INCOME',
+        FIELD04: 'I',
+        FIELD05: 'G0000001',
+        FIELD06: 'G0000001',
+        FIELD07: 'IN',
         FIELD10: 0,
         FIELD31: '',
         FIELD40: '',
@@ -573,17 +607,21 @@ describe('miracleImport', () => {
       const { summary, errors, warnings } = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
       expect(summary.companyName).toContain('FIXTURE');
-      expect(summary.ledgers).toBe(4);
+      expect(summary.ledgers).toBe(6);
       expect(summary.products).toBe(1);
       expect(summary.vouchers).toBe(5);
       expect(summary.voucherEntries).toBe(2);
       expect(summary.voucherItems).toBe(1);
       expect(summary.groups).toBe(2);
-      // Ops dual-write
-      expect(summary.vendors).toBe(1);
+      // Ops dual-write — PR trading + LI liability person
+      expect(summary.vendors).toBe(2);
       expect(summary.opsProducts).toBe(1);
       expect(summary.invoices).toBeGreaterThanOrEqual(2); // SP + SE sales
       expect(summary.vendorPayments + summary.invoicePayments).toBeGreaterThanOrEqual(1);
+      expect(summary.coverage.parties).toEqual({ source: 2, imported: 2, skipped: 0 });
+      expect(summary.coverage.products).toEqual({ source: 1, imported: 1, skipped: 0 });
+      expect(summary.coverage.salesInvoices.imported).toBe(summary.coverage.salesInvoices.source);
+      expect(summary.coverage.journalsBooksOnly).toBe(1);
       expect(errors).toEqual([]);
       expect(warnings).toEqual([]);
     } catch (e) {
@@ -604,14 +642,16 @@ describe('miracleImport', () => {
     expect(types).toContain('payment');
     expect(types).toContain('journal');
 
-    // Party → vendor
-    const vendors = await pool.query(`SELECT name, gst_number, phone, external_ref FROM vendors WHERE tenant_id = $1`, [
-      TENANT,
-    ]);
-    expect(vendors.rows).toHaveLength(1);
-    expect(vendors.rows[0].name).toBe('MITULBHAI');
-    expect(vendors.rows[0].gst_number).toBe('24AAAAA0000A1Z5');
-    expect(vendors.rows[0].external_ref).toBe('AGPARTY1');
+    // Party → vendor (PR + LI)
+    const vendors = await pool.query(
+      `SELECT name, gst_number, phone, external_ref FROM vendors WHERE tenant_id = $1 ORDER BY external_ref`,
+      [TENANT],
+    );
+    expect(vendors.rows).toHaveLength(2);
+    expect(vendors.rows.map(r => r.external_ref).sort()).toEqual(['AGPARTY1', 'ALIABIL1']);
+    const mitul = vendors.rows.find(r => r.external_ref === 'AGPARTY1');
+    expect(mitul?.name).toBe('MITULBHAI');
+    expect(mitul?.gst_number).toBe('24AAAAA0000A1Z5');
 
     // Product → products
     const opsProducts = await pool.query(
@@ -660,15 +700,15 @@ describe('miracleImport', () => {
       await c2.query('BEGIN');
       const again = await importMiracleCompany(c2, TENANT, company, job2);
       await c2.query('COMMIT');
-      expect(again.summary.ledgers).toBe(4);
-      expect(again.summary.vendors).toBe(1);
+      expect(again.summary.ledgers).toBe(6);
+      expect(again.summary.vendors).toBe(2);
       expect(again.summary.opsProducts).toBe(1);
     } finally {
       c2.release();
     }
 
     const vendorsAgain = await pool.query(`SELECT COUNT(*)::int AS c FROM vendors WHERE tenant_id = $1`, [TENANT]);
-    expect(vendorsAgain.rows[0].c).toBe(1);
+    expect(vendorsAgain.rows[0].c).toBe(2);
     const productsAgain = await pool.query(`SELECT COUNT(*)::int AS c FROM products WHERE tenant_id = $1`, [TENANT]);
     expect(productsAgain.rows[0].c).toBe(1);
     const invAgain = await pool.query(
@@ -828,10 +868,10 @@ describe('miracleImport', () => {
     const yr = path.join(company, 'YR25');
 
     // Happy-path sale + skip cases:
-    // - CB between cash ↔ sales (no PR party)
-    // - CB receipt on PR with amount 0
-    // - SP with non-PR header party (and no PR on entries)
-    // - SP with PR party but zero amount and no line items
+    // - CB between cash ↔ sales A/c (no party, not income) → intentional Books-only skip
+    // - CB receipt on PR with amount 0 → error
+    // - SP with non-PR header party (and no PR on entries) → error
+    // - SP with PR party but zero amount and no line items → error
     writeDbf(
       path.join(yr, 'RKACCT41.DBF'),
       [
@@ -938,9 +978,11 @@ describe('miracleImport', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const { errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      const { summary, errors } = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
-      expect(errors.some(e => e.externalRef === 'CRNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
+      // Non-party cash (sales A/c) is intentional Books-only — counted, not an error
+      expect(summary.coverage.nonPartyCashSkipped).toBeGreaterThanOrEqual(1);
+      expect(errors.some(e => e.externalRef === 'CRNOPARTY')).toBe(false);
       expect(errors.some(e => e.externalRef === 'CRZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
       expect(errors.some(e => e.externalRef === 'SSNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
       expect(errors.some(e => e.externalRef === 'SSZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
@@ -950,5 +992,120 @@ describe('miracleImport', () => {
     } finally {
       client.release();
     }
+  });
+
+  it('imports LI liability parties and cash-income receipts as paid invoices', async () => {
+    expect(isOpsPartyLedgerType('PR')).toBe(true);
+    expect(isOpsPartyLedgerType('LI')).toBe(true);
+    expect(isOpsPartyLedgerType('PT')).toBe(false);
+    expect(isCashIncomeLedgerType('IN')).toBe(true);
+    expect(isCashIncomeLedgerType('JP')).toBe(true);
+    expect(isCashIncomeLedgerType('TS')).toBe(false);
+
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-li-income-'));
+    tmpDirs.push(root);
+    const company = buildMiracleCompany(root);
+    const yr = path.join(company, 'YR25');
+
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'CPLIABIL1',
+          FIELD02: '20250510',
+          FIELD04: 'ALIABIL1',
+          FIELD05: 'ACASHACT',
+          FIELD06: 150000,
+          FIELD07: 150000,
+          FIELD12: '',
+          FIELD16: 'P',
+          FIELD74: 'CB',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'CRINCOME1',
+          FIELD02: '20250511',
+          FIELD04: 'AINCOME1',
+          FIELD05: 'ACASHACT',
+          FIELD06: 12000,
+          FIELD07: 12000,
+          FIELD12: '',
+          FIELD16: 'R',
+          FIELD74: 'CB',
+          T41FVNO: '',
+        },
+      ],
+    );
+
+    for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledger_details',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { summary, errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(errors).toEqual([]);
+      expect(summary.coverage.partyCash).toMatchObject({ source: 1, imported: 1, skipped: 0 });
+      expect(summary.coverage.cashIncomeInvoices).toMatchObject({ source: 1, imported: 1, skipped: 0 });
+      expect(summary.vendorPayments).toBe(1);
+      expect(summary.invoices).toBe(1);
+      expect(summary.invoicePayments).toBe(1);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const vp = await pool.query(
+      `SELECT amount::float AS amount FROM vendor_payments WHERE tenant_id = $1 AND idempotency_key = $2`,
+      [TENANT, 'miracle:CPLIABIL1'],
+    );
+    expect(vp.rows[0]?.amount).toBe(150000);
+
+    const inv = await pool.query(
+      `SELECT customer_name, status, grand_total::float AS grand_total, party_id
+       FROM standalone_invoices WHERE tenant_id = $1 AND external_ref = $2`,
+      [TENANT, 'CRINCOME1'],
+    );
+    expect(inv.rows[0]?.customer_name).toBe('JOB WORK INCOME');
+    expect(inv.rows[0]?.status).toBe('paid');
+    expect(inv.rows[0]?.grand_total).toBe(12000);
+    expect(inv.rows[0]?.party_id).toBeNull();
   });
 });

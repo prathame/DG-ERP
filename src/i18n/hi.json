@@ -288,7 +288,20 @@
     "importing": "आयात हो रहा है…",
     "importFailed": "आयात विफल",
     "importRowErrors": "पंक्ति(याँ) आयात के दौरान छोड़ दी गईं या विफल रहीं",
-    "importWarnings": "चेतावनी(याँ)"
+    "importWarnings": "चेतावनी(याँ)",
+    "importCoverageTitle": "आयात कवरेज",
+    "importCoverageSubtitle": "Miracle स्रोत बनाम Dhandho में आया डेटा। Books-only पंक्तियाँ नीचे हैं — ये त्रुटियाँ नहीं हैं।",
+    "importCoverageCol": "डेटा",
+    "importCoverageSource": "स्रोत",
+    "importCoverageImported": "आयातित",
+    "importCoverageSkipped": "छोड़ा",
+    "importCoverageParties": "पार्टियाँ (PR / LI)",
+    "importCoverageProducts": "उत्पाद",
+    "importCoverageSales": "बिक्री चालान (SP / SE)",
+    "importCoverageCashIncome": "नकद आय रसीदें (जॉब वर्क / स्क्रैप)",
+    "importCoveragePartyCash": "पार्टी रसीदें और भुगतान",
+    "importCoverageNonPartyCash": "खर्च / पूंजी / संपत्ति नकद वाउचर केवल Books में (पार्टी ops नहीं)",
+    "importCoverageJournals": "जर्नल वाउचर केवल Books में"
   },
   "settings": {
     "title": "सेटिंग्स",
