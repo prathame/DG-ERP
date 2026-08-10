@@ -18,6 +18,7 @@ const ALL_MODULES = [
   'rewards',
   'settings',
   'hospitality',
+  'books',
 ] as const;
 
 /** Hotel floor roles: API hospitality full; nav tabs narrowed in resolveTabAccess. */
@@ -48,6 +49,7 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
     rewards: 'hidden',
     settings: 'hidden',
     hospitality: 'hidden',
+    books: 'hidden',
   },
   Vendor: {
     dashboard: 'view',
@@ -64,6 +66,7 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
     rewards: 'hidden',
     settings: 'hidden',
     hospitality: 'hidden',
+    books: 'hidden',
   },
 };
 
@@ -73,6 +76,7 @@ const RANK: Record<AccessLevel, number> = { hidden: 0, view: 1, print: 2, full: 
 const PATH_MODULE: [string, string][] = [
   ['/vendor-finance', 'finance'],
   ['/invoice-finance', 'finance'],
+  ['/books', 'books'],
   ['/accounts', 'accounts'],
   ['/reports', 'accounts'],
   ['/gst', 'accounts'],

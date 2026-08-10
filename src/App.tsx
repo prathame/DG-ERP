@@ -167,6 +167,7 @@ const HospitalityAnalyticsView = lazy(() =>
 const HospitalityAccountsView = lazy(() =>
   import('./features/hospitality/HospitalityAccountsView').then(m => ({ default: m.HospitalityAccountsView })),
 );
+const BooksView = lazy(() => import('./features/books/BooksView').then(m => ({ default: m.BooksView })));
 
 function slugEntryApiContext(slug: string): {
   slug: string;
@@ -913,6 +914,36 @@ export default function App() {
           label: tc('hosp_members', t('nav.hospMembers')),
           icon: IdCard,
           show: tv('hosp_members'),
+        },
+      ],
+    },
+    {
+      label: t('navSections.books'),
+      items: [
+        { id: 'books', label: tc('books', t('nav.books')), icon: BookOpen, show: tv('books') },
+        {
+          id: 'book_ledgers',
+          label: tc('book_ledgers', t('nav.bookLedgers')),
+          icon: BookUser,
+          show: tv('book_ledgers'),
+        },
+        {
+          id: 'book_vouchers',
+          label: tc('book_vouchers', t('nav.bookVouchers')),
+          icon: ReceiptIndianRupee,
+          show: tv('book_vouchers'),
+        },
+        {
+          id: 'book_products',
+          label: tc('book_products', t('nav.bookProducts')),
+          icon: Package,
+          show: tv('book_products'),
+        },
+        {
+          id: 'book_import',
+          label: tc('book_import', t('nav.bookImport')),
+          icon: FileText,
+          show: tv('book_import'),
         },
       ],
     },
@@ -1834,6 +1865,11 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
                     {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
                     {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
+                    {canAccess(activeTab) && activeTab === 'books' && <BooksView initialPanel="overview" />}
+                    {canAccess(activeTab) && activeTab === 'book_ledgers' && <BooksView initialPanel="ledgers" />}
+                    {canAccess(activeTab) && activeTab === 'book_vouchers' && <BooksView initialPanel="vouchers" />}
+                    {canAccess(activeTab) && activeTab === 'book_products' && <BooksView initialPanel="products" />}
+                    {canAccess(activeTab) && activeTab === 'book_import' && <BooksView initialPanel="import" />}
                     {canAccess(activeTab) &&
                       activeTab === 'analytics' &&
                       ((userConfig?.businessType as string) === 'hotel_restaurant' ? (

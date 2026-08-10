@@ -64,6 +64,15 @@ export async function cleanupTestData(tenantId: string) {
     'service_cloud_device_slots',
     'service_cloud_sessions',
     'user_sessions',
+    'book_voucher_items',
+    'book_voucher_entries',
+    'book_vouchers',
+    'book_products',
+    'book_ledger_details',
+    'book_ledgers',
+    'book_account_groups',
+    'book_financial_years',
+    'book_import_jobs',
   ];
   // Hospitality children first (same order as deleteTenant — non-CASCADE FKs)
   const hospSql = [

@@ -1414,6 +1414,179 @@ export async function initSchema() {
       )
     `);
 
+    // Books / Accounting mode (Miracle-compatible double-entry) — parallel to distribution ops
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_financial_years (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        code TEXT NOT NULL,
+        label TEXT,
+        start_date DATE,
+        end_date DATE,
+        is_active BOOLEAN DEFAULT true,
+        external_ref TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, code)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_fy_tenant ON book_financial_years(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_account_groups (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        parent_id TEXT,
+        nature TEXT,
+        group_code TEXT,
+        external_ref TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, external_ref)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_groups_tenant ON book_account_groups(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_ledgers (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        group_id TEXT,
+        nature TEXT,
+        ledger_type TEXT,
+        gstin TEXT,
+        opening_balance NUMERIC(18,2) DEFAULT 0,
+        opening_side TEXT,
+        is_system BOOLEAN DEFAULT false,
+        external_ref TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, external_ref)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_ledgers_tenant ON book_ledgers(tenant_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_ledgers_name ON book_ledgers(tenant_id, name)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_ledger_details (
+        ledger_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        address1 TEXT,
+        address2 TEXT,
+        address3 TEXT,
+        city TEXT,
+        state TEXT,
+        state_code TEXT,
+        pincode TEXT,
+        phone TEXT,
+        mobile TEXT,
+        email TEXT,
+        contact_person TEXT,
+        PRIMARY KEY (ledger_id, tenant_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_products (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        code TEXT,
+        unit TEXT,
+        hsn_code TEXT,
+        sale_rate NUMERIC(18,2) DEFAULT 0,
+        purchase_rate NUMERIC(18,2) DEFAULT 0,
+        mrp NUMERIC(18,2) DEFAULT 0,
+        tax_class TEXT,
+        external_ref TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, external_ref)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_products_tenant ON book_products(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_vouchers (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        financial_year_id TEXT,
+        voucher_type TEXT NOT NULL,
+        voucher_date DATE NOT NULL,
+        voucher_number TEXT,
+        party_ledger_id TEXT,
+        contra_ledger_id TEXT,
+        amount NUMERIC(18,2) DEFAULT 0,
+        narration TEXT,
+        miracle_type TEXT,
+        miracle_subtype TEXT,
+        external_ref TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, external_ref)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_vouchers_tenant ON book_vouchers(tenant_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_vouchers_date ON book_vouchers(tenant_id, voucher_date)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_vouchers_type ON book_vouchers(tenant_id, voucher_type)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_voucher_entries (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        voucher_id TEXT NOT NULL,
+        line_no INT DEFAULT 0,
+        ledger_id TEXT NOT NULL,
+        contra_ledger_id TEXT,
+        debit NUMERIC(18,2) DEFAULT 0,
+        credit NUMERIC(18,2) DEFAULT 0,
+        narration TEXT,
+        external_ref TEXT
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_book_ventries_voucher ON book_voucher_entries(tenant_id, voucher_id)`,
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_book_ventries_ledger ON book_voucher_entries(tenant_id, ledger_id)`,
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_voucher_items (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        voucher_id TEXT NOT NULL,
+        line_no INT DEFAULT 0,
+        product_id TEXT,
+        qty NUMERIC(18,4) DEFAULT 0,
+        rate NUMERIC(18,2) DEFAULT 0,
+        amount NUMERIC(18,2) DEFAULT 0,
+        external_ref TEXT
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_book_vitems_voucher ON book_voucher_items(tenant_id, voucher_id)`,
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_import_jobs (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        source TEXT NOT NULL DEFAULT 'miracle',
+        company_name TEXT,
+        miracle_version TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        summary JSONB,
+        error_message TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        finished_at TIMESTAMPTZ
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_book_import_jobs_tenant ON book_import_jobs(tenant_id)`);
+
+    await client.query(`
+      UPDATE tenants SET tab_config = tab_config || '{"books":{"label":"Books","visible":false},"book_ledgers":{"label":"Ledgers","visible":false},"book_vouchers":{"label":"Vouchers","visible":false},"book_products":{"label":"Book Products","visible":false},"book_import":{"label":"Miracle Import","visible":false}}'::jsonb
+      WHERE tab_config IS NOT NULL
+        AND NOT (tab_config ? 'books')
+    `);
+
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
     // Table owner (our pool user) bypasses RLS — this is intentional.

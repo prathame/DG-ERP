@@ -50,6 +50,7 @@ const BIZ_LABELS: Record<string, string> = {
   service: 'Service / Consulting',
   silver_casting: 'Silver Casting',
   hotel_restaurant: 'Hotel / Restaurant',
+  accounting: 'Accounting (Miracle)',
 };
 
 /** Display label for a business type — custom shows "Custom (CompanyName)" */

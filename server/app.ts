@@ -50,6 +50,7 @@ import metalRouter from './routes/metal';
 import hospitalityRouter from './routes/hospitality';
 import hospitalityCatalogRouter from './routes/hospitalityCatalog';
 import hospitalityMembersRouter from './routes/hospitalityMembers';
+import booksRouter from './routes/books';
 import mastersRouter from './routes/masters';
 import mappingRouter from './routes/mapping';
 import auditRouter from './routes/audit';
@@ -714,6 +715,7 @@ export function createApp(): express.Application {
   app.use(hospitalityRouter);
   app.use(hospitalityCatalogRouter);
   app.use(hospitalityMembersRouter);
+  app.use(booksRouter);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const correlationId =

@@ -425,6 +425,10 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
     label: 'Hotel / Restaurant',
     desc: 'Floor tables, waiter orders, kitchen KOT, and walk-in entry queue',
   },
+  accounting: {
+    label: 'Accounting (Miracle)',
+    desc: 'Double-entry books — import Miracle CMP data, ledgers, vouchers, day book',
+  },
 };
 
 type HotelDeployment = 'cloud' | 'byo_db' | 'local_server';
@@ -821,6 +825,7 @@ function CreateTenantModal({
                     { id: 'service' as const, icon: '🔧' },
                     { id: 'silver_casting' as const, icon: '🥈' },
                     { id: 'hotel_restaurant' as const, icon: '🏨' },
+                    { id: 'accounting' as const, icon: '📒' },
                     { id: 'custom' as const, icon: '⚙️' },
                   ] as const
                 ).map(bt => {
