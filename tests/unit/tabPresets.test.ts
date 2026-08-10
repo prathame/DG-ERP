@@ -28,14 +28,26 @@ describe('tabPresets', () => {
     expect(isNamedBusinessType('custom')).toBe(false);
   });
 
-  it('accounting preset enables books tabs and hides distribution chain', () => {
+  it('accounting preset enables books + ops tabs for Miracle→Dhandho onboarding', () => {
     const p = TAB_PRESETS.accounting;
     expect(p.books.visible).toBe(true);
     expect(p.book_ledgers.visible).toBe(true);
     expect(p.book_vouchers.visible).toBe(true);
     expect(p.book_import.visible).toBe(true);
+    expect(p.masters.visible).toBe(true);
+    expect(p.invoices.visible).toBe(true);
+    expect(p.finance.visible).toBe(true);
+    expect(p.finance.label).toBe('Party Payments');
     expect(p.distribution.visible).toBe(false);
     expect(p.warranty.visible).toBe(false);
+  });
+
+  it('manufacturer exposes Miracle import alongside ops tabs', () => {
+    const p = TAB_PRESETS.manufacturer;
+    expect(p.masters.visible).toBe(true);
+    expect(p.invoices.visible).toBe(true);
+    expect(p.book_import.visible).toBe(true);
+    expect(p.books.visible).toBe(true);
   });
 
   it('silver_casting preset exposes metal stock + counter sale, hides warranty', () => {

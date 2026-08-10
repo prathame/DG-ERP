@@ -403,11 +403,11 @@ type BusinessType = NamedBusinessType | 'custom';
 const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: string }> = {
   manufacturer: {
     label: 'Manufacturer',
-    desc: 'Full supply chain — dispatch to vendors, warranty, customer tracking',
+    desc: 'Full supply chain — vendors, invoices, dispatch; Miracle CMP import into working data',
   },
   dealer: {
     label: 'Dealer / Wholesaler',
-    desc: 'Sell to dealers/vendors — no customer tracking, no warranty',
+    desc: 'Sell to dealers/vendors — Miracle CMP import available; no warranty chain',
   },
   retail: {
     label: 'Retail Shop',
@@ -427,7 +427,7 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
   },
   accounting: {
     label: 'Accounting (Miracle)',
-    desc: 'Double-entry books — import Miracle CMP data, ledgers, vouchers, day book',
+    desc: 'Import Miracle CMP into Dhandho parties, products, invoices & payments (+ Books GL)',
   },
 };
 

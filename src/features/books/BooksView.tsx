@@ -25,6 +25,11 @@ interface BooksSummary {
   }>;
 }
 
+function summaryCount(s: Record<string, unknown> | undefined, key: string): number {
+  const v = s?.[key];
+  return typeof v === 'number' ? v : Number(v) || 0;
+}
+
 interface LedgerRow {
   id: string;
   name: string;
@@ -141,9 +146,12 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
     setError(null);
     try {
       const result = await uploadMiracleFile(file);
-      const s = result.summary || {};
+      const s = (result.summary || {}) as Record<string, unknown>;
       setMessage(
-        `Imported ${s.companyName || 'company'}: ${s.ledgers || 0} ledgers, ${s.products || 0} products, ${s.vouchers || 0} vouchers`,
+        `Imported ${String(s.companyName || 'company')} into Dhandho: ` +
+          `${summaryCount(s, 'vendors')} vendors, ${summaryCount(s, 'opsProducts')} products, ` +
+          `${summaryCount(s, 'invoices')} invoices, ${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments` +
+          ` (Books: ${summaryCount(s, 'ledgers')} ledgers, ${summaryCount(s, 'vouchers')} vouchers)`,
       );
       await loadSummary();
       setPanel('overview');
@@ -167,7 +175,9 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Books</h1>
-          <p className="text-sm text-slate-500">Double-entry accounting — Miracle-compatible import &amp; ledgers</p>
+          <p className="text-sm text-slate-500">
+            Miracle import fills working Dhandho data (vendors, products, invoices, payments) plus Books ledgers
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {tabs.map(t => (
@@ -217,25 +227,39 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
               <p className="text-sm text-slate-500">No imports yet — use Miracle Import to upload a CMP .rar / .zip.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {summary.recentImports.map(j => (
-                  <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                    <div>
-                      <span className="font-medium">{j.companyName || 'Import'}</span>
-                      <span className="ml-2 text-slate-500">{j.miracleVersion}</span>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        j.status === 'completed'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : j.status === 'failed'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {j.status}
-                    </span>
-                  </li>
-                ))}
+                {summary.recentImports.map(j => {
+                  const s = (j.summary || {}) as Record<string, unknown>;
+                  const opsBits = [
+                    summaryCount(s, 'vendors') ? `${summaryCount(s, 'vendors')} vendors` : null,
+                    summaryCount(s, 'opsProducts') ? `${summaryCount(s, 'opsProducts')} products` : null,
+                    summaryCount(s, 'invoices') ? `${summaryCount(s, 'invoices')} invoices` : null,
+                    summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')
+                      ? `${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments`
+                      : null,
+                  ].filter(Boolean);
+                  return (
+                    <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <div>
+                        <span className="font-medium">{j.companyName || 'Import'}</span>
+                        <span className="ml-2 text-slate-500">{j.miracleVersion}</span>
+                        {opsBits.length > 0 && (
+                          <div className="text-xs text-slate-500 mt-0.5">Dhandho: {opsBits.join(', ')}</div>
+                        )}
+                      </div>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          j.status === 'completed'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : j.status === 'failed'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {j.status}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -245,8 +269,10 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
           <FileUp className="mx-auto mb-3 text-orange-500" size={36} />
           <h2 className="text-lg font-semibold text-slate-900">Import Miracle company data</h2>
           <p className="mx-auto mt-1 max-w-lg text-sm text-slate-600">
-            Upload the Miracle CMP folder archive (<code>.rar</code> or <code>.zip</code>) — e.g. CMP0001.rar. Ledgers,
-            products, and vouchers are imported into Books.
+            Upload the Miracle CMP folder archive (<code>.rar</code> or <code>.zip</code>) — e.g. CMP0001.rar. Trading
+            parties, products, sales invoices, and party cash receipts/payments are written into Dhandho Masters /
+            Invoices / Payments. Full ledgers and vouchers stay available under Books. Re-import upserts (no
+            duplicates).
           </p>
           <label className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600">
             {importing ? 'Importing…' : 'Choose file'}

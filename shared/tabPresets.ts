@@ -52,7 +52,14 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
 });
 
 export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
-  manufacturer: baseAllVisible(),
+  /** Die / job-work / manufacturing — Miracle CMP import available for onboarding */
+  manufacturer: baseAllVisible({
+    books: { label: 'Books', visible: true },
+    book_ledgers: { label: 'Ledgers', visible: true },
+    book_vouchers: { label: 'Vouchers', visible: true },
+    book_products: { label: 'Book Products', visible: true },
+    book_import: { label: 'Miracle Import', visible: true },
+  }),
   dealer: baseAllVisible({
     distribution: { label: 'Sales', visible: true },
     sales: { label: 'Sales Entry', visible: false },
@@ -60,6 +67,8 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    book_import: { label: 'Miracle Import', visible: true },
+    books: { label: 'Books', visible: true },
   }),
   retail: baseAllVisible({
     inventory: { label: 'Stock', visible: true },
@@ -113,18 +122,22 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     hosp_menu: { label: 'Menu', visible: true },
     hosp_members: { label: 'Members', visible: true },
   }),
-  /** Miracle-style double-entry books (parallel to distribution ERP). */
+  /**
+   * Miracle onboarding → Dhandho ops + Books GL.
+   * Masters / Invoices / Party Payments are on so imported vendors, products,
+   * invoices, and payments are usable day-to-day (not Books-only).
+   */
   accounting: baseAllVisible({
     analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: false },
+    masters: { label: 'Masters', visible: true },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
     sales: { label: 'Sales Entry', visible: false },
     purchases: { label: 'Purchases', visible: false },
     verification: { label: 'Search / Verify', visible: false },
     quotations: { label: 'Quotes & Orders', visible: false },
-    invoices: { label: 'Invoices', visible: false },
-    finance: { label: 'Vendor Payments', visible: false },
+    invoices: { label: 'Invoices', visible: true },
+    finance: { label: 'Party Payments', visible: true },
     accounts: { label: 'Reports', visible: true },
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
@@ -133,7 +146,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     books: { label: 'Books', visible: true },
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Products', visible: true },
+    book_products: { label: 'Book Products', visible: true },
     book_import: { label: 'Miracle Import', visible: true },
   }),
 };

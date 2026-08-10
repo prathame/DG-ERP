@@ -362,8 +362,13 @@ function buildMiracleCompany(root: string): string {
 
 beforeAll(async () => {
   await cleanupTestData(TENANT);
-  // book tables may not be in cleanup yet
+  // book + ops import tables may not be in cleanup yet
   for (const t of [
+    'invoice_payments',
+    'vendor_payments',
+    'standalone_invoices',
+    'products',
+    'vendors',
     'book_voucher_items',
     'book_voucher_entries',
     'book_vouchers',
@@ -386,6 +391,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const t of [
+    'invoice_payments',
+    'vendor_payments',
+    'standalone_invoices',
+    'products',
+    'vendors',
     'book_voucher_items',
     'book_voucher_entries',
     'book_vouchers',
@@ -533,6 +543,11 @@ describe('miracleImport', () => {
     const company = buildMiracleCompany(root);
 
     for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
       'book_voucher_items',
       'book_voucher_entries',
       'book_vouchers',
@@ -564,6 +579,11 @@ describe('miracleImport', () => {
       expect(summary.voucherEntries).toBe(2);
       expect(summary.voucherItems).toBe(1);
       expect(summary.groups).toBe(2);
+      // Ops dual-write
+      expect(summary.vendors).toBe(1);
+      expect(summary.opsProducts).toBe(1);
+      expect(summary.invoices).toBeGreaterThanOrEqual(2); // SP + SE sales
+      expect(summary.vendorPayments + summary.invoicePayments).toBeGreaterThanOrEqual(1);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -582,6 +602,51 @@ describe('miracleImport', () => {
     expect(types).toContain('payment');
     expect(types).toContain('journal');
 
+    // Party → vendor
+    const vendors = await pool.query(`SELECT name, gst_number, phone, external_ref FROM vendors WHERE tenant_id = $1`, [
+      TENANT,
+    ]);
+    expect(vendors.rows).toHaveLength(1);
+    expect(vendors.rows[0].name).toBe('MITULBHAI');
+    expect(vendors.rows[0].gst_number).toBe('24AAAAA0000A1Z5');
+    expect(vendors.rows[0].external_ref).toBe('AGPARTY1');
+
+    // Product → products
+    const opsProducts = await pool.query(
+      `SELECT name, price::float AS price, hsn_code, barcode, external_ref FROM products WHERE tenant_id = $1`,
+      [TENANT],
+    );
+    expect(opsProducts.rows).toHaveLength(1);
+    expect(opsProducts.rows[0].name).toBe('LUNCH BOX DIE');
+    expect(opsProducts.rows[0].price).toBe(560000);
+    expect(opsProducts.rows[0].hsn_code).toBe('8480');
+    expect(opsProducts.rows[0].barcode).toBeNull();
+    expect(opsProducts.rows[0].external_ref).toBe('PGITEM01');
+
+    // Sales voucher → standalone invoice
+    const invoices = await pool.query(
+      `SELECT invoice_number, customer_name, grand_total::float AS grand_total, party_type, external_ref
+       FROM standalone_invoices WHERE tenant_id = $1 ORDER BY invoice_number`,
+      [TENANT],
+    );
+    expect(invoices.rows.some(r => r.invoice_number === 'GT/1')).toBe(true);
+    const sale = invoices.rows.find(r => r.external_ref === 'SSVOUCHER01');
+    expect(sale?.customer_name).toBe('MITULBHAI');
+    expect(sale?.grand_total).toBe(560000);
+    expect(sale?.party_type).toBe('vendor');
+
+    // Cash book involving party → payments
+    const vp = await pool.query(
+      `SELECT amount::float AS amount, idempotency_key FROM vendor_payments WHERE tenant_id = $1`,
+      [TENANT],
+    );
+    const ip = await pool.query(
+      `SELECT amount::float AS amount, idempotency_key FROM invoice_payments WHERE tenant_id = $1`,
+      [TENANT],
+    );
+    expect(vp.rows.length + ip.rows.length).toBeGreaterThanOrEqual(1);
+    expect([...vp.rows, ...ip.rows].some(r => String(r.idempotency_key || '').startsWith('miracle:'))).toBe(true);
+
     // idempotent re-import
     const job2 = uid('BJ');
     await pool.query(
@@ -594,9 +659,21 @@ describe('miracleImport', () => {
       const again = await importMiracleCompany(c2, TENANT, company, job2);
       await c2.query('COMMIT');
       expect(again.ledgers).toBe(4);
+      expect(again.vendors).toBe(1);
+      expect(again.opsProducts).toBe(1);
     } finally {
       c2.release();
     }
+
+    const vendorsAgain = await pool.query(`SELECT COUNT(*)::int AS c FROM vendors WHERE tenant_id = $1`, [TENANT]);
+    expect(vendorsAgain.rows[0].c).toBe(1);
+    const productsAgain = await pool.query(`SELECT COUNT(*)::int AS c FROM products WHERE tenant_id = $1`, [TENANT]);
+    expect(productsAgain.rows[0].c).toBe(1);
+    const invAgain = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id = $1 AND external_ref IS NOT NULL`,
+      [TENANT],
+    );
+    expect(invAgain.rows[0].c).toBe(invoices.rows.length);
   });
 
   it('extracts zip archives and locateCompanyDir rejects missing paths', async () => {
