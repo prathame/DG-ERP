@@ -83,13 +83,16 @@ function parseVersionTxt(companyDir: string): { companyName: string; miracleVers
 
 /** Locate CMP root inside an extracted archive. */
 export function locateCompanyDir(root: string): string {
+  if (!fs.existsSync(root)) {
+    throw new Error(`Miracle extract path not found: ${root}`);
+  }
   const versionHere = fs.existsSync(path.join(root, 'version.txt')) || fs.existsSync(path.join(root, 'VERSION.TXT'));
   if (versionHere && findYearDir(root)) return root;
 
   const kids = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory());
   for (const k of kids) {
     const p = path.join(root, k.name);
-    if (fs.existsSync(path.join(p, 'version.txt')) || fs.existsSync(path.join(p, 'VERSION.TXT'))) {
+    if ((fs.existsSync(path.join(p, 'version.txt')) || fs.existsSync(path.join(p, 'VERSION.TXT'))) && findYearDir(p)) {
       return p;
     }
     // nested CMP0001/CMP0001
@@ -99,7 +102,7 @@ export function locateCompanyDir(root: string): string {
       /* continue */
     }
   }
-  throw new Error('Could not find Miracle company folder (version.txt + YR** year data)');
+  throw new Error('Could not find Miracle company folder (version.txt + year folder YRxx)');
 }
 
 export async function extractArchive(archivePath: string): Promise<string> {
