@@ -180,11 +180,14 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
                   ].filter(Boolean);
                   return (
                     <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <span className="font-medium">{j.companyName || 'Import'}</span>
                         <span className="ml-2 text-slate-500">{j.miracleVersion}</span>
                         {opsBits.length > 0 && (
                           <div className="text-xs text-slate-500 mt-0.5">Dhandho: {opsBits.join(', ')}</div>
+                        )}
+                        {j.status === 'failed' && j.errorMessage && (
+                          <div className="text-xs text-red-600 mt-0.5 break-words">{j.errorMessage}</div>
                         )}
                       </div>
                       <span

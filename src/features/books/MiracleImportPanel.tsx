@@ -249,12 +249,24 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
   );
 }
 
+function formatPaymentsByMethod(s: Record<string, unknown>): string {
+  const raw = s.paymentsByMethod;
+  if (!raw || typeof raw !== 'object') return '';
+  const parts = Object.entries(raw as Record<string, unknown>)
+    .filter(([, n]) => Number(n) > 0)
+    .map(([method, n]) => `${method}: ${Number(n)}`)
+    .sort();
+  return parts.length ? ` · ${parts.join(', ')}` : '';
+}
+
 function buildSuccessMessage(s: Record<string, unknown>): string {
   return (
     `Imported ${String(s.companyName || 'company')} into Dhandho: ` +
     `${summaryCount(s, 'vendors')} vendors, ${summaryCount(s, 'opsProducts')} products, ` +
     `${summaryCount(s, 'invoices')} invoices, ${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments` +
-    ` (Books: ${summaryCount(s, 'ledgers')} ledgers, ${summaryCount(s, 'vouchers')} vouchers)`
+    formatPaymentsByMethod(s) +
+    ` (Books: ${summaryCount(s, 'ledgers')} ledgers, ${summaryCount(s, 'vouchers')} vouchers). ` +
+    `Paid / remaining is on each invoice under Invoices → Payments.`
   );
 }
 

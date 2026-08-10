@@ -7,6 +7,7 @@
  *   products   → products
  *   SP/SE sales → standalone_invoices
  *   CB party R/P → invoice_payments (receipts FIFO) and/or vendor_payments
+ *   payment_method inferred from contra cash/bank ledger + cheque/instrument fields
  */
 import fs from 'fs';
 import os from 'os';
@@ -59,6 +60,8 @@ export interface MiracleImportSummary {
   invoices: number;
   vendorPayments: number;
   invoicePayments: number;
+  /** Count of ops payments by inferred method (Cash / Bank Transfer / …) */
+  paymentsByMethod: Record<string, number>;
   /** Post-import breakdown for UI */
   coverage: MiracleImportCoverage;
 }
@@ -73,6 +76,70 @@ export function isOpsPartyLedgerType(ledgerType: string | null | undefined): boo
 export function isCashIncomeLedgerType(ledgerType: string | null | undefined): boolean {
   const t = (ledgerType || '').toUpperCase();
   return t === 'JP' || t === 'IN';
+}
+
+/** Ops payment methods shown in Invoice / Vendor Finance. */
+export type MiracleOpsPaymentMethod = 'Cash' | 'Bank Transfer' | 'UPI' | 'Cheque' | 'Other';
+
+/**
+ * Infer Dhandho payment method from Miracle cash/bank book contra ledger + instrument ref.
+ * Miracle has no dedicated mode enum — mode is the cash/bank ledger on the voucher.
+ */
+export function resolveMiraclePaymentMethod(input: {
+  contraLedgerType?: string | null;
+  contraLedgerName?: string | null;
+  contraGroupName?: string | null;
+  instrumentRef?: string | null;
+}): MiracleOpsPaymentMethod {
+  const type = (input.contraLedgerType || '').toUpperCase();
+  const name = `${input.contraLedgerName || ''} ${input.contraGroupName || ''}`.toLowerCase();
+  const ref = (input.instrumentRef || '').trim();
+  const refLower = ref.toLowerCase();
+
+  if (/upi|gpay|google pay|phonepe|paytm|bhim/.test(name) || /upi|gpay|phonepe|paytm/.test(refLower)) {
+    return 'UPI';
+  }
+  if (ref && /chq|cheque|chk\b/.test(refLower)) return 'Cheque';
+
+  const looksBank =
+    type === 'BK' ||
+    type === 'BN' ||
+    /\bbank\b|hdfc|icici|sbi\b|axis|kotak|yes bank|pnb|canara|union bank|boi\b|idfc|indusind|federal bank|bandhan/.test(
+      name,
+    );
+  const looksCash = type === 'CS' || /\bcash\b|cash[- ]?in[- ]?hand|petty cash/.test(name);
+
+  if (looksCash && !looksBank) return 'Cash';
+  if (looksBank) {
+    // Numeric instrument on bank ledger is usually a cheque number
+    if (ref && /^\d{5,}$/.test(ref)) return 'Cheque';
+    return 'Bank Transfer';
+  }
+  if (ref) return 'Bank Transfer';
+  return 'Other';
+}
+
+/** First non-empty instrument / voucher reference from CB header (+ optional cheque register). */
+export function pickMiraclePaymentReference(header: DbfRecord, chequeRegisterRef?: string | null): string | null {
+  const candidates = [
+    chequeRegisterRef,
+    str(header.FIELD10),
+    str(header.FIELD82),
+    str(header.FIELD80),
+    str(header.FIELD81),
+    str(header.T41F08),
+    str(header.FIELD12),
+    str(header.T41FVNO),
+  ];
+  for (const c of candidates) {
+    const t = (c || '').trim();
+    if (t) return t;
+  }
+  return null;
+}
+
+function bumpPaymentMethod(counts: Record<string, number>, method: string, n = 1): void {
+  counts[method] = (counts[method] || 0) + n;
 }
 
 function emptyCoverage(): MiracleImportCoverage {
@@ -604,6 +671,7 @@ export async function importMiracleCompany(
     invoices: 0,
     vendorPayments: 0,
     invoicePayments: 0,
+    paymentsByMethod: {},
     coverage,
   };
 
@@ -637,6 +705,8 @@ export async function importMiracleCompany(
     { name: string; gstin: string | null; phone: string | null; address: string | null; ledgerType: string }
   >();
   const ledgerTypes = new Map<string, string>();
+  const ledgerGroupExt = new Map<string, string>();
+  const groupNames = new Map<string, string>();
 
   // Groups — rkaccm11
   const groupsPath = findDbf(yrDir, 'rkaccm11.dbf');
@@ -648,11 +718,13 @@ export async function importMiracleCompany(
     for (const r of records) {
       const ext = str(r.FIELD01);
       if (!ext) continue;
+      const gName = str(r.FIELD02) || str(r.FIELD11) || ext;
+      groupNames.set(ext, gName);
       await upsertGroup(
         client,
         tenantId,
         ext,
-        str(r.FIELD02) || str(r.FIELD11) || ext,
+        gName,
         str(r.FIELD06) || str(r.FIELD09) || null,
         str(r.FIELD08) || null,
         null,
@@ -790,6 +862,7 @@ export async function importMiracleCompany(
     const typeUpper = (ledgerType || '').toUpperCase();
     ledgerTypes.set(ext, typeUpper);
     ledgerMeta.set(ext, { name, gstin, phone, address, ledgerType: typeUpper });
+    if (groupExt) ledgerGroupExt.set(ext, groupExt);
 
     // Trading parties (PR) + liability persons (LI) → Dhandho vendors
     if (isOpsPartyLedgerType(typeUpper)) {
@@ -938,6 +1011,17 @@ export async function importMiracleCompany(
     }
   }
 
+  // Cheque / instrument register (when present) — keyed by voucher external ref
+  const chequeRefByVoucher = new Map<string, string>();
+  const chequePath = findDbf(yrDir, 'RKACCT05.DBF') || findDbf(yrDir, 'rkacct05.dbf');
+  if (chequePath) {
+    for (const r of readDbf(chequePath).records) {
+      const vid = str(r.FIELD01) || str(r.T05F01);
+      const chq = str(r.FIELD07) || str(r.FIELD21) || str(r.FIELD23) || str(r.T05F07);
+      if (vid && chq) chequeRefByVoucher.set(vid, chq);
+    }
+  }
+
   // First pass: books vouchers + sales invoices (so receipts can allocate later)
   type PendingCash = {
     ext: string;
@@ -948,6 +1032,9 @@ export async function importMiracleCompany(
     contraExt: string;
     vNumber: string | null;
     narration: string | null;
+    paymentMethod: MiracleOpsPaymentMethod;
+    referenceNumber: string | null;
+    contraName: string | null;
   };
   const pendingCash: PendingCash[] = [];
 
@@ -1149,6 +1236,20 @@ export async function importMiracleCompany(
         coverage.salesInvoices.imported++;
       }
     } else if (voucherType === 'receipt' || voucherType === 'payment') {
+      // Contra = cash/bank side (FIELD05 usually; flip when party is on FIELD05)
+      const partyOn04 = isOpsPartyLedgerType(ledgerTypes.get(partyExt));
+      const partyOn05 = isOpsPartyLedgerType(ledgerTypes.get(contraExt));
+      const cashBankExt =
+        partyOn04 && !partyOn05 ? contraExt : !partyOn04 && partyOn05 ? partyExt : contraExt || partyExt;
+      const contraMeta = cashBankExt ? ledgerMeta.get(cashBankExt) : null;
+      const contraGroup = cashBankExt ? groupNames.get(ledgerGroupExt.get(cashBankExt) || '') : null;
+      const referenceNumber = pickMiraclePaymentReference(h, chequeRefByVoucher.get(ext) || null);
+      const paymentMethod = resolveMiraclePaymentMethod({
+        contraLedgerType: contraMeta?.ledgerType || ledgerTypes.get(cashBankExt || '') || null,
+        contraLedgerName: contraMeta?.name || null,
+        contraGroupName: contraGroup || null,
+        instrumentRef: referenceNumber,
+      });
       pendingCash.push({
         ext,
         voucherType,
@@ -1158,6 +1259,9 @@ export async function importMiracleCompany(
         contraExt,
         vNumber,
         narration,
+        paymentMethod,
+        referenceNumber: referenceNumber || vNumber,
+        contraName: contraMeta?.name || null,
       });
     } else if (voucherType === 'journal') {
       coverage.journalsBooksOnly++;
@@ -1184,7 +1288,9 @@ export async function importMiracleCompany(
         continue;
       }
       const vendorId = vendorIds.get(partyKey)!;
-      const method = 'Cash';
+      const method = cash.paymentMethod;
+      const via = cash.contraName ? ` via ${cash.contraName}` : '';
+      const ref = cash.referenceNumber;
       if (cash.voucherType === 'receipt') {
         const allocated = await allocateReceiptToInvoices(
           client,
@@ -1193,12 +1299,13 @@ export async function importMiracleCompany(
           cash.amount,
           cash.vDate,
           method,
-          cash.vNumber,
+          ref,
           cash.ext,
-          cash.narration,
+          cash.narration ? `${cash.narration}${via}` : `Miracle receipt${via}`,
         );
         summary.invoicePayments += allocated.invoicePayments;
         summary.vendorPayments += allocated.vendorPayments;
+        bumpPaymentMethod(summary.paymentsByMethod, method, allocated.invoicePayments + allocated.vendorPayments);
       } else {
         const ok = await upsertVendorPayment(
           client,
@@ -1207,11 +1314,14 @@ export async function importMiracleCompany(
           cash.amount,
           cash.vDate,
           method,
-          cash.vNumber,
-          cash.narration ? `Miracle payment: ${cash.narration}` : `Miracle payment ${cash.ext}`,
+          ref,
+          cash.narration ? `Miracle payment: ${cash.narration}${via}` : `Miracle payment ${cash.ext}${via}`,
           `miracle:${cash.ext}`,
         );
-        if (ok) summary.vendorPayments++;
+        if (ok) {
+          summary.vendorPayments++;
+          bumpPaymentMethod(summary.paymentsByMethod, method);
+        }
       }
       coverage.partyCash.imported++;
       continue;
@@ -1260,6 +1370,7 @@ export async function importMiracleCompany(
         'paid',
       );
       // Record payment against the invoice for Finance totals
+      const via = cash.contraName ? ` via ${cash.contraName}` : '';
       await client.query(`DELETE FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key = $2`, [
         tenantId,
         `miracle:${cash.ext}:cash`,
@@ -1274,14 +1385,15 @@ export async function importMiracleCompany(
           invId,
           cash.amount,
           cash.vDate,
-          'Cash',
-          cash.vNumber,
-          cash.narration ? `Miracle cash income: ${cash.narration}` : `Miracle cash income ${cash.ext}`,
+          cash.paymentMethod,
+          cash.referenceNumber,
+          cash.narration ? `Miracle cash income: ${cash.narration}${via}` : `Miracle cash income ${cash.ext}${via}`,
           `miracle:${cash.ext}:cash`,
         ],
       );
       summary.invoices++;
       summary.invoicePayments++;
+      bumpPaymentMethod(summary.paymentsByMethod, cash.paymentMethod);
       coverage.cashIncomeInvoices.imported++;
       continue;
     }

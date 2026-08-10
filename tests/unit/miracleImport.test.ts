@@ -15,6 +15,8 @@ import {
   isCashIncomeLedgerType,
   isOpsPartyLedgerType,
   locateCompanyDir,
+  pickMiraclePaymentReference,
+  resolveMiraclePaymentMethod,
 } from '../../server/services/miracleImport';
 
 const TENANT = 'T-TEST-MIRACLE';
@@ -1115,5 +1117,41 @@ describe('miracleImport', () => {
     expect(inv.rows[0]?.status).toBe('paid');
     expect(inv.rows[0]?.grand_total).toBe(12000);
     expect(inv.rows[0]?.party_id).toBeNull();
+  });
+
+  it('resolves payment method from contra ledger and instrument ref', () => {
+    expect(
+      resolveMiraclePaymentMethod({
+        contraLedgerType: 'CS',
+        contraLedgerName: 'Cash Account',
+      }),
+    ).toBe('Cash');
+    expect(
+      resolveMiraclePaymentMethod({
+        contraLedgerType: 'BK',
+        contraLedgerName: 'HDFC Bank Current',
+      }),
+    ).toBe('Bank Transfer');
+    expect(
+      resolveMiraclePaymentMethod({
+        contraLedgerName: 'PhonePe UPI',
+      }),
+    ).toBe('UPI');
+    expect(
+      resolveMiraclePaymentMethod({
+        contraLedgerType: 'BK',
+        contraLedgerName: 'SBI',
+        instrumentRef: '123456',
+      }),
+    ).toBe('Cheque');
+    expect(
+      resolveMiraclePaymentMethod({
+        contraLedgerType: 'CS',
+        instrumentRef: 'CHQ-7788',
+      }),
+    ).toBe('Cheque');
+    expect(
+      pickMiraclePaymentReference({ FIELD10: '', FIELD82: 'UTR999', FIELD12: 'V1' } as Record<string, string>, null),
+    ).toBe('UTR999');
   });
 });
