@@ -820,4 +820,135 @@ describe('miracleImport', () => {
     );
     expect(opsProducts.rows.map(r => r.external_ref)).toEqual(['PGITEM01']);
   });
+
+  it('skips cash/sales vouchers missing a trading party or with invalid amount', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-cash-skip-'));
+    tmpDirs.push(root);
+    const company = buildMiracleCompany(root);
+    const yr = path.join(company, 'YR25');
+
+    // Happy-path sale + skip cases:
+    // - CB between cash ↔ sales (no PR party)
+    // - CB receipt on PR with amount 0
+    // - SP with non-PR header party (and no PR on entries)
+    // - SP with PR party but zero amount and no line items
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'SSVOUCHER01',
+          FIELD02: '20250501',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 560000,
+          FIELD07: 560000,
+          FIELD12: 'GT/1',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          T41FVNO: 'GT/1',
+        },
+        {
+          FIELD01: 'CRNOPARTY',
+          FIELD02: '20250506',
+          FIELD04: 'ACASHACT',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 2500,
+          FIELD07: 2500,
+          FIELD12: '',
+          FIELD16: 'R',
+          FIELD74: 'CB',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'CRZEROAMT',
+          FIELD02: '20250507',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'ACASHACT',
+          FIELD06: 0,
+          FIELD07: 0,
+          FIELD12: '',
+          FIELD16: 'R',
+          FIELD74: 'CB',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'SSNOPARTY',
+          FIELD02: '20250508',
+          FIELD04: 'ACASHACT',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 100,
+          FIELD07: 100,
+          FIELD12: 'GT/NP',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          T41FVNO: 'GT/NP',
+        },
+        {
+          FIELD01: 'SSZEROAMT',
+          FIELD02: '20250509',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 0,
+          FIELD07: 0,
+          FIELD12: 'GT/Z',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          T41FVNO: 'GT/Z',
+        },
+      ],
+    );
+
+    for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledger_details',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(errors.some(e => e.externalRef === 'CRNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
+      expect(errors.some(e => e.externalRef === 'CRZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
+      expect(errors.some(e => e.externalRef === 'SSNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
+      expect(errors.some(e => e.externalRef === 'SSZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
 });
