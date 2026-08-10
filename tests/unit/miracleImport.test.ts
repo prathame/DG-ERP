@@ -13,7 +13,7 @@ import { extractArchive, importMiracleCompany, locateCompanyDir } from '../../se
 
 const TENANT = 'T-TEST-MIRACLE';
 
-type FieldDef = { name: string; type: 'C' | 'N' | 'D' | 'L'; length: number; decimals?: number };
+type FieldDef = { name: string; type: 'C' | 'N' | 'F' | 'D' | 'L'; length: number; decimals?: number };
 
 function writeDbf(filePath: string, fields: FieldDef[], rows: Record<string, string | number | boolean | null>[]) {
   const headerLen = 32 + fields.length * 32 + 1;
@@ -42,7 +42,7 @@ function writeDbf(filePath: string, fields: FieldDef[], rows: Record<string, str
         cell = String(raw ?? '')
           .padEnd(f.length)
           .slice(0, f.length);
-      else if (f.type === 'N') {
+      else if (f.type === 'N' || f.type === 'F') {
         const n = raw == null || raw === '' ? '' : String(raw);
         cell = n.padStart(f.length).slice(-f.length);
       } else if (f.type === 'D') {
@@ -157,6 +157,20 @@ function buildMiracleCompany(root: string): string {
         FIELD05: 'G0000001',
         FIELD06: 'G0000001',
         FIELD07: 'TS',
+        FIELD10: 0,
+        FIELD31: '',
+        FIELD40: '',
+        M01F05: '',
+        M01F15: '',
+        M01F18: '',
+      },
+      {
+        FIELD01: 'AORPHAN1',
+        FIELD02: 'Orphan Ledger',
+        FIELD04: 'B',
+        FIELD05: 'GORPHAN1',
+        FIELD06: '',
+        FIELD07: 'GL',
         FIELD10: 0,
         FIELD31: '',
         FIELD40: '',
@@ -301,6 +315,18 @@ function buildMiracleCompany(root: string): string {
         FIELD74: 'JR',
         T41FVNO: 'JV/1',
       },
+      {
+        FIELD01: 'SEVOUCHER05',
+        FIELD02: '20250505',
+        FIELD04: 'AGPARTY1',
+        FIELD05: 'AGO5S34X',
+        FIELD06: 50,
+        FIELD07: 50,
+        FIELD12: 'SE/1',
+        FIELD16: 'D',
+        FIELD74: 'SE',
+        T41FVNO: 'SE/1',
+      },
     ],
   );
 
@@ -416,9 +442,81 @@ describe('dbf helpers', () => {
     expect(str(null)).toBe('');
     expect(str(new Date('2025-01-02T00:00:00Z'))).toBe('2025-01-02');
     expect(num(null)).toBe(0);
+    expect(num('')).toBe(0);
+    expect(num(3)).toBe(3);
     expect(num('x')).toBe(0);
     expect(dateStr(null)).toBeNull();
+    expect(dateStr('')).toBeNull();
     expect(dateStr('2025-07-01T12:00:00Z')).toBe('2025-07-01');
+    expect(dateStr(new Date('2025-03-04T00:00:00Z'))).toBe('2025-03-04');
+    expect(dateStr('not-a-date')).toBeNull();
+  });
+
+  it('reads float and memo fields and rejects tiny files', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dbf-memo-'));
+    tmpDirs.push(dir);
+    expect(() => readDbf(path.join(dir, 'missing.dbf'))).toThrow();
+
+    const tiny = path.join(dir, 'tiny.dbf');
+    fs.writeFileSync(tiny, Buffer.alloc(10));
+    expect(() => readDbf(tiny)).toThrow(/too small/);
+
+    // Memo + float table
+    const fields: FieldDef[] = [
+      { name: 'CODE', type: 'C', length: 4 },
+      { name: 'RATE', type: 'F', length: 10, decimals: 2 },
+      { name: 'NOTE', type: 'C', length: 4 }, // write as C then patch type to M
+    ];
+    const file = path.join(dir, 'memo.dbf');
+    writeDbf(file, fields, [{ CODE: 'A1', RATE: 1.5, NOTE: '   1' }]);
+    const buf = fs.readFileSync(file);
+    // field NOTE type at 32 + 2*32 + 11 = 107
+    buf[32 + 2 * 32 + 11] = 0x4d; // 'M'
+    fs.writeFileSync(file, buf);
+
+    const fpt = Buffer.alloc(512 + 64, 0);
+    fpt.writeUInt16BE(64, 6);
+    fpt.writeInt32BE(1, 64);
+    fpt.writeUInt32BE(11, 68);
+    fpt.write('MEMO HELLO!', 72, 'ascii');
+    fs.writeFileSync(path.join(dir, 'memo.fpt'), fpt);
+
+    const { records } = readDbf(file);
+    expect(num(records[0].RATE)).toBe(1.5);
+    expect(str(records[0].NOTE)).toContain('MEMO');
+  });
+
+  it('covers invalid dates, unknown field types, and missing dirs', () => {
+    expect(findDbf('/tmp/miracle-dbf-missing-dir-xyz', 'x.dbf')).toBeNull();
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dbf-edge-'));
+    tmpDirs.push(dir);
+    const fields: FieldDef[] = [
+      { name: 'DT', type: 'D', length: 8 },
+      { name: 'AMT', type: 'N', length: 6, decimals: 0 },
+      { name: 'FLG', type: 'L', length: 1 },
+      { name: 'X', type: 'C', length: 3 },
+    ];
+    const file = path.join(dir, 'edge.dbf');
+    writeDbf(file, fields, [
+      { DT: 'bad', AMT: null, FLG: null, X: 'ok' },
+      { DT: '20250101', AMT: 5, FLG: true, X: 'yy' },
+    ]);
+    const buf = fs.readFileSync(file);
+    // patch field X type to unknown 'Z'
+    buf[32 + 3 * 32 + 11] = 0x5a;
+    // second record FLG = Y
+    const headerLen = 32 + fields.length * 32 + 1;
+    const recordLen = 1 + fields.reduce((s, f) => s + f.length, 0);
+    buf[headerLen + recordLen + 1 + 8 + 6] = 0x59; // 'Y'
+    fs.writeFileSync(file, buf);
+
+    const { records } = readDbf(file);
+    expect(records[0].DT).toBeNull();
+    expect(records[0].AMT).toBeNull();
+    expect(records[0].FLG).toBeNull();
+    expect(str(records[0].X)).toBe('ok');
+    expect(records[1].FLG).toBe(true);
   });
 });
 
@@ -460,9 +558,9 @@ describe('miracleImport', () => {
       const summary = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
       expect(summary.companyName).toContain('FIXTURE');
-      expect(summary.ledgers).toBe(3);
+      expect(summary.ledgers).toBe(4);
       expect(summary.products).toBe(1);
-      expect(summary.vouchers).toBe(4);
+      expect(summary.vouchers).toBe(5);
       expect(summary.voucherEntries).toBe(2);
       expect(summary.voucherItems).toBe(1);
       expect(summary.groups).toBe(2);
@@ -495,7 +593,7 @@ describe('miracleImport', () => {
       await c2.query('BEGIN');
       const again = await importMiracleCompany(c2, TENANT, company, job2);
       await c2.query('COMMIT');
-      expect(again.ledgers).toBe(3);
+      expect(again.ledgers).toBe(4);
     } finally {
       c2.release();
     }
@@ -535,5 +633,27 @@ describe('miracleImport', () => {
     } finally {
       client.release();
     }
+
+    fs.mkdirSync(path.join(company, 'YR25'));
+    const job3 = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [job3, TENANT],
+    );
+    const c3 = await pool.connect();
+    try {
+      await expect(importMiracleCompany(c3, TENANT, company, job3)).rejects.toThrow(/RKACCM01/);
+    } finally {
+      c3.release();
+    }
+  });
+
+  it('locateCompanyDir accepts company root directly and rejects empty extract', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-empty-'));
+    tmpDirs.push(root);
+    expect(() => locateCompanyDir(root)).toThrow(/Could not find Miracle/);
+
+    const company = buildMiracleCompany(root);
+    expect(locateCompanyDir(company)).toBe(company);
   });
 });
