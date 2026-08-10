@@ -43,9 +43,9 @@ async function main() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const summary = await importMiracleCompany(client, tenantId, locateCompanyDir(root), jobId);
+    const result = await importMiracleCompany(client, tenantId, locateCompanyDir(root), jobId);
     await client.query('COMMIT');
-    console.log(JSON.stringify(summary, null, 2));
+    console.log(JSON.stringify(result, null, 2));
     const counts = await pool.query(
       `SELECT
         (SELECT COUNT(*)::int FROM book_ledgers WHERE tenant_id=$1) as ledgers,

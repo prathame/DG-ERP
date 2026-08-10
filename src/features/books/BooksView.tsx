@@ -63,7 +63,19 @@ interface VoucherRow {
   miracleType?: string;
 }
 
-async function uploadMiracleFile(file: File): Promise<{ jobId: string; summary: Record<string, unknown> }> {
+interface MiracleImportIssue {
+  stage: string;
+  message: string;
+  externalRef?: string;
+  row?: number;
+}
+
+async function uploadMiracleFile(file: File): Promise<{
+  jobId: string;
+  summary: Record<string, unknown>;
+  errors: MiracleImportIssue[];
+  warnings: MiracleImportIssue[];
+}> {
   const token = session.getToken();
   const tenantId = session.getTenantId();
   const form = new FormData();
@@ -82,7 +94,26 @@ async function uploadMiracleFile(file: File): Promise<{ jobId: string; summary: 
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error || 'Import failed');
-  return body as { jobId: string; summary: Record<string, unknown> };
+  const parsed = body as {
+    jobId: string;
+    summary: Record<string, unknown>;
+    errors?: MiracleImportIssue[];
+    warnings?: MiracleImportIssue[];
+  };
+  return {
+    jobId: parsed.jobId,
+    summary: parsed.summary || {},
+    errors: Array.isArray(parsed.errors) ? parsed.errors : [],
+    warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
+  };
+}
+
+function formatIssue(issue: MiracleImportIssue): string {
+  const bits = [issue.message];
+  if (issue.externalRef) bits.push(`(${issue.externalRef})`);
+  if (issue.row != null) bits.push(`row ${issue.row}`);
+  if (issue.stage) bits.push(`[${issue.stage}]`);
+  return bits.join(' ');
 }
 
 function money(n: number) {
@@ -99,6 +130,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<MiracleImportIssue[]>([]);
+  const [importWarnings, setImportWarnings] = useState<MiracleImportIssue[]>([]);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -144,6 +177,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
     setImporting(true);
     setMessage(null);
     setError(null);
+    setImportErrors([]);
+    setImportWarnings([]);
     try {
       const result = await uploadMiracleFile(file);
       const s = (result.summary || {}) as Record<string, unknown>;
@@ -153,6 +188,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
           `${summaryCount(s, 'invoices')} invoices, ${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments` +
           ` (Books: ${summaryCount(s, 'ledgers')} ledgers, ${summaryCount(s, 'vouchers')} vouchers)`,
       );
+      setImportErrors(result.errors);
+      setImportWarnings(result.warnings);
       await loadSummary();
       setPanel('overview');
     } catch (e) {
@@ -203,6 +240,30 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
       )}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      )}
+      {importErrors.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <p className="font-semibold">
+            {importErrors.length} row{importErrors.length === 1 ? '' : 's'} skipped or failed during import
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {importErrors.map((issue, i) => (
+              <li key={`err-${i}`}>{formatIssue(issue)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {importWarnings.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="font-semibold">
+            {importWarnings.length} warning{importWarnings.length === 1 ? '' : 's'}
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {importWarnings.map((issue, i) => (
+              <li key={`warn-${i}`}>{formatIssue(issue)}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {loading ? (
@@ -274,7 +335,13 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
             Invoices / Payments. Full ledgers and vouchers stay available under Books. Re-import upserts (no
             duplicates).
           </p>
-          <label className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600">
+          <label
+            className={`mt-6 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white ${
+              importing
+                ? 'cursor-not-allowed bg-orange-400 opacity-70'
+                : 'cursor-pointer bg-orange-500 hover:bg-orange-600'
+            }`}
+          >
             {importing ? 'Importing…' : 'Choose file'}
             <input
               type="file"

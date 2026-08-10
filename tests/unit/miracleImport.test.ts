@@ -570,7 +570,7 @@ describe('miracleImport', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const summary = await importMiracleCompany(client, TENANT, company, jobId);
+      const { summary, errors, warnings } = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
       expect(summary.companyName).toContain('FIXTURE');
       expect(summary.ledgers).toBe(4);
@@ -584,6 +584,8 @@ describe('miracleImport', () => {
       expect(summary.opsProducts).toBe(1);
       expect(summary.invoices).toBeGreaterThanOrEqual(2); // SP + SE sales
       expect(summary.vendorPayments + summary.invoicePayments).toBeGreaterThanOrEqual(1);
+      expect(errors).toEqual([]);
+      expect(warnings).toEqual([]);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -658,9 +660,9 @@ describe('miracleImport', () => {
       await c2.query('BEGIN');
       const again = await importMiracleCompany(c2, TENANT, company, job2);
       await c2.query('COMMIT');
-      expect(again.ledgers).toBe(4);
-      expect(again.vendors).toBe(1);
-      expect(again.opsProducts).toBe(1);
+      expect(again.summary.ledgers).toBe(4);
+      expect(again.summary.vendors).toBe(1);
+      expect(again.summary.opsProducts).toBe(1);
     } finally {
       c2.release();
     }
@@ -732,5 +734,90 @@ describe('miracleImport', () => {
 
     const company = buildMiracleCompany(root);
     expect(locateCompanyDir(company)).toBe(company);
+  });
+
+  it('skips ops product with empty name and collects an error', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-empty-prod-'));
+    tmpDirs.push(root);
+    const company = buildMiracleCompany(root);
+    const yr = path.join(company, 'YR25');
+
+    // Append a product row with blank name
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 10 },
+        { name: 'FIELD05', type: 'C', length: 20 },
+        { name: 'FIELD20', type: 'C', length: 8 },
+        { name: 'FIELD40', type: 'C', length: 15 },
+      ],
+      [
+        {
+          FIELD01: 'PGITEM01',
+          FIELD02: 'LUNCH BOX DIE',
+          FIELD04: 'LB1',
+          FIELD05: 'Numbers',
+          FIELD20: 'VIB00001',
+          FIELD40: '8480',
+        },
+        {
+          FIELD01: 'PGBLANK1',
+          FIELD02: '',
+          FIELD04: '',
+          FIELD05: '',
+          FIELD20: '',
+          FIELD40: '',
+        },
+      ],
+    );
+
+    for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledger_details',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { summary, errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(summary.products).toBe(2); // books still gets both
+      expect(summary.opsProducts).toBe(1); // blank name skipped for ops
+      expect(errors.some(e => e.stage === 'products' && e.externalRef === 'PGBLANK1')).toBe(true);
+      expect(errors.find(e => e.externalRef === 'PGBLANK1')?.message).toMatch(/missing name/i);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const opsProducts = await pool.query(
+      `SELECT name, external_ref FROM products WHERE tenant_id = $1 ORDER BY external_ref`,
+      [TENANT],
+    );
+    expect(opsProducts.rows.map(r => r.external_ref)).toEqual(['PGITEM01']);
   });
 });

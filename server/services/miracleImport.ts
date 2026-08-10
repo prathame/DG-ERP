@@ -38,6 +38,57 @@ export interface MiracleImportSummary {
   invoicePayments: number;
 }
 
+export interface MiracleImportIssue {
+  stage: string;
+  message: string;
+  externalRef?: string;
+  row?: number;
+}
+
+export interface MiracleImportResult {
+  summary: MiracleImportSummary;
+  errors: MiracleImportIssue[];
+  warnings: MiracleImportIssue[];
+}
+
+/** Client-facing validation failure (bad archive / missing masters). */
+export class MiracleImportValidationError extends Error {
+  readonly status = 400;
+  constructor(message: string) {
+    super(message);
+    this.name = 'MiracleImportValidationError';
+  }
+}
+
+const MAX_ISSUES = 50;
+
+function createIssueBag() {
+  const errors: MiracleImportIssue[] = [];
+  const warnings: MiracleImportIssue[] = [];
+  let errorExtra = 0;
+  let warningExtra = 0;
+
+  return {
+    error(issue: MiracleImportIssue) {
+      if (errors.length < MAX_ISSUES) errors.push(issue);
+      else errorExtra++;
+    },
+    warn(issue: MiracleImportIssue) {
+      if (warnings.length < MAX_ISSUES) warnings.push(issue);
+      else warningExtra++;
+    },
+    finalize(): { errors: MiracleImportIssue[]; warnings: MiracleImportIssue[] } {
+      if (errorExtra > 0) {
+        errors.push({ stage: 'import', message: `…and ${errorExtra} more` });
+      }
+      if (warningExtra > 0) {
+        warnings.push({ stage: 'import', message: `…and ${warningExtra} more` });
+      }
+      return { errors, warnings };
+    },
+  };
+}
+
 function mapVoucherType(miracleType: string, subtype: string): string {
   const t = miracleType.toUpperCase();
   const s = subtype.toUpperCase();
@@ -96,7 +147,7 @@ function parseVersionTxt(companyDir: string): { companyName: string; miracleVers
 /** Locate CMP root inside an extracted archive. */
 export function locateCompanyDir(root: string): string {
   if (!fs.existsSync(root)) {
-    throw new Error(`Miracle extract path not found: ${root}`);
+    throw new MiracleImportValidationError(`Miracle extract path not found: ${root}`);
   }
   const versionHere = fs.existsSync(path.join(root, 'version.txt')) || fs.existsSync(path.join(root, 'VERSION.TXT'));
   if (versionHere && findYearDir(root)) return root;
@@ -114,7 +165,7 @@ export function locateCompanyDir(root: string): string {
       /* continue */
     }
   }
-  throw new Error('Could not find Miracle company folder (version.txt + year folder YRxx)');
+  throw new MiracleImportValidationError('Could not find Miracle company folder (version.txt + year folder YRxx)');
 }
 
 export async function extractArchive(archivePath: string): Promise<string> {
@@ -131,11 +182,13 @@ export async function extractArchive(archivePath: string): Promise<string> {
         await execFileAsync('unrar', ['x', '-o+', archivePath, tmp]);
       }
     } else {
-      throw new Error('Unsupported archive — upload .rar or .zip of the Miracle CMP folder');
+      throw new MiracleImportValidationError('Unsupported archive — upload .rar or .zip of the Miracle CMP folder');
     }
   } catch (err) {
     fs.rmSync(tmp, { recursive: true, force: true });
-    throw err;
+    if (err instanceof MiracleImportValidationError) throw err;
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new MiracleImportValidationError(`Failed to extract Miracle archive: ${detail}`);
   }
   return tmp;
 }
@@ -463,10 +516,13 @@ export async function importMiracleCompany(
   tenantId: string,
   companyDir: string,
   jobId: string,
-): Promise<MiracleImportSummary> {
+): Promise<MiracleImportResult> {
+  const issues = createIssueBag();
   const { companyName, miracleVersion } = parseVersionTxt(companyDir);
   const year = findYearDir(companyDir);
-  if (!year) throw new Error('No YRxx financial year folder found in Miracle company data');
+  if (!year) {
+    throw new MiracleImportValidationError('No YRxx financial year folder found in Miracle company data');
+  }
 
   const yrDir = year.dir;
   const summary: MiracleImportSummary = {
@@ -518,7 +574,9 @@ export async function importMiracleCompany(
 
   // Groups — rkaccm11
   const groupsPath = findDbf(yrDir, 'rkaccm11.dbf');
-  if (groupsPath) {
+  if (!groupsPath) {
+    issues.warn({ stage: 'groups', message: 'Account group master rkaccm11.dbf not found' });
+  } else {
     const { records } = readDbf(groupsPath);
     // Two passes for parent links
     for (const r of records) {
@@ -554,7 +612,11 @@ export async function importMiracleCompany(
 
   // Ledgers — RKACCM01 + address rkaccm02
   const ledgersPath = findDbf(yrDir, 'RKACCM01.DBF') || findDbf(yrDir, 'rkaccm01.dbf');
-  if (!ledgersPath) throw new Error('Missing account master RKACCM01.DBF');
+  if (!ledgersPath) {
+    throw new MiracleImportValidationError(
+      'Missing required account master RKACCM01.DBF — cannot import ledgers or parties',
+    );
+  }
   const ledgerRows = readDbf(ledgersPath).records;
   const addrById = new Map<string, DbfRecord>();
   if (findDbf(yrDir, 'rkaccm02.dbf')) {
@@ -564,10 +626,13 @@ export async function importMiracleCompany(
     }
   }
 
+  let ledgerRow = 0;
   for (const r of ledgerRows) {
+    ledgerRow++;
     const ext = str(r.FIELD01);
     if (!ext) continue;
-    const name = str(r.FIELD02) || ext;
+    const rawName = str(r.FIELD02).trim();
+    const name = rawName || ext;
     const nature = str(r.FIELD04) || null;
     const ledgerType = str(r.FIELD07) || null;
     const groupExt = str(r.FIELD05) || str(r.FIELD06);
@@ -660,19 +725,28 @@ export async function importMiracleCompany(
 
     // Trading parties (Miracle PR) → Dhandho vendors
     if ((ledgerType || '').toUpperCase() === 'PR') {
-      await upsertOpsVendor(
-        client,
-        tenantId,
-        ext,
-        name,
-        contactPerson || name,
-        phone,
-        email,
-        address,
-        gstin,
-        vendorIds,
-      );
-      summary.vendors++;
+      if (!rawName) {
+        issues.error({
+          stage: 'vendors',
+          message: 'Party/vendor missing name — skipped ops import',
+          externalRef: ext,
+          row: ledgerRow,
+        });
+      } else {
+        await upsertOpsVendor(
+          client,
+          tenantId,
+          ext,
+          name,
+          contactPerson || name,
+          phone,
+          email,
+          address,
+          gstin,
+          vendorIds,
+        );
+        summary.vendors++;
+      }
     }
   }
 
@@ -686,8 +760,12 @@ export async function importMiracleCompany(
       if (id) rates.set(id, r);
     }
   }
-  if (prodPath) {
+  if (!prodPath) {
+    issues.warn({ stage: 'products', message: 'Product master rkaccm21.dbf not found — no products imported' });
+  } else {
+    let prodRow = 0;
     for (const r of readDbf(prodPath).records) {
+      prodRow++;
       const ext = str(r.FIELD01);
       if (!ext) continue;
       const rt = rates.get(ext);
@@ -695,7 +773,8 @@ export async function importMiracleCompany(
       const saleRate = num(rt?.M29F03);
       const unit = str(r.FIELD05) || null;
       const hsn = str(r.FIELD40) || null;
-      const prodName = str(r.FIELD02) || ext;
+      const rawProdName = str(r.FIELD02).trim();
+      const prodName = rawProdName || ext;
       await client.query(
         `INSERT INTO book_products
           (id, tenant_id, name, code, unit, hsn_code, sale_rate, purchase_rate, mrp, tax_class, external_ref)
@@ -722,9 +801,18 @@ export async function importMiracleCompany(
       productIds.set(ext, row.id);
       summary.products++;
 
-      await upsertOpsProduct(client, tenantId, ext, prodName, unit, hsn, saleRate, opsProductIds);
-      opsProductNames.set(ext, prodName);
-      summary.opsProducts++;
+      if (!rawProdName) {
+        issues.error({
+          stage: 'products',
+          message: 'Product missing name — skipped ops import',
+          externalRef: ext,
+          row: prodRow,
+        });
+      } else {
+        await upsertOpsProduct(client, tenantId, ext, prodName, unit, hsn, saleRate, opsProductIds);
+        opsProductNames.set(ext, prodName);
+        summary.opsProducts++;
+      }
     }
   }
 
@@ -741,7 +829,11 @@ export async function importMiracleCompany(
 
   // Voucher headers — RKACCT41
   const hdrPath = findDbf(yrDir, 'RKACCT41.DBF') || findDbf(yrDir, 'rkacct41.dbf');
-  if (!hdrPath) throw new Error('Missing voucher header RKACCT41.DBF');
+  if (!hdrPath) {
+    throw new MiracleImportValidationError(
+      'Missing required voucher header RKACCT41.DBF — cannot import vouchers or invoices',
+    );
+  }
   const headers = readDbf(hdrPath).records;
 
   // Entries — RKACCT01
@@ -928,38 +1020,52 @@ export async function importMiracleCompany(
       }
       const meta = partyKey ? ledgerMeta.get(partyKey) : null;
       const vendorId = partyKey ? vendorIds.get(partyKey) || null : null;
-      const lineItems =
-        opsLineItems.length > 0
-          ? opsLineItems
-          : [
-              {
-                description: narration || 'Miracle sale',
-                hsnSac: null,
-                qty: 1,
-                rate: amount,
-                gstPercent: 0,
-                discountPercent: 0,
-                productId: null,
-                taxable: amount,
-                tax: 0,
-                total: amount,
-              },
-            ];
-      await upsertOpsInvoice(
-        client,
-        tenantId,
-        ext,
-        vNumber || `MIR-${ext}`,
-        meta?.name || 'Miracle party',
-        meta?.gstin || null,
-        meta?.address || null,
-        meta?.phone || null,
-        vendorId,
-        lineItems,
-        vDate,
-        narration,
-      );
-      summary.invoices++;
+      if (!partyKey || !vendorId) {
+        issues.error({
+          stage: 'invoices',
+          message: 'Sales voucher missing trading party — skipped ops invoice',
+          externalRef: ext,
+        });
+      } else if (!(amount > 0) && opsLineItems.length === 0) {
+        issues.error({
+          stage: 'invoices',
+          message: 'Sales voucher has invalid amount — skipped ops invoice',
+          externalRef: ext,
+        });
+      } else {
+        const lineItems =
+          opsLineItems.length > 0
+            ? opsLineItems
+            : [
+                {
+                  description: narration || 'Miracle sale',
+                  hsnSac: null,
+                  qty: 1,
+                  rate: amount,
+                  gstPercent: 0,
+                  discountPercent: 0,
+                  productId: null,
+                  taxable: amount,
+                  tax: 0,
+                  total: amount,
+                },
+              ];
+        await upsertOpsInvoice(
+          client,
+          tenantId,
+          ext,
+          vNumber || `MIR-${ext}`,
+          meta?.name || partyKey,
+          meta?.gstin || null,
+          meta?.address || null,
+          meta?.phone || null,
+          vendorId,
+          lineItems,
+          vDate,
+          narration,
+        );
+        summary.invoices++;
+      }
     } else if (voucherType === 'receipt' || voucherType === 'payment') {
       pendingCash.push({
         ext,
@@ -978,7 +1084,22 @@ export async function importMiracleCompany(
   for (const cash of pendingCash) {
     // Party may be on FIELD04 or FIELD05 depending on side
     const partyKey = vendorIds.has(cash.partyExt) ? cash.partyExt : vendorIds.has(cash.contraExt) ? cash.contraExt : '';
-    if (!partyKey) continue;
+    if (!partyKey) {
+      issues.error({
+        stage: 'payments',
+        message: `${cash.voucherType} missing trading party — skipped`,
+        externalRef: cash.ext,
+      });
+      continue;
+    }
+    if (!(cash.amount > 0)) {
+      issues.error({
+        stage: 'payments',
+        message: `${cash.voucherType} has invalid amount — skipped`,
+        externalRef: cash.ext,
+      });
+      continue;
+    }
     const vendorId = vendorIds.get(partyKey)!;
     const method = 'Cash';
     if (cash.voucherType === 'receipt') {
@@ -1011,13 +1132,22 @@ export async function importMiracleCompany(
     }
   }
 
+  const { errors, warnings } = issues.finalize();
+  const persisted = { ...summary, errors, warnings };
+
   await client.query(
     `UPDATE book_import_jobs
      SET status = 'completed', summary = $1::jsonb, finished_at = NOW(), error_message = NULL
      WHERE id = $2 AND tenant_id = $3`,
-    [JSON.stringify(summary), jobId, tenantId],
+    [JSON.stringify(persisted), jobId, tenantId],
   );
 
-  logger.info('Miracle import completed', { tenantId, jobId, ...summary });
-  return summary;
+  logger.info('Miracle import completed', {
+    tenantId,
+    jobId,
+    ...summary,
+    errorCount: errors.length,
+    warningCount: warnings.length,
+  });
+  return { summary, errors, warnings };
 }
