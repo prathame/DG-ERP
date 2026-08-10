@@ -4,7 +4,7 @@
  * Shows first-run wizard if no license stored locally.
  * Used by unified `electron/desktop` and legacy `electron/onprem/main`.
  */
-import { app, BrowserWindow, ipcMain, shell, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -425,6 +425,11 @@ export async function bootOffline(): Promise<void> {
     }
   } catch (err) {
     console.error('Startup failed:', err);
+    const detail = err instanceof Error ? err.message : String(err);
+    dialog.showErrorBox(
+      'Dhandho Offline failed to start',
+      `${detail}\n\nIf this keeps happening, quit the app and clear Offline data, then try again.`,
+    );
     app.quit();
     return;
   }

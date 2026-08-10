@@ -9,6 +9,7 @@ module.exports = {
   files: [
     'dist/**',           // Built React frontend
     'server/**',         // Express backend
+    'shared/**',         // server imports tabPresets / mobileFeatures / etc.
     'electron/onprem/**', // On-prem main process
     'electron/shared/**', // Shared constants
     'node_modules/**',

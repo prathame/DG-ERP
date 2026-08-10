@@ -9,6 +9,7 @@ module.exports = {
   files: [
     'dist/**',
     'server/**',
+    'shared/**', // server imports tabPresets / mobileFeatures / etc.
     'electron/desktop/**',
     'electron/cloud/**',
     'electron/onprem/**',
