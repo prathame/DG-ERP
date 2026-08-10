@@ -29,6 +29,11 @@ async function main() {
   console.log('tenant', tenantId);
 
   for (const sql of [
+    'DELETE FROM invoice_payments WHERE tenant_id=$1',
+    'DELETE FROM vendor_payments WHERE tenant_id=$1',
+    'DELETE FROM standalone_invoices WHERE tenant_id=$1',
+    'DELETE FROM products WHERE tenant_id=$1 AND external_ref IS NOT NULL',
+    'DELETE FROM vendors WHERE tenant_id=$1 AND external_ref IS NOT NULL',
     'DELETE FROM book_voucher_items WHERE tenant_id=$1',
     'DELETE FROM book_voucher_entries WHERE tenant_id=$1',
     'DELETE FROM book_vouchers WHERE tenant_id=$1',
@@ -61,7 +66,12 @@ async function main() {
         (SELECT COUNT(*)::int FROM book_products WHERE tenant_id=$1) as products,
         (SELECT COUNT(*)::int FROM book_vouchers WHERE tenant_id=$1) as vouchers,
         (SELECT COUNT(*)::int FROM book_voucher_entries WHERE tenant_id=$1) as entries,
-        (SELECT COUNT(*)::int FROM book_voucher_items WHERE tenant_id=$1) as items`,
+        (SELECT COUNT(*)::int FROM book_voucher_items WHERE tenant_id=$1) as items,
+        (SELECT COUNT(*)::int FROM vendors WHERE tenant_id=$1) as vendors,
+        (SELECT COUNT(*)::int FROM products WHERE tenant_id=$1 AND external_ref IS NOT NULL) as ops_products,
+        (SELECT COUNT(*)::int FROM standalone_invoices WHERE tenant_id=$1) as invoices,
+        (SELECT COUNT(*)::int FROM invoice_payments WHERE tenant_id=$1) as invoice_payments,
+        (SELECT COUNT(*)::int FROM vendor_payments WHERE tenant_id=$1) as vendor_payments`,
       [tenantId],
     );
     console.log('DB counts', counts.rows[0]);

@@ -20,6 +20,29 @@ import { logger } from '../utils/logger';
 
 const execFileAsync = promisify(execFile);
 
+/** Source → imported → skipped for one ops category (shown in Masters Import UI). */
+export interface MiracleImportCoverageBucket {
+  source: number;
+  imported: number;
+  skipped: number;
+  /** Why rows were skipped (when skipped > 0). */
+  skipReason?: string;
+}
+
+export interface MiracleImportCoverage {
+  parties: MiracleImportCoverageBucket;
+  products: MiracleImportCoverageBucket;
+  salesInvoices: MiracleImportCoverageBucket;
+  /** CB receipts posted to income ledgers (job work, scrap, etc.) → paid invoices */
+  cashIncomeInvoices: MiracleImportCoverageBucket;
+  /** CB receipts/payments involving a trading/liability party */
+  partyCash: MiracleImportCoverageBucket;
+  /** Expense/capital/FA/etc. cash — kept in Books only */
+  nonPartyCashSkipped: number;
+  /** Journals — Books only (not ops) */
+  journalsBooksOnly: number;
+}
+
 export interface MiracleImportSummary {
   companyName: string;
   miracleVersion: string;
@@ -36,6 +59,32 @@ export interface MiracleImportSummary {
   invoices: number;
   vendorPayments: number;
   invoicePayments: number;
+  /** Post-import breakdown for UI */
+  coverage: MiracleImportCoverage;
+}
+
+/** Miracle ledger types treated as Dhandho parties (vendors). PR = trading, LI = liability/loan person. */
+export function isOpsPartyLedgerType(ledgerType: string | null | undefined): boolean {
+  const t = (ledgerType || '').toUpperCase();
+  return t === 'PR' || t === 'LI';
+}
+
+/** Income ledgers that receive cash without a party → cash-sale invoices. */
+export function isCashIncomeLedgerType(ledgerType: string | null | undefined): boolean {
+  const t = (ledgerType || '').toUpperCase();
+  return t === 'JP' || t === 'IN';
+}
+
+function emptyCoverage(): MiracleImportCoverage {
+  return {
+    parties: { source: 0, imported: 0, skipped: 0 },
+    products: { source: 0, imported: 0, skipped: 0 },
+    salesInvoices: { source: 0, imported: 0, skipped: 0 },
+    cashIncomeInvoices: { source: 0, imported: 0, skipped: 0 },
+    partyCash: { source: 0, imported: 0, skipped: 0 },
+    nonPartyCashSkipped: 0,
+    journalsBooksOnly: 0,
+  };
 }
 
 export interface MiracleImportIssue {
@@ -320,7 +369,8 @@ async function upsertOpsInvoice(
   }>,
   invoiceDate: string,
   notes: string | null,
-): Promise<void> {
+  status: 'sent' | 'paid' = 'sent',
+): Promise<string> {
   const subtotal = items.reduce((s, it) => s + it.taxable, 0);
   const taxTotal = items.reduce((s, it) => s + it.tax, 0);
   const grandTotal = subtotal + taxTotal;
@@ -344,7 +394,7 @@ async function upsertOpsInvoice(
        (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone,
         party_type, party_id, items, subtotal, tax_total, grand_total, notes, status, invoice_date,
         tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled, external_ref)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'sent',$15,0,0,0,false,false,$16)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,0,0,false,false,$17)
      ON CONFLICT (tenant_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE SET
        invoice_number = EXCLUDED.invoice_number,
        customer_name = EXCLUDED.customer_name,
@@ -358,6 +408,7 @@ async function upsertOpsInvoice(
        tax_total = EXCLUDED.tax_total,
        grand_total = EXCLUDED.grand_total,
        notes = EXCLUDED.notes,
+       status = EXCLUDED.status,
        invoice_date = EXCLUDED.invoice_date,
        updated_at = NOW()`,
     [
@@ -375,10 +426,18 @@ async function upsertOpsInvoice(
       taxTotal,
       grandTotal,
       notes,
+      status,
       invoiceDate,
       externalRef,
     ],
   );
+  const row = (
+    await client.query(`SELECT id FROM standalone_invoices WHERE tenant_id = $1 AND external_ref = $2`, [
+      tenantId,
+      externalRef,
+    ])
+  ).rows[0] as { id: string };
+  return row.id;
 }
 
 async function upsertVendorPayment(
@@ -525,6 +584,7 @@ export async function importMiracleCompany(
   }
 
   const yrDir = year.dir;
+  const coverage = emptyCoverage();
   const summary: MiracleImportSummary = {
     companyName,
     miracleVersion,
@@ -540,6 +600,7 @@ export async function importMiracleCompany(
     invoices: 0,
     vendorPayments: 0,
     invoicePayments: 0,
+    coverage,
   };
 
   await client.query(
@@ -569,8 +630,9 @@ export async function importMiracleCompany(
   const opsProductNames = new Map<string, string>();
   const ledgerMeta = new Map<
     string,
-    { name: string; gstin: string | null; phone: string | null; address: string | null }
+    { name: string; gstin: string | null; phone: string | null; address: string | null; ledgerType: string }
   >();
+  const ledgerTypes = new Map<string, string>();
 
   // Groups — rkaccm11
   const groupsPath = findDbf(yrDir, 'rkaccm11.dbf');
@@ -721,11 +783,16 @@ export async function importMiracleCompany(
       );
     }
 
-    ledgerMeta.set(ext, { name, gstin, phone, address });
+    const typeUpper = (ledgerType || '').toUpperCase();
+    ledgerTypes.set(ext, typeUpper);
+    ledgerMeta.set(ext, { name, gstin, phone, address, ledgerType: typeUpper });
 
-    // Trading parties (Miracle PR) → Dhandho vendors
-    if ((ledgerType || '').toUpperCase() === 'PR') {
+    // Trading parties (PR) + liability persons (LI) → Dhandho vendors
+    if (isOpsPartyLedgerType(typeUpper)) {
+      coverage.parties.source++;
       if (!rawName) {
+        coverage.parties.skipped++;
+        coverage.parties.skipReason = 'Party/vendor missing name';
         issues.error({
           stage: 'vendors',
           message: 'Party/vendor missing name — skipped ops import',
@@ -746,6 +813,7 @@ export async function importMiracleCompany(
           vendorIds,
         );
         summary.vendors++;
+        coverage.parties.imported++;
       }
     }
   }
@@ -800,8 +868,11 @@ export async function importMiracleCompany(
       ).rows[0] as { id: string };
       productIds.set(ext, row.id);
       summary.products++;
+      coverage.products.source++;
 
       if (!rawProdName) {
+        coverage.products.skipped++;
+        coverage.products.skipReason = 'Product missing name';
         issues.error({
           stage: 'products',
           message: 'Product missing name — skipped ops import',
@@ -812,6 +883,7 @@ export async function importMiracleCompany(
         await upsertOpsProduct(client, tenantId, ext, prodName, unit, hsn, saleRate, opsProductIds);
         opsProductNames.set(ext, prodName);
         summary.opsProducts++;
+        coverage.products.imported++;
       }
     }
   }
@@ -1007,7 +1079,8 @@ export async function importMiracleCompany(
     }
 
     if (voucherType === 'sales') {
-      // Resolve party: header party, else first PR ledger on entries
+      coverage.salesInvoices.source++;
+      // Resolve party: header party, else first ops-party ledger on entries
       let partyKey = partyExt && vendorIds.has(partyExt) ? partyExt : '';
       if (!partyKey) {
         for (const e of ents) {
@@ -1021,12 +1094,16 @@ export async function importMiracleCompany(
       const meta = partyKey ? ledgerMeta.get(partyKey) : null;
       const vendorId = partyKey ? vendorIds.get(partyKey) || null : null;
       if (!partyKey || !vendorId) {
+        coverage.salesInvoices.skipped++;
+        coverage.salesInvoices.skipReason = 'Sales voucher missing trading party';
         issues.error({
           stage: 'invoices',
           message: 'Sales voucher missing trading party — skipped ops invoice',
           externalRef: ext,
         });
       } else if (!(amount > 0) && opsLineItems.length === 0) {
+        coverage.salesInvoices.skipped++;
+        coverage.salesInvoices.skipReason = 'Sales voucher has invalid amount';
         issues.error({
           stage: 'invoices',
           message: 'Sales voucher has invalid amount — skipped ops invoice',
@@ -1065,6 +1142,7 @@ export async function importMiracleCompany(
           narration,
         );
         summary.invoices++;
+        coverage.salesInvoices.imported++;
       }
     } else if (voucherType === 'receipt' || voucherType === 'payment') {
       pendingCash.push({
@@ -1077,59 +1155,135 @@ export async function importMiracleCompany(
         vNumber,
         narration,
       });
+    } else if (voucherType === 'journal') {
+      coverage.journalsBooksOnly++;
     }
   }
 
-  // Second pass: cash book → payments (after invoices exist)
+  // Second pass: cash book → payments / cash-income invoices (after sales invoices exist)
   for (const cash of pendingCash) {
     // Party may be on FIELD04 or FIELD05 depending on side
     const partyKey = vendorIds.has(cash.partyExt) ? cash.partyExt : vendorIds.has(cash.contraExt) ? cash.contraExt : '';
-    if (!partyKey) {
-      issues.error({
-        stage: 'payments',
-        message: `${cash.voucherType} missing trading party — skipped`,
-        externalRef: cash.ext,
-      });
+    const incomeExt = [cash.partyExt, cash.contraExt].find(x => isCashIncomeLedgerType(ledgerTypes.get(x)));
+    const incomeMeta = incomeExt ? ledgerMeta.get(incomeExt) : null;
+
+    if (partyKey) {
+      coverage.partyCash.source++;
+      if (!(cash.amount > 0)) {
+        coverage.partyCash.skipped++;
+        coverage.partyCash.skipReason = 'Invalid amount';
+        issues.error({
+          stage: 'payments',
+          message: `${cash.voucherType} has invalid amount — skipped`,
+          externalRef: cash.ext,
+        });
+        continue;
+      }
+      const vendorId = vendorIds.get(partyKey)!;
+      const method = 'Cash';
+      if (cash.voucherType === 'receipt') {
+        const allocated = await allocateReceiptToInvoices(
+          client,
+          tenantId,
+          vendorId,
+          cash.amount,
+          cash.vDate,
+          method,
+          cash.vNumber,
+          cash.ext,
+          cash.narration,
+        );
+        summary.invoicePayments += allocated.invoicePayments;
+        summary.vendorPayments += allocated.vendorPayments;
+      } else {
+        const ok = await upsertVendorPayment(
+          client,
+          tenantId,
+          vendorId,
+          cash.amount,
+          cash.vDate,
+          method,
+          cash.vNumber,
+          cash.narration ? `Miracle payment: ${cash.narration}` : `Miracle payment ${cash.ext}`,
+          `miracle:${cash.ext}`,
+        );
+        if (ok) summary.vendorPayments++;
+      }
+      coverage.partyCash.imported++;
       continue;
     }
-    if (!(cash.amount > 0)) {
-      issues.error({
-        stage: 'payments',
-        message: `${cash.voucherType} has invalid amount — skipped`,
-        externalRef: cash.ext,
-      });
-      continue;
-    }
-    const vendorId = vendorIds.get(partyKey)!;
-    const method = 'Cash';
-    if (cash.voucherType === 'receipt') {
-      const allocated = await allocateReceiptToInvoices(
+
+    // Cash receipt to income ledger (job work / scrap etc.) → paid invoice (no party)
+    if (cash.voucherType === 'receipt' && incomeExt && incomeMeta) {
+      coverage.cashIncomeInvoices.source++;
+      if (!(cash.amount > 0)) {
+        coverage.cashIncomeInvoices.skipped++;
+        coverage.cashIncomeInvoices.skipReason = 'Invalid amount';
+        issues.error({
+          stage: 'invoices',
+          message: 'Cash income receipt has invalid amount — skipped',
+          externalRef: cash.ext,
+        });
+        continue;
+      }
+      const incomeName = incomeMeta.name || incomeExt;
+      const invId = await upsertOpsInvoice(
         client,
         tenantId,
-        vendorId,
-        cash.amount,
-        cash.vDate,
-        method,
-        cash.vNumber,
         cash.ext,
-        cash.narration,
-      );
-      summary.invoicePayments += allocated.invoicePayments;
-      summary.vendorPayments += allocated.vendorPayments;
-    } else {
-      const ok = await upsertVendorPayment(
-        client,
-        tenantId,
-        vendorId,
-        cash.amount,
+        cash.vNumber || `MIR-CASH-${cash.ext}`,
+        incomeName,
+        null,
+        null,
+        null,
+        null,
+        [
+          {
+            description: cash.narration || incomeName,
+            hsnSac: null,
+            qty: 1,
+            rate: cash.amount,
+            gstPercent: 0,
+            discountPercent: 0,
+            productId: null,
+            taxable: cash.amount,
+            tax: 0,
+            total: cash.amount,
+          },
+        ],
         cash.vDate,
-        method,
-        cash.vNumber,
-        cash.narration ? `Miracle payment: ${cash.narration}` : `Miracle payment ${cash.ext}`,
-        `miracle:${cash.ext}`,
+        cash.narration ? `Miracle cash income: ${cash.narration}` : `Miracle cash income ${cash.ext}`,
+        'paid',
       );
-      if (ok) summary.vendorPayments++;
+      // Record payment against the invoice for Finance totals
+      await client.query(`DELETE FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key = $2`, [
+        tenantId,
+        `miracle:${cash.ext}:cash`,
+      ]);
+      await client.query(
+        `INSERT INTO invoice_payments
+           (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          uid('IP'),
+          tenantId,
+          invId,
+          cash.amount,
+          cash.vDate,
+          'Cash',
+          cash.vNumber,
+          cash.narration ? `Miracle cash income: ${cash.narration}` : `Miracle cash income ${cash.ext}`,
+          `miracle:${cash.ext}:cash`,
+        ],
+      );
+      summary.invoices++;
+      summary.invoicePayments++;
+      coverage.cashIncomeInvoices.imported++;
+      continue;
     }
+
+    // Expense / capital / FA / other non-ops cash — Books only
+    coverage.nonPartyCashSkipped++;
   }
 
   const { errors, warnings } = issues.finalize();
