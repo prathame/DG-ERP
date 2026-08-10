@@ -23,7 +23,12 @@ export type Tab =
   | 'hosp_queue'
   | 'hosp_menu'
   | 'hosp_parcels'
-  | 'hosp_members';
+  | 'hosp_members'
+  | 'books'
+  | 'book_ledgers'
+  | 'book_vouchers'
+  | 'book_products'
+  | 'book_import';
 
 export interface Product {
   id: string;

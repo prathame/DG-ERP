@@ -1,6 +1,7 @@
 import { session } from './session';
 
-export type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting' | 'hotel_restaurant';
+export type BusinessType =
+  'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting' | 'hotel_restaurant' | 'accounting';
 
 export interface BusinessConfig {
   type: BusinessType;
@@ -30,6 +31,7 @@ export interface BusinessConfig {
     weighScale: boolean; // scale capture on intake
     jewelleryTags: boolean; // jewellery tag print fields
     hospitality: boolean; // floor / waiter / kitchen / queue
+    books: boolean; // Miracle-compatible double-entry books
     /** Inventory "With Vendors" column — hide when sales auto-mark Sold (dealer / retail / silver). */
     stockWithVendors: boolean;
   };
@@ -78,6 +80,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      books: false,
       stockWithVendors: true,
     },
     financeView: 'vendor',
@@ -118,6 +121,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      books: false,
       stockWithVendors: false,
     },
     financeView: 'vendor',
@@ -158,6 +162,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      books: false,
       stockWithVendors: false,
     },
     financeView: 'vendor',
@@ -198,6 +203,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: false,
+      books: false,
       stockWithVendors: false,
     },
     financeView: 'invoice',
@@ -238,6 +244,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: true,
       jewelleryTags: true,
       hospitality: false,
+      books: false,
       stockWithVendors: false,
     },
     financeView: 'vendor',
@@ -279,6 +286,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       weighScale: false,
       jewelleryTags: false,
       hospitality: true,
+      books: false,
       stockWithVendors: false,
     },
     financeView: 'invoice',
@@ -292,6 +300,47 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
     accounts: {
       hideTabs: ['sales', 'distribution', 'stock'],
       distributionRegisterLabel: 'Distribution Register',
+    },
+  },
+
+  accounting: {
+    type: 'accounting',
+    labels: {
+      vendors: 'Parties',
+      distribution: 'Sales',
+      finance: 'Party Payments',
+      purchaseCost: 'Purchase Cost',
+      distributionRevenue: 'Sales Revenue',
+    },
+    features: {
+      inventory: false,
+      distribution: false,
+      barcodes: false,
+      warranty: false,
+      rewards: false,
+      customerTracking: false,
+      eWayBill: false,
+      gstSplit: true,
+      vendorFinance: false,
+      invoiceFinance: false,
+      metalInventory: false,
+      weighScale: false,
+      jewelleryTags: false,
+      hospitality: false,
+      books: true,
+      stockWithVendors: false,
+    },
+    financeView: 'invoice',
+    analytics: {
+      showDispatched: false,
+      outstandingLabel: 'Outstanding',
+      outstandingKey: 'outstanding',
+      collectionsLabel: 'Received',
+      revenueLabel: 'Revenue',
+    },
+    accounts: {
+      hideTabs: ['sales', 'distribution', 'stock'],
+      distributionRegisterLabel: 'Sales Register',
     },
   },
 };

@@ -31,12 +31,18 @@
     "hospQueue": "Entry Queue",
     "hospParcels": "Parcels",
     "hospMenu": "Menu",
-    "hospMembers": "Members"
+    "hospMembers": "Members",
+    "books": "Books",
+    "bookLedgers": "Ledgers",
+    "bookVouchers": "Vouchers",
+    "bookProducts": "Book Products",
+    "bookImport": "Miracle Import"
   },
   "navSections": {
     "supplyChain": "Supply Chain",
     "financeReports": "Finance & Reports",
-    "afterSales": "After Sales"
+    "afterSales": "After Sales",
+    "books": "Books"
   },
   "common": {
     "save": "Save",

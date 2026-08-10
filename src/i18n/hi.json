@@ -31,7 +31,12 @@
     "hospQueue": "एंट्री कतार",
     "hospParcels": "पार्सल",
     "hospMenu": "मेनू",
-    "hospMembers": "सदस्य"
+    "hospMembers": "सदस्य",
+    "books": "बुक्स",
+    "bookLedgers": "लेजर",
+    "bookVouchers": "वाउचर",
+    "bookProducts": "उत्पाद",
+    "bookImport": "Miracle आयात"
   },
   "common": {
     "save": "सेव करें",
@@ -378,7 +383,8 @@
   "navSections": {
     "supplyChain": "सप्लाई चेन",
     "financeReports": "वित्त और रिपोर्ट",
-    "afterSales": "आफ्टर सेल्स"
+    "afterSales": "आफ्टर सेल्स",
+    "books": "बुक्स"
   },
   "invoices": {
     "title": "चालान",

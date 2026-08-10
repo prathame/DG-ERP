@@ -970,6 +970,7 @@ const PERMISSION_LABELS: { id: string; label: string }[] = [
   { id: 'warranty', label: 'Warranty' },
   { id: 'replacements', label: 'Replacements' },
   { id: 'rewards', label: 'Rewards' },
+  { id: 'books', label: 'Books' },
   { id: 'settings', label: 'Settings' },
 ];
 
