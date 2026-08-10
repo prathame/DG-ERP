@@ -2,7 +2,6 @@
 
 Made in India, for Indian businesses. Multi-tenant cloud SaaS (+ on-prem desktop) covering inventory, purchases, distribution, billing, GST, accounts, and payroll. Multilingual: English, Hindi, Gujarati.
 
-**Live**: [dhandho.app](https://dhandho.app)
 
 ---
 
