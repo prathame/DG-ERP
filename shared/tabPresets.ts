@@ -79,6 +79,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
   }),
+  /** Service / consulting — Miracle CMP import into clients, invoices & payments (no stock chain) */
   service: baseAllVisible({
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
@@ -89,6 +90,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    book_import: { label: 'Miracle Import', visible: true },
   }),
   silver_casting: baseAllVisible({
     inventory: { label: 'Metal Stock', visible: true },

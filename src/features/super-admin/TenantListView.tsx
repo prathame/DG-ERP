@@ -415,7 +415,7 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
   },
   service: {
     label: 'Service / Consulting',
-    desc: 'No inventory — invoicing, quotes, expenses and accounts for service businesses',
+    desc: 'No inventory — invoicing, quotes, expenses; Miracle CMP import into clients, invoices & payments',
   },
   silver_casting: {
     label: 'Silver Casting',

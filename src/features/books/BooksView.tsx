@@ -176,7 +176,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Books</h1>
           <p className="text-sm text-slate-500">
-            Miracle import fills working Dhandho data (vendors, products, invoices, payments) plus Books ledgers
+            Miracle import fills working Dhandho data (parties, products, invoices, payments) plus Books ledgers
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -230,7 +230,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
                 {summary.recentImports.map(j => {
                   const s = (j.summary || {}) as Record<string, unknown>;
                   const opsBits = [
-                    summaryCount(s, 'vendors') ? `${summaryCount(s, 'vendors')} vendors` : null,
+                    summaryCount(s, 'vendors') ? `${summaryCount(s, 'vendors')} parties` : null,
                     summaryCount(s, 'opsProducts') ? `${summaryCount(s, 'opsProducts')} products` : null,
                     summaryCount(s, 'invoices') ? `${summaryCount(s, 'invoices')} invoices` : null,
                     summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')

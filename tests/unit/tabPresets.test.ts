@@ -50,6 +50,19 @@ describe('tabPresets', () => {
     expect(p.books.visible).toBe(true);
   });
 
+  it('service exposes Miracle import with clients/invoices/finance (no stock chain)', () => {
+    const p = TAB_PRESETS.service;
+    expect(p.book_import.visible).toBe(true);
+    expect(p.masters.visible).toBe(true);
+    expect(p.invoices.visible).toBe(true);
+    expect(p.finance.visible).toBe(true);
+    expect(p.finance.label).toBe('Invoice Finance');
+    expect(p.inventory.visible).toBe(false);
+    expect(p.distribution.visible).toBe(false);
+    expect(p.warranty.visible).toBe(false);
+    expect(p.books.visible).toBe(false);
+  });
+
   it('silver_casting preset exposes metal stock + counter sale, hides warranty', () => {
     const p = TAB_PRESETS.silver_casting;
     expect(p.inventory.label).toBe('Metal Stock');
