@@ -17,25 +17,36 @@ import {
 } from '../../shared/tabPresets';
 
 describe('tabPresets', () => {
-  it('includes silver_casting, hotel_restaurant, and accounting among named types', () => {
+  it('includes silver_casting and hotel_restaurant among named types', () => {
     expect(NAMED_BUSINESS_TYPES).toContain('silver_casting');
     expect(NAMED_BUSINESS_TYPES).toContain('hotel_restaurant');
-    expect(NAMED_BUSINESS_TYPES).toContain('accounting');
+    expect(NAMED_BUSINESS_TYPES).not.toContain('accounting');
     expect(isNamedBusinessType('silver_casting')).toBe(true);
     expect(isNamedBusinessType('hotel_restaurant')).toBe(true);
-    expect(isNamedBusinessType('accounting')).toBe(true);
+    expect(isNamedBusinessType('accounting')).toBe(false);
     expect(isBusinessTypeWithCustom('custom')).toBe(true);
     expect(isNamedBusinessType('custom')).toBe(false);
   });
 
-  it('accounting preset enables books tabs and hides distribution chain', () => {
-    const p = TAB_PRESETS.accounting;
-    expect(p.books.visible).toBe(true);
-    expect(p.book_ledgers.visible).toBe(true);
-    expect(p.book_vouchers.visible).toBe(true);
+  it('manufacturer exposes Miracle import alongside ops tabs', () => {
+    const p = TAB_PRESETS.manufacturer;
+    expect(p.masters.visible).toBe(true);
+    expect(p.invoices.visible).toBe(true);
     expect(p.book_import.visible).toBe(true);
+    expect(p.books.visible).toBe(true);
+  });
+
+  it('service exposes Miracle import with clients/invoices/finance (no stock chain)', () => {
+    const p = TAB_PRESETS.service;
+    expect(p.book_import.visible).toBe(true);
+    expect(p.masters.visible).toBe(true);
+    expect(p.invoices.visible).toBe(true);
+    expect(p.finance.visible).toBe(true);
+    expect(p.finance.label).toBe('Invoice Finance');
+    expect(p.inventory.visible).toBe(false);
     expect(p.distribution.visible).toBe(false);
     expect(p.warranty.visible).toBe(false);
+    expect(p.books.visible).toBe(false);
   });
 
   it('silver_casting preset exposes metal stock + counter sale, hides warranty', () => {

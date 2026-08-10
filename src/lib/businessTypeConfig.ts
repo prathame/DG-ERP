@@ -1,7 +1,6 @@
 import { session } from './session';
 
-export type BusinessType =
-  'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting' | 'hotel_restaurant' | 'accounting';
+export type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting' | 'hotel_restaurant';
 
 export interface BusinessConfig {
   type: BusinessType;
@@ -300,47 +299,6 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
     accounts: {
       hideTabs: ['sales', 'distribution', 'stock'],
       distributionRegisterLabel: 'Distribution Register',
-    },
-  },
-
-  accounting: {
-    type: 'accounting',
-    labels: {
-      vendors: 'Parties',
-      distribution: 'Sales',
-      finance: 'Party Payments',
-      purchaseCost: 'Purchase Cost',
-      distributionRevenue: 'Sales Revenue',
-    },
-    features: {
-      inventory: false,
-      distribution: false,
-      barcodes: false,
-      warranty: false,
-      rewards: false,
-      customerTracking: false,
-      eWayBill: false,
-      gstSplit: true,
-      vendorFinance: false,
-      invoiceFinance: false,
-      metalInventory: false,
-      weighScale: false,
-      jewelleryTags: false,
-      hospitality: false,
-      books: true,
-      stockWithVendors: false,
-    },
-    financeView: 'invoice',
-    analytics: {
-      showDispatched: false,
-      outstandingLabel: 'Outstanding',
-      outstandingKey: 'outstanding',
-      collectionsLabel: 'Received',
-      revenueLabel: 'Revenue',
-    },
-    accounts: {
-      hideTabs: ['sales', 'distribution', 'stock'],
-      distributionRegisterLabel: 'Sales Register',
     },
   },
 };

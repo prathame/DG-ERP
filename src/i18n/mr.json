@@ -279,7 +279,16 @@
     "noProductsYet": "अद्याप कोणतीही उत्पादने नाहीत",
     "noBanksYet": "अद्याप कोणत्याही बऑका नाहीत",
     "noStaffYet": "अद्याप कोणताही स्टाफ नाही",
-    "addFirstPartner": "सुरू करण्यासाठी तुमचा पहिला पार्टनर जोडा"
+    "addFirstPartner": "सुरू करण्यासाठी तुमचा पहिला पार्टनर जोडा",
+    "importData": "डेटा आयात",
+    "importDataSubtitle": "Miracle कंपनी बॅकअप आयात करा (.rar / .zip)",
+    "importMiracleTitle": "Miracle कंपनी डेटा आयात करा",
+    "importMiracleBody": "Miracle CMP फोल्डर अर्काइव्ह (.rar किंवा .zip) अपलोड करा — उदा. CMP0001.rar. पार्ट्या, उत्पादने, विक्री बिले आणि पेमेंट्स Masters / Invoices / Payments मध्ये लिहिली जातात. लेजर आणि व्हाउचर Books मध्ये राहतात.",
+    "importChooseFile": "फाइल निवडा",
+    "importing": "आयात होत आहे…",
+    "importFailed": "आयात अयशस्वी",
+    "importRowErrors": "ओळ(ी) आयात दरम्यान वगळल्या किंवा अयशस्वी",
+    "importWarnings": "चेतावणी"
   },
   "settings": {
     "title": "सेटिंग्ज",

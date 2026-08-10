@@ -12,10 +12,19 @@ async function main() {
     await pool.query(
       `INSERT INTO tenants (id, company_name, slug, plan_id, status, business_type, admin_email, admin_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [tenantId, 'Mahadev Engineering', 'mahadev-eng', 'TRIAL', 'active', 'accounting', 'mahadev@test.local', 'Admin'],
+      [
+        tenantId,
+        'Mahadev Engineering',
+        'mahadev-eng',
+        'TRIAL',
+        'active',
+        'manufacturer',
+        'mahadev@test.local',
+        'Admin',
+      ],
     );
   } else {
-    await pool.query('UPDATE tenants SET business_type=$1 WHERE id=$2', ['accounting', tenantId]);
+    await pool.query('UPDATE tenants SET business_type=$1 WHERE id=$2', ['manufacturer', tenantId]);
   }
   console.log('tenant', tenantId);
 
@@ -43,9 +52,9 @@ async function main() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const summary = await importMiracleCompany(client, tenantId, locateCompanyDir(root), jobId);
+    const result = await importMiracleCompany(client, tenantId, locateCompanyDir(root), jobId);
     await client.query('COMMIT');
-    console.log(JSON.stringify(summary, null, 2));
+    console.log(JSON.stringify(result, null, 2));
     const counts = await pool.query(
       `SELECT
         (SELECT COUNT(*)::int FROM book_ledgers WHERE tenant_id=$1) as ledgers,

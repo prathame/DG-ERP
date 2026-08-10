@@ -403,11 +403,11 @@ type BusinessType = NamedBusinessType | 'custom';
 const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: string }> = {
   manufacturer: {
     label: 'Manufacturer',
-    desc: 'Full supply chain — dispatch to vendors, warranty, customer tracking',
+    desc: 'Full supply chain — vendors, invoices, dispatch; Miracle CMP import into working data',
   },
   dealer: {
     label: 'Dealer / Wholesaler',
-    desc: 'Sell to dealers/vendors — no customer tracking, no warranty',
+    desc: 'Sell to dealers/vendors — Miracle CMP import available; no warranty chain',
   },
   retail: {
     label: 'Retail Shop',
@@ -415,7 +415,7 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
   },
   service: {
     label: 'Service / Consulting',
-    desc: 'No inventory — invoicing, quotes, expenses and accounts for service businesses',
+    desc: 'No inventory — invoicing, quotes, expenses; Miracle CMP import into clients, invoices & payments',
   },
   silver_casting: {
     label: 'Silver Casting',
@@ -424,10 +424,6 @@ const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: strin
   hotel_restaurant: {
     label: 'Hotel / Restaurant',
     desc: 'Floor tables, waiter orders, kitchen KOT, and walk-in entry queue',
-  },
-  accounting: {
-    label: 'Accounting (Miracle)',
-    desc: 'Double-entry books — import Miracle CMP data, ledgers, vouchers, day book',
   },
 };
 
@@ -825,7 +821,6 @@ function CreateTenantModal({
                     { id: 'service' as const, icon: '🔧' },
                     { id: 'silver_casting' as const, icon: '🥈' },
                     { id: 'hotel_restaurant' as const, icon: '🏨' },
-                    { id: 'accounting' as const, icon: '📒' },
                     { id: 'custom' as const, icon: '⚙️' },
                   ] as const
                 ).map(bt => {

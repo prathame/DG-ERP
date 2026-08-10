@@ -362,8 +362,13 @@ function buildMiracleCompany(root: string): string {
 
 beforeAll(async () => {
   await cleanupTestData(TENANT);
-  // book tables may not be in cleanup yet
+  // book + ops import tables may not be in cleanup yet
   for (const t of [
+    'invoice_payments',
+    'vendor_payments',
+    'standalone_invoices',
+    'products',
+    'vendors',
     'book_voucher_items',
     'book_voucher_entries',
     'book_vouchers',
@@ -378,14 +383,19 @@ beforeAll(async () => {
   }
   await pool.query(
     `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
-     VALUES ($1, 'Miracle Fixture', 'miracle-fix', 'm@test.com', 'M', 'active', 'accounting')
-     ON CONFLICT (id) DO UPDATE SET business_type = 'accounting'`,
+     VALUES ($1, 'Miracle Fixture', 'miracle-fix', 'm@test.com', 'M', 'active', 'manufacturer')
+     ON CONFLICT (id) DO UPDATE SET business_type = 'manufacturer'`,
     [TENANT],
   );
 });
 
 afterAll(async () => {
   for (const t of [
+    'invoice_payments',
+    'vendor_payments',
+    'standalone_invoices',
+    'products',
+    'vendors',
     'book_voucher_items',
     'book_voucher_entries',
     'book_vouchers',
@@ -533,6 +543,11 @@ describe('miracleImport', () => {
     const company = buildMiracleCompany(root);
 
     for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
       'book_voucher_items',
       'book_voucher_entries',
       'book_vouchers',
@@ -555,7 +570,7 @@ describe('miracleImport', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const summary = await importMiracleCompany(client, TENANT, company, jobId);
+      const { summary, errors, warnings } = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
       expect(summary.companyName).toContain('FIXTURE');
       expect(summary.ledgers).toBe(4);
@@ -564,6 +579,13 @@ describe('miracleImport', () => {
       expect(summary.voucherEntries).toBe(2);
       expect(summary.voucherItems).toBe(1);
       expect(summary.groups).toBe(2);
+      // Ops dual-write
+      expect(summary.vendors).toBe(1);
+      expect(summary.opsProducts).toBe(1);
+      expect(summary.invoices).toBeGreaterThanOrEqual(2); // SP + SE sales
+      expect(summary.vendorPayments + summary.invoicePayments).toBeGreaterThanOrEqual(1);
+      expect(errors).toEqual([]);
+      expect(warnings).toEqual([]);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -582,6 +604,51 @@ describe('miracleImport', () => {
     expect(types).toContain('payment');
     expect(types).toContain('journal');
 
+    // Party → vendor
+    const vendors = await pool.query(`SELECT name, gst_number, phone, external_ref FROM vendors WHERE tenant_id = $1`, [
+      TENANT,
+    ]);
+    expect(vendors.rows).toHaveLength(1);
+    expect(vendors.rows[0].name).toBe('MITULBHAI');
+    expect(vendors.rows[0].gst_number).toBe('24AAAAA0000A1Z5');
+    expect(vendors.rows[0].external_ref).toBe('AGPARTY1');
+
+    // Product → products
+    const opsProducts = await pool.query(
+      `SELECT name, price::float AS price, hsn_code, barcode, external_ref FROM products WHERE tenant_id = $1`,
+      [TENANT],
+    );
+    expect(opsProducts.rows).toHaveLength(1);
+    expect(opsProducts.rows[0].name).toBe('LUNCH BOX DIE');
+    expect(opsProducts.rows[0].price).toBe(560000);
+    expect(opsProducts.rows[0].hsn_code).toBe('8480');
+    expect(opsProducts.rows[0].barcode).toBeNull();
+    expect(opsProducts.rows[0].external_ref).toBe('PGITEM01');
+
+    // Sales voucher → standalone invoice
+    const invoices = await pool.query(
+      `SELECT invoice_number, customer_name, grand_total::float AS grand_total, party_type, external_ref
+       FROM standalone_invoices WHERE tenant_id = $1 ORDER BY invoice_number`,
+      [TENANT],
+    );
+    expect(invoices.rows.some(r => r.invoice_number === 'GT/1')).toBe(true);
+    const sale = invoices.rows.find(r => r.external_ref === 'SSVOUCHER01');
+    expect(sale?.customer_name).toBe('MITULBHAI');
+    expect(sale?.grand_total).toBe(560000);
+    expect(sale?.party_type).toBe('vendor');
+
+    // Cash book involving party → payments
+    const vp = await pool.query(
+      `SELECT amount::float AS amount, idempotency_key FROM vendor_payments WHERE tenant_id = $1`,
+      [TENANT],
+    );
+    const ip = await pool.query(
+      `SELECT amount::float AS amount, idempotency_key FROM invoice_payments WHERE tenant_id = $1`,
+      [TENANT],
+    );
+    expect(vp.rows.length + ip.rows.length).toBeGreaterThanOrEqual(1);
+    expect([...vp.rows, ...ip.rows].some(r => String(r.idempotency_key || '').startsWith('miracle:'))).toBe(true);
+
     // idempotent re-import
     const job2 = uid('BJ');
     await pool.query(
@@ -593,10 +660,22 @@ describe('miracleImport', () => {
       await c2.query('BEGIN');
       const again = await importMiracleCompany(c2, TENANT, company, job2);
       await c2.query('COMMIT');
-      expect(again.ledgers).toBe(4);
+      expect(again.summary.ledgers).toBe(4);
+      expect(again.summary.vendors).toBe(1);
+      expect(again.summary.opsProducts).toBe(1);
     } finally {
       c2.release();
     }
+
+    const vendorsAgain = await pool.query(`SELECT COUNT(*)::int AS c FROM vendors WHERE tenant_id = $1`, [TENANT]);
+    expect(vendorsAgain.rows[0].c).toBe(1);
+    const productsAgain = await pool.query(`SELECT COUNT(*)::int AS c FROM products WHERE tenant_id = $1`, [TENANT]);
+    expect(productsAgain.rows[0].c).toBe(1);
+    const invAgain = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id = $1 AND external_ref IS NOT NULL`,
+      [TENANT],
+    );
+    expect(invAgain.rows[0].c).toBe(invoices.rows.length);
   });
 
   it('extracts zip archives and locateCompanyDir rejects missing paths', async () => {
@@ -655,5 +734,221 @@ describe('miracleImport', () => {
 
     const company = buildMiracleCompany(root);
     expect(locateCompanyDir(company)).toBe(company);
+  });
+
+  it('skips ops product with empty name and collects an error', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-empty-prod-'));
+    tmpDirs.push(root);
+    const company = buildMiracleCompany(root);
+    const yr = path.join(company, 'YR25');
+
+    // Append a product row with blank name
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 10 },
+        { name: 'FIELD05', type: 'C', length: 20 },
+        { name: 'FIELD20', type: 'C', length: 8 },
+        { name: 'FIELD40', type: 'C', length: 15 },
+      ],
+      [
+        {
+          FIELD01: 'PGITEM01',
+          FIELD02: 'LUNCH BOX DIE',
+          FIELD04: 'LB1',
+          FIELD05: 'Numbers',
+          FIELD20: 'VIB00001',
+          FIELD40: '8480',
+        },
+        {
+          FIELD01: 'PGBLANK1',
+          FIELD02: '',
+          FIELD04: '',
+          FIELD05: '',
+          FIELD20: '',
+          FIELD40: '',
+        },
+      ],
+    );
+
+    for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledger_details',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { summary, errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(summary.products).toBe(2); // books still gets both
+      expect(summary.opsProducts).toBe(1); // blank name skipped for ops
+      expect(errors.some(e => e.stage === 'products' && e.externalRef === 'PGBLANK1')).toBe(true);
+      expect(errors.find(e => e.externalRef === 'PGBLANK1')?.message).toMatch(/missing name/i);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const opsProducts = await pool.query(
+      `SELECT name, external_ref FROM products WHERE tenant_id = $1 ORDER BY external_ref`,
+      [TENANT],
+    );
+    expect(opsProducts.rows.map(r => r.external_ref)).toEqual(['PGITEM01']);
+  });
+
+  it('skips cash/sales vouchers missing a trading party or with invalid amount', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-cash-skip-'));
+    tmpDirs.push(root);
+    const company = buildMiracleCompany(root);
+    const yr = path.join(company, 'YR25');
+
+    // Happy-path sale + skip cases:
+    // - CB between cash ↔ sales (no PR party)
+    // - CB receipt on PR with amount 0
+    // - SP with non-PR header party (and no PR on entries)
+    // - SP with PR party but zero amount and no line items
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'SSVOUCHER01',
+          FIELD02: '20250501',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 560000,
+          FIELD07: 560000,
+          FIELD12: 'GT/1',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          T41FVNO: 'GT/1',
+        },
+        {
+          FIELD01: 'CRNOPARTY',
+          FIELD02: '20250506',
+          FIELD04: 'ACASHACT',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 2500,
+          FIELD07: 2500,
+          FIELD12: '',
+          FIELD16: 'R',
+          FIELD74: 'CB',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'CRZEROAMT',
+          FIELD02: '20250507',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'ACASHACT',
+          FIELD06: 0,
+          FIELD07: 0,
+          FIELD12: '',
+          FIELD16: 'R',
+          FIELD74: 'CB',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'SSNOPARTY',
+          FIELD02: '20250508',
+          FIELD04: 'ACASHACT',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 100,
+          FIELD07: 100,
+          FIELD12: 'GT/NP',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          T41FVNO: 'GT/NP',
+        },
+        {
+          FIELD01: 'SSZEROAMT',
+          FIELD02: '20250509',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 0,
+          FIELD07: 0,
+          FIELD12: 'GT/Z',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          T41FVNO: 'GT/Z',
+        },
+      ],
+    );
+
+    for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledger_details',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(errors.some(e => e.externalRef === 'CRNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
+      expect(errors.some(e => e.externalRef === 'CRZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
+      expect(errors.some(e => e.externalRef === 'SSNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
+      expect(errors.some(e => e.externalRef === 'SSZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   });
 });

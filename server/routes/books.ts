@@ -7,7 +7,12 @@ import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { handleApiError } from '../utils/http-error';
 import { uid, logAudit } from '../utils/helpers';
-import { extractArchive, importMiracleCompany, locateCompanyDir } from '../services/miracleImport';
+import {
+  extractArchive,
+  importMiracleCompany,
+  locateCompanyDir,
+  MiracleImportValidationError,
+} from '../services/miracleImport';
 
 const router = Router();
 const uploadDir = path.join(os.tmpdir(), 'miracle-uploads');
@@ -294,7 +299,7 @@ router.post('/api/books/import/miracle', requireAdmin, upload.single('file'), as
     const companyDir = locateCompanyDir(extractRoot);
 
     await client.query('BEGIN');
-    const summary = await importMiracleCompany(client, tenantId, companyDir, jobId);
+    const { summary, errors, warnings } = await importMiracleCompany(client, tenantId, companyDir, jobId);
     await client.query('COMMIT');
 
     await logAudit(
@@ -303,10 +308,11 @@ router.post('/api/books/import/miracle', requireAdmin, upload.single('file'), as
       'Miracle Import',
       'book_import',
       jobId,
-      `Imported ${summary.companyName}: ${summary.ledgers} ledgers, ${summary.products} products, ${summary.vouchers} vouchers`,
+      `Imported ${summary.companyName}: ${summary.ledgers} ledgers, ${summary.products} products, ${summary.vouchers} vouchers` +
+        (errors.length ? ` (${errors.length} row error(s))` : ''),
     );
 
-    res.status(201).json({ jobId, summary });
+    res.status(201).json({ jobId, summary, errors, warnings });
   } catch (err) {
     try {
       await client.query('ROLLBACK');
@@ -319,7 +325,8 @@ router.post('/api/books/import/miracle', requireAdmin, upload.single('file'), as
          WHERE id = $2 AND tenant_id = $3`,
       [message.slice(0, 2000), jobId, tenantId],
     );
-    return handleApiError(req, res, err, 'Miracle import failed', { publicMessage: message });
+    const status = err instanceof MiracleImportValidationError ? err.status : 500;
+    return handleApiError(req, res, err, 'Miracle import failed', { publicMessage: message, status });
   } finally {
     client.release();
     try {

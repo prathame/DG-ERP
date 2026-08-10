@@ -10,7 +10,6 @@ export const NAMED_BUSINESS_TYPES = [
   'service',
   'silver_casting',
   'hotel_restaurant',
-  'accounting',
 ] as const;
 
 export type NamedBusinessType = (typeof NAMED_BUSINESS_TYPES)[number];
@@ -42,7 +41,7 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_menu: { label: 'Menu & Tables', visible: false },
   hosp_parcels: { label: 'Parcels', visible: false },
   hosp_members: { label: 'Members', visible: false },
-  // Books / Miracle accounting — off by default; accounting preset enables them
+  // Books / Miracle — off by default; manufacturer / dealer / service presets enable import
   books: { label: 'Books', visible: false },
   book_ledgers: { label: 'Ledgers', visible: false },
   book_vouchers: { label: 'Vouchers', visible: false },
@@ -52,7 +51,14 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
 });
 
 export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
-  manufacturer: baseAllVisible(),
+  /** Die / job-work / manufacturing — Miracle CMP import available for onboarding */
+  manufacturer: baseAllVisible({
+    books: { label: 'Books', visible: true },
+    book_ledgers: { label: 'Ledgers', visible: true },
+    book_vouchers: { label: 'Vouchers', visible: true },
+    book_products: { label: 'Book Products', visible: true },
+    book_import: { label: 'Miracle Import', visible: true },
+  }),
   dealer: baseAllVisible({
     distribution: { label: 'Sales', visible: true },
     sales: { label: 'Sales Entry', visible: false },
@@ -60,6 +66,8 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    book_import: { label: 'Miracle Import', visible: true },
+    books: { label: 'Books', visible: true },
   }),
   retail: baseAllVisible({
     inventory: { label: 'Stock', visible: true },
@@ -70,6 +78,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
   }),
+  /** Service / consulting — Miracle CMP import into clients, invoices & payments (no stock chain) */
   service: baseAllVisible({
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
@@ -80,6 +89,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    book_import: { label: 'Miracle Import', visible: true },
   }),
   silver_casting: baseAllVisible({
     inventory: { label: 'Metal Stock', visible: true },
@@ -112,29 +122,6 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     hosp_parcels: { label: 'Parcels', visible: true },
     hosp_menu: { label: 'Menu', visible: true },
     hosp_members: { label: 'Members', visible: true },
-  }),
-  /** Miracle-style double-entry books (parallel to distribution ERP). */
-  accounting: baseAllVisible({
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: false },
-    inventory: { label: 'Inventory', visible: false },
-    distribution: { label: 'Distribution', visible: false },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Purchases', visible: false },
-    verification: { label: 'Search / Verify', visible: false },
-    quotations: { label: 'Quotes & Orders', visible: false },
-    invoices: { label: 'Invoices', visible: false },
-    finance: { label: 'Vendor Payments', visible: false },
-    accounts: { label: 'Reports', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: false },
-    books: { label: 'Books', visible: true },
-    book_ledgers: { label: 'Ledgers', visible: true },
-    book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Products', visible: true },
-    book_import: { label: 'Miracle Import', visible: true },
   }),
 };
 
