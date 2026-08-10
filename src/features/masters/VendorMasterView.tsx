@@ -103,6 +103,10 @@ export function VendorMasterView({
     notes: '',
   });
   const [paySubmitting, setPaySubmitting] = useState(false);
+  /** Service: invoice / advance totals keyed by vendor id (from Invoice Finance summary). */
+  const [clientFinance, setClientFinance] = useState<
+    Map<string, { invoiceCount: number; totalPaid: number; balance: number }>
+  >(new Map());
 
   const load = () => {
     api.vendors
@@ -120,6 +124,36 @@ export function VendorMasterView({
     setLoading(true);
     load();
   }, [debouncedSearch]);
+
+  useEffect(() => {
+    if (!isServiceBusiness) {
+      setClientFinance(new Map());
+      return;
+    }
+    let cancelled = false;
+    api.invoiceFinance
+      .summary()
+      .then(rows => {
+        if (cancelled) return;
+        const m = new Map<string, { invoiceCount: number; totalPaid: number; balance: number }>();
+        for (const r of Array.isArray(rows) ? rows : []) {
+          if (r.partyType === 'vendor' && r.partyId) {
+            m.set(r.partyId, {
+              invoiceCount: Number(r.invoiceCount) || 0,
+              totalPaid: Number(r.totalPaid) || 0,
+              balance: Number(r.balance) || 0,
+            });
+          }
+        }
+        setClientFinance(m);
+      })
+      .catch(() => {
+        if (!cancelled) setClientFinance(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isServiceBusiness, list]);
 
   const partyKeyFor = (v: Vendor) => `vendor:${v.id}`;
 
@@ -284,7 +318,7 @@ export function VendorMasterView({
     });
   };
 
-  /** Hub: pay first unpaid invoice, or (Offline) record advance when none outstanding. */
+  /** Hub: pay first unpaid invoice, or (Offline Cap) record advance when none outstanding. */
   const openRecordPayment = () => {
     const invoices = detail?.invoices || [];
     const unpaid = invoices.find(i => i.balance > 0);
@@ -533,9 +567,14 @@ export function VendorMasterView({
                 <div className="py-12 text-center text-gray-400 rounded-2xl border border-dashed border-gray-200">
                   <FileText size={32} className="mx-auto mb-2 opacity-30" />
                   <p className="font-medium text-sm">No invoices yet</p>
-                  {isServiceBusiness && (
+                  {isServiceBusiness && detail.payments.length > 0 ? (
+                    <p className="text-xs mt-1">
+                      Payments are listed below (Miracle cash / advances). Tap “New Invoice” to bill this{' '}
+                      {label.toLowerCase()}.
+                    </p>
+                  ) : isServiceBusiness ? (
                     <p className="text-xs mt-1">Tap “New Invoice” to bill this {label.toLowerCase()}</p>
-                  )}
+                  ) : null}
                 </div>
               ) : (
                 <ul className="space-y-2">
@@ -937,7 +976,28 @@ export function VendorMasterView({
                       )}
                     </div>
                   ) : null}
-                  <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>
+                  {isServiceBusiness &&
+                    (() => {
+                      const fin = clientFinance.get(v.id);
+                      if (!fin) {
+                        return <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>;
+                      }
+                      const invLabel =
+                        fin.invoiceCount === 0
+                          ? fin.totalPaid > 0
+                            ? 'No invoices · payments recorded'
+                            : 'No invoices yet'
+                          : `${fin.invoiceCount} invoice${fin.invoiceCount !== 1 ? 's' : ''}`;
+                      return (
+                        <p className="text-[10px] text-brand font-medium mt-2">
+                          {invLabel}
+                          {fin.invoiceCount > 0 || fin.totalPaid > 0 ? ' · Tap to open' : ''}
+                        </p>
+                      );
+                    })()}
+                  {!isServiceBusiness && (
+                    <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>
+                  )}
                 </button>
               ))}
               {list.length === 0 && !search && (

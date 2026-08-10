@@ -100,7 +100,13 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     () => (tab === 'generic' ? rules.filter(r => !r.vendorId) : rules.filter(r => !!r.vendorId)),
     [rules, tab],
   );
-  const genericCount = rules.filter(r => !r.vendorId).length;
+  /** Service Catalog: show imported/base products (name + price) even when no slab rules exist yet. */
+  const serviceCatalogProducts = useMemo(() => {
+    if (!isService || tab !== 'generic') return [] as Product[];
+    return [...products].sort((a, b) => a.name.localeCompare(b.name));
+  }, [isService, tab, products]);
+  /** Service Catalog tab counts sellable items (Miracle products), not only slab rules. */
+  const genericCount = isService ? products.length : rules.filter(r => !r.vendorId).length;
   const vendorCount = rules.filter(r => !!r.vendorId).length;
 
   const closeModal = () => {
@@ -467,6 +473,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const genericTabLabel = isService ? 'Generic (catalog)' : 'Generic (all)';
   const vendorTabLabel = `${partyLabel}-specific`;
   const partySingular = partyLabel.replace(/s$/, '');
+  const showServiceCatalog = isService && tab === 'generic' && serviceCatalogProducts.length > 0;
+  const showEmpty = tabRules.length === 0 && !showServiceCatalog;
 
   const toolbarBtn =
     'inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 shrink-0';
@@ -570,17 +578,66 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {tabRules.length === 0 ? (
+      {showEmpty ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
           <Tag size={40} className="mx-auto mb-3 opacity-30" />
           <p className="font-medium text-sm sm:text-base">
             {tab === 'generic'
               ? isService
-                ? 'No catalog rates yet'
+                ? 'No catalog items yet'
                 : `No all-${partyLabel.toLowerCase()} slabs yet`
               : `No ${partyLabel.toLowerCase()}-specific rates yet`}
           </p>
-          <p className="text-[11px] sm:text-sm mt-1 max-w-md mx-auto">Use Add Rule above to create one.</p>
+          <p className="text-[11px] sm:text-sm mt-1 max-w-md mx-auto">
+            {isService && tab === 'generic'
+              ? 'Import Miracle data or use Add Rule to create an item.'
+              : 'Use Add Rule above to create one.'}
+          </p>
+        </div>
+      ) : showServiceCatalog ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
+          {serviceCatalogProducts.map(p => {
+            const productRules = tabRules.filter(r => r.productId === p.id);
+            return (
+              <div key={p.id} className="px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-bold text-sm text-gray-800 truncate">{p.name}</span>
+                  <span className="font-bold text-brand shrink-0">₹{(Number(p.price) || 0).toLocaleString()}</span>
+                </div>
+                {productRules.length > 0 && (
+                  <div className="mt-2 space-y-1.5 pl-1 border-l-2 border-amber-200">
+                    {productRules.map(rule => (
+                      <div key={rule.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                        <span>
+                          Qty {rule.minQty}
+                          {rule.maxQty ? `-${rule.maxQty}` : '+'} · ₹{rule.price.toLocaleString()}
+                          {rule.name ? ` · ${rule.name}` : ''}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(rule)}
+                            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(rule.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-4">
