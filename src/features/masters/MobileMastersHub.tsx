@@ -24,6 +24,7 @@ const COUNT_SUFFIX: Partial<Record<MasterType, string>> = {
   priceList: '',
   rewardRules: '',
   mapping: '',
+  importData: '',
 };
 
 type Props = {

@@ -615,12 +615,6 @@ export async function initSchema() {
       ON products (tenant_id, external_ref)
       WHERE external_ref IS NOT NULL
     `);
-    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS external_ref TEXT');
-    await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS uq_standalone_invoices_tenant_external_ref
-      ON standalone_invoices (tenant_id, external_ref)
-      WHERE external_ref IS NOT NULL
-    `);
 
     // Add reports tab to existing tenants that don't have it
     await client.query(
@@ -920,6 +914,13 @@ export async function initSchema() {
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_standalone_invoices_tenant_number
       ON standalone_invoices (tenant_id, invoice_number)
+    `);
+    // Miracle / external system refs — after CREATE TABLE (vendors/products ALTERs are earlier)
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_standalone_invoices_tenant_external_ref
+      ON standalone_invoices (tenant_id, external_ref)
+      WHERE external_ref IS NOT NULL
     `);
 
     // In-app notifications (Super Admin / control-panel pushes)
@@ -1605,6 +1606,11 @@ export async function initSchema() {
       UPDATE tenants SET tab_config = tab_config || '{"books":{"label":"Books","visible":false},"book_ledgers":{"label":"Ledgers","visible":false},"book_vouchers":{"label":"Vouchers","visible":false},"book_products":{"label":"Book Products","visible":false},"book_import":{"label":"Miracle Import","visible":false}}'::jsonb
       WHERE tab_config IS NOT NULL
         AND NOT (tab_config ? 'books')
+    `);
+
+    // Retired business type: Accounting (Miracle) → manufacturer (Miracle import via Masters)
+    await client.query(`
+      UPDATE tenants SET business_type = 'manufacturer' WHERE business_type = 'accounting'
     `);
 
     // Row Level Security (RLS) — DB-level tenant isolation safety net

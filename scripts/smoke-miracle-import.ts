@@ -12,10 +12,19 @@ async function main() {
     await pool.query(
       `INSERT INTO tenants (id, company_name, slug, plan_id, status, business_type, admin_email, admin_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [tenantId, 'Mahadev Engineering', 'mahadev-eng', 'TRIAL', 'active', 'accounting', 'mahadev@test.local', 'Admin'],
+      [
+        tenantId,
+        'Mahadev Engineering',
+        'mahadev-eng',
+        'TRIAL',
+        'active',
+        'manufacturer',
+        'mahadev@test.local',
+        'Admin',
+      ],
     );
   } else {
-    await pool.query('UPDATE tenants SET business_type=$1 WHERE id=$2', ['accounting', tenantId]);
+    await pool.query('UPDATE tenants SET business_type=$1 WHERE id=$2', ['manufacturer', tenantId]);
   }
   console.log('tenant', tenantId);
 

@@ -383,8 +383,8 @@ beforeAll(async () => {
   }
   await pool.query(
     `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
-     VALUES ($1, 'Miracle Fixture', 'miracle-fix', 'm@test.com', 'M', 'active', 'accounting')
-     ON CONFLICT (id) DO UPDATE SET business_type = 'accounting'`,
+     VALUES ($1, 'Miracle Fixture', 'miracle-fix', 'm@test.com', 'M', 'active', 'manufacturer')
+     ON CONFLICT (id) DO UPDATE SET business_type = 'manufacturer'`,
     [TENANT],
   );
 });

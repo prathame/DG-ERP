@@ -285,7 +285,16 @@
     "contactPerson": "Contact Person",
     "accountNumber": "Account Number",
     "ifscCode": "IFSC Code",
-    "bankName": "Bank Name"
+    "bankName": "Bank Name",
+    "importData": "Import data",
+    "importDataSubtitle": "Import Miracle company backup (.rar / .zip)",
+    "importMiracleTitle": "Import Miracle company data",
+    "importMiracleBody": "Upload the Miracle CMP folder archive (.rar or .zip) — e.g. CMP0001.rar. Trading parties, products, sales invoices, and party cash receipts/payments are written into Masters, Invoices, and Payments. Full ledgers and vouchers stay available under Books. Re-import upserts (no duplicates).",
+    "importChooseFile": "Choose file",
+    "importing": "Importing…",
+    "importFailed": "Import failed",
+    "importRowErrors": "row(s) skipped or failed during import",
+    "importWarnings": "warning(s)"
   },
   "invoices": {
     "title": "Invoices",

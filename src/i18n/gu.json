@@ -279,7 +279,16 @@
     "noProductsYet": "હજુ કોઈ પ્રોડક્ટ નથી",
     "noBanksYet": "હજુ કોઈ બેંક નથી",
     "noStaffYet": "હજુ કોઈ સ્ટાફ નથી",
-    "addFirstPartner": "શરૂ કરવા માટે તમારો પહેલો પાર્ટનર ઉમેરો"
+    "addFirstPartner": "શરૂ કરવા માટે તમારો પહેલો પાર્ટનર ઉમેરો",
+    "importData": "ડેટા ઇમ્પોર્ટ",
+    "importDataSubtitle": "Miracle કંપની બેકઅપ ઇમ્પોર્ટ કરો (.rar / .zip)",
+    "importMiracleTitle": "Miracle કંપની ડેટા ઇમ્પોર્ટ કરો",
+    "importMiracleBody": "Miracle CMP ફોલ્ડર આર્કાઇવ (.rar અથવા .zip) અપલોડ કરો — જેમ કે CMP0001.rar. પાર્ટીઓ, પ્રોડક્ટ્સ, વેચાણ ઇન્વૉઇસ અને પેમેન્ટ્સ Masters / Invoices / Paymentsમાં લખાય છે. લેજર અને વાઉચર Booksમાં રહે છે.",
+    "importChooseFile": "ફાઇલ પસંદ કરો",
+    "importing": "ઇમ્પોર્ટ થઈ રહ્યું છે…",
+    "importFailed": "ઇમ્પોર્ટ નિષ્ફળ",
+    "importRowErrors": "પંક્તિ(ઓ) ઇમ્પોર્ટ દરમિયાન છોડી અથવા નિષ્ફળ",
+    "importWarnings": "ચેતવણી(ઓ)"
   },
   "settings": {
     "title": "સેટિંગ્સ",
