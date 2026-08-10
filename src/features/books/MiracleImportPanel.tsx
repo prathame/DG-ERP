@@ -14,6 +14,23 @@ export interface MiracleImportIssue {
   row?: number;
 }
 
+export interface MiracleImportCoverageBucket {
+  source: number;
+  imported: number;
+  skipped: number;
+  skipReason?: string;
+}
+
+export interface MiracleImportCoverage {
+  parties: MiracleImportCoverageBucket;
+  products: MiracleImportCoverageBucket;
+  salesInvoices: MiracleImportCoverageBucket;
+  cashIncomeInvoices: MiracleImportCoverageBucket;
+  partyCash: MiracleImportCoverageBucket;
+  nonPartyCashSkipped: number;
+  journalsBooksOnly: number;
+}
+
 export interface MiracleImportUploadResult {
   jobId: string;
   summary: Record<string, unknown>;
@@ -24,6 +41,27 @@ export interface MiracleImportUploadResult {
 export function summaryCount(s: Record<string, unknown> | undefined, key: string): number {
   const v = s?.[key];
   return typeof v === 'number' ? v : Number(v) || 0;
+}
+
+export function parseCoverage(s: Record<string, unknown> | undefined): MiracleImportCoverage | null {
+  const raw = s?.coverage;
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Partial<MiracleImportCoverage>;
+  const bucket = (b: MiracleImportCoverageBucket | undefined): MiracleImportCoverageBucket => ({
+    source: Number(b?.source) || 0,
+    imported: Number(b?.imported) || 0,
+    skipped: Number(b?.skipped) || 0,
+    skipReason: b?.skipReason,
+  });
+  return {
+    parties: bucket(c.parties),
+    products: bucket(c.products),
+    salesInvoices: bucket(c.salesInvoices),
+    cashIncomeInvoices: bucket(c.cashIncomeInvoices),
+    partyCash: bucket(c.partyCash),
+    nonPartyCashSkipped: Number(c.nonPartyCashSkipped) || 0,
+    journalsBooksOnly: Number(c.journalsBooksOnly) || 0,
+  };
 }
 
 export function formatMiracleIssue(issue: MiracleImportIssue): string {
@@ -105,6 +143,112 @@ export function MiracleImportIssues({
   );
 }
 
+function CoverageCell({ value, tone }: { value: number; tone?: 'ok' | 'skip' | 'muted' }) {
+  const cls =
+    tone === 'ok'
+      ? 'text-emerald-700 font-semibold'
+      : tone === 'skip'
+        ? 'text-slate-500'
+        : tone === 'muted'
+          ? 'text-slate-400'
+          : 'text-slate-800';
+  return <td className={`px-2 py-1.5 text-right tabular-nums ${cls}`}>{value}</td>;
+}
+
+export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImportCoverage }) {
+  const { t } = useTranslation();
+  const rows: Array<{
+    key: string;
+    label: string;
+    source: number;
+    imported: number;
+    skipped: number;
+    note?: string;
+  }> = [
+    {
+      key: 'parties',
+      label: t('masters.importCoverageParties'),
+      ...coverage.parties,
+      note: coverage.parties.skipReason,
+    },
+    {
+      key: 'products',
+      label: t('masters.importCoverageProducts'),
+      ...coverage.products,
+      note: coverage.products.skipReason,
+    },
+    {
+      key: 'sales',
+      label: t('masters.importCoverageSales'),
+      ...coverage.salesInvoices,
+      note: coverage.salesInvoices.skipReason,
+    },
+    {
+      key: 'cashIncome',
+      label: t('masters.importCoverageCashIncome'),
+      ...coverage.cashIncomeInvoices,
+      note: coverage.cashIncomeInvoices.skipReason,
+    },
+    {
+      key: 'partyCash',
+      label: t('masters.importCoveragePartyCash'),
+      ...coverage.partyCash,
+      note: coverage.partyCash.skipReason,
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-left">
+      <p className="font-semibold text-slate-900">{t('masters.importCoverageTitle')}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{t('masters.importCoverageSubtitle')}</p>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full min-w-[320px] border-collapse">
+          <thead>
+            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+              <th className="px-2 py-1.5 text-left font-medium">{t('masters.importCoverageCol')}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t('masters.importCoverageSource')}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t('masters.importCoverageImported')}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t('masters.importCoverageSkipped')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr key={row.key} className="border-b border-slate-100 last:border-0">
+                <td className="px-2 py-1.5 text-slate-800">
+                  {row.label}
+                  {row.note && row.skipped > 0 ? (
+                    <span className="mt-0.5 block text-xs text-slate-400">{row.note}</span>
+                  ) : null}
+                </td>
+                <CoverageCell value={row.source} />
+                <CoverageCell
+                  value={row.imported}
+                  tone={row.imported === row.source && row.source > 0 ? 'ok' : undefined}
+                />
+                <CoverageCell value={row.skipped} tone={row.skipped > 0 ? 'skip' : 'muted'} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {(coverage.nonPartyCashSkipped > 0 || coverage.journalsBooksOnly > 0) && (
+        <ul className="mt-2 space-y-1 text-xs text-slate-600">
+          {coverage.nonPartyCashSkipped > 0 && (
+            <li>
+              {coverage.nonPartyCashSkipped} {t('masters.importCoverageNonPartyCash')}
+            </li>
+          )}
+          {coverage.journalsBooksOnly > 0 && (
+            <li>
+              {coverage.journalsBooksOnly} {t('masters.importCoverageJournals')}
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function buildSuccessMessage(s: Record<string, unknown>): string {
   return (
     `Imported ${String(s.companyName || 'company')} into Dhandho: ` +
@@ -126,6 +270,7 @@ export function MiracleImportPanel({
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<MiracleImportIssue[]>([]);
   const [warnings, setWarnings] = useState<MiracleImportIssue[]>([]);
+  const [coverage, setCoverage] = useState<MiracleImportCoverage | null>(null);
 
   const onFile = async (file: File | null) => {
     if (!file) return;
@@ -134,11 +279,13 @@ export function MiracleImportPanel({
     setError(null);
     setErrors([]);
     setWarnings([]);
+    setCoverage(null);
     try {
       const result = await uploadMiracleFile(file);
       setMessage(buildSuccessMessage(result.summary || {}));
       setErrors(result.errors);
       setWarnings(result.warnings);
+      setCoverage(parseCoverage(result.summary));
       await onComplete?.(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('masters.importFailed'));
@@ -159,6 +306,7 @@ export function MiracleImportPanel({
           {error}
         </div>
       )}
+      {coverage && <MiracleImportCoverageTable coverage={coverage} />}
       <MiracleImportIssues errors={errors} warnings={warnings} />
 
       <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-8 text-center">
