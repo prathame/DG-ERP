@@ -5,6 +5,12 @@ import { AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/au
 
 const router = Router();
 
+async function tenantBusinessType(tenantId: string): Promise<string> {
+  const row = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+    { business_type?: string } | undefined;
+  return (row?.business_type as string) || 'manufacturer';
+}
+
 router.get('/api/dashboard/stats', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -387,6 +393,132 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
     const dateFilter = (col: string) => (from && to ? `AND ${col} BETWEEN $2 AND $3` : from ? `AND ${col} >= $2` : '');
     const params = (extra: unknown[]) =>
       from && to ? [tenantId, from, to, ...extra] : from ? [tenantId, from, ...extra] : [tenantId, ...extra];
+    const rangeParams = from && to ? [tenantId, from, to] : from ? [tenantId, from] : [tenantId];
+
+    const businessType = await tenantBusinessType(tenantId);
+
+    // Service: Miracle / invoices — align with Invoice Finance (not distribution math).
+    if (businessType === 'service') {
+      const invFilter = dateFilter('invoice_date');
+      const payFilter = dateFilter('payment_date');
+      const expFilter = dateFilter('expense_date');
+      const [collections, invoiceRev, expenses, invoiceOutstanding, activityRows, counts, topClients] =
+        await Promise.all([
+          pool
+            .query(
+              `SELECT COALESCE(SUM(amount),0) as v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
+              rangeParams,
+            )
+            .then(r => Number(r.rows[0].v) || 0),
+          pool
+            .query(
+              `SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices
+               WHERE tenant_id=$1 AND status!='cancelled' ${invFilter}`,
+              rangeParams,
+            )
+            .then(r => Number(r.rows[0].v) || 0),
+          pool
+            .query(`SELECT COALESCE(SUM(amount),0) as v FROM expenses WHERE tenant_id=$1 ${expFilter}`, rangeParams)
+            .then(r => Number(r.rows[0].v) || 0),
+          pool
+            .query(
+              `SELECT COALESCE(SUM(GREATEST(0,
+                 COALESCE(si.grand_total, 0) - COALESCE(ip.paid, 0)
+               )),0) as v
+               FROM standalone_invoices si
+               LEFT JOIN (
+                 SELECT invoice_id, SUM(amount) AS paid
+                 FROM invoice_payments WHERE tenant_id = $1
+                 GROUP BY invoice_id
+               ) ip ON si.id = ip.invoice_id
+               WHERE si.tenant_id = $1 AND COALESCE(si.status,'') NOT IN ('paid','cancelled')`,
+              [tenantId],
+            )
+            .then(r => Number(r.rows[0].v) || 0),
+          pool.query(
+            `SELECT type, id, label, amount, date FROM (
+               SELECT 'invoice' AS type, id, COALESCE(customer_name,'Customer') AS label,
+                      grand_total AS amount, invoice_date::text AS date
+               FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
+               UNION ALL
+               SELECT 'payment', ip.id,
+                      COALESCE(si.customer_name, 'Payment') AS label,
+                      ip.amount, ip.payment_date::text AS date
+               FROM invoice_payments ip
+               LEFT JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+               WHERE ip.tenant_id=$1
+               UNION ALL
+               SELECT 'expense', id, COALESCE(category,'Expense'), amount, expense_date::text
+               FROM expenses WHERE tenant_id=$1
+             ) t ORDER BY date DESC NULLS LAST LIMIT 15`,
+            [tenantId],
+          ),
+          pool.query(
+            `SELECT
+              (SELECT COUNT(*) FROM customers WHERE tenant_id=$1) as customers,
+              (SELECT COUNT(*) FROM vendors WHERE tenant_id=$1 AND id!='OWNER') as vendors,
+              (SELECT COUNT(*) FROM products WHERE tenant_id=$1) as items,
+              (SELECT COUNT(*) FROM banks WHERE tenant_id=$1) as banks,
+              (SELECT COUNT(*) FROM staff_members WHERE tenant_id=$1) as staff`,
+            [tenantId],
+          ),
+          pool.query(
+            `SELECT
+               CASE
+                 WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL
+                   THEN si.party_type || ':' || si.party_id
+                 ELSE 'name:' || COALESCE(si.customer_name, 'Unknown')
+               END AS party_key,
+               MAX(COALESCE(si.customer_name, 'Unknown')) AS customer_name,
+               COALESCE(SUM(si.grand_total), 0) - COALESCE(SUM(ip.paid), 0) AS balance
+             FROM standalone_invoices si
+             LEFT JOIN (
+               SELECT invoice_id, SUM(amount) AS paid
+               FROM invoice_payments WHERE tenant_id = $1
+               GROUP BY invoice_id
+             ) ip ON si.id = ip.invoice_id
+             WHERE si.tenant_id = $1 AND COALESCE(si.status,'') != 'cancelled'
+             GROUP BY 1
+             HAVING COALESCE(SUM(si.grand_total), 0) - COALESCE(SUM(ip.paid), 0) > 0
+             ORDER BY balance DESC
+             LIMIT 5`,
+            [tenantId],
+          ),
+        ]);
+
+      const c = counts.rows[0] as Record<string, string>;
+      return res.json({
+        money: {
+          collections,
+          revenue: invoiceRev,
+          distribution: 0,
+          expenses,
+          outstanding: 0,
+          invoiceOutstanding,
+        },
+        recentActivity: activityRows.rows.map((r: Record<string, unknown>) => ({
+          type: r.type,
+          id: r.id,
+          label: r.label,
+          amount: Number(r.amount) || 0,
+          date: r.date,
+        })),
+        topVendors: (topClients.rows as { party_key: string; customer_name: string; balance: string | number }[]).map(
+          r => ({
+            vendorId: r.party_key,
+            vendorName: r.customer_name,
+            balance: Number(r.balance) || 0,
+          }),
+        ),
+        counts: {
+          customerMaster: Number(c.customers) || 0,
+          vendorMaster: Number(c.vendors) || 0,
+          itemMaster: Number(c.items) || 0,
+          bankMaster: Number(c.banks) || 0,
+          staffCount: Number(c.staff) || 0,
+        },
+      });
+    }
 
     const [
       collections,
