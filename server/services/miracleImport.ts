@@ -167,7 +167,7 @@ export async function importMiracleCompany(
 ): Promise<MiracleImportSummary> {
   const { companyName, miracleVersion } = parseVersionTxt(companyDir);
   const year = findYearDir(companyDir);
-  if (!year) throw new Error('No YR** financial year folder found in Miracle company data');
+  if (!year) throw new Error('No YRxx financial year folder found in Miracle company data');
 
   const yrDir = year.dir;
   const summary: MiracleImportSummary = {
