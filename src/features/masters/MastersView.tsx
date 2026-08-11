@@ -12,7 +12,6 @@ import {
   Tag,
   Wallet,
   Truck,
-  FileUp,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -43,7 +42,6 @@ const VendorCustomerMappingView = lazy(() =>
 const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ default: m.RewardRulesView })));
 const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
 const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
-const ImportDataView = lazy(() => import('./ImportDataView').then(m => ({ default: m.ImportDataView })));
 
 /** Hub ids — `item` / `expenses` are shortcuts to other tabs (Inventory / Purchases). */
 export type MasterType =
@@ -56,6 +54,7 @@ export type MasterType =
   | 'priceList'
   | 'staff'
   | 'expenses'
+  /** @deprecated Prefer Accounts → Data import (`book_import`). Kept for old deep links. */
   | 'importData';
 
 type StaffRow = { id: string; name: string; phone?: string; role?: string };
@@ -105,7 +104,6 @@ export function MastersView({
       expenses: t('masters.expenses'),
       mapping: t('masters.mapping'),
       rewardRules: t('nav.rewards'),
-      importData: t('masters.importData'),
     };
     return map[id] || '';
   };
@@ -183,6 +181,12 @@ export function MastersView({
     }
     if (master === 'expenses') {
       setActiveTab('purchases');
+      onLaunchConsumed?.();
+      return;
+    }
+    // Data import lives under Accounts (single home).
+    if (master === 'importData') {
+      setActiveTab('book_import');
       onLaunchConsumed?.();
       return;
     }
@@ -303,19 +307,6 @@ export function MastersView({
             icon: Link2,
             color: 'text-cyan-600',
             bg: 'bg-cyan-50',
-          },
-        ]
-      : []),
-    // Same visibility as nav Miracle Import (`book_import`) — manufacturer/dealer/service.
-    ...(tv('book_import')
-      ? [
-          {
-            id: 'importData' as const,
-            name: t('masters.importData'),
-            count: t('masters.importDataSubtitle') as number | string,
-            icon: FileUp,
-            color: 'text-orange-600',
-            bg: 'bg-orange-50',
           },
         ]
       : []),
@@ -518,13 +509,6 @@ export function MastersView({
         />
       </Suspense>
     );
-  if (selectedMaster === 'importData')
-    return (
-      <Suspense fallback={<MasterFallback />}>
-        <ImportDataView onBack={closeSelectedMaster} />
-      </Suspense>
-    );
-
   if (desktopGlass) {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -614,13 +598,7 @@ export function MastersView({
           value={active || ''}
           onChange={id => {
             const next = id as MasterType;
-            if (
-              next === 'priceList' ||
-              next === 'mapping' ||
-              next === 'rewardRules' ||
-              next === 'expenses' ||
-              next === 'importData'
-            ) {
+            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules' || next === 'expenses') {
               openFull(next);
               return;
             }

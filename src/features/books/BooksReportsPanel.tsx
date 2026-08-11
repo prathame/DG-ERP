@@ -138,9 +138,7 @@ export function BooksReportsPanel({
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          {!hideSourceNote && !lockedKind && (
-            <p className="text-sm text-slate-500">Statements from double-entry ledgers and vouchers.</p>
-          )}
+          {!hideSourceNote && <p className="text-sm text-slate-500">From double-entry ledgers and vouchers.</p>}
           {!lockedKind && (
             <div className="mt-2 flex flex-wrap gap-2">
               {tabs.map(t => (

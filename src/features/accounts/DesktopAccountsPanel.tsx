@@ -270,7 +270,8 @@ export function DesktopAccountsPanel({
           </div>
           <p className="text-lg font-bold dg-ink">Ready for Analysis</p>
           <p className="text-sm dg-muted mt-2 max-w-md mx-auto leading-relaxed">
-            Select a statement above, set the date range if needed, then click Generate.
+            Select a statement above, set the date range if needed, then click Generate. Ledgers and vouchers (when
+            enabled) load on their own.
           </p>
         </div>
       )}

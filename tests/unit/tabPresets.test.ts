@@ -259,6 +259,7 @@ describe('tabPresets', () => {
       expect(ids).toContain('books');
       expect(ids).not.toContain('book_import');
       expect(ids).not.toContain('book_ledgers');
+      expect(toggles.find(t => t.id === 'books')?.label).toBe('Ledgers & vouchers');
     });
 
     it('never lists settings or chatbot even though they default visible', () => {

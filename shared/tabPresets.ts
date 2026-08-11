@@ -41,12 +41,12 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_menu: { label: 'Menu & Tables', visible: false },
   hosp_parcels: { label: 'Parcels', visible: false },
   hosp_members: { label: 'Members', visible: false },
-  // Books / Miracle — off by default; mfr / dealer / service enable the Books hub (+ import panel)
-  // Sidebar shows a single Books entry; book_* remain for SA toggles / deep links / BooksView panels
-  books: { label: 'Books', visible: false },
+  // Ledgers/vouchers / Miracle — off by default; mfr / dealer / service enable (lives under Accounts)
+  // Device Settings collapses the family to one `books` toggle; book_* remain for SA / deep links
+  books: { label: 'Ledgers & vouchers', visible: false },
   book_ledgers: { label: 'Ledgers', visible: false },
   book_vouchers: { label: 'Vouchers', visible: false },
-  book_products: { label: 'Book Products', visible: false },
+  book_products: { label: 'Book products', visible: false },
   book_import: { label: 'Data import', visible: false },
   ...overrides,
 });
@@ -54,10 +54,10 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
 export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   /** Die / job-work / manufacturing — Miracle CMP import available for onboarding */
   manufacturer: baseAllVisible({
-    books: { label: 'Books', visible: true },
+    books: { label: 'Ledgers & vouchers', visible: true },
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Book Products', visible: true },
+    book_products: { label: 'Book products', visible: true },
     book_import: { label: 'Data import', visible: true },
   }),
   dealer: baseAllVisible({
@@ -67,10 +67,10 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
-    books: { label: 'Books', visible: true },
+    books: { label: 'Ledgers & vouchers', visible: true },
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Book Products', visible: true },
+    book_products: { label: 'Book products', visible: true },
     book_import: { label: 'Data import', visible: true },
   }),
   retail: baseAllVisible({
@@ -82,7 +82,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
   }),
-  /** Service / consulting — Miracle CMP → clients, invoices & payments; Books hub for COA/vouchers */
+  /** Service / consulting — Miracle CMP → clients, invoices & payments; ledgers/vouchers under Accounts */
   service: baseAllVisible({
     /** Sidebar: Clients hub (Directory + Collections); finance tab id kept for deep links / SA */
     masters: { label: 'Clients', visible: true },
@@ -95,10 +95,10 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
-    books: { label: 'Books', visible: true },
+    books: { label: 'Ledgers & vouchers', visible: true },
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Book Products', visible: true },
+    book_products: { label: 'Book products', visible: true },
     book_import: { label: 'Data import', visible: true },
   }),
   silver_casting: baseAllVisible({
@@ -288,7 +288,8 @@ export function getToggleableNavTabs(tabConfig: TabConfig): { id: string; label:
     })
     .map(([id, cfg]) => ({
       id,
-      label: id === 'books' ? cfg.label || 'Books' : cfg.label,
+      // Prefer end-user wording even if a tenant still has legacy "Books" in tab_config
+      label: id === 'books' ? 'Ledgers & vouchers' : cfg.label,
     }));
 }
 
