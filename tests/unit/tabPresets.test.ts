@@ -47,9 +47,10 @@ describe('tabPresets', () => {
     expect(p.books.visible).toBe(true);
     expect(p.book_ledgers.visible).toBe(true);
     expect(p.masters.visible).toBe(true);
+    expect(p.masters.label).toBe('Clients');
     expect(p.invoices.visible).toBe(true);
     expect(p.finance.visible).toBe(true);
-    expect(p.finance.label).toBe('Invoice Finance');
+    expect(p.finance.label).toBe('Collections');
     expect(p.inventory.visible).toBe(false);
     expect(p.distribution.visible).toBe(false);
     expect(p.warranty.visible).toBe(false);

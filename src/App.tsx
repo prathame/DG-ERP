@@ -133,6 +133,9 @@ const AnalyticsView = lazy(() =>
   import('./features/analytics/AnalyticsView').then(m => ({ default: m.AnalyticsView })),
 );
 const MastersView = lazy(() => import('./features/masters/MastersView').then(m => ({ default: m.MastersView })));
+const ServiceClientsHub = lazy(() =>
+  import('./features/masters/ServiceClientsHub').then(m => ({ default: m.ServiceClientsHub })),
+);
 const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProductVerificationView = lazy(() =>
   import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })),
@@ -824,6 +827,7 @@ export default function App() {
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
   /** Tenant tabConfig (Super Admin), plus per-device Settings show/hide override. */
   const tv = (key: string) => isTabVisibleForUser(key, tabConfig, getTabVisiblePref(key));
+  const serviceProductUx = isServiceProductUx(userConfig?.businessType as string | undefined);
 
   /** Icons for Miracle-shaped sidebar (tab ids stay stable; grouping follows navArchitecture). */
   const navIconByTab: Partial<Record<string, LucideIcon>> = {
@@ -879,7 +883,8 @@ export default function App() {
         navItem('sales', t('nav.sales'), tv('sales')),
         navItem('distribution', t('nav.distribution'), tv('distribution')),
         navItem('inventory', t('nav.inventory'), tv('inventory')),
-        navItem('finance', t('nav.finance'), tv('finance')),
+        // Service: Collections lives inside Clients hub — keep finance tab id for deep links / SA
+        navItem('finance', t('nav.finance'), tv('finance') && !serviceProductUx),
         navItem('verification', t('nav.verification'), tv('verification')),
       ],
     },
@@ -1261,7 +1266,6 @@ export default function App() {
 
   /** Emergent phone IA: Offline Mobile + online Service Cloud Capacitor (not manufacturer cloud). */
   const servicePhoneUx = isServicePhoneUx(userConfig?.businessType as string | undefined);
-  const serviceProductUx = isServiceProductUx(userConfig?.businessType as string | undefined);
   const desktopGlass = isDesktopGlassUi(userConfig?.businessType as string | undefined);
   /** Cap non-service glass header (Analytics / Accounts mock) — denser Live · search · notify · refresh · avatar */
   const capGlassHeader = isMobileAppShell() && !servicePhoneUx;
@@ -1284,7 +1288,7 @@ export default function App() {
       : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
   const mobileNavLabel: Record<string, string> = {
     analytics: t('nav.analytics'),
-    masters: t('nav.masters'),
+    masters: serviceProductUx ? tc('masters', 'Clients') : t('nav.masters'),
     invoices: t('nav.invoiceShort'),
     quotations: t('nav.quotesShort'),
     distribution: t('nav.dispatch'),
@@ -1295,7 +1299,9 @@ export default function App() {
     .map(id => visibleNavItems.find(n => n.id === id))
     .filter((n): n is NonNullable<typeof n> => !!n)
     .slice(0, 4);
-  const mobileMoreActive = !mobileNavItems.some(i => i.id === activeTab) && activeTab !== 'settings';
+  const mobileMoreActive =
+    !mobileNavItems.some(i => isNavItemActive(i.id, activeTab, { serviceClientsHub: serviceProductUx })) &&
+    activeTab !== 'settings';
 
   return (
     <ToastProvider>
@@ -1423,7 +1429,7 @@ export default function App() {
                             }}
                             className={cn(
                               'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
-                              isNavItemActive(item.id, activeTab)
+                              isNavItemActive(item.id, activeTab, { serviceClientsHub: serviceProductUx })
                                 ? desktopGlass
                                   ? 'dg-nav-active font-semibold pl-[7px]'
                                   : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
@@ -1434,7 +1440,9 @@ export default function App() {
                           >
                             <item.icon
                               size={18}
-                              strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
+                              strokeWidth={
+                                isNavItemActive(item.id, activeTab, { serviceClientsHub: serviceProductUx }) ? 2.5 : 2
+                              }
                               className="shrink-0"
                             />
                             {isSidebarOpen && <span className="truncate">{item.label}</span>}
@@ -1790,15 +1798,30 @@ export default function App() {
                         businessType={(userConfig?.businessType as string) || 'manufacturer'}
                       />
                     )}
-                    {canAccess(activeTab) && activeTab === 'masters' && (
-                      <MastersView
-                        setActiveTab={setActiveTab}
-                        user={user}
-                        businessType={(userConfig?.businessType as string) || 'manufacturer'}
-                        launch={mastersLaunch}
-                        onLaunchConsumed={() => setMastersLaunch(null)}
-                      />
-                    )}
+                    {canAccess(activeTab) &&
+                      activeTab === 'masters' &&
+                      (serviceProductUx ? (
+                        <ServiceClientsHub
+                          panel="directory"
+                          onPanelChange={() => {}}
+                          setActiveTab={setActiveTab}
+                          user={user}
+                          businessType={(userConfig?.businessType as string) || 'service'}
+                          launch={mastersLaunch}
+                          onLaunchConsumed={() => setMastersLaunch(null)}
+                          financeAccessLevel={getAccess('finance')}
+                          canDirectory={canAccess('masters')}
+                          canOutstanding={canAccess('finance')}
+                        />
+                      ) : (
+                        <MastersView
+                          setActiveTab={setActiveTab}
+                          user={user}
+                          businessType={(userConfig?.businessType as string) || 'manufacturer'}
+                          launch={mastersLaunch}
+                          onLaunchConsumed={() => setMastersLaunch(null)}
+                        />
+                      ))}
                     {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}
                     {canAccess(activeTab) && activeTab === 'purchases' && (
                       <PurchasesView accessLevel={getAccess('purchases')} />
@@ -1823,8 +1846,20 @@ export default function App() {
                     )}
                     {canAccess(activeTab) &&
                       activeTab === 'finance' &&
-                      // Offline Mobile / service phone UX always invoice finance; also hotel_restaurant (financeView: invoice)
-                      (serviceProductUx || (userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                      (serviceProductUx ? (
+                        <ServiceClientsHub
+                          panel="outstanding"
+                          onPanelChange={() => {}}
+                          setActiveTab={setActiveTab}
+                          user={user}
+                          businessType={(userConfig?.businessType as string) || 'service'}
+                          launch={mastersLaunch}
+                          onLaunchConsumed={() => setMastersLaunch(null)}
+                          financeAccessLevel={getAccess('finance')}
+                          canDirectory={canAccess('masters')}
+                          canOutstanding={canAccess('finance')}
+                        />
+                      ) : (userConfig?.businessType as string) === 'hotel_restaurant' ? (
                         <InvoiceFinanceView accessLevel={getAccess('finance')} />
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
@@ -1876,7 +1911,7 @@ export default function App() {
           >
             <div className="flex items-stretch justify-around px-0.5 pt-0.5 pb-0">
               {mobileNavItems.map(item => {
-                const active = activeTab === item.id;
+                const active = isNavItemActive(item.id, activeTab, { serviceClientsHub: serviceProductUx });
                 return (
                   <button
                     key={item.id}
