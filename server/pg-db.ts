@@ -928,7 +928,7 @@ export async function initSchema() {
       ON standalone_invoices (tenant_id, external_ref)
       WHERE external_ref IS NOT NULL
     `);
-    // sale = party bill (GT/…); cash_income = Miracle CB→income (rent/scrap/misc, often MIR-CASH-…)
+    // sale = party bill; cash_income = rent/scrap/misc (import or Record cash income — same kind)
     await client.query(
       `ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS invoice_kind TEXT NOT NULL DEFAULT 'sale'`,
     );
@@ -938,7 +938,44 @@ export async function initSchema() {
       WHERE invoice_kind IS DISTINCT FROM 'cash_income'
         AND (
           invoice_number LIKE 'MIR-CASH-%'
+          OR invoice_number LIKE 'CASH-%'
+          OR invoice_number LIKE 'CASH/%'
           OR COALESCE(notes, '') ILIKE 'Miracle cash income%'
+        )
+    `);
+    // Strip legacy Miracle-only labels so imported rows read like native cash income
+    await client.query(`
+      UPDATE standalone_invoices
+      SET notes = CASE
+        WHEN notes ILIKE 'Miracle cash income: %'
+          THEN 'Cash income: ' || substring(notes from length('Miracle cash income: ') + 1)
+        WHEN notes ILIKE 'Miracle cash income %'
+          THEN 'Cash income: ' || substring(notes from length('Miracle cash income ') + 1)
+        ELSE notes
+      END
+      WHERE invoice_kind = 'cash_income'
+        AND notes ILIKE 'Miracle cash income%'
+    `);
+    await client.query(`
+      UPDATE invoice_payments
+      SET notes = CASE
+        WHEN notes ILIKE 'Miracle cash income: %'
+          THEN 'Cash income: ' || substring(notes from length('Miracle cash income: ') + 1)
+        WHEN notes ILIKE 'Miracle cash income %'
+          THEN 'Cash income: ' || substring(notes from length('Miracle cash income ') + 1)
+        ELSE notes
+      END
+      WHERE notes ILIKE 'Miracle cash income%'
+    `);
+    await client.query(`
+      UPDATE standalone_invoices si
+      SET invoice_number = regexp_replace(si.invoice_number, '^MIR-CASH-', 'CASH-')
+      WHERE si.invoice_number LIKE 'MIR-CASH-%'
+        AND NOT EXISTS (
+          SELECT 1 FROM standalone_invoices o
+          WHERE o.tenant_id = si.tenant_id
+            AND o.id IS DISTINCT FROM si.id
+            AND o.invoice_number = regexp_replace(si.invoice_number, '^MIR-CASH-', 'CASH-')
         )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_kind ON standalone_invoices(tenant_id, invoice_kind)');

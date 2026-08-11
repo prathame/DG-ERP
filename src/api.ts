@@ -892,7 +892,7 @@ export const api = {
           balance: number;
         }[]
       >('/invoice-finance/summary'),
-    /** Party sales vs Miracle cash-income KPIs (clean bifurcation). */
+    /** Party sales vs cash-income KPIs (same for imported and manually recorded). */
     breakdown: () =>
       fetchApi<{
         partyInvoiced: number;

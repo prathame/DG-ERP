@@ -409,7 +409,7 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
         FROM staff_payments WHERE tenant_id=$1 AND payment_date <= $2`,
         [tenantId, asOf],
       ),
-      // Invoice AR = party bills only (exclude Miracle cash-income); cash = party bill payments
+      // Invoice AR = party bills only (exclude cash_income); cash = party bill payments
       pool.query(
         `SELECT
         COALESCE(SUM(CASE WHEN si.status NOT IN ('paid','cancelled','draft') THEN GREATEST(0, si.grand_total - COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.invoice_id = si.id AND ip.tenant_id = $1 AND ip.payment_date <= $2),0)) ELSE 0 END),0) as unpaid,

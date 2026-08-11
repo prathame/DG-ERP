@@ -248,7 +248,7 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
 });
 
 /**
- * Bifurcated KPIs: party sales (GT/…) vs Miracle cash-income (rent/scrap/MIR-CASH…).
+ * Bifurcated KPIs: party sales vs cash income (rent/scrap/misc).
  * Party list stays on /summary; cash-income rows stay out of party outstanding.
  */
 router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthRequest, res) => {
@@ -311,7 +311,7 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
   }
 });
 
-/** Cash-income invoices (Miracle CB→income / manual) — not party bills. */
+/** Cash-income invoices (imported or Record cash income) — not party bills. */
 router.get('/api/invoice-finance/cash-income', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

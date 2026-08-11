@@ -1183,7 +1183,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             listView === 'bills'
               ? 'Search party or bill number…'
               : listView === 'cash'
-                ? 'Search income head or MIR-CASH…'
+                ? 'Search income head or reference…'
                 : `${t('common.search')} ${clientsLabel.toLowerCase().replace(/s$/, '')}…`
           }
           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
@@ -1202,7 +1202,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             <p className="text-sm text-gray-400 mb-4">
               {search
                 ? 'Try another income head or reference'
-                : 'Record rent, scrap, or misc cash here — or import Miracle MIR-CASH receipts'}
+                : 'Record rent, scrap, or misc cash — same list for imported and new entries'}
             </p>
             {!search && !isReadOnly && (
               <button
