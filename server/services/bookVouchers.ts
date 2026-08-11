@@ -1,9 +1,12 @@
 /**
  * Manual Books voucher create — Miracle-shaped desk (receipt / payment / journal / contra).
- * Persists to book_vouchers + book_voucher_entries. Ops dual-write can layer on later.
+ * Persists to book_vouchers + book_voucher_entries.
+ * Receipt/payment dual-write to Invoice Finance when party ledger maps to a vendor.
  */
 import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
+import { resolveMiraclePaymentMethod } from './miracleImport';
+import { allocatePartyReceipt, resolveVendorForBookLedger, upsertVendorPayment } from './partyCashOps';
 
 export const BOOK_VOUCHER_TYPES = ['receipt', 'payment', 'journal', 'contra'] as const;
 export type BookVoucherType = (typeof BOOK_VOUCHER_TYPES)[number];
@@ -35,6 +38,17 @@ export class BookVoucherValidationError extends Error {
     super(message);
     this.name = 'BookVoucherValidationError';
   }
+}
+
+export interface BookVoucherOpsResult {
+  dualWrite: 'receipt' | 'payment' | 'skipped';
+  reason?: string;
+  vendorId?: string;
+  vendorName?: string;
+  paymentMethod?: string;
+  invoicePayments?: number;
+  vendorPayments?: number;
+  billMatched?: number;
 }
 
 function round2(n: number): number {
@@ -144,11 +158,106 @@ function normalizeEntries(entries: BookVoucherEntryInput[]): Array<{
   return out;
 }
 
+async function dualWritePartyCash(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+  voucherType: 'receipt' | 'payment',
+  partyLedgerId: string | null,
+  contraLedgerId: string | null,
+  amount: number,
+  voucherDate: string,
+  voucherNumber: string | null,
+  narration: string | null,
+): Promise<BookVoucherOpsResult> {
+  if (!partyLedgerId) {
+    return { dualWrite: 'skipped', reason: 'No party ledger' };
+  }
+  const vendor = await resolveVendorForBookLedger(client, tenantId, partyLedgerId);
+  if (!vendor) {
+    return { dualWrite: 'skipped', reason: 'Party ledger is not linked to a vendor' };
+  }
+
+  let contraType: string | null = null;
+  let contraName: string | null = null;
+  let contraGroup: string | null = null;
+  if (contraLedgerId) {
+    const contra = (
+      await client.query(
+        `SELECT l.name, l.ledger_type, g.name AS group_name
+         FROM book_ledgers l
+         LEFT JOIN book_account_groups g ON g.id = l.group_id AND g.tenant_id = l.tenant_id
+         WHERE l.tenant_id = $1 AND l.id = $2`,
+        [tenantId, contraLedgerId],
+      )
+    ).rows[0] as { name: string; ledger_type: string | null; group_name: string | null } | undefined;
+    if (contra) {
+      contraType = contra.ledger_type;
+      contraName = contra.name;
+      contraGroup = contra.group_name;
+    }
+  }
+
+  const paymentMethod = resolveMiraclePaymentMethod({
+    contraLedgerType: contraType,
+    contraLedgerName: contraName,
+    contraGroupName: contraGroup,
+    instrumentRef: voucherNumber,
+  });
+  const idempotencyBase = `books:${voucherId}`;
+  const via = contraName ? ` via ${contraName}` : '';
+  const noteBody = narration ? `${narration}${via}` : null;
+
+  if (voucherType === 'receipt') {
+    const allocated = await allocatePartyReceipt(
+      client,
+      tenantId,
+      vendor.vendorId,
+      amount,
+      voucherDate,
+      paymentMethod,
+      voucherNumber,
+      idempotencyBase,
+      noteBody || `Books receipt${via}`,
+      [],
+      'Books receipt',
+    );
+    return {
+      dualWrite: 'receipt',
+      vendorId: vendor.vendorId,
+      vendorName: vendor.vendorName,
+      paymentMethod,
+      invoicePayments: allocated.invoicePayments,
+      vendorPayments: allocated.vendorPayments,
+      billMatched: allocated.billMatched,
+    };
+  }
+
+  const ok = await upsertVendorPayment(
+    client,
+    tenantId,
+    vendor.vendorId,
+    amount,
+    voucherDate,
+    paymentMethod,
+    voucherNumber,
+    noteBody ? `Books payment: ${noteBody}` : `Books payment${via}`,
+    idempotencyBase,
+  );
+  return {
+    dualWrite: 'payment',
+    vendorId: vendor.vendorId,
+    vendorName: vendor.vendorName,
+    paymentMethod,
+    vendorPayments: ok ? 1 : 0,
+  };
+}
+
 export async function createBookVoucher(
   client: PoolClient,
   tenantId: string,
   input: CreateBookVoucherInput,
-): Promise<{ id: string; voucherType: string; amount: number }> {
+): Promise<{ id: string; voucherType: string; amount: number; ops: BookVoucherOpsResult }> {
   if (!BOOK_VOUCHER_TYPES.includes(input.voucherType)) {
     throw new BookVoucherValidationError(`Unsupported voucher type: ${input.voucherType}`);
   }
@@ -237,5 +346,21 @@ export async function createBookVoucher(
     );
   }
 
-  return { id: voucherId, voucherType: input.voucherType, amount };
+  let ops: BookVoucherOpsResult = { dualWrite: 'skipped', reason: 'Not a receipt/payment voucher' };
+  if (input.voucherType === 'receipt' || input.voucherType === 'payment') {
+    ops = await dualWritePartyCash(
+      client,
+      tenantId,
+      voucherId,
+      input.voucherType,
+      partyLedgerId,
+      contraLedgerId,
+      amount,
+      voucherDate,
+      input.voucherNumber?.trim() || null,
+      input.narration?.trim() || null,
+    );
+  }
+
+  return { id: voucherId, voucherType: input.voucherType, amount, ops };
 }

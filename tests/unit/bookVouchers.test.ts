@@ -72,6 +72,7 @@ describe('bookVouchers', () => {
       await client.query('COMMIT');
       expect(created.amount).toBe(1500);
       expect(created.voucherType).toBe('receipt');
+      expect(created.ops.dualWrite).toBe('skipped');
 
       const entries = await pool.query(
         `SELECT ledger_id, debit::float AS debit, credit::float AS credit
@@ -157,7 +158,99 @@ describe('bookVouchers', () => {
         ],
       });
       expect(ok.amount).toBe(100);
+      expect(ok.ops.dualWrite).toBe('skipped');
       await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  it('dual-writes receipt to invoice_payments when party maps to vendor', async () => {
+    await cleanupTestData(TENANT);
+    const { cash, party } = await seedLedgers();
+    const vendorId = uid('VN');
+    await pool.query(`INSERT INTO vendors (id, tenant_id, name, external_ref) VALUES ($1,$2,'MITULBHAI','L-PARTY')`, [
+      vendorId,
+      TENANT,
+    ]);
+    const invId = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, party_type, party_id, status, grand_total, invoice_date, items)
+       VALUES ($1,$2,'INV-1','MITULBHAI','vendor',$3,'sent',1000,'2025-05-01','[]')`,
+      [invId, TENANT, vendorId],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await createBookVoucher(client, TENANT, {
+        voucherType: 'receipt',
+        voucherDate: '2025-06-01',
+        voucherNumber: 'CR/9',
+        partyLedgerId: party,
+        contraLedgerId: cash,
+        amount: 400,
+        narration: 'Partial receipt',
+      });
+      await client.query('COMMIT');
+
+      expect(created.ops.dualWrite).toBe('receipt');
+      expect(created.ops.vendorId).toBe(vendorId);
+      expect(created.ops.invoicePayments).toBe(1);
+      expect(created.ops.paymentMethod).toBe('Cash');
+
+      const pays = await pool.query(
+        `SELECT amount::float AS amount, idempotency_key, payment_method
+         FROM invoice_payments WHERE tenant_id = $1 AND invoice_id = $2`,
+        [TENANT, invId],
+      );
+      expect(pays.rows).toHaveLength(1);
+      expect(pays.rows[0].amount).toBe(400);
+      expect(pays.rows[0].idempotency_key).toBe(`books:${created.id}:0`);
+      expect(pays.rows[0].payment_method).toBe('Cash');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  it('dual-writes payment to vendor_payments', async () => {
+    await cleanupTestData(TENANT);
+    const { cash, party } = await seedLedgers();
+    const vendorId = uid('VN');
+    await pool.query(`INSERT INTO vendors (id, tenant_id, name, external_ref) VALUES ($1,$2,'MITULBHAI','L-PARTY')`, [
+      vendorId,
+      TENANT,
+    ]);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await createBookVoucher(client, TENANT, {
+        voucherType: 'payment',
+        voucherDate: '2025-06-02',
+        partyLedgerId: party,
+        contraLedgerId: cash,
+        amount: 250,
+      });
+      await client.query('COMMIT');
+
+      expect(created.ops.dualWrite).toBe('payment');
+      expect(created.ops.vendorPayments).toBe(1);
+
+      const pays = await pool.query(
+        `SELECT amount::float AS amount, idempotency_key FROM vendor_payments WHERE tenant_id = $1`,
+        [TENANT],
+      );
+      expect(pays.rows).toHaveLength(1);
+      expect(pays.rows[0].amount).toBe(250);
+      expect(pays.rows[0].idempotency_key).toBe(`books:${created.id}`);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

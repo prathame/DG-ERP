@@ -21,6 +21,7 @@ import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
 import { dateStr, findDbf, num, readDbf, str, type DbfRecord } from '../utils/dbf';
 import { logger } from '../utils/logger';
+import { allocatePartyReceipt, normalizeDocNumber, upsertVendorPayment } from './partyCashOps';
 
 const execFileAsync = promisify(execFile);
 
@@ -171,11 +172,7 @@ function emptyCoverage(): MiracleImportCoverage {
 }
 
 /** Collapse Miracle padded doc nos (`GT/     1` → `GT/1`). */
-export function normalizeMiracleDocNumber(raw: string | null | undefined): string {
-  const s = (raw || '').trim();
-  if (!s) return '';
-  return s.replace(/\s+/g, '');
-}
+export const normalizeMiracleDocNumber = normalizeDocNumber;
 
 /**
  * Map Miracle header type/subtype (+ FIELD98 shortcut) → Books voucher_type.
@@ -595,170 +592,6 @@ async function upsertOpsInvoice(
     ])
   ).rows[0] as { id: string };
   return row.id;
-}
-
-async function upsertVendorPayment(
-  client: PoolClient,
-  tenantId: string,
-  vendorId: string,
-  amount: number,
-  paymentDate: string,
-  paymentMethod: string,
-  referenceNumber: string | null,
-  notes: string | null,
-  idempotencyKey: string,
-): Promise<boolean> {
-  if (amount <= 0) return false;
-  const existing = (
-    await client.query(`SELECT id FROM vendor_payments WHERE tenant_id = $1 AND idempotency_key = $2`, [
-      tenantId,
-      idempotencyKey,
-    ])
-  ).rows[0] as { id: string } | undefined;
-  if (existing) {
-    await client.query(
-      `UPDATE vendor_payments
-       SET vendor_id = $3, amount = $4, payment_date = $5, payment_method = $6,
-           reference_number = $7, notes = $8
-       WHERE tenant_id = $1 AND id = $2`,
-      [tenantId, existing.id, vendorId, amount, paymentDate, paymentMethod, referenceNumber, notes],
-    );
-    return true;
-  }
-  await client.query(
-    `INSERT INTO vendor_payments
-       (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [uid('VP'), tenantId, vendorId, amount, paymentDate, paymentMethod, referenceNumber, notes, idempotencyKey],
-  );
-  return true;
-}
-
-async function allocateReceiptToInvoices(
-  client: PoolClient,
-  tenantId: string,
-  vendorId: string,
-  amount: number,
-  paymentDate: string,
-  paymentMethod: string,
-  referenceNumber: string | null,
-  miracleExt: string,
-  narration: string | null,
-  /** Miracle bill-wise refs (invoice numbers) — tried before FIFO */
-  preferredInvoiceNumbers: string[] = [],
-): Promise<{ invoicePayments: number; vendorPayments: number; billMatched: number }> {
-  // Clear prior allocations for this Miracle voucher (re-import safe)
-  await client.query(`DELETE FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key LIKE $2`, [
-    tenantId,
-    `miracle:${miracleExt}:%`,
-  ]);
-  await client.query(`DELETE FROM vendor_payments WHERE tenant_id = $1 AND idempotency_key = $2`, [
-    tenantId,
-    `miracle:${miracleExt}`,
-  ]);
-
-  const open = (
-    await client.query(
-      `SELECT si.id, si.invoice_number, si.grand_total::float AS grand_total,
-              COALESCE((SELECT SUM(ip.amount)::float FROM invoice_payments ip
-                        WHERE ip.tenant_id = si.tenant_id AND ip.invoice_id = si.id), 0) AS paid
-       FROM standalone_invoices si
-       WHERE si.tenant_id = $1 AND si.party_type = 'vendor' AND si.party_id = $2
-         AND si.status IS DISTINCT FROM 'cancelled'
-       ORDER BY si.invoice_date ASC NULLS LAST, si.created_at ASC NULLS LAST, si.id ASC`,
-      [tenantId, vendorId],
-    )
-  ).rows as Array<{ id: string; invoice_number: string; grand_total: number; paid: number }>;
-
-  const byNumber = new Map<string, (typeof open)[number]>();
-  for (const inv of open) {
-    const key = normalizeMiracleDocNumber(inv.invoice_number);
-    if (key && !byNumber.has(key)) byNumber.set(key, inv);
-  }
-
-  const paidSoFar = new Map<string, number>();
-  for (const inv of open) paidSoFar.set(inv.id, Number(inv.paid));
-
-  let remaining = Math.round(amount * 100) / 100;
-  let invoicePayments = 0;
-  let billMatched = 0;
-  let slice = 0;
-
-  const applyTo = async (inv: (typeof open)[number], preferBill: boolean) => {
-    if (remaining <= 0.009) return;
-    const already = paidSoFar.get(inv.id) || 0;
-    const due = Math.round((Number(inv.grand_total) - already) * 100) / 100;
-    if (due <= 0.009) return;
-    const apply = Math.min(remaining, due);
-    const key = `miracle:${miracleExt}:${slice++}`;
-    const id = uid('IP');
-    await client.query(
-      `INSERT INTO invoice_payments
-         (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [
-        id,
-        tenantId,
-        inv.id,
-        apply,
-        paymentDate,
-        paymentMethod,
-        referenceNumber,
-        narration
-          ? `Miracle receipt${preferBill ? ' (bill)' : ''}: ${narration}`
-          : `Miracle receipt ${miracleExt}${preferBill ? ' (bill)' : ''}`,
-        key,
-      ],
-    );
-    invoicePayments++;
-    if (preferBill) billMatched++;
-    const newPaid = already + apply;
-    paidSoFar.set(inv.id, newPaid);
-    if (newPaid >= Number(inv.grand_total) - 0.001) {
-      await client.query(
-        `UPDATE standalone_invoices SET status = 'paid', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
-        [inv.id, tenantId],
-      );
-    } else {
-      await client.query(
-        `UPDATE standalone_invoices SET status = 'sent', updated_at = NOW() WHERE id = $1 AND tenant_id = $2 AND status = 'draft'`,
-        [inv.id, tenantId],
-      );
-    }
-    remaining = Math.round((remaining - apply) * 100) / 100;
-  };
-
-  const seen = new Set<string>();
-  for (const raw of preferredInvoiceNumbers) {
-    const num = normalizeMiracleDocNumber(raw);
-    if (!num) continue;
-    const inv = byNumber.get(num);
-    if (!inv || seen.has(inv.id)) continue;
-    seen.add(inv.id);
-    await applyTo(inv, true);
-  }
-
-  for (const inv of open) {
-    if (seen.has(inv.id)) continue;
-    await applyTo(inv, false);
-  }
-
-  let vendorPayments = 0;
-  if (remaining > 0.009) {
-    const ok = await upsertVendorPayment(
-      client,
-      tenantId,
-      vendorId,
-      remaining,
-      paymentDate,
-      paymentMethod,
-      referenceNumber,
-      narration ? `Miracle receipt (unallocated): ${narration}` : `Miracle receipt ${miracleExt} (unallocated)`,
-      `miracle:${miracleExt}`,
-    );
-    if (ok) vendorPayments = 1;
-  }
-  return { invoicePayments, vendorPayments, billMatched };
 }
 
 async function upsertOpsNote(
@@ -1579,7 +1412,7 @@ export async function importMiracleCompany(
       const via = cash.contraName ? ` via ${cash.contraName}` : '';
       const ref = cash.referenceNumber;
       if (cash.voucherType === 'receipt') {
-        const allocated = await allocateReceiptToInvoices(
+        const allocated = await allocatePartyReceipt(
           client,
           tenantId,
           vendorId,
@@ -1587,9 +1420,10 @@ export async function importMiracleCompany(
           cash.vDate,
           method,
           ref,
-          cash.ext,
+          `miracle:${cash.ext}`,
           cash.narration ? `${cash.narration}${via}` : `Miracle receipt${via}`,
           cash.billRefs,
+          'Miracle receipt',
         );
         summary.invoicePayments += allocated.invoicePayments;
         summary.vendorPayments += allocated.vendorPayments;
