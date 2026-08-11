@@ -53,12 +53,20 @@ describe('bookReports', () => {
     expect(lines[1].balanceSide).toBe('D');
   });
 
-  it('classifyLedger maps Miracle natures', () => {
+  it('classifyLedger maps Miracle natures and group fallbacks', () => {
     expect(classifyLedger('I', 'IN', null)).toBe('income');
     expect(classifyLedger('B', 'PR', 'Sundry Debtors')).toBe('asset');
     expect(classifyLedger('L', 'LI', null)).toBe('liability');
     expect(classifyLedger('T', 'TS', null)).toBe('trading');
     expect(classifyLedger('E', 'EX', null)).toBe('expense');
+    expect(classifyLedger('C', null, null)).toBe('capital');
+    expect(classifyLedger(null, 'EX', null)).toBe('expense');
+    expect(classifyLedger(null, null, 'Sales Income')).toBe('income');
+    expect(classifyLedger(null, null, 'Purchase Expenses')).toBe('expense');
+    expect(classifyLedger(null, null, 'Sundry Creditors')).toBe('liability');
+    expect(classifyLedger(null, null, 'Capital Account')).toBe('capital');
+    expect(classifyLedger(null, null, 'Bank Accounts')).toBe('asset');
+    expect(classifyLedger(null, null, 'Misc')).toBe('other');
   });
 
   it('buildTrialBalanceRow closes opening + period', () => {
