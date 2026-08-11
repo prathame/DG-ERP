@@ -1060,6 +1060,35 @@ export function CreateInvoiceModal({
     setSubmitting(true);
     try {
       const selected = parties.find(p => p.key === partyKey);
+      let partyType: 'vendor' | 'customer' | null = selected?.partyType || null;
+      let partyId: string | null = selected?.partyId || null;
+      // Typed name not in Masters → create Client/Vendor so Collections & Clients stay in sync.
+      if (!partyId && form.customerName.trim()) {
+        const needle = form.customerName.trim().toLowerCase();
+        const existing = parties.find(p => p.name.trim().toLowerCase() === needle);
+        if (existing) {
+          partyType = existing.partyType;
+          partyId = existing.partyId;
+        } else {
+          try {
+            const createdParty = await api.vendors.create({
+              name: form.customerName.trim(),
+              phone: form.customerPhone?.trim() || undefined,
+              address: form.customerAddress?.trim() || undefined,
+              gstNumber: form.customerGstin?.trim() || undefined,
+            });
+            partyType = 'vendor';
+            partyId = createdParty.id;
+          } catch (createErr) {
+            // Race / duplicate name — attach the existing row if we can find it.
+            const listed = await api.vendors.list(form.customerName.trim());
+            const hit = listed.find(v => v.name.trim().toLowerCase() === needle);
+            if (!hit) throw createErr;
+            partyType = 'vendor';
+            partyId = hit.id;
+          }
+        }
+      }
       // Offline: Notes / T&C / bank / payment terms come from Bill Customization settings, not the form.
       const created = await fetchApi<Invoice>('/invoices', {
         method: 'POST',
@@ -1078,8 +1107,8 @@ export function CreateInvoiceModal({
             ...(productId ? { productId } : {}),
           })),
           status,
-          partyType: selected?.partyType || null,
-          partyId: selected?.partyId || null,
+          partyType,
+          partyId,
         }),
       });
       toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');

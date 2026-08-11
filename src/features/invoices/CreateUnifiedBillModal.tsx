@@ -390,10 +390,10 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     { subtotal: 0, tax: 0, grand: 0 },
   );
 
-  const createSale = async (inventory: BillLine[]) => {
+  const createSale = async (inventory: BillLine[], saleVendorId: string) => {
     const paid = parseFloat(amountPaid) || 0;
     const batch = await api.distribution.createBatch({
-      vendorId,
+      vendorId: saleVendorId,
       distributionDate: form.invoiceDate,
       amountPaid: paid > 0 ? paid : undefined,
       gstRate: defaultGstRate,
@@ -405,11 +405,46 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         customPrice: row.rate > 0 ? row.rate : undefined,
       })),
     });
-    const bill = await api.distribution.getBill({ batchId: batch.batchId, vendorId });
+    const bill = await api.distribution.getBill({ batchId: batch.batchId, vendorId: saleVendorId });
     return { batch, bill };
   };
 
-  const createStandaloneInvoice = async (customRows: BillLine[], status: 'draft' | 'sent') => {
+  /** Resolve bill-to party: existing vendor, case-insensitive name match, or create Client/Customer/Vendor. */
+  const resolveVendorId = async (): Promise<string | null> => {
+    if (vendorId) return vendorId;
+    const name = form.customerName.trim();
+    if (!name) return null;
+    const needle = name.toLowerCase();
+    const existing = vendors.find(v => v.name.trim().toLowerCase() === needle);
+    if (existing) {
+      setVendorId(existing.id);
+      return existing.id;
+    }
+    try {
+      const created = await api.vendors.create({
+        name,
+        phone: form.customerPhone?.trim() || undefined,
+        address: form.customerAddress?.trim() || undefined,
+        gstNumber: form.customerGstin?.trim() || undefined,
+      });
+      setVendors(prev => (prev.some(v => v.id === created.id) ? prev : [...prev, created]));
+      setVendorId(created.id);
+      return created.id;
+    } catch (createErr) {
+      const listed = await api.vendors.list(name);
+      const hit = listed.find(v => v.name.trim().toLowerCase() === needle);
+      if (!hit) throw createErr;
+      setVendors(prev => (prev.some(v => v.id === hit.id) ? prev : [...prev, hit]));
+      setVendorId(hit.id);
+      return hit.id;
+    }
+  };
+
+  const createStandaloneInvoice = async (
+    customRows: BillLine[],
+    status: 'draft' | 'sent',
+    partyVendorId: string | null,
+  ) => {
     const anyGst = customRows.some(r => r.withGst);
     const created = await fetchApi<Invoice>('/invoices', {
       method: 'POST',
@@ -431,8 +466,8 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
           };
         }),
         status,
-        partyType: vendorId ? 'vendor' : null,
-        partyId: vendorId || null,
+        partyType: partyVendorId ? 'vendor' : null,
+        partyId: partyVendorId || null,
       }),
     });
     if (created?.id) scheduleBakeCapBillPdfCache(created as CapBillPdfCacheDoc);
@@ -456,27 +491,29 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       return;
     }
 
-    // Matched vendor + mix → never silently proceed
-    if (mode === 'auto' && vendorId && inventory.length > 0 && custom.length > 0) {
-      setPendingStatus(status);
-      setMixDialog(true);
-      return;
-    }
-
-    // Sale when vendor matched and (auto inventory-only, or split inventory half).
-    const wantSale =
-      !!vendorId && inventory.length > 0 && (mode === 'split' || (mode === 'auto' && custom.length === 0));
-
-    let invoiceRows: BillLine[] = [];
-    if (mode === 'split') invoiceRows = custom;
-    else if (!wantSale) invoiceRows = [...inventory, ...custom];
-    else invoiceRows = []; // auto sale-only: no invoice half
-
     setSubmitting(true);
     setMixDialog(false);
     try {
+      const resolvedVendorId = await resolveVendorId();
+      if (!resolvedVendorId) throw new Error(`${partyLabel} name is required`);
+
+      // Matched (or newly created) party + mix → never silently proceed
+      if (mode === 'auto' && inventory.length > 0 && custom.length > 0) {
+        setPendingStatus(status);
+        setMixDialog(true);
+        return;
+      }
+
+      // Sale when party resolved and (auto inventory-only, or split inventory half).
+      const wantSale = inventory.length > 0 && (mode === 'split' || (mode === 'auto' && custom.length === 0));
+
+      let invoiceRows: BillLine[] = [];
+      if (mode === 'split') invoiceRows = custom;
+      else if (!wantSale) invoiceRows = [...inventory, ...custom];
+      else invoiceRows = []; // auto sale-only: no invoice half
+
       if (wantSale) {
-        const sale = await createSale(inventory);
+        const sale = await createSale(inventory, resolvedVendorId);
         const hasGst = inventory.some(r => r.withGst);
         const hasNon = inventory.some(r => !r.withGst);
         toast(
@@ -487,17 +524,15 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         );
         if (!invoiceRows.length) {
           setCreatedSale(sale);
-          setSubmitting(false);
           return;
         }
       }
 
       if (invoiceRows.length) {
-        const created = await createStandaloneInvoice(invoiceRows, status);
+        const created = await createStandaloneInvoice(invoiceRows, status, resolvedVendorId);
         toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');
         if (created?.items && Array.isArray(created.items) && !wantSale) {
           setCreatedInvoice(created);
-          setSubmitting(false);
           return;
         }
       }
@@ -668,9 +703,9 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       return 'Mixed inventory and custom lines — you will choose Split or Remove on save.';
     }
     if (!vendorId && form.customerName.trim()) {
-      return 'Custom / unmatched party → standalone invoice under Invoices.';
+      return `New ${partyLabel.toLowerCase()} name will be added to ${partyLabel}s, then billed.`;
     }
-    return `Type a ${partyLabel.toLowerCase()} — pick a match for ${saleLabel}s, or leave custom for a standalone invoice.`;
+    return `Type a ${partyLabel.toLowerCase()} — pick a match, or enter a new name to add them automatically.`;
   })();
 
   return (
