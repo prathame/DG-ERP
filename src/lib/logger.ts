@@ -219,13 +219,16 @@ export const clientLogger = {
 export function installGlobalErrorHandlers(): void {
   ensureCorrelationId();
   window.addEventListener('error', event => {
-    clientLogger.exception('Unhandled window error', event.error || event.message, {
+    const err = event.error || event.message;
+    clientLogger.exception('Unhandled window error', err, {
       filename: event.filename,
       lineno: event.lineno,
       colno: event.colno,
     });
+    void import('./reloadOnStaleChunk').then(m => m.reloadOnceOnStaleChunk(err)).catch(() => {});
   });
   window.addEventListener('unhandledrejection', event => {
     clientLogger.exception('Unhandled promise rejection', event.reason);
+    void import('./reloadOnStaleChunk').then(m => m.reloadOnceOnStaleChunk(event.reason)).catch(() => {});
   });
 }

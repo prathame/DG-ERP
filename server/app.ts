@@ -741,8 +741,16 @@ export function createApp(): express.Application {
 
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
+    // Missing hashed bundles must 404 — never SPA-fallback HTML as JS (breaks tabs after deploy).
+    if (
+      req.path.startsWith('/assets/') ||
+      /\.(?:js|mjs|cjs|css|map|woff2?|ttf|eot|png|jpe?g|gif|svg|webp|ico)$/i.test(req.path)
+    ) {
+      return res.status(404).type('text/plain').send('Not found');
+    }
     const indexPath = path.join(distPath, 'index.html');
     if (fs.existsSync(indexPath)) {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(indexPath);
     } else {
       res
