@@ -38,6 +38,24 @@ async function todayYmd(): Promise<string> {
   return String(r.rows[0]?.d || new Date().toISOString().slice(0, 10));
 }
 
+/** Allow explicit 0% GST — `Number(x) || 18` wrongly treats 0 as missing. */
+function resolveGstRate(...vals: unknown[]): number {
+  for (const v of vals) {
+    if (v == null || v === '') continue;
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 18;
+}
+
+/** Normalize PG date / ISO / Date to YYYY-MM-DD for Books dual-write. */
+function toYmd(d: unknown, fallback: string): string {
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+  const dt = d instanceof Date ? d : new Date(String(d ?? ''));
+  if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+  return fallback;
+}
+
 function mapQuote(r: Record<string, unknown>) {
   return {
     id: r.id,
@@ -52,7 +70,7 @@ function mapQuote(r: Record<string, unknown>) {
     status: r.status,
     items: r.items,
     subtotal: Number(r.subtotal) || 0,
-    gstRate: Number(r.gst_rate) || 18,
+    gstRate: resolveGstRate(r.gst_rate),
     gstAmount: Number(r.gst_amount) || 0,
     total: Number(r.total) || 0,
     notes: r.notes,
@@ -237,7 +255,7 @@ router.post('/api/quotations', blockVendors, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { vendorId, customerName, customerPhone, customerEmail, quotationDate, validUntil, items, gstRate, notes } =
       req.body;
-    const rate = Number(gstRate) || 18;
+    const rate = resolveGstRate(gstRate);
     const built = await buildResolvedItems(tenantId, vendorId, items, rate);
     if ('error' in built) return res.status(built.status).json({ error: built.error });
     const { resolvedItems, subtotal, gstAmount, total } = built;
@@ -326,7 +344,7 @@ router.put('/api/quotations/:id', blockVendors, async (req: AuthRequest, res) =>
 
     const { vendorId, customerName, customerPhone, customerEmail, quotationDate, validUntil, items, gstRate, notes } =
       req.body;
-    const rate = Number(gstRate) || Number(current.gst_rate) || 18;
+    const rate = resolveGstRate(gstRate, current.gst_rate);
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Add at least one item' });
     }
@@ -561,8 +579,8 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
         return res.status(400).json({ error: 'Nothing left to convert' });
       }
 
-      const gstRate = Number(quote.gst_rate) || 18;
-      const date = (quote.quotation_date as string) || (await todayYmd());
+      const gstRate = resolveGstRate(quote.gst_rate);
+      const date = toYmd(quote.quotation_date, await todayYmd());
       let resultPayload: Record<string, unknown> = {};
 
       if (isInvoiceConvert) {
@@ -716,7 +734,7 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
             taxCgst,
             taxSgst,
             taxIgst,
-            invoiceDate: String(date).slice(0, 10),
+            invoiceDate: date,
             notes: quote.notes ? String(quote.notes) : `From quotation ${quote.quotation_number}`,
           });
         } catch {
