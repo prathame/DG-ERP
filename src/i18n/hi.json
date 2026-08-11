@@ -301,12 +301,15 @@
     "importCoverageCashIncome": "नकद आय रसीदें (जॉब वर्क / स्क्रैप)",
     "importCoveragePartyCash": "पार्टी रसीदें और भुगतान",
     "importCoverageCreditNotes": "क्रेडिट नोट / सेल्स रिटर्न",
-    "importCoverageDebitNotes": "डेबिट नोट / परचेज रिटर्न",
-    "importCoverageNonPartyCash": "खर्च / पूंजी / संपत्ति नकद वाउचर केवल Books में (पार्टी ops नहीं)",
-    "importCoverageJournals": "जर्नल वाउचर केवल Books में",
-    "importCoveragePurchasesBooks": "परचेज वाउचर Books में टाइप (स्टॉक ड्यूल-राइट बाद में)",
-    "importCoverageContraBooks": "कॉन्ट्रा वाउचर केवल Books में",
-    "importCoverageBillMatched": "रसीद भुगतान Miracle बिल नंबर से इनवॉइस से मैच"
+    "importCoverageDebitNotes": "डेबिट नोट",
+    "importCoverageNonPartyCash": "खर्च / पूंजी / संपत्ति नकद केवल Books में (पार्टी ops नहीं)",
+    "importCoverageJournals": "जर्नल केवल Books में — ops में नहीं",
+    "importCoveragePurchasesBooks": "परचेज केवल Books में — स्टॉक ops अभी नहीं",
+    "importCoveragePurchaseReturns": "परचेज रिटर्न केवल Books में — रिटर्न स्क्रीन नहीं",
+    "importCoverageContraBooks": "कॉन्ट्रा केवल Books में — ops में नहीं",
+    "importCoverageUnsupported": "असमर्थित वाउचर प्रकार केवल Books में",
+    "importCoverageAdvances": "रसीद शेष पार्टी एडवांस के रूप में (खुला बिल नहीं)",
+    "importCoverageBillMatched": "रसीद भुगतान बिल नंबर से इनवॉइस से मैच"
   },
   "settings": {
     "title": "सेटिंग्स",

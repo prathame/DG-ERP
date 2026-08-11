@@ -627,7 +627,7 @@ describe('miracleImport', () => {
       expect(summary.coverage.salesInvoices.imported).toBe(summary.coverage.salesInvoices.source);
       expect(summary.coverage.journalsBooksOnly).toBe(1);
       expect(errors).toEqual([]);
-      expect(warnings).toEqual([]);
+      expect(warnings.some(w => w.stage === 'journals' && /Books only/i.test(w.message))).toBe(true);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -990,10 +990,11 @@ describe('miracleImport', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const { summary, errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      const { summary, errors, warnings } = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
-      // Non-party cash (sales A/c) is intentional Books-only — counted, not an error
+      // Non-party cash (sales A/c) is intentional Books-only — warned, not an error
       expect(summary.coverage.nonPartyCashSkipped).toBeGreaterThanOrEqual(1);
+      expect(warnings.some(w => w.stage === 'non_party_cash')).toBe(true);
       expect(errors.some(e => e.externalRef === 'CRNOPARTY')).toBe(false);
       expect(errors.some(e => e.externalRef === 'CRZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
       expect(errors.some(e => e.externalRef === 'SSNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
@@ -1111,14 +1112,17 @@ describe('miracleImport', () => {
     expect(vp.rows[0]?.amount).toBe(150000);
 
     const inv = await pool.query(
-      `SELECT customer_name, status, grand_total::float AS grand_total, party_id
+      `SELECT customer_name, status, grand_total::float AS grand_total, party_id, invoice_kind, invoice_number, notes
        FROM standalone_invoices WHERE tenant_id = $1 AND external_ref = $2`,
       [TENANT, 'CRINCOME1'],
     );
     expect(inv.rows[0]?.customer_name).toBe('JOB WORK INCOME');
     expect(inv.rows[0]?.status).toBe('paid');
+    expect(inv.rows[0]?.invoice_kind).toBe('cash_income');
     expect(inv.rows[0]?.grand_total).toBe(12000);
     expect(inv.rows[0]?.party_id).toBeNull();
+    expect(String(inv.rows[0]?.invoice_number || '')).toMatch(/^CASH-/);
+    expect(String(inv.rows[0]?.notes || '')).not.toMatch(/Miracle cash income/i);
   });
 
   it('resolves payment method from contra ledger and instrument ref', () => {
@@ -1167,8 +1171,10 @@ describe('miracleImport', () => {
     expect(mapVoucherType('DN', '', 'DN')).toBe('debit_note');
     expect(mapVoucherType('SR', '', '')).toBe('credit_note');
     expect(mapVoucherType('PU', '', 'PU')).toBe('purchase');
+    expect(mapVoucherType('QR', '', 'QR')).toBe('purchase_return');
     expect(mapVoucherType('CT', '', 'CT')).toBe('contra');
     expect(mapVoucherType('JR', 'J', 'JR')).toBe('journal');
+    expect(mapVoucherType('XX', '', '')).toBe('other');
   });
 
   it('imports credit notes and bill-matched receipts', async () => {
