@@ -301,12 +301,15 @@
     "importCoverageCashIncome": "Cash income receipts (job work / scrap)",
     "importCoveragePartyCash": "Party receipts & payments",
     "importCoverageCreditNotes": "Credit notes / sales returns",
-    "importCoverageDebitNotes": "Debit notes / purchase returns",
-    "importCoverageNonPartyCash": "expense / capital / asset cash vouchers kept in Books only (not party ops)",
-    "importCoverageJournals": "journal voucher(s) kept in Books only",
-    "importCoveragePurchasesBooks": "purchase voucher(s) typed in Books (stock dual-write later)",
-    "importCoverageContraBooks": "contra voucher(s) kept in Books only",
-    "importCoverageBillMatched": "receipt payment(s) matched to invoices by Miracle bill number"
+    "importCoverageDebitNotes": "Debit notes",
+    "importCoverageNonPartyCash": "expense / capital / asset cash kept in Books only (not party ops)",
+    "importCoverageJournals": "journal(s) kept in Books only — not dual-written to ops",
+    "importCoveragePurchasesBooks": "purchase(s) kept in Books only — no ops purchase/stock yet",
+    "importCoveragePurchaseReturns": "purchase return(s) kept in Books only — no return screen yet",
+    "importCoverageContraBooks": "contra(s) kept in Books only — not dual-written to ops",
+    "importCoverageUnsupported": "unsupported voucher type(s) kept in Books only",
+    "importCoverageAdvances": "receipt remainder(s) stored as party advance (no open bill)",
+    "importCoverageBillMatched": "receipt payment(s) matched to invoices by bill number"
   },
   "settings": {
     "title": "સેટિંગ્સ",

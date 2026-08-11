@@ -3,14 +3,15 @@
  * Expects extracted company folder (CMP0001/) containing version.txt + YRxx year DBFs.
  *
  * Ops dual-write (idempotent via external_ref / idempotency_key):
- *   PR ledgers → vendors
- *   products   → products
+ *   PR/LI ledgers → vendors
+ *   products → products
  *   SP/SE/SS/QS sales → standalone_invoices
  *   CN / sales return → credit_debit_notes (credit)
- *   DN / purchase return → credit_debit_notes (debit)
- *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments
- *   PU purchase / CT contra → typed Books vouchers (ops purchase stock dual-write later)
- *   payment_method inferred from contra cash/bank ledger + cheque/instrument fields
+ *   DN → credit_debit_notes (debit)
+ *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments (advances reported)
+ *   CB → income (JP/IN) → cash_income invoices (native Collections)
+ * Unsupported ops shapes stay Books-only with explicit skip reasons (no fake ops rows):
+ *   purchase returns, purchases, journals, contra, unknown vouchers, non-party expense cash
  */
 import fs from 'fs';
 import os from 'os';
@@ -38,19 +39,25 @@ export interface MiracleImportCoverage {
   parties: MiracleImportCoverageBucket;
   products: MiracleImportCoverageBucket;
   salesInvoices: MiracleImportCoverageBucket;
-  /** CB receipts posted to income ledgers (job work, scrap, etc.) → paid invoices */
+  /** CB receipts posted to income ledgers (job work, scrap, etc.) → cash_income */
   cashIncomeInvoices: MiracleImportCoverageBucket;
   /** CB receipts/payments involving a trading/liability party */
   partyCash: MiracleImportCoverageBucket;
   creditNotes: MiracleImportCoverageBucket;
   debitNotes: MiracleImportCoverageBucket;
-  /** Expense/capital/FA/etc. cash — kept in Books only */
+  /** Expense/capital/FA/etc. cash — Books only (not dual-written to ops) */
   nonPartyCashSkipped: number;
-  /** Journals — Books only (not ops) */
+  /** Journals — Books only */
   journalsBooksOnly: number;
-  /** Purchase / purchase-return / contra — typed in Books; ops stock dual-write later */
+  /** Purchases — Books only (no ops purchase stock yet) */
   purchasesBooksOnly: number;
+  /** Purchase returns — Books only (no ops return screen) */
+  purchaseReturnsSkipped: number;
   contraBooksOnly: number;
+  /** Unknown Miracle voucher types — Books as `other`, not ops */
+  unsupportedVouchersBooksOnly: number;
+  /** Receipt remainder parked as vendor advance (reported, not hidden) */
+  unallocatedAdvances: number;
   /** Receipt slices matched via Miracle bill / invoice number (not FIFO) */
   billMatchedPayments: number;
 }
@@ -166,9 +173,53 @@ function emptyCoverage(): MiracleImportCoverage {
     nonPartyCashSkipped: 0,
     journalsBooksOnly: 0,
     purchasesBooksOnly: 0,
+    purchaseReturnsSkipped: 0,
     contraBooksOnly: 0,
+    unsupportedVouchersBooksOnly: 0,
+    unallocatedAdvances: 0,
     billMatchedPayments: 0,
   };
+}
+
+/** Category-level warnings so unsupported shapes are never silent. */
+function warnBooksOnlySkips(
+  issues: { warn: (issue: MiracleImportIssue) => void },
+  coverage: MiracleImportCoverage,
+): void {
+  const rows: Array<[number, string, string]> = [
+    [
+      coverage.purchaseReturnsSkipped,
+      'purchase_returns',
+      'purchase return(s) kept in Books only — Dhandho has no purchase-return screen yet (not imported as debit notes)',
+    ],
+    [
+      coverage.purchasesBooksOnly,
+      'purchases',
+      'purchase voucher(s) kept in Books only — ops purchase/stock dual-write is not supported yet',
+    ],
+    [coverage.journalsBooksOnly, 'journals', 'journal voucher(s) kept in Books only — not dual-written to ops'],
+    [coverage.contraBooksOnly, 'contra', 'contra voucher(s) kept in Books only — not dual-written to ops'],
+    [
+      coverage.unsupportedVouchersBooksOnly,
+      'unsupported',
+      'unsupported Miracle voucher type(s) kept in Books only — no matching Dhandho feature',
+    ],
+    [
+      coverage.nonPartyCashSkipped,
+      'non_party_cash',
+      'cash entry(ies) to expense/capital/other ledgers kept in Books only — not party bills or cash income',
+    ],
+    [
+      coverage.unallocatedAdvances,
+      'advances',
+      'receipt remainder(s) stored as party advance (no open bill to match) — review under Collections / payments',
+    ],
+  ];
+  for (const [n, stage, msg] of rows) {
+    if (n > 0) {
+      issues.warn({ stage, message: `${n} ${msg}` });
+    }
+  }
 }
 
 /** Collapse Miracle padded doc nos (`GT/     1` → `GT/1`). */
@@ -1284,9 +1335,11 @@ export async function importMiracleCompany(
         summary.invoices++;
         coverage.salesInvoices.imported++;
       }
-    } else if (voucherType === 'credit_note' || voucherType === 'debit_note' || voucherType === 'purchase_return') {
-      const noteType: 'credit' | 'debit' =
-        voucherType === 'debit_note' || voucherType === 'purchase_return' ? 'debit' : 'credit';
+    } else if (voucherType === 'purchase_return') {
+      // Books voucher already typed purchase_return — do not fake as debit note.
+      coverage.purchaseReturnsSkipped++;
+    } else if (voucherType === 'credit_note' || voucherType === 'debit_note') {
+      const noteType: 'credit' | 'debit' = voucherType === 'debit_note' ? 'debit' : 'credit';
       const bucket = noteType === 'credit' ? coverage.creditNotes : coverage.debitNotes;
       bucket.source++;
       const partyKey = resolvePartyKey();
@@ -1389,6 +1442,9 @@ export async function importMiracleCompany(
       coverage.purchasesBooksOnly++;
     } else if (voucherType === 'contra') {
       coverage.contraBooksOnly++;
+    } else {
+      // Unknown Miracle types land in Books as `other` — never invent an ops home.
+      coverage.unsupportedVouchersBooksOnly++;
     }
   }
 
@@ -1432,6 +1488,7 @@ export async function importMiracleCompany(
         summary.invoicePayments += allocated.invoicePayments;
         summary.vendorPayments += allocated.vendorPayments;
         coverage.billMatchedPayments += allocated.billMatched;
+        coverage.unallocatedAdvances += allocated.vendorPayments;
         bumpPaymentMethod(summary.paymentsByMethod, method, allocated.invoicePayments + allocated.vendorPayments);
       } else {
         const ok = await upsertVendorPayment(
@@ -1468,11 +1525,12 @@ export async function importMiracleCompany(
         continue;
       }
       const incomeName = incomeMeta.name || incomeExt;
+      const cashNote = cash.narration?.trim() || `Cash income: ${incomeName}`;
       const invId = await upsertOpsInvoice(
         client,
         tenantId,
         cash.ext,
-        cash.vNumber || `MIR-CASH-${cash.ext}`,
+        cash.vNumber || `CASH-${cash.ext}`,
         incomeName,
         null,
         null,
@@ -1493,11 +1551,11 @@ export async function importMiracleCompany(
           },
         ],
         cash.vDate,
-        cash.narration ? `Miracle cash income: ${cash.narration}` : `Miracle cash income ${cash.ext}`,
+        cashNote,
         'paid',
         'cash_income',
       );
-      // Record payment against the invoice for Finance totals
+      // Same shape as Collections → Record cash income
       const via = cash.contraName ? ` via ${cash.contraName}` : '';
       await client.query(`DELETE FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key = $2`, [
         tenantId,
@@ -1515,7 +1573,7 @@ export async function importMiracleCompany(
           cash.vDate,
           cash.paymentMethod,
           cash.referenceNumber,
-          cash.narration ? `Miracle cash income: ${cash.narration}${via}` : `Miracle cash income ${cash.ext}${via}`,
+          `${cashNote}${via}`,
           `miracle:${cash.ext}:cash`,
         ],
       );
@@ -1530,6 +1588,7 @@ export async function importMiracleCompany(
     coverage.nonPartyCashSkipped++;
   }
 
+  warnBooksOnlySkips(issues, coverage);
   const { errors, warnings } = issues.finalize();
   const persisted = { ...summary, errors, warnings };
 
