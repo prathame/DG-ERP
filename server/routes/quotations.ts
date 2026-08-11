@@ -716,8 +716,8 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
             taxCgst,
             taxSgst,
             taxIgst,
-            invoiceDate: date,
-            notes: quote.notes || `From quotation ${quote.quotation_number}`,
+            invoiceDate: String(date).slice(0, 10),
+            notes: quote.notes ? String(quote.notes) : `From quotation ${quote.quotation_number}`,
           });
         } catch {
           /* Books dual-write must not block quote convert */
