@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
+import { checkPlanLimit } from '../utils/planLimits';
 
 const router = Router();
 
@@ -202,6 +203,39 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       }
       resolvedPartyType = partyType;
       resolvedPartyId = partyId;
+    }
+
+    // Typed party name with no partyId → find or create vendor (Clients list for service tenants)
+    if (resolvedPartyId == null) {
+      const partyName = String(customerName).trim();
+      const existing = (
+        await pool.query(`SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`, [
+          tenantId,
+          partyName,
+        ])
+      ).rows[0] as { id: string } | undefined;
+      if (existing) {
+        resolvedPartyType = 'vendor';
+        resolvedPartyId = existing.id;
+      } else {
+        const vendorLimitErr = await checkPlanLimit(tenantId, 'vendors');
+        if (vendorLimitErr) return res.status(403).json(vendorLimitErr);
+        const newId = uid('V');
+        await pool.query(
+          `INSERT INTO vendors (id, tenant_id, name, phone, address, gst_number)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            newId,
+            tenantId,
+            partyName,
+            typeof customerPhone === 'string' && customerPhone.trim() ? customerPhone.trim() : null,
+            typeof customerAddress === 'string' && customerAddress.trim() ? customerAddress.trim() : null,
+            typeof customerGstin === 'string' && customerGstin.trim() ? customerGstin.trim() : null,
+          ],
+        );
+        resolvedPartyType = 'vendor';
+        resolvedPartyId = newId;
+      }
     }
 
     // paid/cancelled only via status update or invoice-finance — never on create
