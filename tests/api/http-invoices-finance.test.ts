@@ -181,6 +181,54 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(res.body.partyType).toBeNull();
   });
 
+  it('invoice-finance breakdown separates party sales from cash income', async () => {
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total, grand_total, status, invoice_date, invoice_kind, notes)
+       VALUES ('INV-CASH-1', $1, 'MIR-CASH-test1', 'Rent Income', '[]', 500, 0, 500, 'paid', CURRENT_DATE, 'cash_income', 'Miracle cash income: rent')
+       ON CONFLICT DO NOTHING`,
+      [TENANT],
+    );
+    const res = await api().get('/api/invoice-finance/breakdown').set(authHeaders(token, TENANT));
+    expect(res.status).toBe(200);
+    expect(Number(res.body.cashIncome)).toBeGreaterThanOrEqual(500);
+    expect(Number(res.body.cashIncomeCount)).toBeGreaterThanOrEqual(1);
+    expect(Number(res.body.partyInvoiced)).toBeGreaterThan(0);
+
+    const cash = await api().get('/api/invoice-finance/cash-income').set(authHeaders(token, TENANT));
+    expect(cash.status).toBe(200);
+    expect((cash.body as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'MIR-CASH-test1')).toBe(true);
+
+    const summary = await api().get('/api/invoice-finance/summary').set(authHeaders(token, TENANT));
+    expect(summary.status).toBe(200);
+    expect(
+      (summary.body as { clientName: string }[]).some(r => (r.clientName || '').toLowerCase() === 'rent income'),
+    ).toBe(false);
+  });
+
+  it('Accounts P&L + Outstanding use party invoices for service (not cash income / distribution)', async () => {
+    await pool.query(`UPDATE tenants SET business_type = 'service' WHERE id = $1`, [TENANT]);
+    try {
+      const pnl = await api()
+        .get('/api/accounts/profit-loss?from=2020-01-01&to=2099-12-31')
+        .set(authHeaders(token, TENANT));
+      expect(pnl.status).toBe(200);
+      expect(Number(pnl.body.revenue?.cashIncomeRevenue || 0)).toBeGreaterThanOrEqual(500);
+      expect(Number(pnl.body.revenue?.partyInvoiceRevenue || 0)).toBeGreaterThan(0);
+
+      const due = await api().get('/api/reports/outstanding').set(authHeaders(token, TENANT));
+      expect(due.status).toBe(200);
+      expect(due.body.source).toBe('invoice_finance');
+      expect(Array.isArray(due.body.rows)).toBe(true);
+      // Cash-income heads must not appear as outstanding parties
+      expect(
+        (due.body.rows as { vendorName: string }[]).some(r => (r.vendorName || '').toLowerCase() === 'rent income'),
+      ).toBe(false);
+    } finally {
+      await pool.query(`UPDATE tenants SET business_type = 'manufacturer' WHERE id = $1`, [TENANT]);
+    }
+  });
+
   it('invoice-finance open-bills lists unpaid invoices flat', async () => {
     const res = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
     expect(res.status).toBe(200);

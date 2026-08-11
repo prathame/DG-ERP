@@ -636,6 +636,8 @@ export const api = {
         money: {
           collections: number;
           revenue: number;
+          /** Miracle cash-book income (rent/scrap/misc) — separate from party sales */
+          cashIncome?: number;
           distribution: number;
           expenses: number;
           outstanding: number;
@@ -890,6 +892,33 @@ export const api = {
           balance: number;
         }[]
       >('/invoice-finance/summary'),
+    /** Party sales vs Miracle cash-income KPIs (clean bifurcation). */
+    breakdown: () =>
+      fetchApi<{
+        partyInvoiced: number;
+        partyReceived: number;
+        partyReceivedOnBills: number;
+        partyAdvances: number;
+        partyOutstanding: number;
+        partyInvoiceCount: number;
+        cashIncome: number;
+        cashIncomeReceived: number;
+        cashIncomeCount: number;
+      }>('/invoice-finance/breakdown'),
+    /** Cash-income invoices (rent/scrap/misc) — not party bills. */
+    cashIncome: () =>
+      fetchApi<
+        {
+          id: string;
+          invoiceNumber: string;
+          invoiceDate: string;
+          incomeHead: string;
+          grandTotal: number;
+          paid: number;
+          status: string;
+          notes?: string | null;
+        }[]
+      >('/invoice-finance/cash-income'),
     /** Flat open bills (balance > 0) for Miracle-style bill-wise outstanding. */
     openBills: () =>
       fetchApi<

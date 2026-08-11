@@ -400,20 +400,32 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
     // Service: Miracle / invoices — align with Invoice Finance (not distribution math).
     if (businessType === 'service') {
       const invFilter = dateFilter('invoice_date');
-      const payFilter = dateFilter('payment_date');
+      const partyPayFilter = dateFilter('ip.payment_date');
       const expFilter = dateFilter('expense_date');
-      const [collections, invoiceRev, expenses, invoiceOutstanding, activityRows, counts, topClients] =
+      const [collections, invoiceRev, cashIncome, expenses, invoiceOutstanding, activityRows, counts, topClients] =
         await Promise.all([
           pool
             .query(
-              `SELECT COALESCE(SUM(amount),0) as v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
+              `SELECT COALESCE(SUM(ip.amount),0) as v
+               FROM invoice_payments ip
+               JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+               WHERE ip.tenant_id=$1 AND COALESCE(si.invoice_kind, 'sale') = 'sale' ${partyPayFilter}`,
               rangeParams,
             )
             .then(r => Number(r.rows[0].v) || 0),
           pool
             .query(
               `SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices
-               WHERE tenant_id=$1 AND status!='cancelled' ${invFilter}`,
+               WHERE tenant_id=$1 AND status!='cancelled'
+                 AND COALESCE(invoice_kind, 'sale') = 'sale' ${invFilter}`,
+              rangeParams,
+            )
+            .then(r => Number(r.rows[0].v) || 0),
+          pool
+            .query(
+              `SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices
+               WHERE tenant_id=$1 AND status!='cancelled'
+                 AND COALESCE(invoice_kind, 'sale') = 'cash_income' ${invFilter}`,
               rangeParams,
             )
             .then(r => Number(r.rows[0].v) || 0),
@@ -431,13 +443,19 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
                  FROM invoice_payments WHERE tenant_id = $1
                  GROUP BY invoice_id
                ) ip ON si.id = ip.invoice_id
-               WHERE si.tenant_id = $1 AND COALESCE(si.status,'') NOT IN ('paid','cancelled')`,
+               WHERE si.tenant_id = $1
+                 AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+                 AND COALESCE(si.status,'') NOT IN ('paid','cancelled')`,
               [tenantId],
             )
             .then(r => Number(r.rows[0].v) || 0),
           pool.query(
             `SELECT type, id, label, amount, date FROM (
-               SELECT 'invoice' AS type, id, COALESCE(customer_name,'Customer') AS label,
+               SELECT 'invoice' AS type, id,
+                      CASE WHEN COALESCE(invoice_kind,'sale') = 'cash_income'
+                        THEN COALESCE(customer_name,'Cash income') || ' (cash)'
+                        ELSE COALESCE(customer_name,'Customer')
+                      END AS label,
                       grand_total AS amount, invoice_date::text AS date
                FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
                UNION ALL
@@ -477,7 +495,9 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
                FROM invoice_payments WHERE tenant_id = $1
                GROUP BY invoice_id
              ) ip ON si.id = ip.invoice_id
-             WHERE si.tenant_id = $1 AND COALESCE(si.status,'') != 'cancelled'
+             WHERE si.tenant_id = $1
+               AND COALESCE(si.status,'') != 'cancelled'
+               AND COALESCE(si.invoice_kind, 'sale') = 'sale'
              GROUP BY 1
              HAVING COALESCE(SUM(si.grand_total), 0) - COALESCE(SUM(ip.paid), 0) > 0
              ORDER BY balance DESC
@@ -491,6 +511,7 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
         money: {
           collections,
           revenue: invoiceRev,
+          cashIncome,
           distribution: 0,
           expenses,
           outstanding: 0,

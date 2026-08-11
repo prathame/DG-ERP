@@ -37,7 +37,8 @@ router.get('/api/accounts/ledger', async (req, res) => {
       const invLedgerRows = (
         await pool.query(
           `
-        SELECT id as ref_id, invoice_date as dt, customer_name, subtotal as amount, invoice_number
+        SELECT id as ref_id, invoice_date as dt, customer_name, subtotal as amount, invoice_number,
+               COALESCE(invoice_kind, 'sale') AS invoice_kind
         FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3
           AND status NOT IN ('cancelled','draft')
         ORDER BY invoice_date
@@ -46,10 +47,13 @@ router.get('/api/accounts/ledger', async (req, res) => {
         )
       ).rows as Record<string, unknown>[];
       for (const r of invLedgerRows) {
+        const isCash = r.invoice_kind === 'cash_income';
         entries.push({
           date: r.dt as string,
-          type: 'Invoice',
-          particulars: `Invoice ${r.invoice_number} — ${r.customer_name}`,
+          type: isCash ? 'Cash Income' : 'Invoice',
+          particulars: isCash
+            ? `Cash income ${r.invoice_number} — ${r.customer_name}`
+            : `Invoice ${r.invoice_number} — ${r.customer_name}`,
           refId: r.ref_id as string,
           debit: Number(r.amount) || 0,
           credit: 0,
@@ -254,16 +258,25 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
         ).rows[0]?.t ?? 0,
       ) || 0;
 
-    // Issued invoices only — use subtotal (taxable), not grand_total
-    const invoiceRevenue =
-      Number(
-        (
-          await pool.query(
-            "SELECT COALESCE(SUM(subtotal), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3 AND status NOT IN ('cancelled','draft')",
-            [tenantId, from, to],
-          )
-        ).rows[0]?.t ?? 0,
-      ) || 0;
+    // Issued invoices only — use subtotal (taxable), not grand_total; bifurcate party sales vs cash income
+    const invKindRows = (
+      await pool.query(
+        `SELECT COALESCE(invoice_kind, 'sale') AS invoice_kind, COALESCE(SUM(subtotal), 0) AS t
+         FROM standalone_invoices
+         WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3
+           AND status NOT IN ('cancelled','draft')
+         GROUP BY 1`,
+        [tenantId, from, to],
+      )
+    ).rows as { invoice_kind: string; t: number }[];
+    let partyInvoiceRevenue = 0;
+    let cashIncomeRevenue = 0;
+    for (const r of invKindRows) {
+      const amt = Number(r.t) || 0;
+      if (r.invoice_kind === 'cash_income') cashIncomeRevenue = amt;
+      else partyInvoiceRevenue += amt;
+    }
+    const invoiceRevenue = partyInvoiceRevenue + cashIncomeRevenue;
 
     // Credit notes reduce revenue (subtotal); debit notes increase purchase/expense side
     const [cnRes, dnRes] = await Promise.all([
@@ -339,6 +352,8 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
         distributionRevenue: distRevenue,
         salesRevenue,
         invoiceRevenue,
+        partyInvoiceRevenue,
+        cashIncomeRevenue,
         creditNotes,
         total: netRevenue,
       },
@@ -394,12 +409,19 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
         FROM staff_payments WHERE tenant_id=$1 AND payment_date <= $2`,
         [tenantId, asOf],
       ),
-      // Invoice AR = grand_total - payments; cash = actual invoice_payments
+      // Invoice AR = party bills only (exclude Miracle cash-income); cash = party bill payments
       pool.query(
         `SELECT
         COALESCE(SUM(CASE WHEN si.status NOT IN ('paid','cancelled','draft') THEN GREATEST(0, si.grand_total - COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.invoice_id = si.id AND ip.tenant_id = $1 AND ip.payment_date <= $2),0)) ELSE 0 END),0) as unpaid,
-        COALESCE((SELECT SUM(amount) FROM invoice_payments WHERE tenant_id=$1 AND payment_date <= $2),0) as paid_cash
-        FROM standalone_invoices si WHERE si.tenant_id=$1 AND si.invoice_date <= $2`,
+        COALESCE((
+          SELECT SUM(ip.amount) FROM invoice_payments ip
+          JOIN standalone_invoices si2 ON si2.id = ip.invoice_id AND si2.tenant_id = ip.tenant_id
+          WHERE ip.tenant_id=$1 AND ip.payment_date <= $2
+            AND COALESCE(si2.invoice_kind, 'sale') = 'sale'
+        ),0) as paid_cash
+        FROM standalone_invoices si
+        WHERE si.tenant_id=$1 AND si.invoice_date <= $2
+          AND COALESCE(si.invoice_kind, 'sale') = 'sale'`,
         [tenantId, asOf],
       ),
       pool.query(
@@ -817,7 +839,10 @@ router.get('/api/accounts/day-book', async (req, res) => {
           [tenantId, date],
         ),
         pool.query(
-          `SELECT id, invoice_date as date, customer_name, subtotal as amount, invoice_number, status FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date = $2 AND status NOT IN ('cancelled','draft')`,
+          `SELECT id, invoice_date as date, customer_name, subtotal as amount, invoice_number, status,
+                  COALESCE(invoice_kind, 'sale') AS invoice_kind
+           FROM standalone_invoices
+           WHERE tenant_id = $1 AND invoice_date = $2 AND status NOT IN ('cancelled','draft')`,
           [tenantId, date],
         ),
         pool.query(
@@ -885,11 +910,12 @@ router.get('/api/accounts/day-book', async (req, res) => {
       });
     }
     for (const r of invoices.rows as Record<string, unknown>[]) {
+      const isCash = r.invoice_kind === 'cash_income';
       entries.push({
         id: r.id as string,
         date: r.date as string,
-        type: `Invoice${r.status === 'paid' ? ' (Paid)' : ''}`,
-        party: (r.customer_name as string) || 'Customer',
+        type: isCash ? 'Cash Income' : `Invoice${r.status === 'paid' ? ' (Paid)' : ''}`,
+        party: (r.customer_name as string) || (isCash ? 'Cash income' : 'Customer'),
         product: r.invoice_number as string,
         debit: Number(r.amount) || 0,
         credit: 0,

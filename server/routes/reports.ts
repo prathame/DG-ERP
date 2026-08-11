@@ -171,6 +171,110 @@ router.get('/api/reports/outstanding', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const businessType =
+      (
+        (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+          { business_type?: string } | undefined
+      )?.business_type || 'manufacturer';
+
+    // Service / hotel: bill-wise party AR (Miracle invoices) — not distribution aging
+    if (businessType === 'service' || businessType === 'hotel_restaurant') {
+      const now = new Date();
+      const open = (
+        await pool.query(
+          `
+          SELECT
+            CASE
+              WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL
+                THEN si.party_type || ':' || si.party_id
+              ELSE 'name:' || si.customer_name
+            END AS party_key,
+            si.customer_name AS party_name,
+            si.id AS invoice_id,
+            si.invoice_number,
+            si.invoice_date,
+            si.grand_total::float AS grand_total,
+            COALESCE(ip.paid, 0)::float AS paid
+          FROM standalone_invoices si
+          LEFT JOIN (
+            SELECT invoice_id, SUM(amount) AS paid
+            FROM invoice_payments WHERE tenant_id = $1
+            GROUP BY invoice_id
+          ) ip ON si.id = ip.invoice_id
+          WHERE si.tenant_id = $1
+            AND si.status IS DISTINCT FROM 'cancelled'
+            AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+            AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+          ORDER BY si.customer_name ASC NULLS LAST, si.invoice_date ASC NULLS LAST
+        `,
+          [tenantId],
+        )
+      ).rows as {
+        party_key: string;
+        party_name: string;
+        invoice_id: string;
+        invoice_number: string;
+        invoice_date: string;
+        grand_total: number;
+        paid: number;
+      }[];
+
+      type Agg = {
+        vendorId: string;
+        vendorName: string;
+        totalBilled: number;
+        totalPaid: number;
+        balance: number;
+        d0_30: number;
+        d31_60: number;
+        d61_90: number;
+        d90plus: number;
+      };
+      const byParty = new Map<string, Agg>();
+      for (const inv of open) {
+        const due = Math.round((Number(inv.grand_total) - Number(inv.paid)) * 100) / 100;
+        if (due <= 0) continue;
+        let row = byParty.get(inv.party_key);
+        if (!row) {
+          row = {
+            vendorId: inv.party_key,
+            vendorName: inv.party_name || 'Unknown',
+            totalBilled: 0,
+            totalPaid: 0,
+            balance: 0,
+            d0_30: 0,
+            d31_60: 0,
+            d61_90: 0,
+            d90plus: 0,
+          };
+          byParty.set(inv.party_key, row);
+        }
+        row.totalBilled += Number(inv.grand_total) || 0;
+        row.totalPaid += Number(inv.paid) || 0;
+        row.balance += due;
+        const days = Math.floor((now.getTime() - new Date(inv.invoice_date).getTime()) / 86400000);
+        if (days <= 30) row.d0_30 += due;
+        else if (days <= 60) row.d31_60 += due;
+        else if (days <= 90) row.d61_90 += due;
+        else row.d90plus += due;
+      }
+      const rows = [...byParty.values()].sort((a, b) => b.balance - a.balance);
+      const totals = rows.reduce(
+        (acc, r) => {
+          acc.totalBilled += r.totalBilled;
+          acc.totalPaid += r.totalPaid;
+          acc.balance += r.balance;
+          acc.d0_30 += r.d0_30;
+          acc.d31_60 += r.d31_60;
+          acc.d61_90 += r.d61_90;
+          acc.d90plus += r.d90plus;
+          return acc;
+        },
+        { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
+      );
+      return res.json({ rows, totals, count: rows.length, source: 'invoice_finance' });
+    }
+
     const vendors = (
       await pool.query(
         `
