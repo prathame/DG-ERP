@@ -5,6 +5,8 @@ import {
   postExpenseToBooks,
   postInvoicePaymentToBooks,
   postStandaloneInvoiceToBooks,
+  postDistributionBatchToBooks,
+  postVendorPaymentToBooks,
 } from '../../server/services/opsToBooks';
 import {
   describeBalance,
@@ -427,6 +429,59 @@ describe('opsToBooks + CA statements', () => {
     expect(partyLed.rows.length).toBe(1);
     const pnl = await getBooksProfitLoss(pool, TENANT, '2025-11-01', '2025-11-30');
     expect(pnl.income.some(i => /trading|sales/i.test(i.name))).toBe(true);
+  });
+
+  it('posts distribution batch + vendor payment (manufacturer/dealer path)', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const vendorId = uid('V');
+    await pool.query(`INSERT INTO vendors (id, tenant_id, name) VALUES ($1,$2,'Dealer One') ON CONFLICT DO NOTHING`, [
+      vendorId,
+      TENANT,
+    ]);
+    const batchId = uid('D');
+    const payId = uid('VP');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const salesV = await postDistributionBatchToBooks(client, TENANT, {
+        batchId,
+        vendorId,
+        vendorName: 'Dealer One',
+        billValue: 1550000,
+        distributionDate: '2025-06-01',
+      });
+      expect(salesV).toBeTruthy();
+      const again = await postDistributionBatchToBooks(client, TENANT, {
+        batchId,
+        vendorId,
+        vendorName: 'Dealer One',
+        billValue: 1550000,
+        distributionDate: '2025-06-01',
+      });
+      expect(again).toBe(salesV);
+      const receipt = await postVendorPaymentToBooks(client, TENANT, {
+        id: payId,
+        amount: 500000,
+        paymentDate: '2025-06-05',
+        paymentMethod: 'Cash',
+        vendorId,
+        vendorName: 'Dealer One',
+      });
+      expect(receipt).toBeTruthy();
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const tb = await getTrialBalance(pool, TENANT, '2025-06-01', '2025-06-30');
+    expect(tb.balanced).toBe(true);
+    const party = (
+      await pool.query(
+        `SELECT id FROM book_ledgers WHERE tenant_id=$1 AND (external_ref=$2 OR LOWER(name)=LOWER('Dealer One'))`,
+        [TENANT, `ops:party:${vendorId}`],
+      )
+    ).rows[0] as { id: string } | undefined;
+    expect(party).toBeTruthy();
   });
 
   it('balance sheet shows net loss plug when expenses exceed income', async () => {

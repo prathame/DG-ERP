@@ -1,5 +1,5 @@
 /**
- * Ops → Books dual-write (invoice / payment / expense).
+ * Ops → Books dual-write (invoice / payment / expense / distribution / vendor payment).
  * Idempotent via book_vouchers.external_ref.
  * Native tenants get a minimal COA on first use — Miracle import is optional data, not a gate.
  * Does not call createBookVoucher receipt dual-write (would loop into invoice_payments).
@@ -644,6 +644,79 @@ export async function postExpenseToBooks(
     entries: [
       { ledgerId: expenseLedgerId, debit: amt, credit: 0 },
       { ledgerId: cashLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}
+
+/**
+ * Distribution / dispatch batch → Dr Party (vendor), Cr Sales Income.
+ * Manufacturer / dealer / retail / silver path (billable units to a party).
+ */
+export async function postDistributionBatchToBooks(
+  client: PoolClient,
+  tenantId: string,
+  batch: {
+    batchId: string;
+    vendorId: string;
+    vendorName: string;
+    billValue: number;
+    distributionDate: string;
+    notes?: string | null;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const amt = round2(batch.billValue);
+  if (!(amt > 0)) return null;
+  const partyLedgerId = await resolvePartyLedgerId(client, tenantId, batch.vendorId, batch.vendorName);
+  const salesLedgerId = await resolveSalesIncomeLedger(client, tenantId);
+  return insertVoucher(client, tenantId, {
+    voucherType: 'sales',
+    voucherDate: batch.distributionDate,
+    voucherNumber: batch.batchId,
+    partyLedgerId,
+    contraLedgerId: salesLedgerId,
+    amount: amt,
+    narration: batch.notes || `Ops distribution ${batch.batchId}`,
+    externalRef: `ops:dist:${batch.batchId}`,
+    entries: [
+      { ledgerId: partyLedgerId, debit: amt, credit: 0 },
+      { ledgerId: salesLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}
+
+/** Vendor / dealer payment → Dr Cash/Bank, Cr Party (receipt). */
+export async function postVendorPaymentToBooks(
+  client: PoolClient,
+  tenantId: string,
+  payment: {
+    id: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: string;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    vendorId?: string | null;
+    vendorName: string;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const amt = round2(payment.amount);
+  if (!(amt > 0)) return null;
+  const partyLedgerId = await resolvePartyLedgerId(client, tenantId, payment.vendorId, payment.vendorName);
+  const cashLedgerId = await resolveCashBankLedger(client, tenantId, payment.paymentMethod);
+  return insertVoucher(client, tenantId, {
+    voucherType: 'receipt',
+    voucherDate: payment.paymentDate,
+    voucherNumber: payment.referenceNumber || null,
+    partyLedgerId,
+    contraLedgerId: cashLedgerId,
+    amount: amt,
+    narration: payment.notes || `Ops vendor payment ${payment.id}`,
+    externalRef: `ops:vp:${payment.id}`,
+    entries: [
+      { ledgerId: cashLedgerId, debit: amt, credit: 0 },
+      { ledgerId: partyLedgerId, debit: 0, credit: amt },
     ],
   });
 }

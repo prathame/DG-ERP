@@ -10,6 +10,7 @@ import {
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { postVendorPaymentToBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -401,6 +402,20 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         }
         throw insErr;
       }
+      try {
+        await postVendorPaymentToBooks(client, tenantId, {
+          id,
+          amount: parsedAmount,
+          paymentDate: pDate,
+          paymentMethod: pMethod,
+          referenceNumber: referenceNumber || null,
+          notes: notes || null,
+          vendorId,
+          vendorName,
+        });
+      } catch {
+        /* Books dual-write must not block vendor payment */
+      }
       await client.query('COMMIT');
       logAudit(
         pool,
@@ -442,6 +457,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
 
       let remaining = parsedAmount;
       let firstId: string | null = null;
+      const postedPays: { id: string; amount: number; notes: string | null }[] = [];
       for (const b of batches) {
         if (remaining <= 0.001) break;
         const due = Number(b.bill_value) - Number(b.paid);
@@ -450,6 +466,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         if (!(pay > 0)) break;
         const id = uid('VP');
         if (!firstId) firstId = id;
+        const rowNotes = notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`;
         await client.query(
           `INSERT INTO vendor_payments
              (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id, idempotency_key)
@@ -461,13 +478,14 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
             pDate,
             pMethod,
             referenceNumber || null,
-            notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`,
+            rowNotes,
             tenantId,
             b.batch_id,
             // Only the first split row carries the key (unique per tenant)
             firstId === id ? idemKey : null,
           ],
         );
+        postedPays.push({ id, amount: pay, notes: rowNotes });
         remaining = Math.round((remaining - pay) * 100) / 100;
       }
       if (!firstId) {
@@ -475,6 +493,22 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         return res.status(400).json({ error: 'Vendor balance is already fully paid' });
       }
       responseId = firstId;
+      try {
+        for (const p of postedPays) {
+          await postVendorPaymentToBooks(client, tenantId, {
+            id: p.id,
+            amount: p.amount,
+            paymentDate: pDate,
+            paymentMethod: pMethod,
+            referenceNumber: referenceNumber || null,
+            notes: p.notes,
+            vendorId,
+            vendorName,
+          });
+        }
+      } catch {
+        /* Books dual-write must not block vendor payment */
+      }
       await client.query('COMMIT');
       logAudit(
         pool,
@@ -778,20 +812,31 @@ router.post('/api/vendor-finance/bank-statement/apply', blockVendors, async (req
         }
       }
       const id = uid('VP');
+      const payDate = p.date || new Date().toISOString().slice(0, 10);
+      const payNotes = `[${importBatchId}] ${p.note || 'Bank statement import'}`;
       await client.query(
         'INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-        [
-          id,
-          tenantId,
-          p.vendorId,
-          amount,
-          p.date || new Date().toISOString().slice(0, 10),
-          'Bank Statement',
-          p.reference || null,
-          `[${importBatchId}] ${p.note || 'Bank statement import'}`,
-          p.batchId || null,
-        ],
+        [id, tenantId, p.vendorId, amount, payDate, 'Bank Statement', p.reference || null, payNotes, p.batchId || null],
       );
+      try {
+        const vName =
+          (
+            (await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [p.vendorId, tenantId]))
+              .rows[0] as { name: string } | undefined
+          )?.name ?? p.vendorId;
+        await postVendorPaymentToBooks(client, tenantId, {
+          id,
+          amount,
+          paymentDate: payDate,
+          paymentMethod: 'Bank Statement',
+          referenceNumber: p.reference || null,
+          notes: payNotes,
+          vendorId: p.vendorId,
+          vendorName: vName,
+        });
+      } catch {
+        /* Books dual-write must not block bank-statement apply */
+      }
       count++;
     }
     await client.query('COMMIT');
