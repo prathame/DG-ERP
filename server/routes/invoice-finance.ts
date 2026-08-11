@@ -3,6 +3,29 @@ import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { postInvoicePaymentToBooks } from '../services/opsToBooks';
+import type { PoolClient } from 'pg';
+
+async function booksPostPayment(
+  client: PoolClient,
+  tenantId: string,
+  payment: {
+    id: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: string;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    partyId?: string | null;
+    partyName: string;
+  },
+) {
+  try {
+    await postInvoicePaymentToBooks(client, tenantId, payment);
+  } catch {
+    /* Books dual-write must not block collections */
+  }
+}
 
 const router = Router();
 
@@ -656,11 +679,11 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
       for (const alloc of allocations) {
         const inv = (
           await client.query(
-            `SELECT id, grand_total, customer_name FROM standalone_invoices
+            `SELECT id, grand_total, customer_name, party_id FROM standalone_invoices
              WHERE id = $1 AND tenant_id = $2 AND status IS DISTINCT FROM 'cancelled' FOR UPDATE`,
             [alloc.invoiceId, tenantId],
           )
-        ).rows[0] as { id: string; grand_total: number; customer_name: string } | undefined;
+        ).rows[0] as { id: string; grand_total: number; customer_name: string; party_id: string | null } | undefined;
         if (!inv) {
           await client.query('ROLLBACK');
           return res.status(404).json({ error: `Invoice not found: ${alloc.invoiceId}` });
@@ -699,6 +722,16 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
             firstId === id ? idemKey : null,
           ],
         );
+        await booksPostPayment(client, tenantId, {
+          id,
+          amount: alloc.amount,
+          paymentDate: pDate,
+          paymentMethod: pMethod,
+          referenceNumber: referenceNumber || null,
+          notes: notes ? `${notes} (bill-wise)` : 'Bill-wise payment',
+          partyId: inv.party_id,
+          partyName: inv.customer_name,
+        });
         if (alreadyPaid + alloc.amount >= Number(inv.grand_total) - 0.001) {
           await client.query("UPDATE standalone_invoices SET status = 'paid' WHERE id = $1 AND tenant_id = $2", [
             alloc.invoiceId,
@@ -732,12 +765,18 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     // Collective: apply toward party's total due, oldest invoice first
     if (!invoiceId && partyKeyRaw) {
       const { partyType, partyId, clientName, partyKey } = parsePartyKey(String(partyKeyRaw));
-      let openInvoices: { id: string; grand_total: number; customer_name: string; paid: number }[] = [];
+      let openInvoices: {
+        id: string;
+        grand_total: number;
+        customer_name: string;
+        party_id: string | null;
+        paid: number;
+      }[] = [];
       if (partyType && partyId) {
         openInvoices = (
           await client.query(
             `
-            SELECT si.id, si.grand_total, si.customer_name,
+            SELECT si.id, si.grand_total, si.customer_name, si.party_id,
               COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.invoice_id = si.id AND ip.tenant_id = $1), 0) AS paid
             FROM standalone_invoices si
             WHERE si.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3 AND si.status != 'cancelled'
@@ -745,12 +784,12 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
           `,
             [tenantId, partyType, partyId],
           )
-        ).rows as { id: string; grand_total: number; customer_name: string; paid: number }[];
+        ).rows as { id: string; grand_total: number; customer_name: string; party_id: string | null; paid: number }[];
       } else if (clientName) {
         openInvoices = (
           await client.query(
             `
-            SELECT si.id, si.grand_total, si.customer_name,
+            SELECT si.id, si.grand_total, si.customer_name, si.party_id,
               COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.invoice_id = si.id AND ip.tenant_id = $1), 0) AS paid
             FROM standalone_invoices si
             WHERE si.tenant_id = $1 AND si.customer_name = $2
@@ -760,7 +799,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
           `,
             [tenantId, clientName],
           )
-        ).rows as { id: string; grand_total: number; customer_name: string; paid: number }[];
+        ).rows as { id: string; grand_total: number; customer_name: string; party_id: string | null; paid: number }[];
       } else {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Invalid partyKey' });
@@ -807,6 +846,16 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
             firstId === id ? idemKey : null,
           ],
         );
+        await booksPostPayment(client, tenantId, {
+          id,
+          amount: apply,
+          paymentDate: pDate,
+          paymentMethod: pMethod,
+          referenceNumber: referenceNumber || null,
+          notes: notes ? `${notes} (collective)` : `Collective payment toward ${partyLabel}`,
+          partyId: inv.party_id || partyId,
+          partyName: inv.customer_name || partyLabel,
+        });
         if (Number(inv.paid) + apply >= Number(inv.grand_total) - 0.001) {
           await client.query("UPDATE standalone_invoices SET status = 'paid' WHERE id = $1 AND tenant_id = $2", [
             inv.id,
@@ -841,10 +890,10 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const id = uid('IP');
     const inv = (
       await client.query(
-        'SELECT id, grand_total, customer_name FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 AND status != $3 FOR UPDATE',
+        'SELECT id, grand_total, customer_name, party_id FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 AND status != $3 FOR UPDATE',
         [invoiceId, tenantId, 'cancelled'],
       )
-    ).rows[0] as { id: string; grand_total: number; customer_name: string } | undefined;
+    ).rows[0] as { id: string; grand_total: number; customer_name: string; party_id: string | null } | undefined;
     if (!inv) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
@@ -907,6 +956,17 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
         tenantId,
       ]);
     }
+
+    await booksPostPayment(client, tenantId, {
+      id,
+      amount: payAmt,
+      paymentDate: pDate,
+      paymentMethod: pMethod,
+      referenceNumber: referenceNumber || null,
+      notes: notes || null,
+      partyId: inv.party_id,
+      partyName: inv.customer_name,
+    });
 
     await client.query('COMMIT');
     await logAudit(

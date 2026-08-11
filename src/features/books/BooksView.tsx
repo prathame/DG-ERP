@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
-import { BookOpen, FileUp, Landmark, Package, Plus, Receipt } from 'lucide-react';
+import { BookOpen, CalendarDays, FileUp, Landmark, Package, Plus, Receipt, Scale } from 'lucide-react';
 import { MiracleImportPanel, summaryCount } from './MiracleImportPanel';
 import { CreateVoucherModal } from './CreateVoucherModal';
+import { DayBookPanel } from './DayBookPanel';
+import { LedgerStatementPanel } from './LedgerStatementPanel';
+import { VoucherDetailModal } from './VoucherDetailModal';
+import { BooksReportsPanel } from './BooksReportsPanel';
 
-type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import';
+type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports';
 
 interface BooksSummary {
   ledgers: number;
@@ -30,6 +34,7 @@ interface LedgerRow {
   nature?: string;
   gstin?: string;
   openingBalance: number;
+  openingSide?: string;
   contactPerson?: string;
   city?: string;
   state?: string;
@@ -59,6 +64,15 @@ function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
+function openingLabel(l: LedgerRow) {
+  const amt = money(Math.abs(l.openingBalance || 0));
+  if (!l.openingBalance) return '—';
+  const side = String(l.openingSide || '').toUpperCase();
+  if (side === 'C' || side === 'CR') return `${amt} Cr`;
+  if (side === 'D' || side === 'DR') return `${amt} Dr`;
+  return l.openingBalance < 0 ? `${amt} Cr` : `${amt} Dr`;
+}
+
 export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksPanel }) {
   const [panel, setPanel] = useState<BooksPanel>(initialPanel);
   const [summary, setSummary] = useState<BooksSummary | null>(null);
@@ -70,9 +84,12 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
   const [search, setSearch] = useState('');
   const [showCreateVoucher, setShowCreateVoucher] = useState(false);
   const [vouchersTick, setVouchersTick] = useState(0);
+  const [selectedLedger, setSelectedLedger] = useState<{ id: string; name: string } | null>(null);
+  const [voucherDetailId, setVoucherDetailId] = useState<string | null>(null);
 
   useEffect(() => {
     setPanel(initialPanel);
+    setSelectedLedger(null);
   }, [initialPanel]);
 
   const loadSummary = useCallback(async () => {
@@ -81,6 +98,10 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
   }, []);
 
   useEffect(() => {
+    if (panel === 'import' || panel === 'daybook' || panel === 'reports' || selectedLedger) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -107,15 +128,22 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
     return () => {
       cancelled = true;
     };
-  }, [panel, search, loadSummary, vouchersTick]);
+  }, [panel, search, loadSummary, vouchersTick, selectedLedger]);
 
   const tabs: { id: BooksPanel; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <BookOpen size={16} /> },
     { id: 'ledgers', label: 'Ledgers', icon: <Landmark size={16} /> },
     { id: 'vouchers', label: 'Vouchers', icon: <Receipt size={16} /> },
+    { id: 'daybook', label: 'Day book', icon: <CalendarDays size={16} /> },
+    { id: 'reports', label: 'Reports', icon: <Scale size={16} /> },
     { id: 'products', label: 'Products', icon: <Package size={16} /> },
     { id: 'import', label: 'Miracle Import', icon: <FileUp size={16} /> },
   ];
+
+  const openPanel = (id: BooksPanel) => {
+    setSelectedLedger(null);
+    setPanel(id);
+  };
 
   return (
     <div className="space-y-4">
@@ -123,8 +151,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Books</h1>
           <p className="text-sm text-slate-500">
-            Miracle-shaped books desk — import a CMP to fill parties, products, invoices & payments, then work from
-            ledgers and vouchers here
+            CA books desk — ledgers, vouchers, day book from double-entry (Miracle CMP / Books vouchers)
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -132,9 +159,11 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
             <button
               key={t.id}
               type="button"
-              onClick={() => setPanel(t.id)}
+              onClick={() => openPanel(t.id)}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                panel === t.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                panel === t.id && !selectedLedger
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {t.icon}
@@ -150,6 +179,17 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
 
       {panel === 'import' ? (
         <MiracleImportPanel onComplete={() => loadSummary()} />
+      ) : panel === 'daybook' ? (
+        <DayBookPanel onOpenVoucher={setVoucherDetailId} />
+      ) : panel === 'reports' ? (
+        <BooksReportsPanel />
+      ) : selectedLedger && panel === 'ledgers' ? (
+        <LedgerStatementPanel
+          ledgerId={selectedLedger.id}
+          ledgerName={selectedLedger.name}
+          onBack={() => setSelectedLedger(null)}
+          onOpenVoucher={setVoucherDetailId}
+        />
       ) : loading ? (
         <div className="flex justify-center py-16">
           <LoadingSpinner />
@@ -167,27 +207,45 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
             </div>
           ))}
           <div className="sm:col-span-3 rounded-xl border border-orange-100 bg-orange-50/60 p-4">
-            <h2 className="mb-2 text-sm font-semibold text-slate-800">How Dhandho replaces Miracle</h2>
+            <h2 className="mb-2 text-sm font-semibold text-slate-800">CA books path</h2>
             <ol className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
               <li>
-                <span className="font-semibold text-orange-700">1. Import</span> — upload Miracle CMP (.rar / .zip)
+                <span className="font-semibold text-orange-700">1. Import</span> — Miracle CMP fills ledgers & vouchers
               </li>
               <li>
-                <span className="font-semibold text-orange-700">2. Work</span> — parties, invoices & payments land in
-                Transactions
+                <span className="font-semibold text-orange-700">2. Statement</span> — open a ledger for party books
               </li>
               <li>
-                <span className="font-semibold text-orange-700">3. Books</span> — ledgers & vouchers stay here for audit
+                <span className="font-semibold text-orange-700">3. Reports</span> — trial balance, P&amp;L, balance
+                sheet
               </li>
             </ol>
-            <button
-              type="button"
-              onClick={() => setPanel('import')}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
-            >
-              <FileUp size={16} />
-              Open Miracle Import
-            </button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => openPanel('import')}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
+              >
+                <FileUp size={16} />
+                Miracle Import
+              </button>
+              <button
+                type="button"
+                onClick={() => openPanel('reports')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
+              >
+                <Scale size={16} />
+                CA reports
+              </button>
+              <button
+                type="button"
+                onClick={() => openPanel('daybook')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
+              >
+                <CalendarDays size={16} />
+                Day book
+              </button>
+            </div>
           </div>
           <div className="sm:col-span-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-2 font-semibold text-slate-800">Recent Miracle imports</h2>
@@ -243,6 +301,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
             placeholder="Search ledgers…"
             className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
+          <p className="text-sm text-slate-500">Click a ledger to open its statement (opening → vouchers → closing).</p>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -256,14 +315,18 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
               </thead>
               <tbody>
                 {ledgers.map(l => (
-                  <tr key={l.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2 font-medium text-slate-900">{l.name}</td>
+                  <tr
+                    key={l.id}
+                    className="border-t border-slate-100 cursor-pointer hover:bg-orange-50/50"
+                    onClick={() => setSelectedLedger({ id: l.id, name: l.name })}
+                  >
+                    <td className="px-3 py-2 font-medium text-orange-800">{l.name}</td>
                     <td className="px-3 py-2 text-slate-600">{l.ledgerType || l.nature || '—'}</td>
                     <td className="px-3 py-2 text-slate-600">{l.groupName || '—'}</td>
                     <td className="px-3 py-2 text-slate-600">
                       {[l.contactPerson, l.city, l.state].filter(Boolean).join(', ') || '—'}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{money(l.openingBalance)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{openingLabel(l)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -297,7 +360,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-500">
-              Enter receipt, payment, contra, or journal — same mental model as Miracle cash/bank & journals.
+              Enter receipt, payment, contra, or journal — click a row for debit/credit lines.
             </p>
             <button
               type="button"
@@ -329,11 +392,15 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
                   </tr>
                 ) : (
                   vouchers.map(v => (
-                    <tr key={v.id} className="border-t border-slate-100">
+                    <tr
+                      key={v.id}
+                      className="border-t border-slate-100 cursor-pointer hover:bg-orange-50/50"
+                      onClick={() => setVoucherDetailId(v.id)}
+                    >
                       <td className="px-3 py-2 whitespace-nowrap">
                         {typeof v.voucherDate === 'string' ? v.voucherDate.slice(0, 10) : String(v.voucherDate)}
                       </td>
-                      <td className="px-3 py-2">{v.voucherNumber || '—'}</td>
+                      <td className="px-3 py-2 font-medium text-orange-800">{v.voucherNumber || '—'}</td>
                       <td className="px-3 py-2 uppercase">{v.voucherType}</td>
                       <td className="px-3 py-2">{v.partyName || v.contraName || '—'}</td>
                       <td className="px-3 py-2 max-w-xs truncate text-slate-600">{v.narration || '—'}</td>
@@ -355,6 +422,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
           )}
         </div>
       )}
+
+      {voucherDetailId && <VoucherDetailModal voucherId={voucherDetailId} onClose={() => setVoucherDetailId(null)} />}
     </div>
   );
 }

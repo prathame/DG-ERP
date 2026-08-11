@@ -5,6 +5,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
+import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -358,6 +359,19 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
           return res.status(409).json({ error: 'Invoice number already exists. Refresh and try again.' });
         }
         throw insErr;
+      }
+      try {
+        await postStandaloneInvoiceToBooks(client, tenantId, {
+          id,
+          invoiceNumber: finalNumber,
+          customerName,
+          partyId: resolvedPartyId,
+          grandTotal,
+          invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10),
+          notes: notes || null,
+        });
+      } catch {
+        /* Books dual-write must not block invoice create */
       }
       await client.query('COMMIT');
     } catch (err) {
