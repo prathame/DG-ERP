@@ -295,7 +295,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
     { label: 'Sales', value: stats.sales, icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     {
       label: 'Revenue',
-      value: `₹${(stats.revenue ?? 0).toLocaleString()}`,
+      value: `₹${(stats.revenue ?? 0).toLocaleString('en-IN')}`,
       icon: IndianRupee,
       color: 'text-brand',
       bg: 'bg-orange-50',
@@ -529,7 +529,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                   >
                     <p className="font-bold text-sm">{p.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {p.priceMonthly > 0 ? `₹${p.priceMonthly.toLocaleString()}/mo` : 'Free'}
+                      {p.priceMonthly > 0 ? `₹${p.priceMonthly.toLocaleString('en-IN')}/mo` : 'Free'}
                     </p>
                   </button>
                 ))}
@@ -555,7 +555,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                         )}
                       >
                         {c === 'monthly' ? 'Monthly' : 'Yearly'}
-                        {price ? ` — ₹${price.toLocaleString()}` : ''}
+                        {price ? ` — ₹${price.toLocaleString('en-IN')}` : ''}
                       </button>
                     );
                   })}
@@ -768,7 +768,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                         <div
                           className="w-full bg-brand/80 rounded-t"
                           style={{ height: `${(r.revenue / max) * 48}px` }}
-                          title={`₹${r.revenue.toLocaleString()}`}
+                          title={`₹${r.revenue.toLocaleString('en-IN')}`}
                         />
                         <p className="text-[9px] text-gray-400">{r.month.slice(5)}</p>
                       </div>
@@ -783,7 +783,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
               <HardDrive size={18} className="text-gray-400" />
               <div>
                 <p className="text-sm font-bold">~{(activity.estimatedStorageRows * 0.5).toFixed(0)} KB estimated</p>
-                <p className="text-xs text-gray-400">{activity.estimatedStorageRows.toLocaleString()} total records</p>
+                <p className="text-xs text-gray-400">
+                  {activity.estimatedStorageRows.toLocaleString('en-IN')} total records
+                </p>
               </div>
             </div>
 
@@ -1084,7 +1086,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                Expires: {new Date(resetTokenModal.expiresAt).toLocaleString()}
+                Expires: {new Date(resetTokenModal.expiresAt).toLocaleString('en-IN')}
               </p>
             </div>
             <button

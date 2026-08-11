@@ -130,7 +130,7 @@ function CloudAnalytics() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
             label="MRR"
-            value={`₹${Number(data.mrr || 0).toLocaleString()}`}
+            value={`₹${Number(data.mrr || 0).toLocaleString('en-IN')}`}
             icon={IndianRupee}
             color="text-emerald-600"
             sub="Monthly recurring revenue"
@@ -259,7 +259,7 @@ function CloudAnalytics() {
                   {bizTypeLabel(t.business_type as string, t.company_name as string)}
                 </td>
                 <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
-                  ₹{Number(t.revenue || 0).toLocaleString()}
+                  ₹{Number(t.revenue || 0).toLocaleString('en-IN')}
                 </td>
                 <td className="px-4 py-2.5 text-center text-gray-500">{String(t.users ?? 0)}</td>
                 <td className="px-4 py-2.5 text-center">

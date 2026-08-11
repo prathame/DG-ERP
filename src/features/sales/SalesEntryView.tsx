@@ -271,7 +271,7 @@ export function SalesEntryView({
                       <span className="font-medium text-gray-600">
                         {validation.metalPricing ? 'Suggested price' : 'Price'}:
                       </span>{' '}
-                      ₹{(validation.price ?? 0).toLocaleString()}
+                      ₹{(validation.price ?? 0).toLocaleString('en-IN')}
                     </p>
                     {!metalMode && !validation.metalPricing && <p>{validation.rewardPointsValue ?? 0} reward pts</p>}
                   </div>
@@ -516,7 +516,7 @@ export function SalesEntryView({
                     </div>
                     <div className="text-right">
                       {s.salePrice != null && (
-                        <p className="text-xs font-bold text-brand">₹{Number(s.salePrice).toLocaleString()}</p>
+                        <p className="text-xs font-bold text-brand">₹{Number(s.salePrice).toLocaleString('en-IN')}</p>
                       )}
                       <span className="text-xs font-bold text-emerald-600">+{s.rewardPointsEarned} pts</span>
                     </div>

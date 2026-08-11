@@ -300,7 +300,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
                   <td className="px-4 py-3 text-right text-gray-600">{t.users}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{t.products}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{t.sales}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">₹{(t.revenue ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">₹{(t.revenue ?? 0).toLocaleString('en-IN')}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
@@ -799,7 +799,7 @@ function CreateTenantModal({
                 {plans.map(p => (
                   <option key={p.id} value={p.id}>
                     {p.name}
-                    {p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}
+                    {p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString('en-IN')}/mo` : ' (Free)'}
                     {' · '}
                     {p.maxUsers === -1 ? 'unlimited users' : `up to ${p.maxUsers} users`}
                   </option>
@@ -985,7 +985,7 @@ function CreateTenantModal({
                         className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${form.billingCycle === c ? 'bg-brand text-white border-brand' : 'border-gray-200 text-gray-600 hover:border-brand'}`}
                       >
                         {c === 'monthly' ? 'Monthly' : 'Yearly'}
-                        {price ? ` — ₹${price.toLocaleString()}` : ''}
+                        {price ? ` — ₹${price.toLocaleString('en-IN')}` : ''}
                       </button>
                     );
                   })}

@@ -208,12 +208,12 @@ export function ProductVerificationView() {
               </style></head><body>
               <div class="header"><div class="company">${esc(companyName)}</div><div class="sub">${esc(d.vendor?.name || '')}${d.vendor?.phone ? ` • ${esc(d.vendor.phone)}` : ''}</div></div>
               <div class="stats">
-                <div class="stat"><div class="stat-label">Billed</div><div class="stat-value" style="color:#2563eb">₹${(d.totalDistributedValue ?? 0).toLocaleString()}</div></div>
-                <div class="stat"><div class="stat-label">Paid</div><div class="stat-value" style="color:#059669">₹${(d.totalPaid ?? 0).toLocaleString()}</div></div>
-                <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${(d.balance ?? 0) > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(d.balance ?? 0).toLocaleString()}</div></div>
+                <div class="stat"><div class="stat-label">Billed</div><div class="stat-value" style="color:#2563eb">₹${(d.totalDistributedValue ?? 0).toLocaleString('en-IN')}</div></div>
+                <div class="stat"><div class="stat-label">Paid</div><div class="stat-value" style="color:#059669">₹${(d.totalPaid ?? 0).toLocaleString('en-IN')}</div></div>
+                <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${(d.balance ?? 0) > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(d.balance ?? 0).toLocaleString('en-IN')}</div></div>
               </div>
-              ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${esc(formatDate(p.paymentDate))}</td><td>${esc(p.paymentMethod)}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
-              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${esc(formatDate(x.date))}</td><td>${esc(x.productName)}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
+              ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${esc(formatDate(p.paymentDate))}</td><td>${esc(p.paymentMethod)}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString('en-IN')}</td></tr>`).join('')}</tbody></table>` : ''}
+              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${esc(formatDate(x.date))}</td><td>${esc(x.productName)}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString('en-IN')}</td></tr>`).join('')}</tbody></table>` : ''}
               <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
               </body></html>`,
       `${d.vendor?.name || 'Vendor'}-Report`,
@@ -378,7 +378,7 @@ export function ProductVerificationView() {
                     <div key={p.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
                       <p className="font-medium text-sm">{p.name}</p>
                       <p className="text-xs text-gray-500">
-                        ₹{p.price.toLocaleString()} · {p.stock} in stock
+                        ₹{p.price.toLocaleString('en-IN')} · {p.stock} in stock
                       </p>
                     </div>
                   ))}
@@ -440,7 +440,7 @@ export function ProductVerificationView() {
                     >
                       <p className="font-medium text-sm">{s.name}</p>
                       <p className="text-xs text-gray-500">
-                        Total Paid: ₹{s.totalPaid.toLocaleString()} · {s.payments} payments · Last:{' '}
+                        Total Paid: ₹{s.totalPaid.toLocaleString('en-IN')} · {s.payments} payments · Last:{' '}
                         {s.lastPayment ? formatDate(s.lastPayment) : '—'}
                       </p>
                     </button>
@@ -486,13 +486,13 @@ export function ProductVerificationView() {
                   <div className="bg-blue-50 rounded-xl p-2.5">
                     <p className="text-[9px] font-bold text-gray-400 uppercase">Billed</p>
                     <p className="text-sm sm:text-lg font-bold text-blue-700 truncate">
-                      ₹{(vendorDetail.totalDistributedValue ?? 0).toLocaleString()}
+                      ₹{(vendorDetail.totalDistributedValue ?? 0).toLocaleString('en-IN')}
                     </p>
                   </div>
                   <div className="bg-emerald-50 rounded-xl p-2.5">
                     <p className="text-[9px] font-bold text-gray-400 uppercase">Paid</p>
                     <p className="text-sm sm:text-lg font-bold text-emerald-700 truncate">
-                      ₹{(vendorDetail.totalPaid ?? 0).toLocaleString()}
+                      ₹{(vendorDetail.totalPaid ?? 0).toLocaleString('en-IN')}
                     </p>
                   </div>
                   <div
@@ -505,7 +505,7 @@ export function ProductVerificationView() {
                         (vendorDetail.balance ?? 0) > 0 ? 'text-rose-700' : 'text-emerald-700',
                       )}
                     >
-                      ₹{(vendorDetail.balance ?? 0).toLocaleString()}
+                      ₹{(vendorDetail.balance ?? 0).toLocaleString('en-IN')}
                     </p>
                   </div>
                 </div>
@@ -520,7 +520,7 @@ export function ProductVerificationView() {
                         <span className="text-gray-600 text-xs sm:text-sm">
                           {formatDate(p.paymentDate)} · {p.paymentMethod}
                         </span>
-                        <span className="font-bold text-emerald-600">₹{p.amount.toLocaleString()}</span>
+                        <span className="font-bold text-emerald-600">₹{p.amount.toLocaleString('en-IN')}</span>
                       </div>
                     ))}
                   </div>
@@ -536,7 +536,7 @@ export function ProductVerificationView() {
                         <span className="text-gray-600 text-xs sm:text-sm">
                           {formatDate(dist.date)} · {dist.productName} × {dist.quantity}
                         </span>
-                        <span className="font-bold">₹{dist.total.toLocaleString()}</span>
+                        <span className="font-bold">₹{dist.total.toLocaleString('en-IN')}</span>
                       </div>
                     ))}
                   </div>
@@ -566,7 +566,7 @@ export function ProductVerificationView() {
                     ₹
                     {staffDetail.payments
                       .reduce((s, p) => s + (['salary', 'bonus'].includes(p.paymentType) ? p.amount : 0), 0)
-                      .toLocaleString()}
+                      .toLocaleString('en-IN')}
                   </p>
                 </div>
                 <div className="bg-amber-50 rounded-xl p-2.5">
@@ -581,7 +581,7 @@ export function ProductVerificationView() {
                           (p.paymentType === 'advance' ? p.amount : p.paymentType === 'advance_repay' ? -p.amount : 0),
                         0,
                       ),
-                    ).toLocaleString()}
+                    ).toLocaleString('en-IN')}
                   </p>
                 </div>
               </div>
@@ -615,7 +615,7 @@ export function ProductVerificationView() {
                         </span>
                         {p.notes && <span className="text-gray-400 text-xs ml-2">— {p.notes}</span>}
                       </div>
-                      <span className="font-bold">₹{p.amount.toLocaleString()}</span>
+                      <span className="font-bold">₹{p.amount.toLocaleString('en-IN')}</span>
                     </div>
                   );
                 })
@@ -663,7 +663,7 @@ export function ProductVerificationView() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                     <div className="bg-gray-50 rounded-xl p-3">
                       <p className="text-[10px] font-bold text-gray-400 uppercase">Price</p>
-                      <p className="font-bold text-lg">₹{Number(result.product.price).toLocaleString()}</p>
+                      <p className="font-bold text-lg">₹{Number(result.product.price).toLocaleString('en-IN')}</p>
                     </div>
                     {result.product.hsnCode && (
                       <div className="bg-gray-50 rounded-xl p-3">
@@ -729,7 +729,7 @@ export function ProductVerificationView() {
                         </p>
                         <div className="flex gap-3 mt-1 text-xs text-gray-500">
                           {result.distribution.netPrice && (
-                            <span>Price: ₹{Number(result.distribution.netPrice).toLocaleString()}</span>
+                            <span>Price: ₹{Number(result.distribution.netPrice).toLocaleString('en-IN')}</span>
                           )}
                           {result.distribution.discountPercent ? (
                             <span>Discount: {result.distribution.discountPercent}%</span>
@@ -760,7 +760,7 @@ export function ProductVerificationView() {
                         <p className="text-xs text-gray-500">{new Date(result.sale.date).toLocaleDateString()}</p>
                         <div className="flex gap-3 mt-1 text-xs text-gray-500">
                           {result.sale.salePrice && (
-                            <span>Sale Price: ₹{Number(result.sale.salePrice).toLocaleString()}</span>
+                            <span>Sale Price: ₹{Number(result.sale.salePrice).toLocaleString('en-IN')}</span>
                           )}
                           {result.features.vendorPortal && result.sale.soldByVendor && (
                             <span>By: {result.sale.soldByVendor}</span>

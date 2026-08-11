@@ -78,7 +78,7 @@ type Props = {
   remindAllCount: number;
 };
 
-const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
+const fmt = (n: number) => `₹${Math.abs(n).toLocaleString('en-IN')}`;
 
 const fieldInput =
   'w-full pl-9 pr-4 py-2.5 bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg text-sm dg-ink focus:ring-2 focus:ring-[var(--dg-primary)] focus:border-transparent';

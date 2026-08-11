@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  CreditCard,
-} from 'lucide-react';
+import { Plus, Pencil, Trash2, X, CreditCard } from 'lucide-react';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 
@@ -45,16 +39,21 @@ export function PlanManagementView() {
     fetch('/api/super-admin/plans', {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data) => setPlans(Array.isArray(data) ? data : data.plans ?? []))
+      .then(r => r.json())
+      .then(data => setPlans(Array.isArray(data) ? data : (data.plans ?? [])))
       .catch(() => toast('Failed to load plans', 'error'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchPlans(); }, []);
+  useEffect(() => {
+    fetchPlans();
+  }, []);
 
   const confirmDelete = (plan: Plan) => {
-    if (plan.tenantCount > 0) { toast('Cannot delete plan with active tenants', 'error'); return; }
+    if (plan.tenantCount > 0) {
+      toast('Cannot delete plan with active tenants', 'error');
+      return;
+    }
     setDeleteTarget(plan);
   };
   const handleDelete = async () => {
@@ -84,7 +83,12 @@ export function PlanManagementView() {
     setShowModal(true);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20">
+        <LoadingSpinner />
+      </div>
+    );
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -107,7 +111,7 @@ export function PlanManagementView() {
         {plans.length === 0 && (
           <p className="text-gray-400 text-sm col-span-full text-center py-8">No plans configured</p>
         )}
-        {plans.map((plan) => (
+        {plans.map(plan => (
           <motion.div
             key={plan.id}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -125,10 +129,14 @@ export function PlanManagementView() {
                 </div>
               </div>
               <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-2xl font-bold text-brand">₹{(plan.priceMonthly ?? 0).toLocaleString()}</span>
+                <span className="text-2xl font-bold text-brand">
+                  ₹{(plan.priceMonthly ?? 0).toLocaleString('en-IN')}
+                </span>
                 <span className="text-sm text-gray-400">/month</span>
                 {plan.priceYearly > 0 && (
-                  <span className="text-xs text-gray-400 ml-auto">₹{plan.priceYearly.toLocaleString()}/year</span>
+                  <span className="text-xs text-gray-400 ml-auto">
+                    ₹{plan.priceYearly.toLocaleString('en-IN')}/year
+                  </span>
                 )}
               </div>
 
@@ -136,18 +144,23 @@ export function PlanManagementView() {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Max Products</span>
-                  <span className="font-medium text-gray-700">{plan.maxProducts === -1 ? 'Unlimited' : plan.maxProducts}</span>
+                  <span className="font-medium text-gray-700">
+                    {plan.maxProducts === -1 ? 'Unlimited' : plan.maxProducts}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Max Vendors</span>
-                  <span className="font-medium text-gray-700">{plan.maxVendors === -1 ? 'Unlimited' : plan.maxVendors}</span>
+                  <span className="font-medium text-gray-700">
+                    {plan.maxVendors === -1 ? 'Unlimited' : plan.maxVendors}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Max Users</span>
-                  <span className="font-medium text-gray-700">{plan.maxUsers === -1 ? 'Unlimited' : plan.maxUsers}</span>
+                  <span className="font-medium text-gray-700">
+                    {plan.maxUsers === -1 ? 'Unlimited' : plan.maxUsers}
+                  </span>
                 </div>
               </div>
-
             </div>
 
             <div className="flex border-t border-gray-100">
@@ -175,7 +188,10 @@ export function PlanManagementView() {
         {showModal && (
           <PlanModal
             plan={editingPlan}
-            onClose={() => { setShowModal(false); setEditingPlan(null); }}
+            onClose={() => {
+              setShowModal(false);
+              setEditingPlan(null);
+            }}
             onSaved={() => {
               setShowModal(false);
               setEditingPlan(null);
@@ -193,10 +209,24 @@ export function PlanManagementView() {
               <Trash2 size={28} />
             </div>
             <h3 className="text-lg font-bold mb-2">Delete Plan?</h3>
-            <p className="text-sm text-gray-500 mb-6">Are you sure you want to delete <strong>"{deleteTarget.name}"</strong>? This cannot be undone.</p>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to delete <strong>"{deleteTarget.name}"</strong>? This cannot be undone.
+            </p>
             <div className="flex gap-3">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
-              <button type="button" onClick={handleDelete} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm">Delete</button>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
@@ -205,11 +235,7 @@ export function PlanManagementView() {
   );
 }
 
-function PlanModal({ plan, onClose, onSaved }: {
-  plan: Plan | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+function PlanModal({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     name: plan?.name ?? '',
     maxProducts: plan?.maxProducts ?? 100,
@@ -286,7 +312,7 @@ function PlanModal({ plan, onClose, onSaved }: {
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
@@ -302,7 +328,7 @@ function PlanModal({ plan, onClose, onSaved }: {
             <input
               required
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={e => setForm({ ...form, name: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               placeholder="e.g., Professional"
             />
@@ -315,7 +341,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 type="number"
                 required
                 value={form.maxProducts}
-                onChange={(e) => setForm({ ...form, maxProducts: Number(e.target.value) })}
+                onChange={e => setForm({ ...form, maxProducts: Number(e.target.value) })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
@@ -325,7 +351,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 type="number"
                 required
                 value={form.maxVendors}
-                onChange={(e) => setForm({ ...form, maxVendors: Number(e.target.value) })}
+                onChange={e => setForm({ ...form, maxVendors: Number(e.target.value) })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
@@ -335,7 +361,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 type="number"
                 required
                 value={form.maxUsers}
-                onChange={(e) => setForm({ ...form, maxUsers: Number(e.target.value) })}
+                onChange={e => setForm({ ...form, maxUsers: Number(e.target.value) })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
@@ -348,7 +374,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 type="number"
                 required
                 value={form.price}
-                onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                onChange={e => setForm({ ...form, price: Number(e.target.value) })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="999"
               />
@@ -358,21 +384,28 @@ function PlanModal({ plan, onClose, onSaved }: {
               <input
                 type="number"
                 value={form.priceYearly}
-                onChange={(e) => setForm({ ...form, priceYearly: Number(e.target.value) })}
+                onChange={e => setForm({ ...form, priceYearly: Number(e.target.value) })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="9999"
               />
             </div>
           </div>
 
-
           {error && <p className="text-sm text-rose-500">{error}</p>}
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="flex-1 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors disabled:opacity-60"
+            >
               {submitting ? 'Saving...' : plan ? 'Update Plan' : 'Create Plan'}
             </button>
           </div>

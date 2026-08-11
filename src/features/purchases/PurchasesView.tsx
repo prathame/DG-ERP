@@ -544,16 +544,16 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   <strong>{bd.total as number}</strong> items
                 </span>
                 <span className="text-sm font-bold text-brand ml-2">
-                  Bill: ₹{Number(bd.billValue).toLocaleString()}
+                  Bill: ₹{Number(bd.billValue).toLocaleString('en-IN')}
                 </span>
                 {Number(bd.amountPaid) > 0 && (
                   <span className="text-sm text-emerald-600 font-medium ml-2">
-                    Paid: ₹{Number(bd.amountPaid).toLocaleString()}
+                    Paid: ₹{Number(bd.amountPaid).toLocaleString('en-IN')}
                   </span>
                 )}
                 {Number(bd.balanceRemaining) > 0 && (
                   <span className="text-sm text-rose-500 font-medium ml-2">
-                    Due: ₹{Number(bd.balanceRemaining).toLocaleString()}
+                    Due: ₹{Number(bd.balanceRemaining).toLocaleString('en-IN')}
                   </span>
                 )}
               </div>
@@ -565,7 +565,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   <div>
                     <p className="font-medium">{item.productName as string}</p>
                     <p className="text-xs text-gray-500">
-                      {item.quantity as number} units • ₹{Number(item.costPrice).toLocaleString()}/unit
+                      {item.quantity as number} units • ₹{Number(item.costPrice).toLocaleString('en-IN')}/unit
                       {item.withGst ? ' +GST' : ''}
                     </p>
                   </div>
@@ -582,8 +582,8 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 </div>
                 <h3 className="text-lg font-bold text-center mb-1">Record Payment to Supplier</h3>
                 <p className="text-sm text-gray-500 text-center mb-4">
-                  Bill: ₹{paymentModal.billValue.toLocaleString()} • Due: ₹
-                  {paymentModal.balanceRemaining.toLocaleString()}
+                  Bill: ₹{paymentModal.billValue.toLocaleString('en-IN')} • Due: ₹
+                  {paymentModal.balanceRemaining.toLocaleString('en-IN')}
                 </p>
                 <form
                   onSubmit={e => {
@@ -740,12 +740,12 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹
-                      {batch.billValue.toLocaleString()}
+                      {batch.billValue.toLocaleString('en-IN')}
                       {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && (
-                        <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>
+                        <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString('en-IN')} paid</span>
                       )}
                       {batch.balanceRemaining > 0 && (
-                        <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString()} due</span>
+                        <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString('en-IN')} due</span>
                       )}
                     </p>
                   </div>
@@ -883,7 +883,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           trailing={
                             s.totalPurchased > 0
                               ? s.balance > 0
-                                ? `₹${s.balance.toLocaleString()}`
+                                ? `₹${s.balance.toLocaleString('en-IN')}`
                                 : 'Paid'
                               : undefined
                           }
@@ -937,7 +937,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     </div>
                     <div className="shrink-0 flex items-center gap-1.5">
                       <span className="text-[13px] font-bold text-gray-900 tabular-nums">
-                        ₹{e.amount.toLocaleString()}
+                        ₹{e.amount.toLocaleString('en-IN')}
                       </span>
                       {canEdit && (
                         <button
@@ -956,7 +956,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 flex items-center justify-between">
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Total</span>
                 <span className="text-sm font-bold text-gray-900 tabular-nums">
-                  ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                  ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}
                 </span>
               </div>
             </>
@@ -1058,7 +1058,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                               </span>
                             </td>
                             <td className="px-4 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
-                            <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString('en-IN')}</td>
                             <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
                             <td className="px-4 py-3">
                               <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span>
@@ -1081,7 +1081,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     </table>
                   </div>
                   <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">
-                    Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                    Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}
                   </div>
                 </>
               )}
@@ -1153,14 +1153,14 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           {s.totalPurchased > 0 && (
                             <div className="mt-2 flex gap-4 text-sm flex-wrap">
                               <span className="text-blue-600">
-                                <strong>₹{s.totalPurchased.toLocaleString()}</strong> purchased
+                                <strong>₹{s.totalPurchased.toLocaleString('en-IN')}</strong> purchased
                               </span>
                               <span className="text-emerald-600">
-                                <strong>₹{s.totalPaid.toLocaleString()}</strong> paid
+                                <strong>₹{s.totalPaid.toLocaleString('en-IN')}</strong> paid
                               </span>
                               {s.balance > 0 ? (
                                 <span className="text-rose-600">
-                                  <strong>₹{s.balance.toLocaleString()}</strong> due
+                                  <strong>₹{s.balance.toLocaleString('en-IN')}</strong> due
                                 </span>
                               ) : (
                                 s.totalPurchased > 0 && <PaidBadge size="sm" />
@@ -1397,7 +1397,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           <option value="">Select product</option>
                           {products.map(pr => (
                             <option key={pr.id} value={pr.id}>
-                              {pr.name} (₹{pr.price.toLocaleString()})
+                              {pr.name} (₹{pr.price.toLocaleString('en-IN')})
                             </option>
                           ))}
                         </select>
@@ -1515,7 +1515,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       <LineItemCard
                         index={idx}
                         title={p?.name || `Product ${idx + 1}`}
-                        amountLabel={billed > 0 ? `₹${billed.toLocaleString()}` : undefined}
+                        amountLabel={billed > 0 ? `₹${billed.toLocaleString('en-IN')}` : undefined}
                         canRemove={purchaseRows.length > 1}
                         onRemove={() => setPurchaseRows(purchaseRows.filter((_, i) => i !== idx))}
                         fields={fields}
@@ -1565,7 +1565,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                               <option value="">Select product</option>
                               {products.map(pr => (
                                 <option key={pr.id} value={pr.id}>
-                                  {pr.name} (₹{pr.price.toLocaleString()})
+                                  {pr.name} (₹{pr.price.toLocaleString('en-IN')})
                                   {(pr.packSize ?? 1) > 1 ? ` [${pr.packName}=${pr.packSize}]` : ''}
                                 </option>
                               ))}
@@ -1654,7 +1654,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                             />
                           </td>
                           <td className="px-3 py-2 text-right text-sm font-bold">
-                            {billed > 0 ? `₹${billed.toLocaleString()}` : '—'}
+                            {billed > 0 ? `₹${billed.toLocaleString('en-IN')}` : '—'}
                           </td>
                           <td className="px-3 py-2">
                             {purchaseRows.length > 1 && (
@@ -1688,11 +1688,11 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs sm:text-sm text-gray-600">
-                  {purchaseTotals.items} items · Gross ₹{purchaseTotals.gross.toLocaleString()} · GST ₹
-                  {purchaseTotals.gst.toLocaleString()}
+                  {purchaseTotals.items} items · Gross ₹{purchaseTotals.gross.toLocaleString('en-IN')} · GST ₹
+                  {purchaseTotals.gst.toLocaleString('en-IN')}
                 </span>
                 <span className="text-lg font-bold text-brand tabular-nums">
-                  ₹{purchaseTotals.billed.toLocaleString()}
+                  ₹{purchaseTotals.billed.toLocaleString('en-IN')}
                 </span>
               </div>
               <FormField label="Amount Paid (₹)">

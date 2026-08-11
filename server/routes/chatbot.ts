@@ -102,7 +102,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
         ).rows[0] as { t: number }
       ).t;
       return {
-        text: `*${salesLbl} Today* (${today})\n\n- ${count} unit${count !== 1 ? 's' : ''} dispatched\n- Value: ${value.toLocaleString()}`,
+        text: `*${salesLbl} Today* (${today})\n\n- ${count} unit${count !== 1 ? 's' : ''} dispatched\n- Value: ${value.toLocaleString('en-IN')}`,
       };
     }
     const today = new Date().toISOString().slice(0, 10);
@@ -123,7 +123,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { t: number }
     ).t;
     return {
-      text: `*${salesLbl} Today* (${today})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}`,
+      text: `*${salesLbl} Today* (${today})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString('en-IN')}`,
     };
   }
 
@@ -148,7 +148,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { t: number }
     ).t;
     return {
-      text: `*${salesLbl} Yesterday* (${yesterday})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}`,
+      text: `*${salesLbl} Yesterday* (${yesterday})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString('en-IN')}`,
     };
   }
 
@@ -173,7 +173,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { t: number }
     ).t;
     return {
-      text: `*${salesLbl} This Week*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}`,
+      text: `*${salesLbl} This Week*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString('en-IN')}`,
     };
   }
 
@@ -196,7 +196,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { t: number }
     ).t;
     return {
-      text: `*${salesLbl} This Month*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}`,
+      text: `*${salesLbl} This Month*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString('en-IN')}`,
     };
   }
 
@@ -211,7 +211,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     const list = rows
       .map(
         (r, i) =>
-          `${i + 1}. ${r.name} -> ${r.customer_name}\n   ${r.purchase_date} - ${(r.sale_price ?? 0).toLocaleString()}`,
+          `${i + 1}. ${r.name} -> ${r.customer_name}\n   ${r.purchase_date} - ${(r.sale_price ?? 0).toLocaleString('en-IN')}`,
       )
       .join('\n');
     return { text: `*Recent ${salesLbl}*\n\n${list}` };
@@ -227,7 +227,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     ).rows as { name: string; sold: number; revenue: number }[];
     if (rows.length === 0) return { text: 'No sales recorded yet.' };
     const list = rows
-      .map((r, i) => `${i + 1}. ${r.name}\n   ${r.sold} sold - ${r.revenue.toLocaleString()} revenue`)
+      .map((r, i) => `${i + 1}. ${r.name}\n   ${r.sold} sold - ${r.revenue.toLocaleString('en-IN')} revenue`)
       .join('\n');
     return { text: `*Top Selling Products*\n\n${list}` };
   }
@@ -301,7 +301,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       )
     ).rows as { name: string; price: number; stock: number }[];
     if (rows.length === 0) return { text: 'No products found.' };
-    const list = rows.map(r => `- ${r.name}\n  ${r.price.toLocaleString()} - ${r.stock} in stock`).join('\n');
+    const list = rows.map(r => `- ${r.name}\n  ${r.price.toLocaleString('en-IN')} - ${r.stock} in stock`).join('\n');
     return { text: `*All Products (${rows.length})*\n\n${list}` };
   }
 
@@ -351,12 +351,12 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     const list = rows
       .map(
         r =>
-          `- ${r.name}\n  Billed: ${r.total_val.toLocaleString()} | Paid: ${r.paid.toLocaleString()} | *Due: ${(r.total_val - r.paid).toLocaleString()}*`,
+          `- ${r.name}\n  Billed: ${r.total_val.toLocaleString('en-IN')} | Paid: ${r.paid.toLocaleString('en-IN')} | *Due: ${(r.total_val - r.paid).toLocaleString('en-IN')}*`,
       )
       .join('\n');
     const totalDue = rows.reduce((s, r) => s + (r.total_val - r.paid), 0);
     return {
-      text: `*Pending Payments* (${rows.length} vendors)\n\n${list}\n\nTotal Outstanding: *${totalDue.toLocaleString()}*`,
+      text: `*Pending Payments* (${rows.length} vendors)\n\n${list}\n\nTotal Outstanding: *${totalDue.toLocaleString('en-IN')}*`,
     };
   }
 
@@ -384,7 +384,10 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     ).rows as { customer_name: string; purchases: number; spent: number }[];
     if (rows.length === 0) return { text: 'No customer purchases recorded yet.' };
     const list = rows
-      .map((r, i) => `${i + 1}. ${r.customer_name}\n   ${r.purchases} purchases - ${r.spent.toLocaleString()} spent`)
+      .map(
+        (r, i) =>
+          `${i + 1}. ${r.customer_name}\n   ${r.purchases} purchases - ${r.spent.toLocaleString('en-IN')} spent`,
+      )
       .join('\n');
     return { text: `*Top Customers*\n\n${list}` };
   }
@@ -395,7 +398,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       (await pool.query('SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE tenant_id = $1', [tenantId]))
         .rows[0] as { t: number }
     ).t;
-    return { text: `*Total Revenue*\n\n- Product sales: ${saleRevenue.toLocaleString()}` };
+    return { text: `*Total Revenue*\n\n- Product sales: ${saleRevenue.toLocaleString('en-IN')}` };
   }
 
   if (/today\s*revenue|revenue\s*today/.test(q)) {
@@ -408,7 +411,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
         )
       ).rows[0] as { t: number }
     ).t;
-    return { text: `*Today's Revenue*: ${revenue.toLocaleString()}` };
+    return { text: `*Today's Revenue*: ${revenue.toLocaleString('en-IN')}` };
   }
 
   // ============ WARRANTY ============
@@ -476,7 +479,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { t: number }
     ).t;
     return {
-      text: `*Reward Points Summary*\n\n- Total Earned: ${earned.toLocaleString()} pts\n- Redeemed: ${redeemed.toLocaleString()} pts\n- Balance: ${(earned - redeemed).toLocaleString()} pts`,
+      text: `*Reward Points Summary*\n\n- Total Earned: ${earned.toLocaleString('en-IN')} pts\n- Redeemed: ${redeemed.toLocaleString('en-IN')} pts\n- Balance: ${(earned - redeemed).toLocaleString('en-IN')} pts`,
     };
   }
 
@@ -572,7 +575,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       )
     ).rows[0] as { c: number };
     return {
-      text: `*Daily Report* (${today})\n\n${salesLbl}: ${sales} (${revenue.toLocaleString()})\n${distLbl}: ${distributedCount} units\nIn stock: ${inStock} units\nVendors with dues: ${pendingPaymentsCount.c}`,
+      text: `*Daily Report* (${today})\n\n${salesLbl}: ${sales} (${revenue.toLocaleString('en-IN')})\n${distLbl}: ${distributedCount} units\nIn stock: ${inStock} units\nVendors with dues: ${pendingPaymentsCount.c}`,
     };
   }
 
@@ -611,7 +614,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { t: number }
     ).t;
     return {
-      text: `*Monthly Report* (${month})\n\n${salesLbl}: ${sales} units\nRevenue: ${revenue.toLocaleString()}\n${distLbl}: ${distributedCount} units\nPayments Received: ${payments.toLocaleString()}`,
+      text: `*Monthly Report* (${month})\n\n${salesLbl}: ${sales} units\nRevenue: ${revenue.toLocaleString('en-IN')}\n${distLbl}: ${distributedCount} units\nPayments Received: ${payments.toLocaleString('en-IN')}`,
     };
   }
 
@@ -640,7 +643,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     const list = rows
       .map(
         r =>
-          `- *${r.name}*\n  ${r.distributed} distributed | ${r.total_sales} sold | ${r.with_vendor} with vendor\n  Billed: ${r.billed.toLocaleString()} | Paid: ${r.paid.toLocaleString()} | Due: ${(r.billed - r.paid).toLocaleString()}`,
+          `- *${r.name}*\n  ${r.distributed} distributed | ${r.total_sales} sold | ${r.with_vendor} with vendor\n  Billed: ${r.billed.toLocaleString('en-IN')} | Paid: ${r.paid.toLocaleString('en-IN')} | Due: ${(r.billed - r.paid).toLocaleString('en-IN')}`,
       )
       .join('\n');
     return { text: `*Vendor Report*\n\n${list}` };
@@ -658,9 +661,9 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     if (rows.length === 0) return { text: 'No staff payments recorded this year.' };
     const grand = rows.reduce((s, r) => s + Number(r.total), 0);
     const list = rows
-      .map(r => `- ${r.staff_name}\n  ₹${Number(r.total).toLocaleString()} (${r.payments} payments)`)
+      .map(r => `- ${r.staff_name}\n  ₹${Number(r.total).toLocaleString('en-IN')} (${r.payments} payments)`)
       .join('\n');
-    return { text: `*Staff Payments — ${year}*\n\n${list}\n\nTotal: *₹${grand.toLocaleString()}*` };
+    return { text: `*Staff Payments — ${year}*\n\n${list}\n\nTotal: *₹${grand.toLocaleString('en-IN')}*` };
   }
 
   if (/paid\s*to\s+(.+)|(.+)\s*salary|(.+)\s*payment\s*history/.test(q)) {
@@ -678,10 +681,10 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       const list = rows
         .map(
           r =>
-            `- ₹${Number(r.amount).toLocaleString()} on ${r.payment_date} (${r.payment_method})${r.notes ? ` — ${r.notes}` : ''}`,
+            `- ₹${Number(r.amount).toLocaleString('en-IN')} on ${r.payment_date} (${r.payment_method})${r.notes ? ` — ${r.notes}` : ''}`,
         )
         .join('\n');
-      return { text: `*Payments to ${staffName}*\n\n${list}\n\nTotal shown: *₹${total.toLocaleString()}*` };
+      return { text: `*Payments to ${staffName}*\n\n${list}\n\nTotal shown: *₹${total.toLocaleString('en-IN')}*` };
     }
   }
 
@@ -752,7 +755,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
           const vendor = (
             await pool.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [sale.vendor_id, tenantId])
           ).rows[0] as { name: string } | undefined;
-          extra = `\n- Sold to: ${sale.customer_name} (${sale.customer_phone})\n- Date: ${sale.purchase_date}\n- Price: ${(sale.sale_price ?? 0).toLocaleString()}\n- Via: ${vendor?.name ?? 'Owner'}`;
+          extra = `\n- Sold to: ${sale.customer_name} (${sale.customer_phone})\n- Date: ${sale.purchase_date}\n- Price: ${(sale.sale_price ?? 0).toLocaleString('en-IN')}\n- Via: ${vendor?.name ?? 'Owner'}`;
         }
       }
       const warranty = (
@@ -763,7 +766,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       ).rows[0] as { status: string; expiry_date: string } | undefined;
       if (warranty) extra += `\n- Warranty: ${warranty.status} (expires ${warranty.expiry_date})`;
       return {
-        text: `*Barcode: ${barcode}*\n\n- Product: ${inv.product_name}\n- Status: ${inv.status}\n- MRP: ${inv.price.toLocaleString()}${extra}`,
+        text: `*Barcode: ${barcode}*\n\n- Product: ${inv.product_name}\n- Status: ${inv.status}\n- MRP: ${inv.price.toLocaleString('en-IN')}${extra}`,
       };
     }
     return { text: `Barcode *${barcode}* not found in inventory.` };
@@ -830,7 +833,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
         ? `\n\n*Recent Sales*\n${recentSales.map(s => `- ${s.name} -> ${s.customer_name} (${s.purchase_date})`).join('\n')}`
         : '';
     return {
-      text: `*${v.name}*\n${v.contact_person ? `Contact: ${v.contact_person}\n` : ''}${v.phone ? `Phone: ${v.phone}\n` : ''}\n*Stock*\n- Distributed: ${distCount}\n- With vendor: ${withVendor}\n- Sold: ${soldCount}\n\n*Finance*\n- Billed: ${totalVal.toLocaleString()}\n- Paid: ${totalPaid.toLocaleString()}\n- Balance: ${balance.toLocaleString()}${salesList}`,
+      text: `*${v.name}*\n${v.contact_person ? `Contact: ${v.contact_person}\n` : ''}${v.phone ? `Phone: ${v.phone}\n` : ''}\n*Stock*\n- Distributed: ${distCount}\n- With vendor: ${withVendor}\n- Sold: ${soldCount}\n\n*Finance*\n- Billed: ${totalVal.toLocaleString('en-IN')}\n- Paid: ${totalPaid.toLocaleString('en-IN')}\n- Balance: ${balance.toLocaleString('en-IN')}${salesList}`,
     };
   }
   if (vendorRows.length > 1) {
@@ -858,7 +861,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     const purchaseList =
       purchaseRows.length > 0
         ? purchaseRows
-            .map(p => `- ${p.name} -- ${p.purchase_date} (${(p.sale_price ?? 0).toLocaleString()})`)
+            .map(p => `- ${p.name} -- ${p.purchase_date} (${(p.sale_price ?? 0).toLocaleString('en-IN')})`)
             .join('\n')
         : 'No purchases recorded';
     const vendor = (
@@ -907,17 +910,17 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     const recentList = recent
       .map(
         r =>
-          `- ₹${Number(r.amount).toLocaleString()} — ${typeLabel[r.payment_type] || r.payment_type} (${r.payment_date})`,
+          `- ₹${Number(r.amount).toLocaleString('en-IN')} — ${typeLabel[r.payment_type] || r.payment_type} (${r.payment_date})`,
       )
       .join('\n');
     const advBal = Math.max(0, Number(s.advance_bal));
     return {
-      text: `*${s.staff_name}*${member?.role ? ` (${member.role})` : ''}${member?.phone ? `\nPhone: ${member.phone}` : ''}${member?.salary ? `\nSalary: ₹${member.salary.toLocaleString()}/mo` : ''}\n\nTotal Paid: ₹${Number(s.total).toLocaleString()} (${s.payments} payments)${advBal > 0 ? `\nAdvance Due: ₹${advBal.toLocaleString()}` : ''}\n\n*Recent*\n${recentList}`,
+      text: `*${s.staff_name}*${member?.role ? ` (${member.role})` : ''}${member?.phone ? `\nPhone: ${member.phone}` : ''}${member?.salary ? `\nSalary: ₹${member.salary.toLocaleString('en-IN')}/mo` : ''}\n\nTotal Paid: ₹${Number(s.total).toLocaleString('en-IN')} (${s.payments} payments)${advBal > 0 ? `\nAdvance Due: ₹${advBal.toLocaleString('en-IN')}` : ''}\n\n*Recent*\n${recentList}`,
     };
   }
   if (staffRows.length > 1) {
     const list = staffRows
-      .map(s => `- ${s.staff_name} — ₹${Number(s.total).toLocaleString()} (${s.payments} payments)`)
+      .map(s => `- ${s.staff_name} — ₹${Number(s.total).toLocaleString('en-IN')} (${s.payments} payments)`)
       .join('\n');
     return { text: `Found ${staffRows.length} staff matching "${input}":\n\n${list}` };
   }

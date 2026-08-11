@@ -20,7 +20,7 @@ import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
 import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 
-const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
+const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
 type MoneyTile = {
   id: string;

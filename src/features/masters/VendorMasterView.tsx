@@ -47,7 +47,7 @@ type PayModal = {
   isAdvance: boolean;
 };
 
-const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
+const fmt = (n: number) => `₹${Math.abs(n).toLocaleString('en-IN')}`;
 
 export function VendorMasterView({
   onBack,
@@ -966,7 +966,7 @@ export function VendorMasterView({
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
                       {typeof v.totalSales === 'number' && v.totalSales > 0 && (
                         <span>
-                          Sales: <b>₹{v.totalSales.toLocaleString()}</b>
+                          Sales: <b>₹{v.totalSales.toLocaleString('en-IN')}</b>
                         </span>
                       )}
                       {typeof v.totalRewardPoints === 'number' && v.totalRewardPoints > 0 && (
@@ -1134,7 +1134,7 @@ export function VendorMasterView({
                         <>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium">
                             {typeof v.totalSales === 'number' && v.totalSales > 0
-                              ? `₹${v.totalSales.toLocaleString()}`
+                              ? `₹${v.totalSales.toLocaleString('en-IN')}`
                               : (v.totalSales ?? 0)}
                           </td>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-emerald-600">

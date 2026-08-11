@@ -394,7 +394,7 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
       'Staff Payment',
       'payroll',
       id,
-      `${typeLabel}: ₹${parsedAmount.toLocaleString()} — ${staffName.trim()}`,
+      `${typeLabel}: ₹${parsedAmount.toLocaleString('en-IN')} — ${staffName.trim()}`,
     );
 
     // Sync to expenses — look up verified name + role from staff_members DB

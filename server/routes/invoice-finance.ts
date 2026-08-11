@@ -889,7 +889,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
         'Invoice Payment',
         'invoice_payment',
         firstId || '',
-        `₹${payAmt.toLocaleString()} bill-wise across ${appliedCount} invoice(s) for ${partyLabel}`,
+        `₹${payAmt.toLocaleString('en-IN')} bill-wise across ${appliedCount} invoice(s) for ${partyLabel}`,
         req.user?.userId,
         req.user?.name,
       );
@@ -1014,7 +1014,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
         'Invoice Payment',
         'invoice_payment',
         firstId || '',
-        `₹${payAmt.toLocaleString()} collective across ${appliedCount} invoice(s) for ${partyLabel}`,
+        `₹${payAmt.toLocaleString('en-IN')} collective across ${appliedCount} invoice(s) for ${partyLabel}`,
         req.user?.userId,
         req.user?.name,
       );
@@ -1117,7 +1117,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
       'Invoice Payment',
       'invoice_payment',
       id,
-      `₹${payAmt.toLocaleString()} for ${inv.customer_name}`,
+      `₹${payAmt.toLocaleString('en-IN')} for ${inv.customer_name}`,
       req.user?.userId,
       req.user?.name,
     );
@@ -1164,7 +1164,7 @@ router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: Aut
             'Vendor Payment',
             'vendor_payment',
             vp.id,
-            `Deleted ₹${Number(vp.amount).toLocaleString()} (service advance)`,
+            `Deleted ₹${Number(vp.amount).toLocaleString('en-IN')} (service advance)`,
             req.user?.userId,
             req.user?.name,
           );
@@ -1210,7 +1210,7 @@ router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: Aut
       'Invoice Payment Deleted',
       'invoice_payment',
       req.params.id as string,
-      `₹${Number(payment.amount).toLocaleString()} removed from invoice ${payment.invoice_id}`,
+      `₹${Number(payment.amount).toLocaleString('en-IN')} removed from invoice ${payment.invoice_id}`,
       req.user?.userId,
       req.user?.name,
     );

@@ -2144,16 +2144,16 @@ export function DistributionView({
                                 with vendor
                               </span>
                               <span className="text-sm font-bold text-brand">
-                                Bill: ₹{selectedBatch.billValue.toLocaleString()}
+                                Bill: ₹{selectedBatch.billValue.toLocaleString('en-IN')}
                               </span>
                               {selectedBatch.amountPaid > 0 && (
                                 <span className="text-sm text-emerald-600 font-medium ml-2">
-                                  Paid: ₹{selectedBatch.amountPaid.toLocaleString()}
+                                  Paid: ₹{selectedBatch.amountPaid.toLocaleString('en-IN')}
                                 </span>
                               )}
                               {selectedBatch.balanceRemaining > 0 && (
                                 <span className="text-sm text-rose-500 font-medium ml-2">
-                                  Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}
+                                  Due: ₹{selectedBatch.balanceRemaining.toLocaleString('en-IN')}
                                 </span>
                               )}
                             </>
@@ -2297,12 +2297,12 @@ export function DistributionView({
                             <span className="text-emerald-600 font-medium">{halfSold}</span> sold
                           </span>
                           <span className="font-bold text-brand">
-                            {halfTotalLabel}: ₹{halfBillValue.toLocaleString()}
+                            {halfTotalLabel}: ₹{halfBillValue.toLocaleString('en-IN')}
                           </span>
                           <span className="text-xs text-gray-500">
-                            Delivery total ₹{selectedBatch.billValue.toLocaleString()}
+                            Delivery total ₹{selectedBatch.billValue.toLocaleString('en-IN')}
                             {selectedBatch.balanceRemaining > 0 &&
-                              ` · ₹${selectedBatch.balanceRemaining.toLocaleString()} due`}
+                              ` · ₹${selectedBatch.balanceRemaining.toLocaleString('en-IN')} due`}
                           </span>
                         </p>
                       )}
@@ -2540,7 +2540,7 @@ export function DistributionView({
                       >
                         <MessageCircle size={14} /> Remind payment
                         {vendorFinance.balance > 0 && (
-                          <span className="opacity-90">· ₹{vendorFinance.balance.toLocaleString()}</span>
+                          <span className="opacity-90">· ₹{vendorFinance.balance.toLocaleString('en-IN')}</span>
                         )}
                       </button>
                     )}
@@ -2585,12 +2585,16 @@ export function DistributionView({
                             <DeliveryDocBadge batch={batch} size="sm" />
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                            {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹
+                            {batch.billValue.toLocaleString('en-IN')}
                           </p>
                           <p className="text-xs text-gray-600 mt-2">
                             <span className="text-emerald-600">{batch.sold} sold</span>
                             {batch.balanceRemaining > 0 && (
-                              <span className="text-rose-500"> · ₹{batch.balanceRemaining.toLocaleString()} due</span>
+                              <span className="text-rose-500">
+                                {' '}
+                                · ₹{batch.balanceRemaining.toLocaleString('en-IN')} due
+                              </span>
                             )}
                           </p>
                         </button>
@@ -2619,12 +2623,19 @@ export function DistributionView({
                             {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                            {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹
+                            {batch.billValue.toLocaleString('en-IN')}
                             {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && (
-                              <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>
+                              <span className="text-emerald-600">
+                                {' '}
+                                • ₹{batch.amountPaid.toLocaleString('en-IN')} paid
+                              </span>
                             )}
                             {batch.balanceRemaining > 0 && (
-                              <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString()} due</span>
+                              <span className="text-rose-500">
+                                {' '}
+                                • ₹{batch.balanceRemaining.toLocaleString('en-IN')} due
+                              </span>
                             )}
                           </p>
                         </div>
@@ -2727,16 +2738,19 @@ export function DistributionView({
                       return (
                         <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
                           <span className="text-gray-500">
-                            Bill: <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong>
+                            Bill:{' '}
+                            <strong className="text-gray-700">
+                              ₹{f.totalDistributedValue.toLocaleString('en-IN')}
+                            </strong>
                           </span>
                           <span className="text-gray-500">
-                            Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong>
+                            Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString('en-IN')}</strong>
                           </span>
                           {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
                             <PaidBadge size="sm" />
                           ) : (
                             <span className="text-gray-500">
-                              Due: <strong className="text-rose-600">₹{f.balance.toLocaleString()}</strong>
+                              Due: <strong className="text-rose-600">₹{f.balance.toLocaleString('en-IN')}</strong>
                             </span>
                           )}
                         </div>
@@ -2886,25 +2900,27 @@ export function DistributionView({
                     <div className="border-t border-gray-200 pt-3 space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Product value (subtotal)</span>
-                        <span className="font-medium">₹{bill.totalValue.toLocaleString()}</span>
+                        <span className="font-medium">₹{bill.totalValue.toLocaleString('en-IN')}</span>
                       </div>
                       {gstQty > 0 && (
                         <div className="flex justify-between">
                           <span className="text-gray-600">
                             + GST on {gstQty} unit{gstQty !== 1 ? 's' : ''} ({gstRate}%)
                           </span>
-                          <span className="font-medium text-emerald-700">₹{gstTax.toLocaleString()}</span>
+                          <span className="font-medium text-emerald-700">₹{gstTax.toLocaleString('en-IN')}</span>
                         </div>
                       )}
                       <div className="flex justify-between border-t border-gray-200 pt-2">
                         <span className="font-bold text-gray-800">Total to collect</span>
-                        <span className="font-bold text-brand text-base">₹{combinedBillTotal.toLocaleString()}</span>
+                        <span className="font-bold text-brand text-base">
+                          ₹{combinedBillTotal.toLocaleString('en-IN')}
+                        </span>
                       </div>
                     </div>
                     {hasUnsavedChanges && (
                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-                        Currently saved: ₹{savedTotal!.toLocaleString()} — click <strong>Save Amount</strong> below to
-                        update to ₹{combinedBillTotal.toLocaleString()}
+                        Currently saved: ₹{savedTotal!.toLocaleString('en-IN')} — click <strong>Save Amount</strong>{' '}
+                        below to update to ₹{combinedBillTotal.toLocaleString('en-IN')}
                       </p>
                     )}
                     <div className="border-t border-gray-200 pt-3 mt-3">
@@ -2935,16 +2951,16 @@ export function DistributionView({
                       )}
                     >
                       <p className="text-xs font-bold text-emerald-700 uppercase mb-2">GST Bill</p>
-                      <p className="text-2xl font-bold text-emerald-700">₹{gstGrandTotal.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-emerald-700">₹{gstGrandTotal.toLocaleString('en-IN')}</p>
                       <p className="text-sm text-gray-600 mt-1">{gstQty} units</p>
                       {gstQty > 0 && (
                         <div className="mt-2 text-xs text-gray-500 space-y-0.5">
-                          <p>Subtotal: ₹{gstSubtotal.toLocaleString()}</p>
+                          <p>Subtotal: ₹{gstSubtotal.toLocaleString('en-IN')}</p>
                           <p>
-                            CGST @{gstRate / 2}%: ₹{halfGst.toLocaleString()}
+                            CGST @{gstRate / 2}%: ₹{halfGst.toLocaleString('en-IN')}
                           </p>
                           <p>
-                            SGST @{gstRate / 2}%: ₹{(gstTax - halfGst).toLocaleString()}
+                            SGST @{gstRate / 2}%: ₹{(gstTax - halfGst).toLocaleString('en-IN')}
                           </p>
                         </div>
                       )}
@@ -2956,7 +2972,7 @@ export function DistributionView({
                       )}
                     >
                       <p className="text-xs font-bold text-amber-700 uppercase mb-2">Non-GST Bill</p>
-                      <p className="text-2xl font-bold text-amber-700">₹{nonGstAmount.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-amber-700">₹{nonGstAmount.toLocaleString('en-IN')}</p>
                       <p className="text-sm text-gray-600 mt-1">{nonGstQty} units</p>
                       <p className="text-xs text-gray-400 mt-2">No tax added</p>
                     </div>
@@ -2974,7 +2990,7 @@ export function DistributionView({
                         hasUnsavedChanges &&
                         !(await confirm({
                           title: 'Change Amount',
-                          message: `Amount was already saved as ₹${savedTotal!.toLocaleString()}. Change to ₹${combinedBillTotal.toLocaleString()}?`,
+                          message: `Amount was already saved as ₹${savedTotal!.toLocaleString('en-IN')}. Change to ₹${combinedBillTotal.toLocaleString('en-IN')}?`,
                           confirmLabel: 'Change',
                           variant: 'warning',
                         }))
@@ -2995,7 +3011,10 @@ export function DistributionView({
                         });
                         setSplitBillModal({ bill: updated });
                         load();
-                        toast(`Amount saved — collect ₹${combinedBillTotal.toLocaleString()} from vendor`, 'success');
+                        toast(
+                          `Amount saved — collect ₹${combinedBillTotal.toLocaleString('en-IN')} from vendor`,
+                          'success',
+                        );
                       } catch (err) {
                         toast((err as Error).message, 'error');
                       } finally {
@@ -3004,7 +3023,7 @@ export function DistributionView({
                     }}
                     className="w-full py-3 mb-3 bg-brand text-white rounded-xl font-bold text-sm hover:bg-[#e06f1f] disabled:opacity-60"
                   >
-                    {splitSaving ? 'Saving...' : `Save Amount — ₹${combinedBillTotal.toLocaleString()}`}
+                    {splitSaving ? 'Saving...' : `Save Amount — ₹${combinedBillTotal.toLocaleString('en-IN')}`}
                   </button>
                   {hasUnsavedChanges && (
                     <p className="text-xs text-amber-700 mb-2">
@@ -3268,7 +3287,7 @@ export function DistributionView({
                                   )
                                   .map(pr => (
                                     <option key={pr.id} value={pr.id}>
-                                      {pr.name} — ₹{pr.price.toLocaleString()} ({pr.stock} avl)
+                                      {pr.name} — ₹{pr.price.toLocaleString('en-IN')} ({pr.stock} avl)
                                     </option>
                                   ))}
                               </select>
@@ -3357,13 +3376,13 @@ export function DistributionView({
                               <span>
                                 {row.withGst && (
                                   <span className="text-[10px] text-gray-400 block">
-                                    ₹{m.net.toLocaleString()} +GST
+                                    ₹{m.net.toLocaleString('en-IN')} +GST
                                   </span>
                                 )}
                                 {!row.withGst && row.priceIncludesGst && (
                                   <span className="text-[10px] text-amber-600 block">excl. GST</span>
                                 )}
-                                <span className="text-base">₹{m.billed.toLocaleString()}</span>
+                                <span className="text-base">₹{m.billed.toLocaleString('en-IN')}</span>
                               </span>
                             ) : (
                               '-'
@@ -3432,27 +3451,27 @@ export function DistributionView({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Gross Value</span>
-                  <span className="font-bold">₹{editTotals.gross.toLocaleString()}</span>
+                  <span className="font-bold">₹{editTotals.gross.toLocaleString('en-IN')}</span>
                 </div>
                 {editTotals.discount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Discount</span>
-                    <span className="font-bold text-emerald-600">-₹{editTotals.discount.toLocaleString()}</span>
+                    <span className="font-bold text-emerald-600">-₹{editTotals.discount.toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal (base)</span>
-                  <span className="font-bold">₹{editTotals.net.toLocaleString()}</span>
+                  <span className="font-bold">₹{editTotals.net.toLocaleString('en-IN')}</span>
                 </div>
                 {editTotals.gst > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">GST</span>
-                    <span className="font-bold">₹{editTotals.gst.toLocaleString()}</span>
+                    <span className="font-bold">₹{editTotals.gst.toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
                   <span className="text-gray-700 font-medium">Total Billed Amount</span>
-                  <span className="font-bold text-lg text-brand">₹{editTotals.billed.toLocaleString()}</span>
+                  <span className="font-bold text-lg text-brand">₹{editTotals.billed.toLocaleString('en-IN')}</span>
                 </div>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -3590,8 +3609,8 @@ export function DistributionView({
             </div>
             <h3 className="text-lg font-bold text-center mb-1">Record Payment</h3>
             <p className="text-sm text-gray-500 text-center mb-4">
-              Bill: ₹{batchPaymentModal.billValue.toLocaleString()} • Due: ₹
-              {batchPaymentModal.balanceRemaining.toLocaleString()}
+              Bill: ₹{batchPaymentModal.billValue.toLocaleString('en-IN')} • Due: ₹
+              {batchPaymentModal.balanceRemaining.toLocaleString('en-IN')}
             </p>
             <form
               onSubmit={e => {

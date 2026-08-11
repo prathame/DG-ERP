@@ -85,7 +85,7 @@ export function DashboardView({
           },
           {
             label: 'Total Inventory',
-            value: (s.totalBeforeDistribution ?? 0).toLocaleString(),
+            value: (s.totalBeforeDistribution ?? 0).toLocaleString('en-IN'),
             change: '',
             icon: Package,
             color: 'text-gray-600',
@@ -93,7 +93,7 @@ export function DashboardView({
           },
           {
             label: 'With Admin',
-            value: (Number(sx.withAdmin) || 0).toLocaleString(),
+            value: (Number(sx.withAdmin) || 0).toLocaleString('en-IN'),
             change: '',
             icon: Package,
             color: 'text-blue-600',
@@ -101,7 +101,7 @@ export function DashboardView({
           },
           {
             label: 'With Vendors',
-            value: (Number(sx.withVendors) || 0).toLocaleString(),
+            value: (Number(sx.withVendors) || 0).toLocaleString('en-IN'),
             change: '',
             icon: Package,
             color: 'text-purple-600',
@@ -109,7 +109,7 @@ export function DashboardView({
           },
           {
             label: 'Total Sold',
-            value: (s.productsSold ?? 0).toLocaleString(),
+            value: (s.productsSold ?? 0).toLocaleString('en-IN'),
             change: '',
             icon: ShoppingCart,
             color: 'text-emerald-600',

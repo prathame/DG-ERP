@@ -1440,7 +1440,7 @@ function NotesView({
           </div>
           <div className="text-right">
             <p className={cn('font-bold text-lg', n.noteType === 'credit' ? 'text-emerald-600' : 'text-rose-600')}>
-              ₹{n.total.toLocaleString()}
+              ₹{n.total.toLocaleString('en-IN')}
             </p>
           </div>
         </div>
@@ -2032,7 +2032,7 @@ function Gstr2bReconciliation() {
                         Math.abs(r.diff) > 1 ? 'text-rose-600' : 'text-gray-400',
                       )}
                     >
-                      {r.diff ? `₹${r.diff.toLocaleString()}` : '—'}
+                      {r.diff ? `₹${r.diff.toLocaleString('en-IN')}` : '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {r.itcAvailable ? (
@@ -2129,7 +2129,7 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
         <button
           type="button"
           onClick={() => {
-            const text = `GSTR-3B ${monthName}\n\nOutput Tax: ₹${output.total.toLocaleString()}\n  Taxable Value: ₹${output.taxableValue.toLocaleString()}\n  CGST: ₹${output.cgst.toLocaleString()}\n  SGST: ₹${output.sgst.toLocaleString()}\n\nITC Claimed: ₹${itc.total.toLocaleString()}\n  From Purchases: ₹${itc.fromPurchases.toLocaleString()}\n  From Expenses: ₹${itc.fromExpenses.toLocaleString()}\n\nNet Tax Payable: ₹${net.total.toLocaleString()}\n  CGST: ₹${net.cgst.toLocaleString()}\n  SGST: ₹${net.sgst.toLocaleString()}`;
+            const text = `GSTR-3B ${monthName}\n\nOutput Tax: ₹${output.total.toLocaleString('en-IN')}\n  Taxable Value: ₹${output.taxableValue.toLocaleString('en-IN')}\n  CGST: ₹${output.cgst.toLocaleString('en-IN')}\n  SGST: ₹${output.sgst.toLocaleString('en-IN')}\n\nITC Claimed: ₹${itc.total.toLocaleString('en-IN')}\n  From Purchases: ₹${itc.fromPurchases.toLocaleString('en-IN')}\n  From Expenses: ₹${itc.fromExpenses.toLocaleString('en-IN')}\n\nNet Tax Payable: ₹${net.total.toLocaleString('en-IN')}\n  CGST: ₹${net.cgst.toLocaleString('en-IN')}\n  SGST: ₹${net.sgst.toLocaleString('en-IN')}`;
             navigator.clipboard.writeText(text);
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white rounded-lg text-xs font-bold"
@@ -2152,7 +2152,7 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
             </thead>
             <tbody>
               <Row
-                label={`Taxable Value: ₹${output.taxableValue.toLocaleString()}`}
+                label={`Taxable Value: ₹${output.taxableValue.toLocaleString('en-IN')}`}
                 cgst={output.cgst}
                 sgst={output.sgst}
                 igst={output.igst}

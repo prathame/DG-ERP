@@ -615,7 +615,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         return {
           value: p.id,
           label: p.name,
-          sublabel: `₹${listPrice.toLocaleString()} · ${stock} in stock`,
+          sublabel: `₹${listPrice.toLocaleString('en-IN')} · ${stock} in stock`,
         };
       });
 
@@ -1034,7 +1034,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                               />
                             </td>
                             <td className="px-2 py-2 text-right text-sm font-medium tabular-nums">
-                              {m.billed > 0 ? `₹${m.billed.toLocaleString()}` : '—'}
+                              {m.billed > 0 ? `₹${m.billed.toLocaleString('en-IN')}` : '—'}
                             </td>
                             <td className="px-1 py-2">
                               {rows.length > 1 && (
@@ -1066,17 +1066,17 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                 <div className="mt-4 bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Subtotal</span>
-                    <span className="font-medium">₹{totals.subtotal.toLocaleString()}</span>
+                    <span className="font-medium">₹{totals.subtotal.toLocaleString('en-IN')}</span>
                   </div>
                   {totals.tax > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">Tax</span>
-                      <span className="font-medium">₹{totals.tax.toLocaleString()}</span>
+                      <span className="font-medium">₹{totals.tax.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t border-gray-200 pt-2">
                     <span className="font-medium text-gray-700">Total</span>
-                    <span className="font-bold text-brand text-base">₹{totals.grand.toLocaleString()}</span>
+                    <span className="font-bold text-brand text-base">₹{totals.grand.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </FormSection>

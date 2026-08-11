@@ -33,7 +33,7 @@ import {
 import { DesktopAnalyticsDashboard } from './DesktopAnalyticsDashboard';
 import { MobileAnalyticsDashboard } from './MobileAnalyticsDashboard';
 
-const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
+const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
 const RANGE_IDS = ['today', 'week', 'month', 'overall', 'custom'] as const;
 type RangeId = (typeof RANGE_IDS)[number];

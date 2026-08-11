@@ -485,7 +485,7 @@ export function CreateDistributionModal({
                                     const rawCount = pr.remainingInventory ?? pr.stock ?? 0;
                                     return {
                                       value: pr.id,
-                                      label: `${pr.name} — ₹${pr.price.toLocaleString()}${isBoxPr ? `/${pr.packName || 'Box'}` : ''}`,
+                                      label: `${pr.name} — ₹${pr.price.toLocaleString('en-IN')}${isBoxPr ? `/${pr.packName || 'Box'}` : ''}`,
                                       sublabel: isBoxPr ? `${rawCount} ${pr.packName || 'Box'}s` : `${rawCount} pcs`,
                                     };
                                   })}
@@ -606,13 +606,13 @@ export function CreateDistributionModal({
                                 <span>
                                   {row.withGst && (
                                     <span className="text-[10px] text-gray-400 block">
-                                      ₹{m.net.toLocaleString()} +GST
+                                      ₹{m.net.toLocaleString('en-IN')} +GST
                                     </span>
                                   )}
                                   {!row.withGst && !!p?.priceIncludesGst && (
                                     <span className="text-[10px] text-amber-600 block">excl. GST</span>
                                   )}
-                                  <span className="text-base">₹{m.billed.toLocaleString()}</span>
+                                  <span className="text-base">₹{m.billed.toLocaleString('en-IN')}</span>
                                 </span>
                               ) : (
                                 '-'
@@ -738,27 +738,29 @@ export function CreateDistributionModal({
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Gross Value</span>
-                    <span className="font-bold">₹{distTotals.gross.toLocaleString()}</span>
+                    <span className="font-bold">₹{distTotals.gross.toLocaleString('en-IN')}</span>
                   </div>
                   {distTotals.discount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Discount</span>
-                      <span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span>
+                      <span className="font-bold text-emerald-600">
+                        -₹{distTotals.discount.toLocaleString('en-IN')}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Subtotal (base)</span>
-                    <span className="font-bold">₹{distTotals.net.toLocaleString()}</span>
+                    <span className="font-bold">₹{distTotals.net.toLocaleString('en-IN')}</span>
                   </div>
                   {distTotals.gst > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">GST</span>
-                      <span className="font-bold">₹{distTotals.gst.toLocaleString()}</span>
+                      <span className="font-bold">₹{distTotals.gst.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
                     <span className="text-gray-700 font-medium">Total Billed Amount</span>
-                    <span className="font-bold text-lg text-brand">₹{distTotals.billed.toLocaleString()}</span>
+                    <span className="font-bold text-lg text-brand">₹{distTotals.billed.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="pt-2">
                     <label className="text-xs font-bold text-gray-400 uppercase">Amount Paid</label>
@@ -789,7 +791,7 @@ export function CreateDistributionModal({
                             : 'text-emerald-600',
                         )}
                       >
-                        ₹{Math.max(0, distTotals.billed - (parseFloat(distAmountPaid) || 0)).toLocaleString()}
+                        ₹{Math.max(0, distTotals.billed - (parseFloat(distAmountPaid) || 0)).toLocaleString('en-IN')}
                       </span>
                     </div>
                   )}

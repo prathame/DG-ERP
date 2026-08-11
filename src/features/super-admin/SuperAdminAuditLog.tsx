@@ -40,8 +40,8 @@ export function SuperAdminAuditLog() {
     fetch(`/api/super-admin/audit-log?${q.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(r => r.json())
+      .then(data => {
         setLogs(data.data || []);
         setTotal(data.total || 0);
         setTotalPages(data.totalPages || 1);
@@ -50,17 +50,26 @@ export function SuperAdminAuditLog() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchLogs(); }, [page, search, filterAction, filterEntity]);
+  useEffect(() => {
+    fetchLogs();
+  }, [page, search, filterAction, filterEntity]);
 
   const actionColor = (action: string) => {
     switch (action) {
-      case 'CREATE': return 'bg-emerald-50 text-emerald-700';
-      case 'UPDATE': return 'bg-blue-50 text-blue-700';
-      case 'DELETE': return 'bg-rose-50 text-rose-700';
-      case 'LOGIN': return 'bg-gray-100 text-gray-600';
-      case 'IMPERSONATE': return 'bg-amber-50 text-amber-700';
-      case 'PASSWORD_CHANGE': return 'bg-purple-50 text-purple-700';
-      default: return 'bg-gray-100 text-gray-600';
+      case 'CREATE':
+        return 'bg-emerald-50 text-emerald-700';
+      case 'UPDATE':
+        return 'bg-blue-50 text-blue-700';
+      case 'DELETE':
+        return 'bg-rose-50 text-rose-700';
+      case 'LOGIN':
+        return 'bg-gray-100 text-gray-600';
+      case 'IMPERSONATE':
+        return 'bg-amber-50 text-amber-700';
+      case 'PASSWORD_CHANGE':
+        return 'bg-purple-50 text-purple-700';
+      default:
+        return 'bg-gray-100 text-gray-600';
     }
   };
 
@@ -77,15 +86,23 @@ export function SuperAdminAuditLog() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
+            onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                setSearch(searchInput);
+                setPage(1);
+              }
+            }}
             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
             placeholder="Search by details, user, entity..."
           />
         </div>
         <select
           value={filterAction}
-          onChange={(e) => { setFilterAction(e.target.value); setPage(1); }}
+          onChange={e => {
+            setFilterAction(e.target.value);
+            setPage(1);
+          }}
           className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         >
           <option value="">All Actions</option>
@@ -101,7 +118,10 @@ export function SuperAdminAuditLog() {
         </select>
         <select
           value={filterEntity}
-          onChange={(e) => { setFilterEntity(e.target.value); setPage(1); }}
+          onChange={e => {
+            setFilterEntity(e.target.value);
+            setPage(1);
+          }}
           className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         >
           <option value="">All Entities</option>
@@ -131,27 +151,39 @@ export function SuperAdminAuditLog() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="py-12 text-center"><LoadingSpinner /></td></tr>
-              ) : logs.length === 0 ? (
-                <tr><td colSpan={6} className="py-12 text-center text-gray-400">No audit logs found</td></tr>
-              ) : logs.map((log) => (
-                <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                    {new Date(log.createdAt).toLocaleString()}
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <LoadingSpinner />
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium text-gray-700">{log.tenantName}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{log.userName || '-'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${actionColor(log.action)}`}>
-                      {log.action}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs capitalize">{log.entityType}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs max-w-[300px] truncate">{log.details || '-'}</td>
                 </tr>
-              ))}
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-gray-400">
+                    No audit logs found
+                  </td>
+                </tr>
+              ) : (
+                logs.map(log => (
+                  <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
+                      {new Date(log.createdAt).toLocaleString('en-IN')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium text-gray-700">{log.tenantName}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{log.userName || '-'}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${actionColor(log.action)}`}
+                      >
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs capitalize">{log.entityType}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[300px] truncate">{log.details || '-'}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -164,14 +196,14 @@ export function SuperAdminAuditLog() {
             </p>
             <div className="flex gap-1">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
                 className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
                 className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
               >

@@ -629,7 +629,7 @@ export function MastersView({
                     subtitle={v.gstNumber ? `GSTIN: ${v.gstNumber}` : v.phone || v.contactPerson || '—'}
                     trailing={
                       typeof v.totalSales === 'number' && v.totalSales > 0
-                        ? `₹${v.totalSales.toLocaleString()}`
+                        ? `₹${v.totalSales.toLocaleString('en-IN')}`
                         : undefined
                     }
                     meta={typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined}
@@ -677,7 +677,7 @@ export function MastersView({
                     icon={<Package className="text-orange-600" />}
                     title={p.name}
                     subtitle={(showHsnSac && p.hsnCode) || p.barcode || `Stock ${p.stock ?? 0}`}
-                    trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString()}` : undefined}
+                    trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString('en-IN')}` : undefined}
                     onClick={() => openFull('item')}
                   />
                 </Fragment>

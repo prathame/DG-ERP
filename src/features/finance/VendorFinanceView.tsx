@@ -247,7 +247,7 @@ export function VendorFinanceView({
       return;
     }
     if (amount > due + 0.001) {
-      toast(`Amount exceeds remaining balance (₹${due.toLocaleString()})`, 'error');
+      toast(`Amount exceeds remaining balance (₹${due.toLocaleString('en-IN')})`, 'error');
       return;
     }
 
@@ -443,12 +443,12 @@ export function VendorFinanceView({
             </style></head><body>
             <div class="header"><div class="company">${esc(companyName)}</div><div class="vendor">Payment History — ${esc(detail.vendor.name)}${detail.vendor.phone ? ` • ${esc(detail.vendor.phone)}` : ''}</div></div>
             <div class="stats">
-              <div class="stat"><div class="stat-label">Total Value</div><div class="stat-value" style="color:#2563eb">₹${detail.totalDistributedValue.toLocaleString()}</div></div>
-              <div class="stat"><div class="stat-label">Total Paid</div><div class="stat-value" style="color:#059669">₹${detail.totalPaid.toLocaleString()}</div></div>
-              <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${detail.balance > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(detail.balance).toLocaleString()}${detail.balance < 0 ? ' (Credit)' : ''}</div></div>
+              <div class="stat"><div class="stat-label">Total Value</div><div class="stat-value" style="color:#2563eb">₹${detail.totalDistributedValue.toLocaleString('en-IN')}</div></div>
+              <div class="stat"><div class="stat-label">Total Paid</div><div class="stat-value" style="color:#059669">₹${detail.totalPaid.toLocaleString('en-IN')}</div></div>
+              <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${detail.balance > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(detail.balance).toLocaleString('en-IN')}${detail.balance < 0 ? ' (Credit)' : ''}</div></div>
             </div>
             <table><thead><tr><th>Date</th><th>Method</th><th class="text-right">Amount</th><th>Reference</th><th>Notes</th></tr></thead>
-            <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${esc(formatDate(p.paymentDate as string))}</td><td>${esc(p.paymentMethod)}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td><td>${esc(p.referenceNumber || '—')}</td><td>${esc(p.notes || '—')}</td></tr>`).join('')}</tbody></table>
+            <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${esc(formatDate(p.paymentDate as string))}</td><td>${esc(p.paymentMethod)}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString('en-IN')}</td><td>${esc(p.referenceNumber || '—')}</td><td>${esc(p.notes || '—')}</td></tr>`).join('')}</tbody></table>
             <div class="print-end avoid-break footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
             </body></html>`,
       `Payment-History-${detail.vendor.name}`,
@@ -610,7 +610,7 @@ export function VendorFinanceView({
               <p className={cn('text-sm mb-4', capMobileGlass ? 'dg-m-muted' : 'text-gray-500')}>
                 Balance:{' '}
                 <span className={cn('font-bold', capMobileGlass ? 'dg-m-error' : 'text-rose-600')}>
-                  ₹{detail.balance.toLocaleString()}
+                  ₹{detail.balance.toLocaleString('en-IN')}
                 </span>
               </p>
               <form onSubmit={handleRecordPayment} className="space-y-4">
@@ -637,7 +637,7 @@ export function VendorFinanceView({
                           >
                             <p className="text-[13px] font-bold dg-m-ink">Pay toward total due</p>
                             <p className="text-[11px] dg-m-error font-bold tabular-nums mt-0.5">
-                              ₹{totalDue.toLocaleString()} open across {vendorBatches.length} distribution
+                              ₹{totalDue.toLocaleString('en-IN')} open across {vendorBatches.length} distribution
                               {vendorBatches.length !== 1 ? 's' : ''}
                             </p>
                           </button>
@@ -664,7 +664,7 @@ export function VendorFinanceView({
                               </p>
                               <p className="text-[11px] dg-m-muted mt-0.5">{formatDate(b.distributionDate)}</p>
                               <p className="text-[12px] font-bold dg-m-error tabular-nums mt-0.5">
-                                ₹{b.balanceRemaining.toLocaleString()} due
+                                ₹{b.balanceRemaining.toLocaleString('en-IN')} due
                               </p>
                             </button>
                           ))}
@@ -692,12 +692,12 @@ export function VendorFinanceView({
                           className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                         >
                           <option value="__ALL__">
-                            Pay toward total due — ₹{totalDue.toLocaleString()} (oldest first)
+                            Pay toward total due — ₹{totalDue.toLocaleString('en-IN')} (oldest first)
                           </option>
                           {vendorBatches.map(b => (
                             <option key={b.batchId} value={b.batchId}>
                               Specific: {formatDate(b.distributionDate)} — {b.productNames.join(', ')} — ₹
-                              {b.balanceRemaining.toLocaleString()} due
+                              {b.balanceRemaining.toLocaleString('en-IN')} due
                             </option>
                           ))}
                         </select>
@@ -745,7 +745,7 @@ export function VendorFinanceView({
                       className={cn('mt-1 text-xs font-medium', capMobileGlass ? 'dg-m-primary' : 'text-brand')}
                     >
                       Use full due (₹
-                      {vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0).toLocaleString()})
+                      {vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0).toLocaleString('en-IN')})
                     </button>
                   )}
                 </div>
@@ -958,7 +958,7 @@ export function VendorFinanceView({
                   </h3>
                   <p className="text-sm text-gray-500 mt-0.5">
                     {bankPreview.matched.length} matched · {bankPreview.unmatched.length} unmatched · ₹
-                    {bankPreview.totalAmount.toLocaleString()} total
+                    {bankPreview.totalAmount.toLocaleString('en-IN')} total
                   </p>
                 </div>
                 <button
@@ -1001,7 +1001,7 @@ export function VendorFinanceView({
                                 {m.description}
                               </td>
                               <td className="px-3 py-2 text-right font-semibold text-emerald-700">
-                                ₹{m.amount.toLocaleString()}
+                                ₹{m.amount.toLocaleString('en-IN')}
                               </td>
                               <td className="px-3 py-2">
                                 <p className="font-medium text-gray-900 text-xs">{m.vendorName}</p>
@@ -1014,7 +1014,7 @@ export function VendorFinanceView({
                                       key={j}
                                       className="inline-block bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-mono mr-1"
                                     >
-                                      {b.batchId.slice(-6)} ₹{b.applyAmount.toLocaleString()}
+                                      {b.batchId.slice(-6)} ₹{b.applyAmount.toLocaleString('en-IN')}
                                     </span>
                                   ))
                                 ) : (
@@ -1048,7 +1048,9 @@ export function VendorFinanceView({
                             <tr key={i}>
                               <td className="px-3 py-2 text-gray-600">{u.date || '—'}</td>
                               <td className="px-3 py-2 text-gray-700 text-xs">{u.description}</td>
-                              <td className="px-3 py-2 text-right font-semibold">₹{u.amount.toLocaleString()}</td>
+                              <td className="px-3 py-2 text-right font-semibold">
+                                ₹{u.amount.toLocaleString('en-IN')}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -1127,7 +1129,7 @@ export function VendorFinanceView({
                   >
                     {bankApplying
                       ? 'Applying...'
-                      : `Apply ${bankPreview.matched.length} Payments (₹${bankPreview.totalAmount.toLocaleString()})`}
+                      : `Apply ${bankPreview.matched.length} Payments (₹${bankPreview.totalAmount.toLocaleString('en-IN')})`}
                   </button>
                 )}
               </div>
@@ -1324,12 +1326,14 @@ export function VendorFinanceView({
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase">Total Distributed Value</p>
             <p className="text-lg sm:text-2xl font-bold text-blue-600 mt-1">
-              ₹{detail.totalDistributedValue.toLocaleString()}
+              ₹{detail.totalDistributedValue.toLocaleString('en-IN')}
             </p>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase">Total Paid</p>
-            <p className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1">₹{detail.totalPaid.toLocaleString()}</p>
+            <p className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1">
+              ₹{detail.totalPaid.toLocaleString('en-IN')}
+            </p>
           </div>
           <div
             className={cn(
@@ -1340,7 +1344,7 @@ export function VendorFinanceView({
             <p className="text-xs font-bold text-gray-400 uppercase">Balance Remaining</p>
             <p className={cn('text-2xl font-bold mt-1', detail.balance > 0 ? 'text-rose-600' : 'text-emerald-600')}>
               {detail.balance < 0 ? (
-                <>₹{Math.abs(detail.balance).toLocaleString()} credit</>
+                <>₹{Math.abs(detail.balance).toLocaleString('en-IN')} credit</>
               ) : isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
                 <span className="inline-flex items-center gap-2">
                   <PaidBadge size="md" className="text-sm px-3 py-1.5" />
@@ -1348,10 +1352,10 @@ export function VendorFinanceView({
               ) : isBillPartiallyPaid(detail.totalDistributedValue, detail.balance, detail.totalPaid) ? (
                 <span className="inline-flex flex-col items-start gap-1">
                   <PartialBadge size="sm" />
-                  <span>₹{detail.balance.toLocaleString()} due</span>
+                  <span>₹{detail.balance.toLocaleString('en-IN')} due</span>
                 </span>
               ) : (
-                <>₹{detail.balance.toLocaleString()}</>
+                <>₹{detail.balance.toLocaleString('en-IN')}</>
               )}
             </p>
           </div>
@@ -1372,7 +1376,7 @@ export function VendorFinanceView({
                 detail.payments.map(p => (
                   <div key={p.id} className="px-3 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-emerald-600">+₹{p.amount.toLocaleString()}</p>
+                      <p className="font-bold text-emerald-600">+₹{p.amount.toLocaleString('en-IN')}</p>
                       <p className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">
                         {formatDate(p.paymentDate)} &middot;{' '}
                         {p.paymentMethod === 'Bank Statement' ? (
@@ -1402,10 +1406,10 @@ export function VendorFinanceView({
                   <div>
                     <p className="text-sm font-medium">{d.productName}</p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(d.date)} &middot; {d.quantity} units &times; ₹{d.unitPrice.toLocaleString()}
+                      {formatDate(d.date)} &middot; {d.quantity} units &times; ₹{d.unitPrice.toLocaleString('en-IN')}
                     </p>
                   </div>
-                  <p className="font-bold text-sm">₹{d.total.toLocaleString()}</p>
+                  <p className="font-bold text-sm">₹{d.total.toLocaleString('en-IN')}</p>
                 </div>
               ))}
             </div>
@@ -1454,11 +1458,11 @@ export function VendorFinanceView({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">Total Distributed Value</p>
-          <p className="text-lg sm:text-2xl font-bold text-blue-600 mt-1">₹{totalValue.toLocaleString()}</p>
+          <p className="text-lg sm:text-2xl font-bold text-blue-600 mt-1">₹{totalValue.toLocaleString('en-IN')}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">Total Received</p>
-          <p className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1">₹{totalPaidAll.toLocaleString()}</p>
+          <p className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1">₹{totalPaidAll.toLocaleString('en-IN')}</p>
         </div>
         <div
           className={cn(
@@ -1468,7 +1472,7 @@ export function VendorFinanceView({
         >
           <p className="text-xs font-bold text-gray-400 uppercase">Total Outstanding</p>
           <p className={cn('text-2xl font-bold mt-1', totalOwed > 0 ? 'text-rose-600' : 'text-emerald-600')}>
-            ₹{Math.abs(totalOwed).toLocaleString()}
+            ₹{Math.abs(totalOwed).toLocaleString('en-IN')}
             {totalOwed < 0 ? ' credit' : ''}
           </p>
         </div>
@@ -1487,7 +1491,7 @@ export function VendorFinanceView({
               >
                 <div>
                   <p className="font-medium">{r.vendorName}</p>
-                  <p className="text-sm text-rose-600 font-bold">Balance: ₹{r.balance.toLocaleString()}</p>
+                  <p className="text-sm text-rose-600 font-bold">Balance: ₹{r.balance.toLocaleString('en-IN')}</p>
                 </div>
                 <button
                   type="button"
@@ -1589,25 +1593,25 @@ export function VendorFinanceView({
                           <p className="text-xs text-gray-500">{v.unitsDistributed} units</p>
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">
-                          ₹{v.totalDistributedValue.toLocaleString()}
+                          ₹{v.totalDistributedValue.toLocaleString('en-IN')}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4 font-bold text-emerald-600">
-                          ₹{v.totalPaid.toLocaleString()}
+                          ₹{v.totalPaid.toLocaleString('en-IN')}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4">
                           {v.balance < 0 ? (
                             <span className="font-bold text-blue-600">
-                              ₹{Math.abs(v.balance).toLocaleString()} credit
+                              ₹{Math.abs(v.balance).toLocaleString('en-IN')} credit
                             </span>
                           ) : isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
                             <PaidBadge size="sm" />
                           ) : isBillPartiallyPaid(v.totalDistributedValue, v.balance, v.totalPaid) ? (
                             <div className="flex flex-col gap-1 items-start">
                               <PartialBadge size="sm" />
-                              <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()} due</span>
+                              <span className="font-bold text-rose-600">₹{v.balance.toLocaleString('en-IN')} due</span>
                             </div>
                           ) : (
-                            <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()}</span>
+                            <span className="font-bold text-rose-600">₹{v.balance.toLocaleString('en-IN')}</span>
                           )}
                         </td>
                         <td className="px-3 py-3 sm:px-6 sm:py-4">

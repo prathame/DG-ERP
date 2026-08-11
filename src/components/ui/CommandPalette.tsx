@@ -110,7 +110,7 @@ export function CommandPalette({
             'product',
             `product-${p.id}`,
             p.name,
-            `₹${Number(p.price).toLocaleString()} · ${p.stock} in stock`,
+            `₹${Number(p.price).toLocaleString('en-IN')} · ${p.stock} in stock`,
             Package,
             { id: p.id, name: p.name },
           );
@@ -151,7 +151,7 @@ export function CommandPalette({
             'staff',
             `staff-${s.name}`,
             s.name,
-            `₹${Number(s.totalPaid).toLocaleString()} · ${s.payments} payments`,
+            `₹${Number(s.totalPaid).toLocaleString('en-IN')} · ${s.payments} payments`,
             IndianRupee,
             { name: s.name },
           );
