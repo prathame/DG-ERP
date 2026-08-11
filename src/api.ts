@@ -919,6 +919,28 @@ export const api = {
           notes?: string | null;
         }[]
       >('/invoice-finance/cash-income'),
+    /** Record direct cash income (always paid; never party outstanding). */
+    createCashIncome: (data: {
+      incomeHead: string;
+      amount: number;
+      incomeDate: string;
+      paymentMethod?: string;
+      referenceNumber?: string;
+      notes?: string;
+    }) =>
+      fetchApi<{
+        id: string;
+        invoiceNumber: string;
+        invoiceDate: string;
+        incomeHead: string;
+        grandTotal: number;
+        paid: number;
+        status: string;
+        notes?: string | null;
+      }>('/invoice-finance/cash-income', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     /** Flat open bills (balance > 0) for Miracle-style bill-wise outstanding. */
     openBills: () =>
       fetchApi<

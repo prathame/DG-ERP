@@ -3,7 +3,7 @@ import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { postInvoicePaymentToBooks } from '../services/opsToBooks';
+import { postCashIncomeToBooks, postInvoicePaymentToBooks } from '../services/opsToBooks';
 import type { PoolClient } from 'pg';
 
 async function booksPostPayment(
@@ -311,7 +311,7 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
   }
 });
 
-/** Cash-income invoices (Miracle CB→income) — not party bills. */
+/** Cash-income invoices (Miracle CB→income / manual) — not party bills. */
 router.get('/api/invoice-finance/cash-income', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -351,6 +351,132 @@ router.get('/api/invoice-finance/cash-income', blockVendors, async (req: AuthReq
     );
   } catch (err) {
     return handleApiError(req, res, err);
+  }
+});
+
+function cashIncomeFy(now = new Date()): string {
+  return now.getMonth() >= 3
+    ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
+    : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
+}
+
+async function allocateCashIncomeNumber(client: { query: typeof pool.query }, tenantId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1 || ':cash_income_seq'))`, [tenantId]);
+  const fy = cashIncomeFy();
+  const prefix = `CASH/${fy}/`;
+  const { rows } = await client.query(
+    `SELECT invoice_number FROM standalone_invoices
+     WHERE tenant_id = $1 AND invoice_number LIKE $2
+     ORDER BY invoice_number DESC
+     LIMIT 1`,
+    [tenantId, `${prefix}%`],
+  );
+  const last = String(rows[0]?.invoice_number || '');
+  const m = last.match(/\/(\d+)$/);
+  const next = (m ? Number(m[1]) : 0) + 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
+/**
+ * Record direct cash income (rent/scrap/misc) — always paid, never outstanding.
+ * Dual-writes Books receipt when Books ledgers exist.
+ */
+router.post('/api/invoice-finance/cash-income', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = req.headers['x-tenant-id'] as string;
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+  const body = req.body || {};
+  const incomeHead = String(body.incomeHead || body.customerName || '')
+    .trim()
+    .slice(0, 200);
+  if (!incomeHead) return res.status(400).json({ error: 'Income head is required (e.g. Rent Income)' });
+
+  const amount = Math.round((Number(body.amount) || 0) * 100) / 100;
+  if (!(amount > 0)) return res.status(400).json({ error: 'Amount must be greater than zero' });
+  if (amount > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
+
+  const incomeDate =
+    typeof body.incomeDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.incomeDate)
+      ? body.incomeDate
+      : new Date().toISOString().slice(0, 10);
+  const paymentMethod = String(body.paymentMethod || 'Cash').trim() || 'Cash';
+  const referenceNumber =
+    typeof body.referenceNumber === 'string' && body.referenceNumber.trim()
+      ? body.referenceNumber.trim().slice(0, 80)
+      : null;
+  const notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 500) : null;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id = uid('INV');
+    const invoiceNumber = await allocateCashIncomeNumber(client, tenantId);
+    const noteBody = notes || `Cash income: ${incomeHead}`;
+
+    await client.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total, grand_total,
+          status, invoice_date, invoice_kind, notes, gst_enabled)
+       VALUES ($1,$2,$3,$4,'[]',$5,0,$5,'paid',$6,'cash_income',$7,false)`,
+      [id, tenantId, invoiceNumber, incomeHead, amount, incomeDate, noteBody],
+    );
+
+    const payId = uid('IP');
+    await client.query(
+      `INSERT INTO invoice_payments
+         (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [payId, tenantId, id, amount, incomeDate, paymentMethod, referenceNumber, noteBody, `cash-income:${id}`],
+    );
+
+    try {
+      await postCashIncomeToBooks(client, tenantId, {
+        id,
+        amount,
+        incomeDate,
+        incomeHead,
+        paymentMethod,
+        referenceNumber,
+        notes: noteBody,
+        invoiceNumber,
+      });
+    } catch {
+      /* Books dual-write must not block cash income */
+    }
+
+    await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Cash Income',
+      'invoice',
+      id,
+      `${invoiceNumber} — ${incomeHead} — ₹${amount}`,
+      req.user?.userId,
+      req.user?.name,
+    );
+
+    res.status(201).json({
+      id,
+      invoiceNumber,
+      invoiceDate: incomeDate,
+      incomeHead,
+      grandTotal: amount,
+      paid: amount,
+      status: 'paid',
+      notes: noteBody,
+      paymentMethod,
+      referenceNumber,
+    });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 
