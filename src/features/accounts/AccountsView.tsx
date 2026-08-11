@@ -71,7 +71,7 @@ function fmtCurrency(n: number) {
 }
 
 export function AccountsView({
-  accessLevel = 'full',
+  accessLevel: _accessLevel = 'full',
   booksAccess = 'hidden',
   initialTab,
 }: {
@@ -80,6 +80,7 @@ export function AccountsView({
   booksAccess?: 'hidden' | 'view' | 'print' | 'full';
   initialTab?: AccountTab | string | null;
 } = {}) {
+  void _accessLevel;
   const { toast } = useToast();
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
@@ -89,7 +90,6 @@ export function AccountsView({
   const ds = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const partyLabel = tb(cfg.labels.vendors, t);
   const partySingular = partyLabel.replace(/s$/i, ''); // Vendor | Customer | Client (EN); other locales keep as-is
-  const businessType = cfg.type;
   const booksModuleOn = booksAccess !== 'hidden';
   const [tab, setTab] = useState<AccountTab>((initialTab as AccountTab) || 'pnl');
   const now = new Date();
