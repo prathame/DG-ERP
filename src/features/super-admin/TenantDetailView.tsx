@@ -33,7 +33,13 @@ import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 import { ServiceCloudSeatsPanel } from './ServiceCloudSeatsPanel';
-import { fillMissingTabPresetKeys, getTabPreset, tabToggleKeys } from '../../../shared/tabPresets';
+import {
+  fillMissingTabPresetKeys,
+  getTabPreset,
+  isMiracleBooksFamilyVisible,
+  setMiracleBooksFamilyVisible,
+  tabToggleKeysForSa,
+} from '../../../shared/tabPresets';
 interface TenantDetail {
   id: string;
   companyName: string;
@@ -1111,7 +1117,7 @@ function TabCustomization({
   onSaved: () => void;
 }) {
   const businessType = (tenant.businessType as string) || 'manufacturer';
-  const tabKeys = tabToggleKeys(businessType);
+  const tabKeys = tabToggleKeysForSa(businessType);
   const defaultConfig = getDefaultTabConfig(businessType);
   const { toast } = useToast();
   const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(() =>
@@ -1175,20 +1181,28 @@ function TabCustomization({
     }));
   const toggleVisible = (key: string) =>
     setConfig(prev => {
+      if (key === 'books') {
+        const on = isMiracleBooksFamilyVisible(prev);
+        return setMiracleBooksFamilyVisible(prev, !on, defaultConfig);
+      }
       const cur = prev[key] ?? defaultConfig[key] ?? { label: key, visible: true };
       return { ...prev, [key]: { ...cur, visible: !cur.visible } };
     });
   const isLocked = (key: string) => key === 'dashboard' || key === 'settings';
+  const rowVisible = (key: string) =>
+    key === 'books' ? isMiracleBooksFamilyVisible(config) : config[key]?.visible !== false;
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const token = session.getToken();
+      // Keep Miracle/Books family in sync on save (legacy partial configs).
+      const tabConfigToSave = setMiracleBooksFamilyVisible(config, isMiracleBooksFamilyVisible(config), defaultConfig);
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          tabConfig: config,
+          tabConfig: tabConfigToSave,
           barcodeSystemEnabled: barcodeSystem,
           multiLanguageEnabled: multiLanguage,
           inventoryTrackingEnabled: inventoryTracking,
@@ -1258,9 +1272,16 @@ function TabCustomization({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {tabKeys.map(key => (
-              <tr key={key} className={cn(!config[key]?.visible && !isLocked(key) && 'bg-gray-50/50 opacity-60')}>
+              <tr key={key} className={cn(!rowVisible(key) && !isLocked(key) && 'bg-gray-50/50 opacity-60')}>
                 <td className="px-6 py-3">
-                  <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{key}</span>
+                  <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                    {key === 'books' ? 'miracle' : key}
+                  </span>
+                  {key === 'books' && (
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Books desk + Miracle CMP import (ledgers, vouchers, products)
+                    </p>
+                  )}
                 </td>
                 <td className="px-6 py-3">
                   <input
@@ -1279,13 +1300,13 @@ function TabCustomization({
                       onClick={() => toggleVisible(key)}
                       className={cn(
                         'relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors',
-                        config[key]?.visible ? 'bg-green-500' : 'bg-gray-300',
+                        rowVisible(key) ? 'bg-green-500' : 'bg-gray-300',
                       )}
                     >
                       <span
                         className={cn(
                           'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform',
-                          config[key]?.visible ? 'translate-x-4' : 'translate-x-0',
+                          rowVisible(key) ? 'translate-x-4' : 'translate-x-0',
                         )}
                       />
                     </button>

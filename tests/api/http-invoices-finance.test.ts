@@ -181,6 +181,52 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(res.body.partyType).toBeNull();
   });
 
+  it('invoice-finance open-bills lists unpaid invoices flat', async () => {
+    const res = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
+    expect(res.status).toBe(200);
+    const rows = res.body as {
+      partyKey: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      balance: number;
+    }[];
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    expect(rows.every(r => r.balance > 0)).toBe(true);
+    expect(rows.some(r => r.partyKey === `vendor:${VENDOR}`)).toBe(true);
+    expect(rows.some(r => r.partyKey === 'name:Walk-in')).toBe(true);
+  });
+
+  it('invoice-finance payments accept bill-wise allocations', async () => {
+    const open = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
+    const vendorBills = (open.body as { partyKey: string; invoiceId: string; balance: number }[]).filter(
+      r => r.partyKey === `vendor:${VENDOR}`,
+    );
+    expect(vendorBills.length).toBeGreaterThanOrEqual(2);
+    const a = vendorBills[0]!;
+    const b = vendorBills[1]!;
+    const payA = Math.min(100, a.balance);
+    const payB = Math.min(50, b.balance);
+
+    const res = await api()
+      .post('/api/invoice-finance/payments')
+      .set(authHeaders(token, TENANT))
+      .set('Idempotency-Key', `billwise-${Date.now()}`)
+      .send({
+        allocations: [
+          { invoiceId: a.invoiceId, amount: payA },
+          { invoiceId: b.invoiceId, amount: payB },
+        ],
+        paymentDate: '2026-08-01',
+        paymentMethod: 'UPI',
+        notes: 'Bill-wise test',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.billWise).toBe(true);
+    expect(res.body.appliedInvoices).toBe(2);
+    expect(Number(res.body.amount)).toBeCloseTo(payA + payB, 2);
+  });
+
   it('POST /api/price-lists/bulk imports by product/vendor name', async () => {
     const res = await api()
       .post('/api/price-lists/bulk')

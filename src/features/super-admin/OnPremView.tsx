@@ -17,7 +17,13 @@ import {
 } from 'lucide-react';
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { useToast } from '../../components/ui';
-import { NAMED_BUSINESS_TYPES, getTabPreset, tabToggleKeys } from '../../../shared/tabPresets';
+import {
+  NAMED_BUSINESS_TYPES,
+  getTabPreset,
+  isMiracleBooksFamilyVisible,
+  setMiracleBooksFamilyVisible,
+  tabToggleKeysForSa,
+} from '../../../shared/tabPresets';
 
 const BUSINESS_TYPES = NAMED_BUSINESS_TYPES;
 
@@ -417,44 +423,59 @@ export function OnPremView({ saToken }: { saToken: string }) {
               <p className="text-xs text-gray-400 mb-3">
                 Toggle which tabs are visible. Changes push to the on-prem app on next sync.
               </p>
-              {tabToggleKeys((selected?.businessType as string) || 'manufacturer').map(tab => {
+              {tabToggleKeysForSa((selected?.businessType as string) || 'manufacturer').map(tab => {
                 const businessType = (selected?.businessType as string) || 'manufacturer';
-                const presetCfg = getTabPreset(businessType)[tab] || { label: tab, visible: true };
+                const preset = getTabPreset(businessType);
+                const presetCfg = preset[tab] || { label: tab, visible: true };
                 const baseTc = {
+                  ...preset,
                   ...((selected?.settings?.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
                   ...((localSettings.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
                 };
                 const cfg = baseTc[tab] || presetCfg;
+                const familyOn = tab === 'books' ? isMiracleBooksFamilyVisible(baseTc) : cfg.visible !== false;
                 const patchTab = (next: { label: string; visible: boolean }) =>
-                  setLocalSettings(prev => ({
-                    ...prev,
-                    tabConfig: {
-                      ...((selected?.settings?.tabConfig as Record<string, unknown>) || {}),
-                      ...((prev.tabConfig as Record<string, unknown>) || {}),
-                      [tab]: next,
-                    },
-                  }));
+                  setLocalSettings(prev => {
+                    const merged = {
+                      ...preset,
+                      ...((selected?.settings?.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
+                      ...((prev.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
+                    };
+                    if (tab === 'books') {
+                      const nextCfg = setMiracleBooksFamilyVisible(merged, next.visible, preset);
+                      nextCfg.books = { ...nextCfg.books, label: next.label || nextCfg.books.label };
+                      return { ...prev, tabConfig: nextCfg };
+                    }
+                    return {
+                      ...prev,
+                      tabConfig: { ...merged, [tab]: next },
+                    };
+                  });
                 return (
-                  <div key={tab} className="flex items-center justify-between py-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{tab}</span>
+                  <div key={tab} className="flex items-center justify-between py-1.5 gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
+                        {tab === 'books' ? 'miracle' : tab}
+                      </span>
                       <input
                         value={cfg.label}
-                        onChange={e => patchTab({ ...cfg, label: e.target.value })}
+                        onChange={e => patchTab({ ...cfg, label: e.target.value, visible: familyOn })}
                         className="text-sm border border-gray-200 rounded px-2 py-1 w-32 focus:ring-1 focus:ring-brand"
                       />
                     </div>
                     <button
-                      onClick={() => patchTab({ ...cfg, visible: !cfg.visible })}
+                      type="button"
+                      onClick={() => patchTab({ ...cfg, visible: !familyOn })}
                       className={cn(
-                        'relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors',
-                        cfg.visible ? 'bg-emerald-500' : 'bg-gray-300',
+                        'relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors shrink-0',
+                        familyOn ? 'bg-emerald-500' : 'bg-gray-300',
                       )}
+                      title={tab === 'books' ? 'Books desk + Miracle CMP import' : undefined}
                     >
                       <span
                         className={cn(
                           'inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform',
-                          cfg.visible ? 'translate-x-4' : 'translate-x-0',
+                          familyOn ? 'translate-x-4' : 'translate-x-0',
                         )}
                       />
                     </button>

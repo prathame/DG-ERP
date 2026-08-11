@@ -5,15 +5,20 @@ import {
   getTabPreset,
   getToggleableNavTabs,
   isBusinessTypeWithCustom,
+  isMiracleBooksFamilyVisible,
+  isMiracleBooksTabId,
   isNamedBusinessType,
   isPermissionModuleRelevant,
   isStaleHotelQuotationsOff,
   isTabVisibleForUser,
   isToggleableTabId,
+  MIRACLE_BOOKS_TAB_IDS,
   NAMED_BUSINESS_TYPES,
   PERMISSION_MODULE_TAB_KEY,
+  setMiracleBooksFamilyVisible,
   TAB_PRESETS,
   tabToggleKeys,
+  tabToggleKeysForSa,
 } from '../../shared/tabPresets';
 
 describe('tabPresets', () => {
@@ -168,6 +173,28 @@ describe('tabPresets', () => {
     expect(keys).toContain('masters');
   });
 
+  it('SA toggle list collapses Miracle/Books into one books row', () => {
+    const sa = tabToggleKeysForSa('service');
+    expect(sa).toContain('books');
+    expect(sa).not.toContain('book_import');
+    expect(sa).not.toContain('book_ledgers');
+    expect(sa).not.toContain('book_vouchers');
+    expect(sa).not.toContain('book_products');
+    expect(tabToggleKeys('service')).toContain('book_import');
+  });
+
+  it('setMiracleBooksFamilyVisible flips the whole Miracle family', () => {
+    const on = setMiracleBooksFamilyVisible(getTabPreset('retail'), true);
+    expect(isMiracleBooksFamilyVisible(on)).toBe(true);
+    for (const id of MIRACLE_BOOKS_TAB_IDS) expect(on[id].visible).toBe(true);
+
+    const off = setMiracleBooksFamilyVisible(on, false);
+    expect(isMiracleBooksFamilyVisible(off)).toBe(false);
+    for (const id of MIRACLE_BOOKS_TAB_IDS) expect(off[id].visible).toBe(false);
+    expect(isMiracleBooksTabId('book_import')).toBe(true);
+    expect(isMiracleBooksTabId('finance')).toBe(false);
+  });
+
   describe('isToggleableTabId', () => {
     it('excludes settings and chatbot from the per-device Settings toggle', () => {
       expect(isToggleableTabId('settings')).toBe(false);
@@ -209,14 +236,28 @@ describe('tabPresets', () => {
         const preset = getTabPreset(businessType);
         const toggles = getToggleableNavTabs(preset);
         const toggleIds = new Set(toggles.map(t => t.id));
+        const miracleOn = isMiracleBooksFamilyVisible(preset);
         for (const [id, cfg] of Object.entries(preset)) {
           if (!isToggleableTabId(id)) {
             expect(toggleIds.has(id)).toBe(false);
             continue;
           }
+          if (isMiracleBooksTabId(id)) {
+            // Family collapses to a single `books` Settings toggle
+            expect(toggleIds.has(id)).toBe(id === 'books' && miracleOn);
+            continue;
+          }
           expect(toggleIds.has(id)).toBe(cfg.visible !== false);
         }
       }
+    });
+
+    it('Miracle family appears once as books in Settings toggles', () => {
+      const toggles = getToggleableNavTabs(getTabPreset('service'));
+      const ids = toggles.map(t => t.id);
+      expect(ids).toContain('books');
+      expect(ids).not.toContain('book_import');
+      expect(ids).not.toContain('book_ledgers');
     });
 
     it('never lists settings or chatbot even though they default visible', () => {

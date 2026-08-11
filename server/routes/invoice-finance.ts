@@ -223,6 +223,70 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
   }
 });
 
+/** Flat open bills (Miracle-style bill-wise outstanding) — balance > 0 only. */
+router.get('/api/invoice-finance/open-bills', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const rows = (
+      await pool.query(
+        `
+      SELECT
+        CASE
+          WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL
+            THEN si.party_type || ':' || si.party_id
+          ELSE 'name:' || si.customer_name
+        END AS party_key,
+        si.party_type,
+        si.party_id,
+        si.customer_name AS client_name,
+        si.customer_phone AS client_phone,
+        si.id AS invoice_id,
+        si.invoice_number,
+        si.invoice_date,
+        si.due_date,
+        si.grand_total,
+        COALESCE(ip.paid, 0) AS paid,
+        (si.grand_total - COALESCE(ip.paid, 0)) AS balance,
+        si.status
+      FROM standalone_invoices si
+      LEFT JOIN (
+        SELECT invoice_id, SUM(amount) AS paid
+        FROM invoice_payments WHERE tenant_id = $1
+        GROUP BY invoice_id
+      ) ip ON si.id = ip.invoice_id
+      WHERE si.tenant_id = $1
+        AND si.status IS DISTINCT FROM 'cancelled'
+        AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+      ORDER BY si.customer_name ASC NULLS LAST, si.invoice_date ASC NULLS LAST, si.id ASC
+    `,
+        [tenantId],
+      )
+    ).rows;
+
+    res.json(
+      rows.map((r: Record<string, unknown>) => ({
+        partyKey: r.party_key as string,
+        partyType: (r.party_type as string) || null,
+        partyId: (r.party_id as string) || null,
+        clientName: r.client_name as string,
+        clientPhone: (r.client_phone as string) || null,
+        invoiceId: r.invoice_id as string,
+        invoiceNumber: r.invoice_number as string,
+        invoiceDate: r.invoice_date,
+        dueDate: r.due_date || null,
+        grandTotal: Number(r.grand_total) || 0,
+        paid: Number(r.paid) || 0,
+        balance: Number(r.balance) || 0,
+        status: r.status as string,
+      })),
+    );
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 // Invoices for a party key (vendor:ID / customer:ID / name:… or plain name for legacy)
 router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: AuthRequest, res) => {
   try {
@@ -422,12 +486,33 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const { readIdempotencyKey } = await import('../utils/idempotency');
     const idemKey = readIdempotencyKey(req);
 
-    const { invoiceId, partyKey: partyKeyRaw, amount, paymentDate, paymentMethod, referenceNumber, notes } = req.body;
-    const payAmt = Number(amount);
+    const {
+      invoiceId,
+      partyKey: partyKeyRaw,
+      amount,
+      paymentDate,
+      paymentMethod,
+      referenceNumber,
+      notes,
+      allocations: allocationsRaw,
+    } = req.body;
+    const allocations = Array.isArray(allocationsRaw)
+      ? (allocationsRaw as { invoiceId?: string; amount?: number }[])
+          .map(a => ({
+            invoiceId: String(a.invoiceId || '').trim(),
+            amount: Number(a.amount),
+          }))
+          .filter(a => a.invoiceId && Number.isFinite(a.amount) && a.amount > 0)
+      : [];
+    const payAmt = allocations.length
+      ? Math.round(allocations.reduce((s, a) => s + a.amount, 0) * 100) / 100
+      : Number(amount);
     // Reject NaN/Infinity — `Number("abc") <= 0` is false, so a bare `<= 0` check is not enough
     if (!Number.isFinite(payAmt) || payAmt <= 0) return res.status(400).json({ error: 'Positive amount required' });
     if (payAmt > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
-    if (!invoiceId && !partyKeyRaw) return res.status(400).json({ error: 'Invoice ID or partyKey required' });
+    if (!invoiceId && !partyKeyRaw && !allocations.length) {
+      return res.status(400).json({ error: 'Invoice ID, partyKey, or allocations required' });
+    }
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
     const pMethod = paymentMethod || 'Cash';
 
@@ -452,6 +537,87 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
           replayed: true,
         });
       }
+    }
+
+    // Bill-wise: explicit splits across selected open invoices
+    if (allocations.length) {
+      let firstId: string | null = null;
+      let appliedCount = 0;
+      let partyLabel = '';
+      for (const alloc of allocations) {
+        const inv = (
+          await client.query(
+            `SELECT id, grand_total, customer_name FROM standalone_invoices
+             WHERE id = $1 AND tenant_id = $2 AND status IS DISTINCT FROM 'cancelled' FOR UPDATE`,
+            [alloc.invoiceId, tenantId],
+          )
+        ).rows[0] as { id: string; grand_total: number; customer_name: string } | undefined;
+        if (!inv) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: `Invoice not found: ${alloc.invoiceId}` });
+        }
+        const alreadyPaid = Number(
+          (
+            await client.query(
+              'SELECT COALESCE(SUM(amount),0) as t FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
+              [alloc.invoiceId, tenantId],
+            )
+          ).rows[0].t,
+        );
+        const remaining = Number(inv.grand_total) - alreadyPaid;
+        if (alloc.amount > remaining + 0.001) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: `Payment for ${inv.customer_name} exceeds remaining (₹${Math.max(0, remaining).toFixed(2)})`,
+          });
+        }
+        const id = uid('IP');
+        if (!firstId) firstId = id;
+        if (!partyLabel) partyLabel = inv.customer_name;
+        await client.query(
+          `INSERT INTO invoice_payments
+             (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [
+            id,
+            tenantId,
+            alloc.invoiceId,
+            alloc.amount,
+            pDate,
+            pMethod,
+            referenceNumber || null,
+            notes ? `${notes} (bill-wise)` : `Bill-wise payment`,
+            firstId === id ? idemKey : null,
+          ],
+        );
+        if (alreadyPaid + alloc.amount >= Number(inv.grand_total) - 0.001) {
+          await client.query("UPDATE standalone_invoices SET status = 'paid' WHERE id = $1 AND tenant_id = $2", [
+            alloc.invoiceId,
+            tenantId,
+          ]);
+        }
+        appliedCount += 1;
+      }
+      await client.query('COMMIT');
+      await logAudit(
+        pool,
+        tenantId,
+        'Invoice Payment',
+        'invoice_payment',
+        firstId || '',
+        `₹${payAmt.toLocaleString()} bill-wise across ${appliedCount} invoice(s) for ${partyLabel}`,
+        req.user?.userId,
+        req.user?.name,
+      );
+      return res.status(201).json({
+        id: firstId,
+        invoiceId: null,
+        amount: payAmt,
+        paymentDate: pDate,
+        paymentMethod: pMethod,
+        appliedInvoices: appliedCount,
+        billWise: true,
+      });
     }
 
     // Collective: apply toward party's total due, oldest invoice first

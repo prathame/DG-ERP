@@ -41,15 +41,24 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
+type OpenBill = Awaited<ReturnType<typeof api.invoiceFinance.openBills>>[number];
 type PayModal = {
-  /** collective = toward party total (FIFO); invoice = one bill; advance = no outstanding */
-  mode: 'collective' | 'invoice' | 'advance';
+  /** collective = FIFO; invoice = one bill; bills = selected bill-wise; advance = no outstanding */
+  mode: 'collective' | 'invoice' | 'bills' | 'advance';
   invoiceId: string | null;
   invoiceNumber: string;
   balance: number;
+  /** partyKey when paying from bill-wise list without opening client detail */
+  partyKey?: string;
 };
 
 const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
+
+function sumBillAllocations(map: Record<string, string>): number {
+  let total = 0;
+  for (const v of Object.values(map)) total += parseFloat(v) || 0;
+  return Math.round(total * 100) / 100;
+}
 
 export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
@@ -58,6 +67,8 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   const isService = cfg.type === 'service';
   const { confirm, ConfirmRenderer } = useConfirm();
   const [summary, setSummary] = useState<Summary[]>([]);
+  const [openBills, setOpenBills] = useState<OpenBill[]>([]);
+  const [listView, setListView] = useState<'parties' | 'bills'>('parties');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   /** partyKey from summary (vendor:ID | customer:ID | name:…) */
@@ -67,6 +78,8 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<InvoicePartyPrefill | null>(null);
   const [payModal, setPayModal] = useState<PayModal | null>(null);
+  /** invoiceId → amount when mode === 'bills' */
+  const [billAllocations, setBillAllocations] = useState<Record<string, string>>({});
   const [payForm, setPayForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -76,11 +89,18 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   });
   const [submitting, setSubmitting] = useState(false);
   const offlineAdvance = isServiceMobileMode();
+  /** After opening a party from bill-wise list, open pay once detail loads. */
+  const [pendingBillPay, setPendingBillPay] = useState<{
+    partyKey: string;
+    invoiceId?: string;
+    billWise?: boolean;
+  } | null>(null);
 
   // Cap/PWA back: pay/create → client detail → finance list.
   useEscapeKey(() => {
     if (payModal) {
       setPayModal(null);
+      setBillAllocations({});
       return true;
     }
     if (createOpen) {
@@ -96,8 +116,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     return false;
   });
 
+  const loadOpenBills = () => {
+    api.invoiceFinance
+      .openBills()
+      .then(rows => setOpenBills(Array.isArray(rows) ? rows : []))
+      .catch(() => setOpenBills([]));
+  };
+
   const loadSummary = () => {
     setLoading(true);
+    loadOpenBills();
     api.invoiceFinance
       .summary()
       .then(rows => setSummary(Array.isArray(rows) ? rows : []))
@@ -187,7 +215,8 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setCreateOpen(true);
   };
 
-  const openPay = (inv: ClientDetail['invoices'][0]) => {
+  const openPay = (inv: ClientDetail['invoices'][0], partyKey?: string) => {
+    setBillAllocations({});
     setPayForm({
       amount: String(inv.balance),
       paymentDate: new Date().toISOString().slice(0, 10),
@@ -200,8 +229,62 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       balance: inv.balance,
+      partyKey,
     });
   };
+
+  const openBillWisePay = (partyKey: string, invoices: { id: string; invoiceNumber: string; balance: number }[]) => {
+    const open = invoices.filter(i => i.balance > 0.001);
+    if (!open.length) {
+      toast('No outstanding bills', 'info');
+      return;
+    }
+    const alloc: Record<string, string> = {};
+    for (const inv of open) alloc[inv.id] = String(inv.balance);
+    const total = open.reduce((s, i) => s + i.balance, 0);
+    setBillAllocations(alloc);
+    setPayForm({
+      amount: String(Math.round(total * 100) / 100),
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'Cash',
+      referenceNumber: '',
+      notes: '',
+    });
+    setPayModal({
+      mode: 'bills',
+      invoiceId: null,
+      invoiceNumber: `${open.length} bill(s)`,
+      balance: total,
+      partyKey,
+    });
+  };
+
+  const openClientAndPayBill = (partyKey: string, invoiceId: string) => {
+    setPendingBillPay({ partyKey, invoiceId });
+    openClient(partyKey);
+  };
+
+  const openClientAndPayBillWise = (partyKey: string) => {
+    setPendingBillPay({ partyKey, billWise: true });
+    openClient(partyKey);
+  };
+
+  useEffect(() => {
+    if (!pendingBillPay || !detail || selected !== pendingBillPay.partyKey || detailLoading) return;
+    const unpaid = detail.invoices.filter(i => i.balance > 0);
+    if (pendingBillPay.billWise) {
+      openBillWisePay(pendingBillPay.partyKey, unpaid);
+    } else if (pendingBillPay.invoiceId) {
+      const inv =
+        unpaid.find(i => i.id === pendingBillPay.invoiceId) ||
+        detail.invoices.find(i => i.id === pendingBillPay.invoiceId);
+      if (inv && inv.balance > 0) openPay(inv, pendingBillPay.partyKey);
+      else toast('Bill is already paid', 'info');
+    }
+    setPendingBillPay(null);
+    // one-shot after detail load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, detailLoading, selected, pendingBillPay]);
 
   const openAdvancePay = () => {
     if (!selected) return;
@@ -231,6 +314,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       toast('No outstanding balance', 'info');
       return;
     }
+    setBillAllocations({});
     setPayForm({
       amount: '',
       paymentDate: new Date().toISOString().slice(0, 10),
@@ -243,12 +327,18 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       invoiceId: null,
       invoiceNumber: 'Total due',
       balance: totalDue,
+      partyKey: selected,
     });
   };
 
   const openRecordPayment = () => {
     const unpaid = (detail?.invoices || []).filter(i => i.balance > 0);
     if (unpaid.length > 0) {
+      // Prefer bill-wise when multiple open bills (India day-to-day)
+      if (unpaid.length > 1 && selected) {
+        openBillWisePay(selected, unpaid);
+        return;
+      }
       openCollectivePay();
       return;
     }
@@ -261,7 +351,46 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!payModal || !selected) return;
+    if (!payModal) return;
+    const partyKey = payModal.partyKey || selected;
+    if (!partyKey && payModal.mode !== 'invoice' && payModal.mode !== 'bills') return;
+
+    if (payModal.mode === 'bills') {
+      const allocations = Object.entries(billAllocations)
+        .map(([invoiceId, raw]) => ({ invoiceId, amount: parseFloat(String(raw)) }))
+        .filter(a => Number.isFinite(a.amount) && a.amount > 0);
+      if (!allocations.length) {
+        toast('Select at least one bill with an amount', 'error');
+        return;
+      }
+      const amount = sumBillAllocations(billAllocations);
+      if (amount > payModal.balance + 0.001) {
+        toast(`Amount exceeds selected bills due (${fmt(payModal.balance)})`, 'error');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await api.invoiceFinance.recordPayment({
+          allocations,
+          amount,
+          paymentDate: payForm.paymentDate,
+          paymentMethod: payForm.paymentMethod,
+          referenceNumber: payForm.referenceNumber || undefined,
+          notes: payForm.notes || 'Bill-wise payment',
+        });
+        toast(`Payment applied to ${allocations.length} bill(s)`, 'success');
+        setPayModal(null);
+        setBillAllocations({});
+        if (selected) loadDetail(selected);
+        loadSummary();
+      } catch (err) {
+        toast((err as Error).message, 'error');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     const amount = parseFloat(payForm.amount);
     if (!amount || amount <= 0) {
       toast('Enter a valid amount', 'error');
@@ -282,7 +411,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setSubmitting(true);
     try {
       await api.invoiceFinance.recordPayment({
-        ...(payModal.mode === 'invoice' ? { invoiceId: payModal.invoiceId || undefined } : { partyKey: selected }),
+        ...(payModal.mode === 'invoice'
+          ? { invoiceId: payModal.invoiceId || undefined }
+          : { partyKey: partyKey || undefined }),
         amount,
         paymentDate: payForm.paymentDate,
         paymentMethod: payForm.paymentMethod,
@@ -304,7 +435,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         'success',
       );
       setPayModal(null);
-      loadDetail(selected);
+      if (selected) loadDetail(selected);
       loadSummary();
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -340,6 +471,15 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     if (!search) return true;
     const q = search.toLowerCase();
     return (c.clientName || '').toLowerCase().includes(q) || (c.clientPhone || '').includes(search);
+  });
+  const filteredBills = openBills.filter(b => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (b.clientName || '').toLowerCase().includes(q) ||
+      (b.clientPhone || '').includes(search) ||
+      (b.invoiceNumber || '').toLowerCase().includes(q)
+    );
   });
   const totalReceived = safeSummary.reduce((s, c) => s + (Number(c.totalPaid) || 0), 0);
   const totalInvoiced = safeSummary.reduce((s, c) => s + (Number(c.totalInvoiced) || 0), 0);
@@ -595,6 +735,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   No outstanding invoice — cash is held as advance and applies to the next bill for{' '}
                   <span className="font-bold text-gray-700">{detail?.clientName}</span>.
                 </>
+              ) : payModal.mode === 'bills' ? (
+                <>
+                  Bill-wise · <span className="font-bold text-rose-600">{fmt(Math.max(0, payModal.balance))}</span> on
+                  selected bills
+                </>
               ) : (
                 <>
                   {detail?.clientName || 'Client'} · Open balance{' '}
@@ -602,13 +747,19 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 </>
               )
             }
-            onClose={() => setPayModal(null)}
-            size="sm"
+            onClose={() => {
+              setPayModal(null);
+              setBillAllocations({});
+            }}
+            size={payModal.mode === 'bills' ? 'md' : 'sm'}
             footer={
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setPayModal(null)}
+                  onClick={() => {
+                    setPayModal(null);
+                    setBillAllocations({});
+                  }}
                   className="flex-1 py-2 border rounded-lg font-medium"
                 >
                   {t('common.cancel')}
@@ -625,76 +776,160 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             }
           >
             <form id="invoice-finance-pay-form" onSubmit={handlePay} className="space-y-4">
-              {payModal.mode !== 'advance' && (
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Apply payment</label>
-                  <select
-                    value={payModal.mode === 'collective' ? '__ALL__' : payModal.invoiceId || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      const unpaid = (detail?.invoices || []).filter(i => i.balance > 0);
-                      const totalDue = Math.max(0, Number(detail?.balance) || 0);
-                      if (val === '__ALL__') {
-                        setPayModal({
-                          mode: 'collective',
-                          invoiceId: null,
-                          invoiceNumber: 'Total due',
-                          balance: totalDue,
-                        });
-                        return;
+              {payModal.mode === 'bills' ? (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Bills (edit amount or uncheck)</label>
+                  <div className="max-h-56 overflow-y-auto border border-gray-100 rounded-xl divide-y">
+                    {(
+                      detail?.invoices
+                        ?.filter(i => i.balance > 0)
+                        .map(i => ({ id: i.id, invoiceNumber: i.invoiceNumber, balance: i.balance })) ||
+                      openBills
+                        .filter(b => b.partyKey === (payModal.partyKey || selected) && b.balance > 0)
+                        .map(b => ({ id: b.invoiceId, invoiceNumber: b.invoiceNumber, balance: b.balance }))
+                    ).map(inv => {
+                      const checked = billAllocations[inv.id] != null;
+                      return (
+                        <label key={inv.id} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              setBillAllocations(prev => {
+                                const next = { ...prev };
+                                if (e.target.checked) next[inv.id] = String(inv.balance);
+                                else delete next[inv.id];
+                                setPayModal(m =>
+                                  m
+                                    ? {
+                                        ...m,
+                                        invoiceNumber: `${Object.keys(next).length} bill(s)`,
+                                      }
+                                    : m,
+                                );
+                                setPayForm(f => ({ ...f, amount: String(sumBillAllocations(next)) }));
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="flex-1 min-w-0">
+                            <span className="font-medium truncate block">{inv.invoiceNumber}</span>
+                            <span className="text-xs text-gray-400">Due {fmt(inv.balance)}</span>
+                          </span>
+                          <input
+                            type="number"
+                            min={0.01}
+                            step={0.01}
+                            disabled={!checked}
+                            value={checked ? billAllocations[inv.id] : ''}
+                            onChange={e => {
+                              const v = e.target.value;
+                              setBillAllocations(prev => {
+                                const next = { ...prev, [inv.id]: v };
+                                setPayForm(f => ({ ...f, amount: String(sumBillAllocations(next)) }));
+                                return next;
+                              });
+                            }}
+                            className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-right disabled:bg-gray-50"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Total this receipt: <strong>{fmt(sumBillAllocations(billAllocations))}</strong>
+                  </p>
+                </div>
+              ) : (
+                payModal.mode !== 'advance' &&
+                detail && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Apply payment</label>
+                    <select
+                      value={
+                        payModal.mode === 'collective'
+                          ? '__ALL__'
+                          : payModal.mode === 'bills'
+                            ? '__BILLS__'
+                            : payModal.invoiceId || ''
                       }
-                      const inv = unpaid.find(i => i.id === val);
-                      if (!inv) return;
-                      setPayModal({
-                        mode: 'invoice',
-                        invoiceId: inv.id,
-                        invoiceNumber: inv.invoiceNumber,
-                        balance: inv.balance,
-                      });
-                      setPayForm(f => ({ ...f, amount: String(inv.balance) }));
-                    }}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const unpaid = (detail?.invoices || []).filter(i => i.balance > 0);
+                        const totalDue = Math.max(0, Number(detail?.balance) || 0);
+                        if (val === '__ALL__') {
+                          setBillAllocations({});
+                          setPayModal({
+                            mode: 'collective',
+                            invoiceId: null,
+                            invoiceNumber: 'Total due',
+                            balance: totalDue,
+                            partyKey: selected || undefined,
+                          });
+                          return;
+                        }
+                        if (val === '__BILLS__') {
+                          openBillWisePay(selected || '', unpaid);
+                          return;
+                        }
+                        const inv = unpaid.find(i => i.id === val);
+                        if (!inv) return;
+                        setBillAllocations({});
+                        setPayModal({
+                          mode: 'invoice',
+                          invoiceId: inv.id,
+                          invoiceNumber: inv.invoiceNumber,
+                          balance: inv.balance,
+                          partyKey: selected || undefined,
+                        });
+                        setPayForm(f => ({ ...f, amount: String(inv.balance) }));
+                      }}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    >
+                      <option value="__BILLS__">Bill-wise — pick bills & amounts</option>
+                      <option value="__ALL__">
+                        Pay toward total due — {fmt(Math.max(0, Number(detail?.balance) || 0))} (oldest first)
+                      </option>
+                      {(detail?.invoices || [])
+                        .filter(i => i.balance > 0)
+                        .map(inv => (
+                          <option key={inv.id} value={inv.id}>
+                            Specific: {inv.invoiceNumber} — {fmt(inv.balance)} due
+                          </option>
+                        ))}
+                    </select>
+                    {payModal.mode === 'collective' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Any amount is split across open invoices, oldest first.
+                      </p>
+                    )}
+                  </div>
+                )
+              )}
+              {payModal.mode !== 'bills' && (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.amount')} (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    min={0.01}
+                    step={0.01}
+                    value={payForm.amount}
+                    onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
                     className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  >
-                    <option value="__ALL__">
-                      Pay toward total due — {fmt(Math.max(0, Number(detail?.balance) || 0))} (oldest first)
-                    </option>
-                    {(detail?.invoices || [])
-                      .filter(i => i.balance > 0)
-                      .map(inv => (
-                        <option key={inv.id} value={inv.id}>
-                          Specific: {inv.invoiceNumber} — {fmt(inv.balance)} due
-                        </option>
-                      ))}
-                  </select>
-                  {payModal.mode === 'collective' && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Any amount is split across open invoices, oldest first.
-                    </p>
+                    placeholder="e.g. 10000"
+                  />
+                  {payModal.mode === 'collective' && payModal.balance > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPayForm(f => ({ ...f, amount: String(payModal.balance) }))}
+                      className="mt-1 text-xs font-medium text-brand"
+                    >
+                      Use full due ({fmt(payModal.balance)})
+                    </button>
                   )}
                 </div>
               )}
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.amount')} (₹)</label>
-                <input
-                  type="number"
-                  required
-                  min={0.01}
-                  step={0.01}
-                  value={payForm.amount}
-                  onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
-                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  placeholder="e.g. 10000"
-                />
-                {payModal.mode === 'collective' && payModal.balance > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPayForm(f => ({ ...f, amount: String(payModal.balance) }))}
-                    className="mt-1 text-xs font-medium text-brand"
-                  >
-                    Use full due ({fmt(payModal.balance)})
-                  </button>
-                )}
-              </div>
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.paymentDate')}</label>
                 <input
@@ -742,15 +977,39 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     );
   }
 
-  // ── Client cards (Distribution-style) ─────────────────────────────────────
+  // ── Client cards / bill-wise outstanding ──────────────────────────────────
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold">{clientsLabel}</h2>
+          <h2 className="text-xl font-bold">{listView === 'bills' ? 'Bill-wise outstanding' : clientsLabel}</h2>
           <p className="text-sm text-gray-500">
-            Click a {clientsLabel.replace(/s$/, '').toLowerCase()} to view their invoices and payments
+            {listView === 'bills'
+              ? 'Open bills by party — pay against specific invoice numbers'
+              : `Click a ${clientsLabel.replace(/s$/, '').toLowerCase()} to view their invoices and payments`}
           </p>
+        </div>
+        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm font-semibold">
+          <button
+            type="button"
+            onClick={() => setListView('parties')}
+            className={cn(
+              'px-3 py-1.5 rounded-lg',
+              listView === 'parties' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            By party
+          </button>
+          <button
+            type="button"
+            onClick={() => setListView('bills')}
+            className={cn(
+              'px-3 py-1.5 rounded-lg',
+              listView === 'bills' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            By bill
+          </button>
         </div>
       </div>
 
@@ -793,7 +1052,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder={`${t('common.search')} ${clientsLabel.toLowerCase().replace(/s$/, '')}…`}
+          placeholder={
+            listView === 'bills'
+              ? 'Search party or bill number…'
+              : `${t('common.search')} ${clientsLabel.toLowerCase().replace(/s$/, '')}…`
+          }
           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         />
       </div>
@@ -802,6 +1065,103 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <div className="bg-white rounded-xl border border-gray-100 p-12 flex justify-center">
           <LoadingSpinner />
         </div>
+      ) : listView === 'bills' ? (
+        filteredBills.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <FileText size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500 mb-1">{search ? 'No matching open bills' : 'No open bills'}</p>
+            <p className="text-sm text-gray-400">
+              {search
+                ? 'Try another name or bill number'
+                : 'All invoices are fully paid — or create new invoices first'}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="sm:hidden space-y-2">
+              {filteredBills.map(b => (
+                <Fragment key={b.invoiceId}>
+                  <MobileListRow
+                    icon={<FileText />}
+                    title={b.invoiceNumber || 'Bill'}
+                    subtitle={`${b.clientName || 'Unknown'} · ${b.invoiceDate ? formatDate(String(b.invoiceDate)) : ''}`}
+                    trailing={<span className="text-rose-600">{fmt(b.balance)}</span>}
+                    meta="Due"
+                    onClick={() => openClient(b.partyKey)}
+                  />
+                </Fragment>
+              ))}
+            </div>
+            <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs font-bold uppercase text-gray-400">
+                  <tr>
+                    <th className="text-left px-4 py-3">Party</th>
+                    <th className="text-left px-4 py-3">Bill</th>
+                    <th className="text-left px-4 py-3">Date</th>
+                    <th className="text-right px-4 py-3">Bill amt</th>
+                    <th className="text-right px-4 py-3">Received</th>
+                    <th className="text-right px-4 py-3">Due</th>
+                    <th className="text-right px-4 py-3"> </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredBills.map(b => (
+                    <tr key={b.invoiceId} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => openClient(b.partyKey)}
+                          className="font-semibold text-left hover:text-brand"
+                        >
+                          {b.clientName || 'Unknown'}
+                        </button>
+                        {b.clientPhone && <p className="text-xs text-gray-400">{b.clientPhone}</p>}
+                      </td>
+                      <td className="px-4 py-3 font-medium">{b.invoiceNumber}</td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {b.invoiceDate ? formatDate(String(b.invoiceDate)) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right">{fmt(b.grandTotal)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{fmt(b.paid)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-rose-600">{fmt(b.balance)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {!isReadOnly && (
+                          <div className="inline-flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openClientAndPayBill(b.partyKey, b.invoiceId)}
+                              className="px-2.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-50"
+                            >
+                              Pay
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openClientAndPayBillWise(b.partyKey)}
+                              className="px-2.5 py-1.5 text-xs font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+                              title="Pay multiple bills for this party"
+                            >
+                              Bills
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500 flex justify-between">
+                <span>
+                  {filteredBills.length} open bill{filteredBills.length !== 1 ? 's' : ''}
+                </span>
+                <span>
+                  Total due:{' '}
+                  <strong className="text-rose-600">{fmt(filteredBills.reduce((s, b) => s + b.balance, 0))}</strong>
+                </span>
+              </div>
+            </div>
+          </>
+        )
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <FileText size={40} className="mx-auto mb-3 text-gray-300" />
