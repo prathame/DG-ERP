@@ -19,6 +19,7 @@ import {
   createBookVoucher,
   type BookVoucherType,
 } from '../services/bookVouchers';
+import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
 
 const router = Router();
 const uploadDir = path.join(os.tmpdir(), 'miracle-uploads');
@@ -107,6 +108,128 @@ router.get('/api/books/ledgers', blockVendors, async (req: AuthRequest, res) => 
         externalRef: r.external_ref,
       })),
     );
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Party / ledger statement: opening → period movements → closing (Books double-entry). */
+router.get('/api/books/ledgers/:id/statement', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { id } = req.params;
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+
+    const ledger = (
+      await pool.query(
+        `SELECT l.*, g.name AS group_name
+         FROM book_ledgers l
+         LEFT JOIN book_account_groups g ON g.id = l.group_id AND g.tenant_id = l.tenant_id
+         WHERE l.id = $1 AND l.tenant_id = $2`,
+        [id, tenantId],
+      )
+    ).rows[0];
+    if (!ledger) return res.status(404).json({ error: 'Ledger not found' });
+
+    const bookOpening = signedOpeningBalance(ledger.opening_balance, ledger.opening_side);
+
+    // Movements before `from` adjust the period opening (Miracle-style as-on date).
+    let priorSigned = 0;
+    if (from) {
+      const prior = await pool.query(
+        `SELECT COALESCE(SUM(e.debit),0)::float AS debit, COALESCE(SUM(e.credit),0)::float AS credit
+         FROM book_voucher_entries e
+         JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+         WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date < $3`,
+        [tenantId, id, from],
+      );
+      priorSigned = Number(prior.rows[0]?.debit || 0) - Number(prior.rows[0]?.credit || 0);
+    }
+    const openingSigned = bookOpening + priorSigned;
+    const opening = splitDrCr(openingSigned);
+
+    const params: unknown[] = [tenantId, id];
+    let sql = `
+      SELECT e.voucher_id, v.voucher_date, v.voucher_number, v.voucher_type, v.narration,
+             e.debit::float AS debit, e.credit::float AS credit
+      FROM book_voucher_entries e
+      JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+      WHERE e.tenant_id = $1 AND e.ledger_id = $2`;
+    if (from) {
+      params.push(from);
+      sql += ` AND v.voucher_date >= $${params.length}`;
+    }
+    if (to) {
+      params.push(to);
+      sql += ` AND v.voucher_date <= $${params.length}`;
+    }
+    sql += ` ORDER BY v.voucher_date, v.voucher_number NULLS LAST, e.line_no LIMIT 10000`;
+
+    const { rows } = await pool.query(sql, params);
+    const lines = buildStatementLines(
+      openingSigned,
+      rows.map(r => ({
+        voucherId: r.voucher_id,
+        voucherDate: r.voucher_date,
+        voucherNumber: r.voucher_number,
+        voucherType: r.voucher_type,
+        narration: r.narration,
+        debit: Number(r.debit || 0),
+        credit: Number(r.credit || 0),
+      })),
+    );
+
+    const periodDebit = lines.reduce((s, l) => s + l.debit, 0);
+    const periodCredit = lines.reduce((s, l) => s + l.credit, 0);
+    const closingSigned = lines.length ? lines[lines.length - 1].balance : openingSigned;
+    const closing = splitDrCr(closingSigned);
+
+    res.json({
+      ledger: {
+        id: ledger.id,
+        name: ledger.name,
+        groupName: ledger.group_name,
+        nature: ledger.nature,
+        ledgerType: ledger.ledger_type,
+        gstin: ledger.gstin,
+        externalRef: ledger.external_ref,
+      },
+      from,
+      to,
+      opening: {
+        debit: opening.debit,
+        credit: opening.credit,
+        balance: openingSigned,
+        balanceSide: opening.side,
+        balanceLabel: formatBalanceLabel(openingSigned),
+      },
+      lines: lines.map(l => ({
+        voucherId: l.voucherId,
+        date: typeof l.voucherDate === 'string' ? l.voucherDate.slice(0, 10) : l.voucherDate,
+        voucherNumber: l.voucherNumber,
+        voucherType: l.voucherType,
+        narration: l.narration,
+        debit: l.debit,
+        credit: l.credit,
+        balance: l.balance,
+        balanceSide: l.balanceSide,
+        balanceLabel: l.balanceLabel,
+      })),
+      totals: {
+        debit: Math.round(periodDebit * 100) / 100,
+        credit: Math.round(periodCredit * 100) / 100,
+      },
+      closing: {
+        debit: closing.debit,
+        credit: closing.credit,
+        balance: closingSigned,
+        balanceSide: closing.side,
+        balanceLabel: formatBalanceLabel(closingSigned),
+      },
+      count: lines.length,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
