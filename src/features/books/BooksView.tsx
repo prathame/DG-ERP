@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
-import { BookOpen, FileUp, Landmark, Package, Receipt } from 'lucide-react';
+import { BookOpen, FileUp, Landmark, Package, Plus, Receipt } from 'lucide-react';
 import { MiracleImportPanel, summaryCount } from './MiracleImportPanel';
+import { CreateVoucherModal } from './CreateVoucherModal';
 
 type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import';
 
@@ -67,6 +68,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [showCreateVoucher, setShowCreateVoucher] = useState(false);
+  const [vouchersTick, setVouchersTick] = useState(0);
 
   useEffect(() => {
     setPanel(initialPanel);
@@ -104,7 +107,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
     return () => {
       cancelled = true;
     };
-  }, [panel, search, loadSummary]);
+  }, [panel, search, loadSummary, vouchersTick]);
 
   const tabs: { id: BooksPanel; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <BookOpen size={16} /> },
@@ -291,33 +294,65 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
           </table>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">No.</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Party</th>
-                <th className="px-3 py-2">Narration</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vouchers.map(v => (
-                <tr key={v.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {typeof v.voucherDate === 'string' ? v.voucherDate.slice(0, 10) : String(v.voucherDate)}
-                  </td>
-                  <td className="px-3 py-2">{v.voucherNumber || '—'}</td>
-                  <td className="px-3 py-2 uppercase">{v.voucherType}</td>
-                  <td className="px-3 py-2">{v.partyName || v.contraName || '—'}</td>
-                  <td className="px-3 py-2 max-w-xs truncate text-slate-600">{v.narration || '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(v.amount)}</td>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-500">
+              Enter receipt, payment, contra, or journal — same mental model as Miracle cash/bank & journals.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCreateVoucher(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-600"
+            >
+              <Plus size={16} />
+              New voucher
+            </button>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">No.</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Party</th>
+                  <th className="px-3 py-2">Narration</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {vouchers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
+                      No vouchers yet — import from Miracle or create one with New voucher.
+                    </td>
+                  </tr>
+                ) : (
+                  vouchers.map(v => (
+                    <tr key={v.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {typeof v.voucherDate === 'string' ? v.voucherDate.slice(0, 10) : String(v.voucherDate)}
+                      </td>
+                      <td className="px-3 py-2">{v.voucherNumber || '—'}</td>
+                      <td className="px-3 py-2 uppercase">{v.voucherType}</td>
+                      <td className="px-3 py-2">{v.partyName || v.contraName || '—'}</td>
+                      <td className="px-3 py-2 max-w-xs truncate text-slate-600">{v.narration || '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(v.amount)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {showCreateVoucher && (
+            <CreateVoucherModal
+              onClose={() => setShowCreateVoucher(false)}
+              onCreated={async () => {
+                setVouchersTick(t => t + 1);
+                await loadSummary();
+              }}
+            />
+          )}
         </div>
       )}
     </div>

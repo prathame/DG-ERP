@@ -13,6 +13,12 @@ import {
   locateCompanyDir,
   MiracleImportValidationError,
 } from '../services/miracleImport';
+import {
+  BOOK_VOUCHER_TYPES,
+  BookVoucherValidationError,
+  createBookVoucher,
+  type BookVoucherType,
+} from '../services/bookVouchers';
 
 const router = Router();
 const uploadDir = path.join(os.tmpdir(), 'miracle-uploads');
@@ -277,6 +283,76 @@ router.get('/api/books/day-book', blockVendors, async (req: AuthRequest, res) =>
     );
   } catch (err) {
     return handleApiError(req, res, err);
+  }
+});
+
+/** Create a Books voucher (receipt / payment / journal / contra). */
+router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+  const body = req.body || {};
+  const voucherType = String(body.voucherType || '').toLowerCase() as BookVoucherType;
+  if (!BOOK_VOUCHER_TYPES.includes(voucherType)) {
+    return res.status(400).json({
+      error: `voucherType must be one of: ${BOOK_VOUCHER_TYPES.join(', ')}`,
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const created = await createBookVoucher(client, tenantId, {
+      voucherType,
+      voucherDate: String(body.voucherDate || ''),
+      voucherNumber: body.voucherNumber ?? null,
+      narration: body.narration ?? null,
+      partyLedgerId: body.partyLedgerId ?? null,
+      contraLedgerId: body.contraLedgerId ?? null,
+      amount: body.amount != null ? Number(body.amount) : undefined,
+      entries: Array.isArray(body.entries) ? body.entries : undefined,
+    });
+    await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Books Voucher Created',
+      'book_voucher',
+      created.id,
+      `${created.voucherType} ₹${created.amount}`,
+    );
+    const detail = (
+      await pool.query(
+        `SELECT v.*, pl.name AS party_name, cl.name AS contra_name
+         FROM book_vouchers v
+         LEFT JOIN book_ledgers pl ON pl.id = v.party_ledger_id AND pl.tenant_id = v.tenant_id
+         LEFT JOIN book_ledgers cl ON cl.id = v.contra_ledger_id AND cl.tenant_id = v.tenant_id
+         WHERE v.id = $1 AND v.tenant_id = $2`,
+        [created.id, tenantId],
+      )
+    ).rows[0];
+    res.status(201).json({
+      id: created.id,
+      voucherType: detail.voucher_type,
+      voucherDate: detail.voucher_date,
+      voucherNumber: detail.voucher_number,
+      partyName: detail.party_name,
+      contraName: detail.contra_name,
+      amount: Number(detail.amount || 0),
+      narration: detail.narration,
+    });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 
