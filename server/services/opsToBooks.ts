@@ -16,12 +16,51 @@ export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string
   await ensureLedger(client, tenantId, 'ops:CASH', 'Cash Account', 'B', 'CS', 'ops:G-CASH', 'Cash-in-Hand');
   await ensureLedger(client, tenantId, 'ops:BANK', 'Bank Account', 'B', 'BK', 'ops:G-BANK', 'Bank Accounts');
   await ensureLedger(client, tenantId, 'ops:SALES_INCOME', 'Sales Income', 'I', 'IN', 'ops:G-INCOME', 'Income');
+  await ensureOutputGstLedgers(client, tenantId);
   const vendors = (
     await client.query(`SELECT id, name FROM vendors WHERE tenant_id = $1 ORDER BY name LIMIT 500`, [tenantId])
   ).rows as { id: string; name: string }[];
   for (const v of vendors) {
     await resolvePartyLedgerId(client, tenantId, v.id, v.name);
   }
+}
+
+/** Output GST payable ledgers (Duties & Taxes) — used when dual-writing GST invoices. */
+async function ensureOutputGstLedgers(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ cgst: string; sgst: string; igst: string }> {
+  const cgst = await ensureLedger(
+    client,
+    tenantId,
+    'ops:CGST_OUT',
+    'Output CGST',
+    'L',
+    'LI',
+    'ops:G-DUTIES',
+    'Duties & Taxes',
+  );
+  const sgst = await ensureLedger(
+    client,
+    tenantId,
+    'ops:SGST_OUT',
+    'Output SGST',
+    'L',
+    'LI',
+    'ops:G-DUTIES',
+    'Duties & Taxes',
+  );
+  const igst = await ensureLedger(
+    client,
+    tenantId,
+    'ops:IGST_OUT',
+    'Output IGST',
+    'L',
+    'LI',
+    'ops:G-DUTIES',
+    'Duties & Taxes',
+  );
+  return { cgst, sgst, igst };
 }
 
 /** Delete all Books rows for a tenant, then re-seed Cash / Bank / Sales + party ledgers. */
@@ -207,7 +246,17 @@ async function resolveSalesIncomeLedger(client: PoolClient, tenantId: string): P
       `SELECT id FROM book_ledgers
        WHERE tenant_id = $1
          AND (ledger_type IN ('IN','JP','TS') OR nature = 'I' OR LOWER(name) LIKE '%sales%' OR LOWER(name) LIKE '%income%')
-       ORDER BY CASE WHEN ledger_type IN ('IN','JP','TS') THEN 0 ELSE 1 END, name
+       ORDER BY
+         CASE
+           WHEN external_ref = 'ops:SALES_INCOME' THEN 0
+           WHEN LOWER(name) = 'sales income' THEN 1
+           WHEN ledger_type = 'IN' AND LOWER(name) LIKE '%sales%' THEN 2
+           WHEN ledger_type = 'IN' THEN 3
+           WHEN ledger_type = 'JP' THEN 4
+           WHEN LOWER(name) LIKE '%sales%' THEN 5
+           ELSE 6
+         END,
+         name
        LIMIT 1`,
       [tenantId],
     )
@@ -331,7 +380,7 @@ async function insertVoucher(
   return voucherId;
 }
 
-/** Sales invoice → Dr Party, Cr Sales Income */
+/** Sales invoice → Dr Party, Cr Sales (taxable) + Cr Output GST (if any). */
 export async function postStandaloneInvoiceToBooks(
   client: PoolClient,
   tenantId: string,
@@ -341,6 +390,11 @@ export async function postStandaloneInvoiceToBooks(
     customerName: string;
     partyId?: string | null;
     grandTotal: number;
+    /** Taxable value; when omitted, derived as grandTotal − GST. */
+    subtotal?: number | null;
+    taxCgst?: number | null;
+    taxSgst?: number | null;
+    taxIgst?: number | null;
     invoiceDate: string;
     notes?: string | null;
   },
@@ -348,8 +402,34 @@ export async function postStandaloneInvoiceToBooks(
   await ensureNativeBooksDesk(client, tenantId);
   const amt = round2(invoice.grandTotal);
   if (!(amt > 0)) return null;
+  const cgst = round2(Math.max(0, Number(invoice.taxCgst) || 0));
+  const sgst = round2(Math.max(0, Number(invoice.taxSgst) || 0));
+  const igst = round2(Math.max(0, Number(invoice.taxIgst) || 0));
+  const tax = round2(cgst + sgst + igst);
+  let sales =
+    invoice.subtotal != null && Number.isFinite(Number(invoice.subtotal))
+      ? round2(Number(invoice.subtotal))
+      : round2(amt - tax);
+  // Keep voucher balanced if rounding drifts
+  if (Math.abs(round2(sales + tax) - amt) > 0.009) {
+    sales = round2(amt - tax);
+  }
+
   const partyLedgerId = await resolvePartyLedgerId(client, tenantId, invoice.partyId, invoice.customerName);
   const salesLedgerId = await resolveSalesIncomeLedger(client, tenantId);
+  const entries: Array<{ ledgerId: string; debit: number; credit: number }> = [
+    { ledgerId: partyLedgerId, debit: amt, credit: 0 },
+  ];
+  if (sales > 0) {
+    entries.push({ ledgerId: salesLedgerId, debit: 0, credit: sales });
+  }
+  if (tax > 0) {
+    const gst = await ensureOutputGstLedgers(client, tenantId);
+    if (cgst > 0) entries.push({ ledgerId: gst.cgst, debit: 0, credit: cgst });
+    if (sgst > 0) entries.push({ ledgerId: gst.sgst, debit: 0, credit: sgst });
+    if (igst > 0) entries.push({ ledgerId: gst.igst, debit: 0, credit: igst });
+  }
+
   return insertVoucher(client, tenantId, {
     voucherType: 'sales',
     voucherDate: invoice.invoiceDate,
@@ -359,11 +439,81 @@ export async function postStandaloneInvoiceToBooks(
     amount: amt,
     narration: invoice.notes || `Ops invoice ${invoice.invoiceNumber || invoice.id}`,
     externalRef: `ops:si:${invoice.id}`,
-    entries: [
-      { ledgerId: partyLedgerId, debit: amt, credit: 0 },
-      { ledgerId: salesLedgerId, debit: 0, credit: amt },
-    ],
+    entries,
   });
+}
+
+/** Delete + re-post all ops sales vouchers from standalone_invoices (GST repair / resync). */
+export async function resyncOpsInvoiceBooks(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ repaired: number; skipped: number }> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const invoices = (
+    await client.query(
+      `SELECT id, invoice_number, customer_name, party_id, grand_total, subtotal,
+              tax_cgst, tax_sgst, tax_igst, invoice_date, notes
+       FROM standalone_invoices
+       WHERE tenant_id = $1 AND status IS DISTINCT FROM 'cancelled'
+       ORDER BY invoice_date, created_at`,
+      [tenantId],
+    )
+  ).rows as Array<{
+    id: string;
+    invoice_number: string | null;
+    customer_name: string;
+    party_id: string | null;
+    grand_total: number;
+    subtotal: number;
+    tax_cgst: number | null;
+    tax_sgst: number | null;
+    tax_igst: number | null;
+    invoice_date: string;
+    notes: string | null;
+  }>;
+
+  let repaired = 0;
+  let skipped = 0;
+  for (const inv of invoices) {
+    const externalRef = `ops:si:${inv.id}`;
+    const existing = (
+      await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2`, [
+        tenantId,
+        externalRef,
+      ])
+    ).rows[0] as { id: string } | undefined;
+    if (existing) {
+      await client.query(`DELETE FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2`, [
+        tenantId,
+        existing.id,
+      ]);
+      await client.query(`DELETE FROM book_voucher_items WHERE tenant_id = $1 AND voucher_id = $2`, [
+        tenantId,
+        existing.id,
+      ]);
+      await client.query(`DELETE FROM book_vouchers WHERE tenant_id = $1 AND id = $2`, [tenantId, existing.id]);
+    }
+    const date =
+      typeof inv.invoice_date === 'string'
+        ? inv.invoice_date.slice(0, 10)
+        : new Date(inv.invoice_date).toISOString().slice(0, 10);
+    const posted = await postStandaloneInvoiceToBooks(client, tenantId, {
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      customerName: inv.customer_name,
+      partyId: inv.party_id,
+      grandTotal: Number(inv.grand_total),
+      subtotal: Number(inv.subtotal),
+      taxCgst: Number(inv.tax_cgst) || 0,
+      taxSgst: Number(inv.tax_sgst) || 0,
+      taxIgst: Number(inv.tax_igst) || 0,
+      invoiceDate: date,
+      notes: inv.notes,
+    });
+    if (posted) repaired += 1;
+    else skipped += 1;
+  }
+  return { repaired, skipped };
 }
 
 /** Invoice payment → Dr Cash/Bank, Cr Party (receipt) */

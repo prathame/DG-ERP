@@ -21,7 +21,7 @@ import {
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
 import { getBooksBalanceSheet, getBooksProfitLoss, getTrialBalance } from '../services/bookFinancialStatements';
-import { ensureNativeBooksDesk, wipeNativeBooksDesk } from '../services/opsToBooks';
+import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -64,6 +64,36 @@ router.delete('/api/books/all', requireAdmin, async (req: AuthRequest, res) => {
       ledgers: ledgers.rows[0]?.c ?? 0,
       vouchers: vouchers.rows[0]?.c ?? 0,
     });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+/** Admin: rebuild ops sales vouchers from invoices (fixes pre-GST-split dual-write). */
+router.post('/api/books/resync-ops-invoices', requireAdmin, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await resyncOpsInvoiceBooks(client, tenantId);
+    await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Books Ops Invoice Resync',
+      'books',
+      'resync-ops-invoices',
+      `Repaired ${result.repaired} sales vouchers`,
+    );
+    res.json({ ok: true, ...result });
   } catch (err) {
     try {
       await client.query('ROLLBACK');

@@ -119,6 +119,62 @@ describe('opsToBooks + CA statements', () => {
     await pool.query(`DELETE FROM tenants WHERE id = $1`, [TENANT]);
   });
 
+  it('posts GST invoice as Sales + Output CGST/SGST (not tax-in-income)', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const invId = uid('INV');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await postStandaloneInvoiceToBooks(client, TENANT, {
+        id: invId,
+        invoiceNumber: 'INV/GST/1',
+        customerName: 'GST Party',
+        grandTotal: 1180,
+        subtotal: 1000,
+        taxCgst: 90,
+        taxSgst: 90,
+        taxIgst: 0,
+        invoiceDate: '2025-08-01',
+      });
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+
+    const lines = await pool.query(
+      `SELECT l.name, e.debit, e.credit
+       FROM book_voucher_entries e
+       JOIN book_ledgers l ON l.id = e.ledger_id AND l.tenant_id = e.tenant_id
+       JOIN book_vouchers v ON v.id = e.voucher_id
+       WHERE e.tenant_id = $1 AND v.external_ref = $2
+       ORDER BY e.line_no`,
+      [TENANT, `ops:si:${invId}`],
+    );
+    const byName = Object.fromEntries(
+      lines.rows.map((r: { name: string; debit: number; credit: number }) => [
+        r.name,
+        { debit: Number(r.debit), credit: Number(r.credit) },
+      ]),
+    );
+    expect(byName['GST Party']).toEqual({ debit: 1180, credit: 0 });
+    expect(byName['Sales Income']).toEqual({ debit: 0, credit: 1000 });
+    expect(byName['Output CGST']).toEqual({ debit: 0, credit: 90 });
+    expect(byName['Output SGST']).toEqual({ debit: 0, credit: 90 });
+
+    const pnl = await getBooksProfitLoss(pool, TENANT, '2025-04-01', '2025-08-31');
+    expect(pnl.totalIncome).toBe(1000);
+    expect(pnl.netProfit).toBe(1000);
+
+    const bs = await getBooksBalanceSheet(pool, TENANT, '2025-08-31');
+    expect(bs.balanced).toBe(true);
+    expect(bs.liabilities.some(l => l.name === 'Output CGST' && l.amount === 90)).toBe(true);
+    expect(bs.liabilities.some(l => l.name === 'Output SGST' && l.amount === 90)).toBe(true);
+    expect(bs.netProfit).toBe(1000);
+    // Assets include seed openings (cash/party) + new receivable 1180
+    expect(bs.assets.some(a => a.name === 'GST Party' && a.amount === 1180)).toBe(true);
+  });
+
   it('posts invoice + receipt and balances trial balance / P&L / BS', async () => {
     await cleanupTestData(TENANT);
     await seedBooksShell();

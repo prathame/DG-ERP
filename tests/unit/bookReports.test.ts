@@ -64,6 +64,7 @@ describe('bookReports', () => {
     expect(classifyLedger(null, null, 'Sales Income')).toBe('income');
     expect(classifyLedger(null, null, 'Purchase Expenses')).toBe('expense');
     expect(classifyLedger(null, null, 'Sundry Creditors')).toBe('liability');
+    expect(classifyLedger(null, null, 'Duties & Taxes')).toBe('liability');
     expect(classifyLedger(null, null, 'Capital Account')).toBe('capital');
     expect(classifyLedger(null, null, 'Bank Accounts')).toBe('asset');
     expect(classifyLedger(null, null, 'Misc')).toBe('other');
