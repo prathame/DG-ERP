@@ -51,7 +51,7 @@ type Props = {
   onPayBatch: (batchId: string) => void;
 };
 
-const fmt = (n: number) => `₹ ${Math.abs(n).toLocaleString()}`;
+const fmt = (n: number) => `₹ ${Math.abs(n).toLocaleString('en-IN')}`;
 
 const CHIPS: { id: MobileFinanceChip; label: string }[] = [
   { id: 'all', label: 'All Dealers' },

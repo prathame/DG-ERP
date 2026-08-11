@@ -2238,7 +2238,9 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
 
     // ₹50K threshold
     if (totVal < 50000)
-      warnings.push(`Invoice value ₹${totVal.toLocaleString()} is below ₹50,000 — E-Way Bill may not be required`);
+      warnings.push(
+        `Invoice value ₹${totVal.toLocaleString('en-IN')} is below ₹50,000 — E-Way Bill may not be required`,
+      );
 
     // HSN validation (6-digit mandatory for B2B since Feb 2024)
     for (const g of Object.values(grouped)) {

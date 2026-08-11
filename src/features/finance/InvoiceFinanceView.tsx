@@ -54,7 +54,7 @@ type PayModal = {
   partyKey?: string;
 };
 
-const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
+const fmt = (n: number) => `₹${Math.abs(n).toLocaleString('en-IN')}`;
 
 function sumBillAllocations(map: Record<string, string>): number {
   let total = 0;
@@ -157,7 +157,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         referenceNumber: cashForm.referenceNumber.trim() || undefined,
         notes: cashForm.notes.trim() || undefined,
       });
-      toast(`Cash income recorded — ${head} ₹${amt.toLocaleString()}`, 'success');
+      toast(`Cash income recorded — ${head} ₹${amt.toLocaleString('en-IN')}`, 'success');
       setCashIncomeOpen(false);
       setCashForm({
         incomeHead: '',

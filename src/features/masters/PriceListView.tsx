@@ -310,11 +310,11 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
 
     for (const [name, pRules] of Object.entries(byProduct)) {
       const base = products.find(p => p.name === name);
-      text += `*${name}* (Base: ₹${base?.price?.toLocaleString() || '—'})\n`;
+      text += `*${name}* (Base: ₹${base?.price?.toLocaleString('en-IN') || '—'})\n`;
       for (const r of pRules) {
         const vendorTag = r.vendorId ? `[${r.vendorName}]` : '[All]';
         const dates = formatRuleDateRange(r);
-        text += `  ${vendorTag} Qty ${r.minQty}${r.maxQty ? `-${r.maxQty}` : '+'} → ₹${r.price.toLocaleString()}${dates ? ` (${dates})` : ''}\n`;
+        text += `  ${vendorTag} Qty ${r.minQty}${r.maxQty ? `-${r.maxQty}` : '+'} → ₹${r.price.toLocaleString('en-IN')}${dates ? ` (${dates})` : ''}\n`;
       }
       text += '\n';
     }
@@ -605,7 +605,9 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               <div key={p.id} className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-bold text-sm text-gray-800 truncate">{p.name}</span>
-                  <span className="font-bold text-brand shrink-0">₹{(Number(p.price) || 0).toLocaleString()}</span>
+                  <span className="font-bold text-brand shrink-0">
+                    ₹{(Number(p.price) || 0).toLocaleString('en-IN')}
+                  </span>
                 </div>
                 {productRules.length > 0 && (
                   <div className="mt-2 space-y-1.5 pl-1 border-l-2 border-amber-200">
@@ -613,7 +615,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       <div key={rule.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
                         <span>
                           Qty {rule.minQty}
-                          {rule.maxQty ? `-${rule.maxQty}` : '+'} · ₹{rule.price.toLocaleString()}
+                          {rule.maxQty ? `-${rule.maxQty}` : '+'} · ₹{rule.price.toLocaleString('en-IN')}
                           {rule.name ? ` · ${rule.name}` : ''}
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
@@ -649,7 +651,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
                 <span className="font-bold text-sm">{productName}</span>
                 <span className="text-xs text-gray-400 ml-2">
-                  Base: ₹{products.find(p => p.name === productName)?.price?.toLocaleString()}
+                  Base: ₹{products.find(p => p.name === productName)?.price?.toLocaleString('en-IN')}
                 </span>
               </div>
               <div className="divide-y divide-gray-100">
@@ -668,7 +670,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                         Qty {rule.minQty}
                         {rule.maxQty ? `-${rule.maxQty}` : '+'}
                       </span>
-                      <span className="font-bold text-brand">₹{rule.price.toLocaleString()}</span>
+                      <span className="font-bold text-brand">₹{rule.price.toLocaleString('en-IN')}</span>
                       {formatRuleDateRange(rule) && (
                         <span className="text-xs text-gray-500">{formatRuleDateRange(rule)}</span>
                       )}
@@ -704,7 +706,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                 .map(rule => (
                   <div key={rule.id} className="flex items-center justify-between py-2">
                     <span className="text-sm">
-                      {rule.productName} — ₹{Number(rule.price).toLocaleString()} (
+                      {rule.productName} — ₹{Number(rule.price).toLocaleString('en-IN')} (
                       {rule.vendorName || `All ${partyLabel}`})
                     </span>
                     <div className="flex items-center gap-1">
@@ -774,7 +776,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                     )}
                     {products.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.name} (₹{Number(p.price).toLocaleString()})
+                        {p.name} (₹{Number(p.price).toLocaleString('en-IN')})
                       </option>
                     ))}
                   </select>

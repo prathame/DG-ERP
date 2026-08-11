@@ -184,7 +184,7 @@ function textForKind(bill: DistributionBillData, kind: DistPrintKind): string {
     parts.push(formatDistributionChallanText(bos.textBill).replace('DISTRIBUTION CHALLAN', 'BILL OF SUPPLY (non-GST)'));
   }
   if (bill.totalBilled != null) {
-    parts.push(`Batch outstanding (combined): ₹${Number(bill.totalBilled).toLocaleString()}`);
+    parts.push(`Batch outstanding (combined): ₹${Number(bill.totalBilled).toLocaleString('en-IN')}`);
   }
   return parts.filter(Boolean).join('\n\n') || formatDistributionChallanText(bill);
 }

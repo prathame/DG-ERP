@@ -135,7 +135,14 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     } finally {
       client.release();
     }
-    await logAudit(pool, tenantId, 'Expense Recorded', 'expense', id, `${category}: ₹${parsedAmount.toLocaleString()}`);
+    await logAudit(
+      pool,
+      tenantId,
+      'Expense Recorded',
+      'expense',
+      id,
+      `${category}: ₹${parsedAmount.toLocaleString('en-IN')}`,
+    );
     res.status(201).json({
       id,
       category: category.trim(),

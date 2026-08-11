@@ -365,8 +365,16 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
       <div className="sm:hidden space-y-2">
         {!serviceProductUx && (
           <div className="grid grid-cols-2 gap-2">
-            <MobileKpiCard label={t('invoices.outstanding')} value={`₹${outstanding.toLocaleString()}`} accent="rose" />
-            <MobileKpiCard label={t('invoices.collected')} value={`₹${paidTotal.toLocaleString()}`} accent="green" />
+            <MobileKpiCard
+              label={t('invoices.outstanding')}
+              value={`₹${outstanding.toLocaleString('en-IN')}`}
+              accent="rose"
+            />
+            <MobileKpiCard
+              label={t('invoices.collected')}
+              value={`₹${paidTotal.toLocaleString('en-IN')}`}
+              accent="green"
+            />
           </div>
         )}
         <MobilePillTabs
@@ -424,11 +432,11 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                       </div>
                       <div className="text-right shrink-0 space-y-0.5">
                         <p className="text-[13px] font-bold text-gray-900 tabular-nums">
-                          ₹{inv.grandTotal.toLocaleString()}
+                          ₹{inv.grandTotal.toLocaleString('en-IN')}
                         </p>
                         {(inv.advanceApplied || 0) > 0.001 && (
                           <p className="text-[10px] text-emerald-600">
-                            Adv ₹{Number(inv.advanceApplied).toLocaleString()}
+                            Adv ₹{Number(inv.advanceApplied).toLocaleString('en-IN')}
                           </p>
                         )}
                         {statusBadge(inv.status)}
@@ -518,7 +526,7 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                       {inv.customerGstin && <p className="text-[10px] text-gray-400 font-mono">{inv.customerGstin}</p>}
                     </td>
                     <td className="px-4 py-3 text-center text-gray-600">{formatDate(inv.invoiceDate)}</td>
-                    <td className="px-4 py-3 text-right font-semibold">₹{inv.grandTotal.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-semibold">₹{inv.grandTotal.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-center">{statusBadge(inv.status)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
@@ -652,28 +660,28 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                       <tr key={i} className="border-b border-gray-50">
                         <td className="py-2">{it.description}</td>
                         <td className="py-2 text-right">{it.qty}</td>
-                        <td className="py-2 text-right">₹{Number(it.rate).toLocaleString()}</td>
+                        <td className="py-2 text-right">₹{Number(it.rate).toLocaleString('en-IN')}</td>
                         {invoiceHasGst(selectedInvoice) && <td className="py-2 text-right">{it.gstPercent}%</td>}
-                        <td className="py-2 text-right font-medium">₹{Number(it.total).toLocaleString()}</td>
+                        <td className="py-2 text-right font-medium">₹{Number(it.total).toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <div className="text-right space-y-1 mb-4">
-                <p className="text-sm text-gray-500">Subtotal: ₹{selectedInvoice.subtotal.toLocaleString()}</p>
+                <p className="text-sm text-gray-500">Subtotal: ₹{selectedInvoice.subtotal.toLocaleString('en-IN')}</p>
                 {invoiceHasGst(selectedInvoice) && (
-                  <p className="text-sm text-gray-500">Tax: ₹{selectedInvoice.taxTotal.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500">Tax: ₹{selectedInvoice.taxTotal.toLocaleString('en-IN')}</p>
                 )}
-                <p className="text-lg font-bold">Total: ₹{selectedInvoice.grandTotal.toLocaleString()}</p>
+                <p className="text-lg font-bold">Total: ₹{selectedInvoice.grandTotal.toLocaleString('en-IN')}</p>
                 {(selectedInvoice.advanceApplied || 0) > 0.001 && (
                   <p className="text-sm text-emerald-600">
-                    Advance payment: ₹{Number(selectedInvoice.advanceApplied).toLocaleString()}
+                    Advance payment: ₹{Number(selectedInvoice.advanceApplied).toLocaleString('en-IN')}
                   </p>
                 )}
                 {(selectedInvoice.outstanding || 0) > 0.001 && (
                   <p className="text-sm font-bold text-rose-600">
-                    Outstanding: ₹{Number(selectedInvoice.outstanding).toLocaleString()}
+                    Outstanding: ₹{Number(selectedInvoice.outstanding).toLocaleString('en-IN')}
                   </p>
                 )}
               </div>
@@ -752,17 +760,17 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
           {invoiceHasPayments(deleteTarget) ? (
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">
-                {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
+                {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString('en-IN')}
               </p>
               <p className="text-sm text-gray-600">
-                {t('invoices.deleteBlockedPrefix')} ₹{Number(deleteTarget.paidAmount).toLocaleString()}{' '}
+                {t('invoices.deleteBlockedPrefix')} ₹{Number(deleteTarget.paidAmount).toLocaleString('en-IN')}{' '}
                 {t('invoices.deleteBlockedSuffix')}
                 {serviceProductUx ? ` ${t('invoices.deleteBlockedFinanceHint')}` : ''}
               </p>
             </div>
           ) : (
             <p className="text-sm text-gray-500 text-center">
-              {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString()}
+              {deleteTarget.invoiceNumber} — ₹{deleteTarget.grandTotal.toLocaleString('en-IN')}
             </p>
           )}
         </AppModal>
@@ -1163,7 +1171,7 @@ export function CreateInvoiceModal({
       const fromList = priceRules.some(r => r.productId === p.id && (!r.vendorId || r.vendorId === pricingVendorId));
       return (
         <option key={p.id} value={p.id}>
-          {p.name} — ₹{listPrice.toLocaleString()}
+          {p.name} — ₹{listPrice.toLocaleString('en-IN')}
           {fromList ? ' (price list)' : ''}
         </option>
       );
@@ -1196,7 +1204,7 @@ export function CreateInvoiceModal({
             </select>
             {catalogPrice != null && row.rate !== catalogPrice && (
               <p className="text-[10px] text-amber-600 mt-1">
-                Rate edited from price list ₹{catalogPrice.toLocaleString()}
+                Rate edited from price list ₹{catalogPrice.toLocaleString('en-IN')}
               </p>
             )}
           </>
@@ -1331,12 +1339,12 @@ export function CreateInvoiceModal({
   const totalsBar = (
     <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
       <div className="text-xs sm:text-sm text-gray-600 min-w-0">
-        Subtotal: ₹{totals.subtotal.toLocaleString()}
+        Subtotal: ₹{totals.subtotal.toLocaleString('en-IN')}
         {gstBilling && (
           <>
             <span className="hidden xs:inline"> • </span>
             <br className="sm:hidden" />
-            Tax: ₹{totals.tax.toLocaleString()}
+            Tax: ₹{totals.tax.toLocaleString('en-IN')}
           </>
         )}
         {!gstBilling && (
@@ -1346,7 +1354,7 @@ export function CreateInvoiceModal({
         )}
       </div>
       <div className="text-lg sm:text-xl font-bold text-brand shrink-0 tabular-nums">
-        ₹{totals.grand.toLocaleString()}
+        ₹{totals.grand.toLocaleString('en-IN')}
       </div>
     </div>
   );
@@ -1528,7 +1536,7 @@ export function CreateInvoiceModal({
                         <LineItemCard
                           index={idx}
                           title={row.description || `Item ${idx + 1}`}
-                          amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : undefined}
+                          amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString('en-IN')}` : undefined}
                           canRemove={rows.length > 1}
                           onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
                           fields={renderLineItemFields(row, idx)}
@@ -1595,7 +1603,7 @@ export function CreateInvoiceModal({
                               )}
                               {catalogPrice != null && row.rate !== catalogPrice && (
                                 <p className="text-[10px] text-amber-600">
-                                  Rate edited from price list ₹{catalogPrice.toLocaleString()}
+                                  Rate edited from price list ₹{catalogPrice.toLocaleString('en-IN')}
                                 </p>
                               )}
                             </td>
@@ -1691,7 +1699,7 @@ export function CreateInvoiceModal({
                               </td>
                             )}
                             <td className="px-3 py-2 text-right text-sm font-medium">
-                              {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : '—'}
+                              {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString('en-IN')}` : '—'}
                             </td>
                             <td className="px-3 py-2">
                               {rows.length > 1 && (

@@ -816,11 +816,11 @@ export function QuotationsView() {
                           )}
                         </td>
                         <td className="py-2 text-right">{item.quantity}</td>
-                        <td className="py-2 text-right">₹{item.price.toLocaleString()}</td>
+                        <td className="py-2 text-right">₹{item.price.toLocaleString('en-IN')}</td>
                         <td className="py-2 text-right">{item.discountPercent}%</td>
-                        <td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td>
-                        <td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td>
-                        <td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td>
+                        <td className="py-2 text-right">₹{item.lineNet.toLocaleString('en-IN')}</td>
+                        <td className="py-2 text-right">₹{item.lineGst.toLocaleString('en-IN')}</td>
+                        <td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString('en-IN')}</td>
                       </tr>
                     );
                   })}
@@ -828,9 +828,9 @@ export function QuotationsView() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 font-bold">
                     <td colSpan={4}>Total</td>
-                    <td className="py-2 text-right">₹{selected.subtotal.toLocaleString()}</td>
-                    <td className="py-2 text-right">₹{selected.gstAmount.toLocaleString()}</td>
-                    <td className="py-2 text-right text-brand">₹{selected.total.toLocaleString()}</td>
+                    <td className="py-2 text-right">₹{selected.subtotal.toLocaleString('en-IN')}</td>
+                    <td className="py-2 text-right">₹{selected.gstAmount.toLocaleString('en-IN')}</td>
+                    <td className="py-2 text-right text-brand">₹{selected.total.toLocaleString('en-IN')}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -989,7 +989,7 @@ export function QuotationsView() {
                       </span>
                     }
                     subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
-                    trailing={`₹${q.total.toLocaleString()}`}
+                    trailing={`₹${q.total.toLocaleString('en-IN')}`}
                     onClick={() => {
                       setSelectedId(q.id);
                       fetchApi<Quotation>(`/quotations/${q.id}`)
@@ -1072,7 +1072,7 @@ export function QuotationsView() {
                       <Pencil size={16} />
                     </button>
                   )}
-                  <span className="text-sm font-bold text-brand">₹{q.total.toLocaleString()}</span>
+                  <span className="text-sm font-bold text-brand">₹{q.total.toLocaleString('en-IN')}</span>
                 </div>
               </div>
             ))}
@@ -1225,7 +1225,7 @@ export function QuotationsView() {
                           </option>
                           {products.map(pr => (
                             <option key={pr.id} value={pr.id}>
-                              {pr.name} (₹{pr.price.toLocaleString()})
+                              {pr.name} (₹{pr.price.toLocaleString('en-IN')})
                             </option>
                           ))}
                         </select>
@@ -1332,7 +1332,7 @@ export function QuotationsView() {
                       <LineItemCard
                         index={idx}
                         title={p?.name || row.description || `Item ${idx + 1}`}
-                        amountLabel={lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : undefined}
+                        amountLabel={lineTotal > 0 ? `₹${lineTotal.toLocaleString('en-IN')}` : undefined}
                         canRemove={rows.length > 1}
                         onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
                         fields={qFields}
@@ -1392,7 +1392,7 @@ export function QuotationsView() {
                               </option>
                               {products.map(pr => (
                                 <option key={pr.id} value={pr.id}>
-                                  {pr.name} (₹{pr.price.toLocaleString()})
+                                  {pr.name} (₹{pr.price.toLocaleString('en-IN')})
                                 </option>
                               ))}
                             </select>
@@ -1465,7 +1465,7 @@ export function QuotationsView() {
                             </td>
                           )}
                           <td className="px-3 py-2 text-right text-sm font-bold">
-                            {lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : '—'}
+                            {lineTotal > 0 ? `₹${lineTotal.toLocaleString('en-IN')}` : '—'}
                           </td>
                           <td className="px-3 py-2 text-center">
                             {rows.length > 1 ? (
@@ -1496,15 +1496,17 @@ export function QuotationsView() {
               </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs sm:text-sm text-gray-600">
-                  {totals.items} items · Net ₹{totals.net.toLocaleString()}
-                  {showGstControls ? ` · GST ₹${totals.gst.toLocaleString()}` : ''}
+                  {totals.items} items · Net ₹{totals.net.toLocaleString('en-IN')}
+                  {showGstControls ? ` · GST ₹${totals.gst.toLocaleString('en-IN')}` : ''}
                   {!showGstControls && (
                     <span className="block text-[10px] text-gray-400 mt-0.5">
                       GST off — enable in Settings → Bill Customization for tax quotations
                     </span>
                   )}
                 </span>
-                <span className="text-lg font-bold text-brand tabular-nums">₹{totals.total.toLocaleString()}</span>
+                <span className="text-lg font-bold text-brand tabular-nums">
+                  ₹{totals.total.toLocaleString('en-IN')}
+                </span>
               </div>
               {/* Offline: Notes / T&C / bank details come from Settings → Bill Customization */}
               {!allowCustomLines && (

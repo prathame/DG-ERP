@@ -421,7 +421,10 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
         {data?.activeSession && companyLock && (
           <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800">
             Live session: <strong>{data.activeSession.userName}</strong> on {data.activeSession.client}
-            <span className="text-amber-600"> · expires {new Date(data.activeSession.expiresAt).toLocaleString()}</span>
+            <span className="text-amber-600">
+              {' '}
+              · expires {new Date(data.activeSession.expiresAt).toLocaleString('en-IN')}
+            </span>
           </div>
         )}
 
@@ -805,7 +808,9 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
                   {copied ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-2">Expires: {new Date(resetModal.expiresAt).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-2">
+                Expires: {new Date(resetModal.expiresAt).toLocaleString('en-IN')}
+              </p>
             </div>
             <button
               type="button"

@@ -58,7 +58,7 @@ export function canSendPaymentReminder(opts: {
   if (balance < min) {
     return {
       ok: false,
-      reason: `Balance ₹${balance.toLocaleString()} is below reminder minimum ₹${min.toLocaleString()}`,
+      reason: `Balance ₹${balance.toLocaleString('en-IN')} is below reminder minimum ₹${min.toLocaleString('en-IN')}`,
     };
   }
   if (isWithinReminderCadence(lastSent, settings.cadenceDays, today)) {

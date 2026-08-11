@@ -81,6 +81,16 @@ export function formatDate(dateStr: string | null | undefined): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 }
 
+/** Indian digit grouping: 1550000 → "15,50,000" (not "1,550,000"). */
+export function formatIndianNumber(n: number, opts?: Intl.NumberFormatOptions): string {
+  return Number(n || 0).toLocaleString('en-IN', opts);
+}
+
+/** Absolute amount with ₹ and Indian grouping. */
+export function formatINR(n: number, opts?: Intl.NumberFormatOptions): string {
+  return `₹${formatIndianNumber(Math.abs(Number(n) || 0), opts)}`;
+}
+
 /** Prefer SignedQRCode / stored irnQr; fall back to decoding base64 mock qrCode. */
 export function resolveIrnQrPayload(r: {
   qrCode?: string | null;
@@ -1076,7 +1086,7 @@ export function formatVendorPaymentReminderText(opts: {
   companyName?: string;
 }): string {
   const companyName = opts.companyName || 'Our Company';
-  return `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${opts.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${opts.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
+  return `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${opts.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${opts.balance.toLocaleString('en-IN')}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
 }
 
 /** Company name from session for reminder / print share text. */
@@ -1125,7 +1135,7 @@ export function formatSalesInvoiceText(bill: {
     `• ${bill.productName}`,
     `• Barcode: ${bill.barcode}`,
     bill.category ? `• Category: ${bill.category}` : '',
-    `• Price: ₹${Number(bill.salePrice).toLocaleString()}`,
+    `• Price: ₹${Number(bill.salePrice).toLocaleString('en-IN')}`,
     ``,
     `*CUSTOMER*`,
     `• ${bill.customerName}`,
@@ -1171,7 +1181,8 @@ export function formatDistributionChallanText(bill: {
 }): string {
   const itemLines = bill.groupedItems
     ? bill.groupedItems.map(
-        g => `${g.sno}. ${g.productName}\n   ${g.barcodeRange} × ${g.quantity} = ₹${g.lineTotal.toLocaleString()}`,
+        g =>
+          `${g.sno}. ${g.productName}\n   ${g.barcodeRange} × ${g.quantity} = ₹${g.lineTotal.toLocaleString('en-IN')}`,
       )
     : bill.items.map(item => `${item.sno}. ${item.barcode} — ${item.productName}`);
   const lines = [
@@ -1194,9 +1205,9 @@ export function formatDistributionChallanText(bill: {
     `*ITEMS (${bill.totalQuantity} units)*`,
     ...itemLines,
     ``,
-    `Total Value: ₹${bill.totalValue.toLocaleString()}`,
+    `Total Value: ₹${bill.totalValue.toLocaleString('en-IN')}`,
     bill.payment
-      ? `\n💰 *PAYMENT STATUS*\nTotal Owed: ₹${bill.payment.totalDistributedValue.toLocaleString()}\nPaid: ₹${bill.payment.totalPaid.toLocaleString()}\nBalance: ₹${bill.payment.balance.toLocaleString()}`
+      ? `\n💰 *PAYMENT STATUS*\nTotal Owed: ₹${bill.payment.totalDistributedValue.toLocaleString('en-IN')}\nPaid: ₹${bill.payment.totalPaid.toLocaleString('en-IN')}\nBalance: ₹${bill.payment.balance.toLocaleString('en-IN')}`
       : '',
     ``,
     `— ${bill.company.name} ERP`,

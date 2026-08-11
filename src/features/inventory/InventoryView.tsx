@@ -517,7 +517,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           {colShow('price') && (
                             <td className="px-4 py-3 text-right">
                               <span className="font-semibold text-sm text-emerald-600">
-                                ₹{p.price.toLocaleString()}
+                                ₹{p.price.toLocaleString('en-IN')}
                               </span>
                               {(p.packSize || 1) > 1 && (
                                 <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>
@@ -704,7 +704,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                         </div>
                         <div className="text-right shrink-0">
                           <span className="font-semibold text-sm text-emerald-600">
-                            ₹{p.price.toLocaleString()}
+                            ₹{p.price.toLocaleString('en-IN')}
                             {(p.packSize || 1) > 1 ? `/${p.packName || 'Box'}` : ''}
                           </span>
                           <span

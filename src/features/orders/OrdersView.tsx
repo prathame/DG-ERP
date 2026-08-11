@@ -362,12 +362,14 @@ export function OrdersView() {
                       <td className="px-4 py-3 text-sm text-gray-400">{i + 1}</td>
                       <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
                       <td className="px-4 py-3 text-sm">{item.quantity}</td>
-                      <td className="px-4 py-3 text-sm">₹{item.price.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-sm">₹{item.price.toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3 text-sm">
                         {item.discountPercent > 0 ? `${item.discountPercent}%` : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm">{item.withGst ? '✓' : '-'}</td>
-                      <td className="px-4 py-3 text-sm font-bold text-right">₹{item.lineTotal.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-right">
+                        ₹{item.lineTotal.toLocaleString('en-IN')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -376,15 +378,15 @@ export function OrdersView() {
             <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Subtotal</span>
-                <span className="font-bold">₹{selected.subtotal.toLocaleString()}</span>
+                <span className="font-bold">₹{selected.subtotal.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">GST ({selected.gstRate}%)</span>
-                <span className="font-bold">₹{selected.gstAmount.toLocaleString()}</span>
+                <span className="font-bold">₹{selected.gstAmount.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between text-sm border-t border-gray-200 pt-1">
                 <span className="font-medium">Total</span>
-                <span className="font-bold text-lg text-brand">₹{selected.total.toLocaleString()}</span>
+                <span className="font-bold text-lg text-brand">₹{selected.total.toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>
@@ -539,7 +541,7 @@ export function OrdersView() {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="font-bold text-brand">₹{o.total.toLocaleString()}</p>
+                <p className="font-bold text-brand">₹{o.total.toLocaleString('en-IN')}</p>
               </div>
             </button>
           ))}
@@ -634,7 +636,7 @@ export function OrdersView() {
                                 <option value="">Select</option>
                                 {products.map(p => (
                                   <option key={p.id} value={p.id}>
-                                    {p.name} (₹{Number(p.price).toLocaleString()})
+                                    {p.name} (₹{Number(p.price).toLocaleString('en-IN')})
                                   </option>
                                 ))}
                               </select>
@@ -724,15 +726,15 @@ export function OrdersView() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Subtotal</span>
-                      <span className="font-bold">₹{totals.net.toLocaleString()}</span>
+                      <span className="font-bold">₹{totals.net.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">GST ({defaultGstRate}%)</span>
-                      <span className="font-bold">₹{totals.gst.toLocaleString()}</span>
+                      <span className="font-bold">₹{totals.gst.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between text-sm border-t border-gray-200 pt-1">
                       <span className="font-medium">Total</span>
-                      <span className="font-bold text-lg text-brand">₹{totals.total.toLocaleString()}</span>
+                      <span className="font-bold text-lg text-brand">₹{totals.total.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
 

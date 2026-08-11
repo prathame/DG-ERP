@@ -245,10 +245,10 @@ export function StaffMasterView({
         referenceNumber: payForm.referenceNumber || undefined,
         notes: payForm.notes || undefined,
       });
-      toast(`${typeLabel[payForm.paymentType]}: ₹${amt.toLocaleString()} — ${selected.name}`, 'success');
+      toast(`${typeLabel[payForm.paymentType]}: ₹${amt.toLocaleString('en-IN')} — ${selected.name}`, 'success');
       setPayModalOpen(false);
       if (selected.phone && ['salary', 'bonus', 'advance'].includes(payForm.paymentType)) {
-        const msg = `Hi ${selected.name},\n\n${typeLabel[payForm.paymentType]} of ₹${amt.toLocaleString()} has been made on ${payForm.paymentDate} via ${payForm.paymentMethod}.${payForm.notes ? `\nNote: ${payForm.notes}` : ''}\n\nThank you!`;
+        const msg = `Hi ${selected.name},\n\n${typeLabel[payForm.paymentType]} of ₹${amt.toLocaleString('en-IN')} has been made on ${payForm.paymentDate} via ${payForm.paymentMethod}.${payForm.notes ? `\nNote: ${payForm.notes}` : ''}\n\nThank you!`;
         if (
           await confirm({
             title: 'Send WhatsApp',
@@ -360,15 +360,15 @@ export function StaffMasterView({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase">Salary</p>
-              <p className="font-bold">₹{(selected.salary || 0).toLocaleString()}</p>
+              <p className="font-bold">₹{(selected.salary || 0).toLocaleString('en-IN')}</p>
             </div>
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase">Paid</p>
-              <p className="font-bold text-emerald-600">₹{selected.totalPaid.toLocaleString()}</p>
+              <p className="font-bold text-emerald-600">₹{selected.totalPaid.toLocaleString('en-IN')}</p>
             </div>
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase">Advance</p>
-              <p className="font-bold text-amber-600">₹{(selected.advanceBalance || 0).toLocaleString()}</p>
+              <p className="font-bold text-amber-600">₹{(selected.advanceBalance || 0).toLocaleString('en-IN')}</p>
             </div>
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase">Payments</p>
@@ -401,7 +401,7 @@ export function StaffMasterView({
                       </span>
                       <span className="text-xs text-gray-400">{fmtDate(p.paymentDate)}</span>
                     </div>
-                    <p className="font-bold text-sm">₹{p.amount.toLocaleString()}</p>
+                    <p className="font-bold text-sm">₹{p.amount.toLocaleString('en-IN')}</p>
                     <p className="text-xs text-gray-400 truncate">
                       {p.paymentMethod}
                       {p.notes ? ` · ${p.notes}` : ''}
@@ -431,7 +431,7 @@ export function StaffMasterView({
           )}
           {payments.length > 0 && (
             <p className="mt-3 text-right text-sm font-bold text-gray-600">
-              Total: ₹{payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+              Total: ₹{payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString('en-IN')}
             </p>
           )}
         </div>
@@ -449,8 +449,10 @@ export function StaffMasterView({
                 <h3 className="text-lg font-bold mb-1">Pay {selected.name}</h3>
                 <p className="text-sm text-gray-400 mb-4">
                   {selected.role || 'Staff'}
-                  {selected.salary ? ` · Salary: ₹${selected.salary.toLocaleString()}` : ''}
-                  {selected.advanceBalance > 0 ? ` · Advance due: ₹${selected.advanceBalance.toLocaleString()}` : ''}
+                  {selected.salary ? ` · Salary: ₹${selected.salary.toLocaleString('en-IN')}` : ''}
+                  {selected.advanceBalance > 0
+                    ? ` · Advance due: ₹${selected.advanceBalance.toLocaleString('en-IN')}`
+                    : ''}
                 </p>
                 <div className="space-y-3">
                   <div>
@@ -540,7 +542,7 @@ export function StaffMasterView({
                     onClick={handlePay}
                     className="flex-1 py-2 bg-brand text-white rounded-xl font-bold"
                   >
-                    Pay ₹{payForm.amount ? Number(payForm.amount).toLocaleString() : '0'}
+                    Pay ₹{payForm.amount ? Number(payForm.amount).toLocaleString('en-IN') : '0'}
                   </button>
                 </div>
               </motion.div>
@@ -665,15 +667,15 @@ export function StaffMasterView({
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 {s.salary > 0 && (
                   <span>
-                    Salary: <b>₹{s.salary.toLocaleString()}</b>
+                    Salary: <b>₹{s.salary.toLocaleString('en-IN')}</b>
                   </span>
                 )}
                 <span>
-                  Paid: <b className="text-emerald-600">₹{s.totalPaid.toLocaleString()}</b>
+                  Paid: <b className="text-emerald-600">₹{s.totalPaid.toLocaleString('en-IN')}</b>
                 </span>
                 {s.advanceBalance > 0 && (
                   <span>
-                    Advance: <b className="text-amber-600">₹{s.advanceBalance.toLocaleString()}</b>
+                    Advance: <b className="text-amber-600">₹{s.advanceBalance.toLocaleString('en-IN')}</b>
                   </span>
                 )}
               </div>

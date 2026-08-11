@@ -99,7 +99,7 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
       <div className="p-6 dg-glass-card rounded-2xl flex flex-wrap gap-10 items-center">
         <div className="flex flex-col">
           <span className="text-[10px] font-bold dg-faint uppercase tracking-widest">Total Master Records</span>
-          <span className="text-2xl font-bold dg-primary tabular-nums mt-1">{total.toLocaleString()}</span>
+          <span className="text-2xl font-bold dg-primary tabular-nums mt-1">{total.toLocaleString('en-IN')}</span>
         </div>
         <div className="flex flex-col">
           <span className="text-[10px] font-bold dg-faint uppercase tracking-widest">Categories</span>

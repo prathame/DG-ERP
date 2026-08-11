@@ -181,7 +181,7 @@ export function BarcodeLabelPrinter({
         ${safeSrc ? `<img src="${safeSrc}" class="code-img" alt="${esc(b.barcode)}" />` : ''}
         <div class="barcode-text">${esc(b.barcode)}</div>
         ${metalLines}
-        ${showPrice ? `<div class="price">₹${esc(Number(product.price).toLocaleString())}</div>` : ''}
+        ${showPrice ? `<div class="price">₹${esc(Number(product.price).toLocaleString('en-IN'))}</div>` : ''}
       </div>`;
       }),
     );
@@ -388,7 +388,9 @@ export function BarcodeLabelPrinter({
                   <p style={{ fontSize: '7px', fontFamily: 'monospace' }}>HUID {barcodes[0].huid}</p>
                 )}
                 {showPrice && (
-                  <p style={{ fontSize: '10px', fontWeight: 700 }}>₹{Number(product?.price || 0).toLocaleString()}</p>
+                  <p style={{ fontSize: '10px', fontWeight: 700 }}>
+                    ₹{Number(product?.price || 0).toLocaleString('en-IN')}
+                  </p>
                 )}
               </div>
             </div>

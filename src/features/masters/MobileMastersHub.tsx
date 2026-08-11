@@ -72,7 +72,7 @@ export function MobileMastersHub({ masters, onOpen, subtitle }: Props) {
           const suffix = COUNT_SUFFIX[m.id];
           const countLine =
             typeof m.count === 'number'
-              ? `${m.count.toLocaleString()}${suffix ? ` ${suffix}` : ' records'}`
+              ? `${m.count.toLocaleString('en-IN')}${suffix ? ` ${suffix}` : ' records'}`
               : m.count || 'Open';
           return (
             <button
