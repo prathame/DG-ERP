@@ -21,8 +21,18 @@ import {
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
 import { getBooksBalanceSheet, getBooksProfitLoss, getTrialBalance } from '../services/bookFinancialStatements';
+import { ensureNativeBooksDesk } from '../services/opsToBooks';
 
 const router = Router();
+
+async function withNativeBooksDesk(tenantId: string): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await ensureNativeBooksDesk(client, tenantId);
+  } finally {
+    client.release();
+  }
+}
 const uploadDir = path.join(os.tmpdir(), 'miracle-uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({
@@ -38,6 +48,7 @@ router.get('/api/books/summary', blockVendors, async (req: AuthRequest, res) => 
   try {
     const tenantId = tenantOf(req);
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await withNativeBooksDesk(tenantId);
     const [ledgers, products, vouchers, jobs] = await Promise.all([
       pool.query(`SELECT COUNT(*)::int AS c FROM book_ledgers WHERE tenant_id = $1`, [tenantId]),
       pool.query(`SELECT COUNT(*)::int AS c FROM book_products WHERE tenant_id = $1`, [tenantId]),
@@ -72,6 +83,7 @@ router.get('/api/books/ledgers', blockVendors, async (req: AuthRequest, res) => 
   try {
     const tenantId = tenantOf(req);
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await withNativeBooksDesk(tenantId);
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
     const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
     const params: unknown[] = [tenantId];

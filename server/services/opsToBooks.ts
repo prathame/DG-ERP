@@ -1,15 +1,27 @@
 /**
  * Ops → Books dual-write (invoice / payment / expense).
- * Idempotent via book_vouchers.external_ref. Skips quietly when Books is empty.
+ * Idempotent via book_vouchers.external_ref.
+ * Native tenants get a minimal COA on first use — Miracle import is optional data, not a gate.
  * Does not call createBookVoucher receipt dual-write (would loop into invoice_payments).
  */
 import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
 import { round2 } from './bookReports';
 
-async function booksConfigured(client: PoolClient, tenantId: string): Promise<boolean> {
-  const { rows } = await client.query(`SELECT 1 FROM book_ledgers WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
-  return rows.length > 0;
+/**
+ * Ensure Cash / Bank / Sales Income (+ party ledgers for existing clients) exist.
+ * Safe to call on every Books list/summary and before ops dual-write.
+ */
+export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string): Promise<void> {
+  await ensureLedger(client, tenantId, 'ops:CASH', 'Cash Account', 'B', 'CS', 'ops:G-CASH', 'Cash-in-Hand');
+  await ensureLedger(client, tenantId, 'ops:BANK', 'Bank Account', 'B', 'BK', 'ops:G-BANK', 'Bank Accounts');
+  await ensureLedger(client, tenantId, 'ops:SALES_INCOME', 'Sales Income', 'I', 'IN', 'ops:G-INCOME', 'Income');
+  const vendors = (
+    await client.query(`SELECT id, name FROM vendors WHERE tenant_id = $1 ORDER BY name LIMIT 500`, [tenantId])
+  ).rows as { id: string; name: string }[];
+  for (const v of vendors) {
+    await resolvePartyLedgerId(client, tenantId, v.id, v.name);
+  }
 }
 
 async function resolveFinancialYearId(client: PoolClient, tenantId: string, voucherDate: string): Promise<string> {
@@ -308,7 +320,7 @@ export async function postStandaloneInvoiceToBooks(
     notes?: string | null;
   },
 ): Promise<string | null> {
-  if (!(await booksConfigured(client, tenantId))) return null;
+  await ensureNativeBooksDesk(client, tenantId);
   const amt = round2(invoice.grandTotal);
   if (!(amt > 0)) return null;
   const partyLedgerId = await resolvePartyLedgerId(client, tenantId, invoice.partyId, invoice.customerName);
@@ -344,7 +356,7 @@ export async function postInvoicePaymentToBooks(
     partyName: string;
   },
 ): Promise<string | null> {
-  if (!(await booksConfigured(client, tenantId))) return null;
+  await ensureNativeBooksDesk(client, tenantId);
   const amt = round2(payment.amount);
   if (!(amt > 0)) return null;
   const partyLedgerId = await resolvePartyLedgerId(client, tenantId, payment.partyId, payment.partyName);
@@ -406,7 +418,7 @@ export async function postCashIncomeToBooks(
     invoiceNumber?: string | null;
   },
 ): Promise<string | null> {
-  if (!(await booksConfigured(client, tenantId))) return null;
+  await ensureNativeBooksDesk(client, tenantId);
   const amt = round2(income.amount);
   if (!(amt > 0)) return null;
   const incomeLedgerId = await resolveIncomeLedgerByHead(client, tenantId, income.incomeHead);
@@ -440,7 +452,7 @@ export async function postExpenseToBooks(
     paymentMethod?: string | null;
   },
 ): Promise<string | null> {
-  if (!(await booksConfigured(client, tenantId))) return null;
+  await ensureNativeBooksDesk(client, tenantId);
   const amt = round2(expense.amount);
   if (!(amt > 0)) return null;
   const expenseLedgerId = await resolveExpenseLedger(client, tenantId, expense.category || null);
