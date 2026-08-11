@@ -17,6 +17,7 @@ import {
   resolvePrice,
   unitPricesAfterDiscount,
 } from '../utils/price-resolve';
+import { postDistributionBatchToBooks, postVendorPaymentToBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -466,6 +467,26 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             batchId,
           ],
         );
+        try {
+          await postDistributionBatchToBooks(client, tenantId, {
+            batchId,
+            vendorId,
+            vendorName,
+            billValue: totalBilled,
+            distributionDate: date,
+          });
+          await postVendorPaymentToBooks(client, tenantId, {
+            id: payId,
+            amount: paidAmount,
+            paymentDate: date,
+            paymentMethod: 'Cash',
+            notes: `Payment against distribution ${batchId}`,
+            vendorId,
+            vendorName,
+          });
+        } catch {
+          /* Books dual-write must not block distribution */
+        }
         // Auto-mark as sold for dealer/retail tenants
         const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
           ?.business_type;
@@ -492,6 +513,17 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             `${vendorName} paid ₹${paidAmount} (with distribution)`,
           );
       } else {
+        try {
+          await postDistributionBatchToBooks(client, tenantId, {
+            batchId,
+            vendorId,
+            vendorName,
+            billValue: totalBilled,
+            distributionDate: date,
+          });
+        } catch {
+          /* Books dual-write must not block distribution */
+        }
         // Auto-mark as sold for dealer/retail tenants
         const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
           ?.business_type;
@@ -684,6 +716,33 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
             baseId,
           ],
         );
+      }
+      try {
+        const vName =
+          (
+            (await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId]))
+              .rows[0] as { name: string } | undefined
+          )?.name ?? vendorId;
+        await postDistributionBatchToBooks(client, tenantId, {
+          batchId: baseId,
+          vendorId,
+          vendorName: vName,
+          billValue: totalBilled,
+          distributionDate: date,
+        });
+        if (paidAmount && distPayId) {
+          await postVendorPaymentToBooks(client, tenantId, {
+            id: distPayId,
+            amount: paidAmount,
+            paymentDate: date,
+            paymentMethod: 'Cash',
+            notes: `Payment against distribution ${baseId}`,
+            vendorId,
+            vendorName: vName,
+          });
+        }
+      } catch {
+        /* Books dual-write must not block distribution */
       }
       await client.query('COMMIT');
     } catch (e) {

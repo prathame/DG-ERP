@@ -73,6 +73,16 @@ describe('tabPresets', () => {
     expect(p.warranty.visible).toBe(false);
     expect(p.rewards.visible).toBe(false);
     expect(p.replacements.visible).toBe(false);
+    expect(p.books.visible).toBe(true);
+    expect(p.book_import.visible).toBe(true);
+  });
+
+  it('retail and hotel_restaurant expose Books hub under Accounts', () => {
+    expect(TAB_PRESETS.retail.books.visible).toBe(true);
+    expect(TAB_PRESETS.retail.book_import.visible).toBe(true);
+    expect(TAB_PRESETS.hotel_restaurant.books.visible).toBe(true);
+    expect(TAB_PRESETS.hotel_restaurant.book_import.visible).toBe(true);
+    expect(CUSTOM_TAB_PRESET.books.visible).toBe(true);
   });
 
   it('hotel_restaurant preset enables hospitality tabs and hides supply-chain tabs', () => {

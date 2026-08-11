@@ -41,7 +41,7 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_menu: { label: 'Menu & Tables', visible: false },
   hosp_parcels: { label: 'Parcels', visible: false },
   hosp_members: { label: 'Members', visible: false },
-  // Ledgers/vouchers / Miracle — off by default; mfr / dealer / service enable (lives under Accounts)
+  // Ledgers/vouchers / Miracle — off in base; BOOKS_ON enables under Accounts for every named type
   // Device Settings collapses the family to one `books` toggle; book_* remain for SA / deep links
   books: { label: 'Ledgers & vouchers', visible: false },
   book_ledgers: { label: 'Ledgers', visible: false },
@@ -51,14 +51,19 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   ...overrides,
 });
 
+/** Ledgers, vouchers, Miracle import — shared across all business-type presets. */
+const BOOKS_ON: Partial<TabConfig> = {
+  books: { label: 'Ledgers & vouchers', visible: true },
+  book_ledgers: { label: 'Ledgers', visible: true },
+  book_vouchers: { label: 'Vouchers', visible: true },
+  book_products: { label: 'Book products', visible: true },
+  book_import: { label: 'Data import', visible: true },
+};
+
 export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   /** Die / job-work / manufacturing — Miracle CMP import available for onboarding */
   manufacturer: baseAllVisible({
-    books: { label: 'Ledgers & vouchers', visible: true },
-    book_ledgers: { label: 'Ledgers', visible: true },
-    book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Book products', visible: true },
-    book_import: { label: 'Data import', visible: true },
+    ...BOOKS_ON,
   }),
   dealer: baseAllVisible({
     distribution: { label: 'Sales', visible: true },
@@ -67,11 +72,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
-    books: { label: 'Ledgers & vouchers', visible: true },
-    book_ledgers: { label: 'Ledgers', visible: true },
-    book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Book products', visible: true },
-    book_import: { label: 'Data import', visible: true },
+    ...BOOKS_ON,
   }),
   retail: baseAllVisible({
     inventory: { label: 'Stock', visible: true },
@@ -81,6 +82,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    ...BOOKS_ON,
   }),
   /** Service / consulting — Miracle CMP → clients, invoices & payments; ledgers/vouchers under Accounts */
   service: baseAllVisible({
@@ -95,11 +97,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
-    books: { label: 'Ledgers & vouchers', visible: true },
-    book_ledgers: { label: 'Ledgers', visible: true },
-    book_vouchers: { label: 'Vouchers', visible: true },
-    book_products: { label: 'Book products', visible: true },
-    book_import: { label: 'Data import', visible: true },
+    ...BOOKS_ON,
   }),
   silver_casting: baseAllVisible({
     inventory: { label: 'Metal Stock', visible: true },
@@ -109,6 +107,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    ...BOOKS_ON,
   }),
   hotel_restaurant: baseAllVisible({
     analytics: { label: 'Analytics', visible: true },
@@ -132,6 +131,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     hosp_parcels: { label: 'Parcels', visible: true },
     hosp_menu: { label: 'Menu', visible: true },
     hosp_members: { label: 'Members', visible: true },
+    ...BOOKS_ON,
   }),
 };
 
@@ -140,6 +140,7 @@ export const CUSTOM_TAB_PRESET: TabConfig = baseAllVisible({
   distribution: { label: 'Distribution', visible: true },
   sales: { label: 'Sales Entry', visible: true },
   finance: { label: 'Finance', visible: true },
+  ...BOOKS_ON,
 });
 
 function cloneTabConfig(src: TabConfig): TabConfig {
