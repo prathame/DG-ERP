@@ -41,6 +41,8 @@
   "navSections": {
     "supplyChain": "Supply Chain",
     "financeReports": "Finance & Reports",
+    "transactions": "Transactions",
+    "reports": "Reports",
     "afterSales": "After Sales",
     "books": "Books"
   },

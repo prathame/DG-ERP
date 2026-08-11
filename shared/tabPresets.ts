@@ -41,7 +41,8 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_menu: { label: 'Menu & Tables', visible: false },
   hosp_parcels: { label: 'Parcels', visible: false },
   hosp_members: { label: 'Members', visible: false },
-  // Books / Miracle — off by default; manufacturer / dealer / service presets enable import
+  // Books / Miracle — off by default; mfr / dealer / service enable the Books hub (+ import panel)
+  // Sidebar shows a single Books entry; book_* remain for SA toggles / deep links / BooksView panels
   books: { label: 'Books', visible: false },
   book_ledgers: { label: 'Ledgers', visible: false },
   book_vouchers: { label: 'Vouchers', visible: false },
@@ -66,8 +67,11 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
-    book_import: { label: 'Miracle Import', visible: true },
     books: { label: 'Books', visible: true },
+    book_ledgers: { label: 'Ledgers', visible: true },
+    book_vouchers: { label: 'Vouchers', visible: true },
+    book_products: { label: 'Book Products', visible: true },
+    book_import: { label: 'Miracle Import', visible: true },
   }),
   retail: baseAllVisible({
     inventory: { label: 'Stock', visible: true },
@@ -78,7 +82,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
   }),
-  /** Service / consulting — Miracle CMP import into clients, invoices & payments (no stock chain) */
+  /** Service / consulting — Miracle CMP → clients, invoices & payments; Books hub for COA/vouchers */
   service: baseAllVisible({
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
@@ -89,6 +93,10 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
+    books: { label: 'Books', visible: true },
+    book_ledgers: { label: 'Ledgers', visible: true },
+    book_vouchers: { label: 'Vouchers', visible: true },
+    book_products: { label: 'Book Products', visible: true },
     book_import: { label: 'Miracle Import', visible: true },
   }),
   silver_casting: baseAllVisible({
