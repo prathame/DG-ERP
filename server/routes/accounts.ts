@@ -235,6 +235,32 @@ router.get('/api/accounts/ledger', async (req, res) => {
           credit: 0,
         });
       }
+
+      // Operating cash outflows (cash book must match Cash Flow / Books Cash)
+      const expenseRows = (
+        await pool.query(
+          `
+        SELECT id as ref_id, expense_date as dt, category, description, amount, payment_method
+        FROM expenses
+        WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3
+        ORDER BY expense_date
+      `,
+          [tenantId, dateFrom, dateTo],
+        )
+      ).rows as Record<string, unknown>[];
+      for (const r of expenseRows) {
+        const desc = String(r.description || '').trim();
+        entries.push({
+          date: r.dt as string,
+          type: 'Expense',
+          particulars: desc
+            ? `Expense: ${r.category} — ${desc} (${r.payment_method || 'Cash'})`
+            : `Expense: ${r.category} (${r.payment_method || 'Cash'})`,
+          refId: r.ref_id as string,
+          debit: 0,
+          credit: Number(r.amount) || 0,
+        });
+      }
     }
 
     entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
