@@ -3,10 +3,12 @@
  */
 import type { Pool } from 'pg';
 import {
+  buildStatementLines,
   buildTrialBalanceRow,
   classifyLedger,
   formatBalanceLabel,
   round2,
+  signedOpeningBalance,
   splitDrCr,
   type StatementClass,
   type TrialBalanceLedgerRow,
@@ -231,6 +233,195 @@ export async function getBooksBalanceSheet(pool: Pool, tenantId: string, asOf: s
 
 export function describeBalance(signed: number) {
   return { ...splitDrCr(signed), label: formatBalanceLabel(signed) };
+}
+
+export type FundBookKind = 'cash' | 'bank';
+
+/**
+ * Miracle-style Cash / Bank book for one CS or BK ledger (picker when multiple).
+ * Lines show the fund account’s debit/credit with particulars = other ledgers on the voucher.
+ */
+export async function getFundBook(
+  pool: Pool,
+  tenantId: string,
+  kind: FundBookKind,
+  from: string | null,
+  to: string | null,
+  ledgerId?: string | null,
+) {
+  const ledgerType = kind === 'cash' ? 'CS' : 'BK';
+  const accounts = (
+    await pool.query(
+      `SELECT id, name, external_ref, opening_balance, opening_side, ledger_type, group_id
+       FROM book_ledgers
+       WHERE tenant_id = $1 AND ledger_type = $2
+       ORDER BY
+         CASE WHEN external_ref IN ('ops:CASH','ops:BANK','ACASHACT') THEN 0 ELSE 1 END,
+         name`,
+      [tenantId, ledgerType],
+    )
+  ).rows as Array<{
+    id: string;
+    name: string;
+    external_ref: string | null;
+    opening_balance: number;
+    opening_side: string | null;
+    ledger_type: string;
+  }>;
+
+  const accountList = accounts.map(a => ({
+    id: a.id,
+    name: a.name,
+    externalRef: a.external_ref,
+  }));
+
+  if (!accounts.length) {
+    return {
+      kind,
+      accounts: accountList,
+      ledger: null,
+      from,
+      to,
+      opening: {
+        debit: 0,
+        credit: 0,
+        balance: 0,
+        balanceSide: null as const,
+        balanceLabel: '0.00',
+      },
+      lines: [] as Array<{
+        voucherId: string;
+        date: string | Date;
+        voucherNumber: string | null;
+        voucherType: string;
+        particulars: string;
+        narration: string | null;
+        debit: number;
+        credit: number;
+        balance: number;
+        balanceSide: ReturnType<typeof splitDrCr>['side'];
+        balanceLabel: string;
+      }>,
+      totals: { debit: 0, credit: 0 },
+      closing: {
+        debit: 0,
+        credit: 0,
+        balance: 0,
+        balanceSide: null as const,
+        balanceLabel: '0.00',
+      },
+    };
+  }
+
+  const selected =
+    (ledgerId && accounts.find(a => a.id === ledgerId)) ||
+    accounts.find(a => a.external_ref === (kind === 'cash' ? 'ops:CASH' : 'ops:BANK')) ||
+    accounts.find(a => a.external_ref === 'ACASHACT') ||
+    accounts[0];
+
+  const bookOpening = signedOpeningBalance(selected.opening_balance, selected.opening_side);
+
+  let priorSigned = 0;
+  if (from) {
+    const prior = await pool.query(
+      `SELECT COALESCE(SUM(e.debit),0)::float AS debit, COALESCE(SUM(e.credit),0)::float AS credit
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+       WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date < $3`,
+      [tenantId, selected.id, from],
+    );
+    priorSigned = Number(prior.rows[0]?.debit || 0) - Number(prior.rows[0]?.credit || 0);
+  }
+  const openingSigned = bookOpening + priorSigned;
+  const opening = splitDrCr(openingSigned);
+
+  const params: unknown[] = [tenantId, selected.id];
+  let sql = `
+    SELECT e.voucher_id, v.voucher_date, v.voucher_number, v.voucher_type, v.narration,
+           e.debit::float AS debit, e.credit::float AS credit,
+           (
+             SELECT STRING_AGG(x.name, ', ' ORDER BY x.name)
+             FROM (
+               SELECT DISTINCT ol.name AS name
+               FROM book_voucher_entries oe
+               JOIN book_ledgers ol ON ol.id = oe.ledger_id AND ol.tenant_id = oe.tenant_id
+               WHERE oe.tenant_id = e.tenant_id AND oe.voucher_id = e.voucher_id AND oe.ledger_id <> e.ledger_id
+             ) x
+           ) AS particulars
+    FROM book_voucher_entries e
+    JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+    WHERE e.tenant_id = $1 AND e.ledger_id = $2`;
+  if (from) {
+    params.push(from);
+    sql += ` AND v.voucher_date >= $${params.length}`;
+  }
+  if (to) {
+    params.push(to);
+    sql += ` AND v.voucher_date <= $${params.length}`;
+  }
+  sql += ` ORDER BY v.voucher_date, v.voucher_number NULLS LAST, e.line_no LIMIT 10000`;
+
+  const { rows } = await pool.query(sql, params);
+  const built = buildStatementLines(
+    openingSigned,
+    rows.map(r => ({
+      voucherId: r.voucher_id,
+      voucherDate: r.voucher_date,
+      voucherNumber: r.voucher_number,
+      voucherType: r.voucher_type,
+      narration: r.narration,
+      debit: Number(r.debit || 0),
+      credit: Number(r.credit || 0),
+    })),
+  );
+
+  const lines = built.map((l, i) => ({
+    voucherId: l.voucherId,
+    date: typeof l.voucherDate === 'string' ? l.voucherDate.slice(0, 10) : l.voucherDate,
+    voucherNumber: l.voucherNumber,
+    voucherType: l.voucherType,
+    particulars: String(rows[i]?.particulars || l.narration || '—'),
+    narration: l.narration,
+    debit: l.debit,
+    credit: l.credit,
+    balance: l.balance,
+    balanceSide: l.balanceSide,
+    balanceLabel: l.balanceLabel,
+  }));
+
+  const periodDebit = round2(lines.reduce((s, l) => s + l.debit, 0));
+  const periodCredit = round2(lines.reduce((s, l) => s + l.credit, 0));
+  const closingSigned = lines.length ? lines[lines.length - 1].balance : openingSigned;
+  const closing = splitDrCr(closingSigned);
+
+  return {
+    kind,
+    accounts: accountList,
+    ledger: {
+      id: selected.id,
+      name: selected.name,
+      ledgerType: selected.ledger_type,
+      externalRef: selected.external_ref,
+    },
+    from,
+    to,
+    opening: {
+      debit: opening.debit,
+      credit: opening.credit,
+      balance: openingSigned,
+      balanceSide: opening.side,
+      balanceLabel: formatBalanceLabel(openingSigned),
+    },
+    lines,
+    totals: { debit: periodDebit, credit: periodCredit },
+    closing: {
+      debit: closing.debit,
+      credit: closing.credit,
+      balance: closingSigned,
+      balanceSide: closing.side,
+      balanceLabel: formatBalanceLabel(closingSigned),
+    },
+  };
 }
 
 export { classifyLedger };

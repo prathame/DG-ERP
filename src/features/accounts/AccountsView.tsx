@@ -19,6 +19,8 @@ import {
   Upload,
   Landmark,
   FileUp,
+  Wallet,
+  Building2,
 } from 'lucide-react';
 import {
   cn,
@@ -43,6 +45,7 @@ import { MobileAccountsPanel } from './MobileAccountsPanel';
 import { BooksView } from '../books/BooksView';
 import { BooksReportsPanel } from '../books/BooksReportsPanel';
 import { DayBookPanel } from '../books/DayBookPanel';
+import { FundBookPanel } from '../books/FundBookPanel';
 import { MiracleImportPanel } from '../books/MiracleImportPanel';
 import { VoucherDetailModal } from '../books/VoucherDetailModal';
 
@@ -52,6 +55,8 @@ type AccountTab =
   | 'cashflow'
   | 'ledger'
   | 'daybook'
+  | 'cashbook'
+  | 'bankbook'
   | 'notes'
   | 'vouchers'
   | 'trial'
@@ -131,7 +136,13 @@ export function AccountsView({
   }, [booksModuleOn]);
 
   const booksFor = (key: AccountTab) =>
-    booksDeskReady && (key === 'pnl' || key === 'balance' || key === 'ledger' || key === 'daybook');
+    booksDeskReady &&
+    (key === 'pnl' ||
+      key === 'balance' ||
+      key === 'ledger' ||
+      key === 'daybook' ||
+      key === 'cashbook' ||
+      key === 'bankbook');
   const booksSelfContained =
     booksFor(tab) || tab === 'vouchers' || tab === 'trial' || tab === 'products' || tab === 'import';
   const statementSourceNote = (() => {
@@ -238,6 +249,22 @@ export function AccountsView({
     { key: 'cashflow', label: 'Cash Flow', shortLabel: 'Cash', icon: Banknote, group: 'accounts' },
     { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: Landmark, group: 'accounts' },
     { key: 'daybook', label: 'Day Book', shortLabel: 'DayBook', icon: BookOpen, group: 'accounts' },
+    {
+      key: 'cashbook',
+      label: 'Cash Book',
+      shortLabel: 'CashBk',
+      icon: Wallet,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
+    {
+      key: 'bankbook',
+      label: 'Bank Book',
+      shortLabel: 'BankBk',
+      icon: Building2,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
     {
       key: 'vouchers',
       label: 'Vouchers',
@@ -349,6 +376,8 @@ export function AccountsView({
       {tab === 'trial' && <BooksReportsPanel lockedKind="tb" />}
       {tab === 'ledger' && <BooksView initialPanel="ledgers" embedded />}
       {tab === 'daybook' && <DayBookPanel onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'cashbook' && <FundBookPanel kind="cash" onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'bankbook' && <FundBookPanel kind="bank" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'vouchers' && <BooksView initialPanel="vouchers" embedded />}
       {tab === 'products' && <BooksView initialPanel="products" embedded />}
       {tab === 'import' && <MiracleImportPanel onComplete={() => setBooksDeskReady(true)} />}
