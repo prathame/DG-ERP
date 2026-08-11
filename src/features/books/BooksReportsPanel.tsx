@@ -64,9 +64,16 @@ interface BsResponse {
   difference: number;
 }
 
-export function BooksReportsPanel() {
+export function BooksReportsPanel({
+  lockedKind,
+  hideSourceNote = false,
+}: {
+  /** When set, show only this report (used from Accounts — no duplicate P&L/BS switcher). */
+  lockedKind?: ReportKind;
+  hideSourceNote?: boolean;
+} = {}) {
   const defaults = fyDefaults();
-  const [kind, setKind] = useState<ReportKind>('tb');
+  const [kind, setKind] = useState<ReportKind>(lockedKind || 'tb');
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
   const [loading, setLoading] = useState(true);
@@ -74,6 +81,10 @@ export function BooksReportsPanel() {
   const [tb, setTb] = useState<TbResponse | null>(null);
   const [pnl, setPnl] = useState<PnlResponse | null>(null);
   const [bs, setBs] = useState<BsResponse | null>(null);
+
+  useEffect(() => {
+    if (lockedKind) setKind(lockedKind);
+  }, [lockedKind]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,23 +138,25 @@ export function BooksReportsPanel() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">
-            CA statements from Books vouchers (double-entry) — not ops Accounts reports.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setKind(t.id)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  kind === t.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {!hideSourceNote && !lockedKind && (
+            <p className="text-sm text-slate-500">Statements from double-entry ledgers and vouchers.</p>
+          )}
+          {!lockedKind && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {tabs.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setKind(t.id)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                    kind === t.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-end gap-2">
           {kind !== 'bs' && (

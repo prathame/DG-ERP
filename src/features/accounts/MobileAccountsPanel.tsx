@@ -38,6 +38,7 @@ type Props = {
   gstr1Slot?: React.ReactNode;
   children: React.ReactNode;
   showEmpty: boolean;
+  hideToolbar?: boolean;
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -103,6 +104,7 @@ export function MobileAccountsPanel({
   gstr1Slot,
   children,
   showEmpty,
+  hideToolbar = false,
 }: Props) {
   const fieldLabel = 'text-[10px] font-bold dg-m-faint uppercase tracking-wider block mb-1';
   const fieldInput =
@@ -152,7 +154,7 @@ export function MobileAccountsPanel({
         </section>
       )}
 
-      {tab !== 'gstr2b' && (
+      {tab !== 'gstr2b' && !hideToolbar && (
         <section className="dg-m-glass-card rounded-2xl p-3.5 space-y-3">
           <div
             className={cn(

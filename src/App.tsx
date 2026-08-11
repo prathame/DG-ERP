@@ -60,7 +60,7 @@ import {
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
 import { fillMissingTabPresetKeys, isTabVisibleForUser } from '../shared/tabPresets';
-import { booksSidebarTabIds, isNavItemActive } from './lib/navArchitecture';
+import { isNavItemActive } from './lib/navArchitecture';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -174,8 +174,6 @@ const HospitalityAnalyticsView = lazy(() =>
 const HospitalityAccountsView = lazy(() =>
   import('./features/hospitality/HospitalityAccountsView').then(m => ({ default: m.HospitalityAccountsView })),
 );
-const BooksView = lazy(() => import('./features/books/BooksView').then(m => ({ default: m.BooksView })));
-
 function slugEntryApiContext(slug: string): {
   slug: string;
   apiOrigin: string;
@@ -591,6 +589,8 @@ export default function App() {
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
   const [tabKey, setTabKey] = useState(0);
+  /** Books family folds into Accounts — seed the Accounts sub-tab from deep links. */
+  const [accountsInitialTab, setAccountsInitialTab] = useState<string | null>(null);
   /** Deep-link payload for Masters when picking a global search hit. */
   const [mastersLaunch, setMastersLaunch] = useState<{
     master?: MasterType;
@@ -599,15 +599,30 @@ export default function App() {
     staffName?: string;
   } | null>(null);
   const setActiveTab = (tab: Tab) => {
-    setActiveTabRaw(tab);
+    const bookToAccounts: Record<string, string> = {
+      books: 'ledger',
+      book_ledgers: 'ledger',
+      book_vouchers: 'vouchers',
+      book_products: 'ledger',
+      book_import: 'import',
+    };
+    const accountsSeed = bookToAccounts[tab];
+    if (accountsSeed) {
+      setAccountsInitialTab(accountsSeed);
+      setActiveTabRaw('accounts');
+    } else {
+      if (tab === 'accounts') setAccountsInitialTab(null);
+      setActiveTabRaw(tab);
+    }
     setTabKey(k => k + 1);
     // Cap: replace so Android back is not a deep tab history (double-back exits instead).
     // Desktop web keeps pushState so browser Back still moves between tabs.
     const path = window.location.pathname;
+    const histTab = accountsSeed ? 'accounts' : tab;
     if (isNativeCapacitorShell()) {
-      window.history.replaceState({ tab }, '', path);
+      window.history.replaceState({ tab: histTab }, '', path);
     } else {
-      window.history.pushState({ tab }, '', path);
+      window.history.pushState({ tab: histTab }, '', path);
     }
   };
   const navigateFromGlobalSearch = (nav: GlobalSearchNavigate) => {
@@ -717,7 +732,20 @@ export default function App() {
         return;
       }
       if (e.state?.tab) {
-        setActiveTabRaw(e.state.tab);
+        const bookToAccounts: Record<string, string> = {
+          books: 'ledger',
+          book_ledgers: 'ledger',
+          book_vouchers: 'vouchers',
+          book_products: 'ledger',
+          book_import: 'import',
+        };
+        const seed = bookToAccounts[e.state.tab as string];
+        if (seed) {
+          setAccountsInitialTab(seed);
+          setActiveTabRaw('accounts');
+        } else {
+          setActiveTabRaw(e.state.tab);
+        }
       } else {
         const path = window.location.pathname;
         if (isNativeCapacitorShell()) {
@@ -863,9 +891,7 @@ export default function App() {
     show,
   });
 
-  const booksSidebarIds = new Set(booksSidebarTabIds(tv));
-
-  // Miracle-shaped IA: Masters → Transactions → Books → Reports (+ vertical extras)
+  // Masters → Transactions → Reports/Accounts (ledgers & vouchers live under Accounts)
   const navSections = [
     {
       label: '',
@@ -886,13 +912,6 @@ export default function App() {
         // Service: Collections lives inside Clients hub — keep finance tab id for deep links / SA
         navItem('finance', t('nav.finance'), tv('finance') && !serviceProductUx),
         navItem('verification', t('nav.verification'), tv('verification')),
-      ],
-    },
-    {
-      label: t('navSections.books'),
-      items: [
-        navItem('books', t('nav.books'), booksSidebarIds.has('books')),
-        navItem('book_import', t('nav.bookImport'), booksSidebarIds.has('book_import')),
       ],
     },
     {
@@ -1871,11 +1890,6 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
                     {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
                     {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
-                    {canAccess(activeTab) && activeTab === 'books' && <BooksView initialPanel="overview" />}
-                    {canAccess(activeTab) && activeTab === 'book_ledgers' && <BooksView initialPanel="ledgers" />}
-                    {canAccess(activeTab) && activeTab === 'book_vouchers' && <BooksView initialPanel="vouchers" />}
-                    {canAccess(activeTab) && activeTab === 'book_products' && <BooksView initialPanel="products" />}
-                    {canAccess(activeTab) && activeTab === 'book_import' && <BooksView initialPanel="import" />}
                     {canAccess(activeTab) &&
                       activeTab === 'analytics' &&
                       ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
@@ -1889,7 +1903,11 @@ export default function App() {
                       ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
                         <HospitalityAccountsView />
                       ) : (
-                        <AccountsView accessLevel={getAccess('accounts')} />
+                        <AccountsView
+                          accessLevel={getAccess('accounts')}
+                          booksAccess={getAccess('books')}
+                          initialTab={accountsInitialTab}
+                        />
                       ))}
                   </div>
                   {canAccess('settings') && activeTab === 'settings' && (

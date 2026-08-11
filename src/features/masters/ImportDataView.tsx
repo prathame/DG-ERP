@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { MiracleImportPanel } from '../books/MiracleImportPanel';
 
-/** Masters hub screen for Miracle CMP import (same API as Books → Miracle Import). */
+/** Masters hub screen for CMP import (same panel as Accounts → Data import). */
 export function ImportDataView({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
 
