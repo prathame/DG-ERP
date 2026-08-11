@@ -178,7 +178,7 @@ export function MobileAccountsPanel({
               <div className="col-span-2 min-w-0">
                 <label className={fieldLabel}>Type</label>
                 <select value={ledgerFilter} onChange={e => onLedgerFilter(e.target.value)} className={fieldInput}>
-                  <option value="all">All</option>
+                  <option value="all">Cash book</option>
                   <option value="sales">Sales/Distribution</option>
                   <option value="purchases">Purchases</option>
                   <option value="payments">Payments</option>
