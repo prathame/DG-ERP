@@ -679,12 +679,15 @@ function ProfitLoss({
     distributionRevenue: number;
     salesRevenue: number;
     invoiceRevenue?: number;
+    partyInvoiceRevenue?: number;
+    cashIncomeRevenue?: number;
     total: number;
   };
   const exp = data.expenses as { purchaseCost: number; staffPayments?: number; otherExpenses?: number; total: number };
   const profit = Number(data.grossProfit) || 0;
   const margin = Number(data.profitMargin) || 0;
-  const invoiceRev = rev.invoiceRevenue || 0;
+  const partyInv = Number(rev.partyInvoiceRevenue ?? rev.invoiceRevenue) || 0;
+  const cashInv = Number(rev.cashIncomeRevenue) || 0;
   const revenueLines = [
     cfg.features.distribution &&
       rev.distributionRevenue > 0 && {
@@ -692,7 +695,8 @@ function ProfitLoss({
         value: rev.distributionRevenue,
       },
     cfg.features.distribution && rev.salesRevenue > 0 && { label: tb('Sales Revenue', t), value: rev.salesRevenue },
-    invoiceRev > 0 && { label: tb('Invoice Revenue', t), value: invoiceRev },
+    partyInv > 0 && { label: 'Party sales (invoices)', value: partyInv },
+    cashInv > 0 && { label: 'Cash income (rent/scrap/misc)', value: cashInv },
   ].filter(Boolean) as { label: string; value: number }[];
   return (
     <div className="space-y-4">
