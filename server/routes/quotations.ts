@@ -5,6 +5,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { hasExplicitUnitPrice, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
+import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -102,10 +103,13 @@ async function buildResolvedItems(
     if (!productId) {
       const customName = String(item.description || item.productName || '').trim();
       if (!customName) return { error: 'Custom line needs a description', status: 400 };
-      if (!hasExplicitUnitPrice(item.customPrice)) {
+      // Accept customPrice, rate, or unitPrice (import / API aliases)
+      const customUnit =
+        item.customPrice ?? (item as { rate?: unknown }).rate ?? (item as { unitPrice?: unknown }).unitPrice;
+      if (!hasExplicitUnitPrice(customUnit)) {
         return { error: `Rate required for custom line: ${customName}`, status: 400 };
       }
-      const price = Number(item.customPrice);
+      const price = Number(customUnit);
       if (!Number.isFinite(price) || price < 0) {
         return { error: `Rate required for custom line: ${customName}`, status: 400 };
       }
@@ -142,8 +146,10 @@ async function buildResolvedItems(
       ])
     ).rows[0] as { id: string; name: string; price: number; price_includes_gst: boolean } | undefined;
     if (!product) return { error: `Product not found: ${productId}`, status: 404 };
-    const price = hasExplicitUnitPrice(item.customPrice)
-      ? Number(item.customPrice)
+    const overrideUnit =
+      item.customPrice ?? (item as { rate?: unknown }).rate ?? (item as { unitPrice?: unknown }).unitPrice;
+    const price = hasExplicitUnitPrice(overrideUnit)
+      ? Number(overrideUnit)
       : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
     const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
       basePrice: price,
@@ -699,6 +705,23 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
            WHERE id = $4 AND tenant_id = $5`,
           [newStatus, JSON.stringify(items), invoiceId, req.params.id, tenantId],
         );
+        try {
+          await postStandaloneInvoiceToBooks(client, tenantId, {
+            id: invoiceId,
+            invoiceNumber,
+            customerName: String(quote.customer_name || quote.vendor_name || 'Customer'),
+            partyId: (quote.vendor_id as string) || null,
+            grandTotal,
+            subtotal,
+            taxCgst,
+            taxSgst,
+            taxIgst,
+            invoiceDate: date,
+            notes: quote.notes || `From quotation ${quote.quotation_number}`,
+          });
+        } catch {
+          /* Books dual-write must not block quote convert */
+        }
         await client.query('COMMIT');
         await logAudit(
           pool,
