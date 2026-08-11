@@ -511,21 +511,28 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
       const usedIdx = new Set<number>();
       if (convertReq && convertReq.length > 0) {
         for (const reqLine of convertReq) {
+          // Custom (no-product) lines store productId as "" — treat undefined/null the same.
+          const reqPid = String(reqLine.productId ?? '').trim();
           let idx =
             typeof reqLine.lineIndex === 'number' &&
             reqLine.lineIndex >= 0 &&
             reqLine.lineIndex < items.length &&
-            items[reqLine.lineIndex].productId === reqLine.productId
+            String(items[reqLine.lineIndex].productId ?? '').trim() === reqPid
               ? reqLine.lineIndex
               : -1;
           if (idx < 0) {
             idx = items.findIndex(
-              (i, j) => i.productId === reqLine.productId && !usedIdx.has(j) && i.quantity - (i.convertedQty || 0) > 0,
+              (i, j) =>
+                String(i.productId ?? '').trim() === reqPid &&
+                !usedIdx.has(j) &&
+                i.quantity - (i.convertedQty || 0) > 0,
             );
           }
           if (idx < 0 || usedIdx.has(idx)) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: `Product not on quotation: ${reqLine.productId}` });
+            return res.status(400).json({
+              error: reqPid ? `Product not on quotation: ${reqPid}` : 'Custom quote line not found for convert',
+            });
           }
           const item = items[idx];
           const remaining = item.quantity - (item.convertedQty || 0);

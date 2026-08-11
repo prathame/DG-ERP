@@ -246,6 +246,59 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(bad.status).toBe(400);
   });
 
+  it('Accounts Ledger cash book does not double-count invoice + payment', async () => {
+    const cash = await api().post('/api/invoice-finance/cash-income').set(authHeaders(token, TENANT)).send({
+      incomeHead: 'Ledger Dup Check',
+      amount: 125,
+      incomeDate: '2026-08-09',
+      paymentMethod: 'Cash',
+    });
+    expect(cash.status).toBe(201);
+
+    const partyInv = await api()
+      .post('/api/invoices')
+      .set(authHeaders(token, TENANT))
+      .send({
+        customerName: 'Ledger Party',
+        invoiceDate: '2026-08-09',
+        items: [{ description: 'Job', qty: 1, rate: 200, gstPercent: 0 }],
+        status: 'sent',
+        partyType: 'vendor',
+        partyId: VENDOR,
+      });
+    expect(partyInv.status).toBe(201);
+    await api()
+      .post('/api/invoice-finance/payments')
+      .set(authHeaders(token, TENANT))
+      .set('Idempotency-Key', `ledger-dup-${Date.now()}`)
+      .send({
+        invoiceId: partyInv.body.id,
+        amount: 200,
+        paymentDate: '2026-08-09',
+        paymentMethod: 'Cash',
+      });
+
+    const ledger = await api()
+      .get('/api/accounts/ledger?from=2020-01-01&to=2099-12-31&type=all')
+      .set(authHeaders(token, TENANT));
+    expect(ledger.status).toBe(200);
+    const entries = ledger.body.entries as {
+      type: string;
+      particulars: string;
+      debit: number;
+      credit: number;
+      balance: number;
+    }[];
+    expect(Array.isArray(entries)).toBe(true);
+    // Cash book only — no billed sales rows mixed into the running balance
+    expect(entries.some(e => e.type === 'Invoice')).toBe(false);
+    // Cash income once; its auto payment must not appear again
+    expect(entries.filter(e => e.type === 'Cash Income' && /ledger dup check/i.test(e.particulars))).toHaveLength(1);
+    expect(entries.some(e => e.type === 'Invoice Payment' && /ledger dup check/i.test(e.particulars))).toBe(false);
+    // Party invoice payment still shows as money in
+    expect(entries.some(e => e.type === 'Invoice Payment' && /ledger party/i.test(e.particulars))).toBe(true);
+  });
+
   it('Accounts P&L + Outstanding use party invoices for service (not cash income / distribution)', async () => {
     await pool.query(`UPDATE tenants SET business_type = 'service' WHERE id = $1`, [TENANT]);
     try {

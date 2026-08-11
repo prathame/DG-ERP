@@ -28,32 +28,35 @@ router.get('/api/accounts/ledger', async (req, res) => {
     const { from, to, type } = req.query;
     const dateFrom = typeof from === 'string' ? from : '2000-01-01';
     const dateTo = typeof to === 'string' ? to : '2099-12-31';
+    // `all` / default = cash book (money in/out). Sales & purchases are separate filters —
+    // mixing them with payments was double-counting (invoice + payment both as debit).
+    const filter = typeof type === 'string' && type ? type : 'all';
+    const wantSales = filter === 'sales';
+    const wantPurchases = filter === 'purchases';
+    const wantCash = filter === 'all' || filter === 'payments';
 
     const entries: { date: string; type: string; particulars: string; refId: string; debit: number; credit: number }[] =
       [];
 
-    if (!type || type === 'all' || type === 'sales') {
-      // Standalone invoice revenue (issued only — exclude draft/cancelled); debit = receivable
+    if (wantSales) {
+      // Billing journal (not cash) — party invoices excl. cash-income; use grand total (matches Collections)
       const invLedgerRows = (
         await pool.query(
           `
-        SELECT id as ref_id, invoice_date as dt, customer_name, subtotal as amount, invoice_number,
-               COALESCE(invoice_kind, 'sale') AS invoice_kind
+        SELECT id as ref_id, invoice_date as dt, customer_name, grand_total as amount, invoice_number
         FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3
           AND status NOT IN ('cancelled','draft')
+          AND COALESCE(invoice_kind, 'sale') <> 'cash_income'
         ORDER BY invoice_date
       `,
           [tenantId, dateFrom, dateTo],
         )
       ).rows as Record<string, unknown>[];
       for (const r of invLedgerRows) {
-        const isCash = r.invoice_kind === 'cash_income';
         entries.push({
           date: r.dt as string,
-          type: isCash ? 'Cash Income' : 'Invoice',
-          particulars: isCash
-            ? `Cash income ${r.invoice_number} — ${r.customer_name}`
-            : `Invoice ${r.invoice_number} — ${r.customer_name}`,
+          type: 'Invoice',
+          particulars: `Invoice ${r.invoice_number} — ${r.customer_name}`,
           refId: r.ref_id as string,
           debit: Number(r.amount) || 0,
           credit: 0,
@@ -111,7 +114,7 @@ router.get('/api/accounts/ledger', async (req, res) => {
       }
     }
 
-    if (!type || type === 'all' || type === 'purchases') {
+    if (wantPurchases) {
       // Purchase at cost (excl. GST)
       const purchRows = (
         await pool.query(
@@ -138,8 +141,32 @@ router.get('/api/accounts/ledger', async (req, res) => {
       }
     }
 
-    if (!type || type === 'all' || type === 'payments') {
-      // Cash book: receipts = Debit, payments = Credit
+    if (wantCash) {
+      // Cash book: receipts = Debit, outflows = Credit (do not mix with sales/purchase journals)
+      const cashIncomeRows = (
+        await pool.query(
+          `
+        SELECT id as ref_id, invoice_date as dt, customer_name, grand_total as amount, invoice_number
+        FROM standalone_invoices
+        WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3
+          AND status NOT IN ('cancelled','draft')
+          AND COALESCE(invoice_kind, 'sale') = 'cash_income'
+        ORDER BY invoice_date
+      `,
+          [tenantId, dateFrom, dateTo],
+        )
+      ).rows as Record<string, unknown>[];
+      for (const r of cashIncomeRows) {
+        entries.push({
+          date: r.dt as string,
+          type: 'Cash Income',
+          particulars: `Cash income ${r.invoice_number} — ${r.customer_name}`,
+          refId: r.ref_id as string,
+          debit: Number(r.amount) || 0,
+          credit: 0,
+        });
+      }
+
       const vpRows = (
         await pool.query(
           `
@@ -184,6 +211,7 @@ router.get('/api/accounts/ledger', async (req, res) => {
         });
       }
 
+      // Invoice receipts — skip cash_income (already posted above; those also write invoice_payments)
       const invPayRows = (
         await pool.query(
           `
@@ -191,6 +219,7 @@ router.get('/api/accounts/ledger', async (req, res) => {
         FROM invoice_payments ip
         JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = $1
         WHERE ip.tenant_id = $1 AND ip.payment_date >= $2 AND ip.payment_date <= $3
+          AND COALESCE(si.invoice_kind, 'sale') <> 'cash_income'
         ORDER BY ip.payment_date
       `,
           [tenantId, dateFrom, dateTo],

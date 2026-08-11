@@ -139,7 +139,10 @@ export function AccountsView({
     if (booksFor(tab) || tab === 'trial' || tab === 'vouchers' || tab === 'products') {
       return 'From double-entry ledgers and vouchers.';
     }
-    if (tab === 'pnl' || tab === 'balance' || tab === 'ledger' || tab === 'daybook') {
+    if (tab === 'ledger') {
+      return 'Cash book by default (money in/out). Use Sales/Purchases filters for billing journals — not mixed into the running balance.';
+    }
+    if (tab === 'pnl' || tab === 'balance' || tab === 'daybook') {
       return 'From operations — set the period, then Generate.';
     }
     if (tab === 'outstanding') return 'Aging report only. Record payments in Collections.';
@@ -663,7 +666,7 @@ export function AccountsView({
                   onChange={e => setLedgerFilter(e.target.value)}
                   className={dateControlClass}
                 >
-                  <option value="all">All</option>
+                  <option value="all">Cash book</option>
                   <option value="sales">Sales/Distribution</option>
                   <option value="purchases">Purchases</option>
                   <option value="payments">Payments</option>
@@ -1159,8 +1162,10 @@ function Ledger({ data }: { data: Record<string, unknown> }) {
     Distribution: 'bg-blue-50 text-blue-600',
     Sale: 'bg-emerald-50 text-emerald-600',
     Invoice: 'bg-violet-50 text-violet-600',
+    'Cash Income': 'bg-teal-50 text-teal-700',
     Purchase: 'bg-amber-50 text-amber-600',
     'Payment Received': 'bg-green-50 text-green-600',
+    'Invoice Payment': 'bg-green-50 text-green-600',
     'Payment Made': 'bg-rose-50 text-rose-600',
     'Staff Salary': 'bg-purple-50 text-purple-600',
     'Staff Advance': 'bg-amber-50 text-amber-600',

@@ -210,7 +210,7 @@ export function DesktopAccountsPanel({
               <div className="col-span-2 sm:col-span-1 min-w-0 sm:min-w-[10rem]">
                 <label className={fieldLabel}>Type</label>
                 <select value={ledgerFilter} onChange={e => onLedgerFilter(e.target.value)} className={fieldInput}>
-                  <option value="all">All</option>
+                  <option value="all">Cash book</option>
                   <option value="sales">Sales/Distribution</option>
                   <option value="purchases">Purchases</option>
                   <option value="payments">Payments</option>

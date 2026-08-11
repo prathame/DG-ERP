@@ -220,12 +220,15 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     try {
       let productId = form.productId;
       if (creatingNew) {
+        // Service catalog items are not barcode/stock SKUs — auto barcode avoids prefix requirement.
         const created = await api.products.create({
           name: form.newItemName.trim(),
           price: Number(form.price) || 0,
           gstRate: 18,
           stock: 0,
           warrantyMonths: 0,
+          barcodeMode: 'auto',
+          quantity: 1,
         });
         productId = created.id;
       }
