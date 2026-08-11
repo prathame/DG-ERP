@@ -584,6 +584,7 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
         )
       ).rows;
     } else {
+      // By display name: include party-linked invoices for vendors/customers with that name
       invoices = (
         await pool.query(
           `
@@ -594,9 +595,16 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
           COALESCE(SUM(ip.amount), 0) as paid
         FROM standalone_invoices si
         LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
-        WHERE si.tenant_id = $1 AND si.customer_name = $2
-          AND (si.party_type IS NULL OR si.party_id IS NULL)
-          AND si.status != 'cancelled'
+        WHERE si.tenant_id = $1 AND si.status != 'cancelled'
+          AND (
+            si.customer_name = $2
+            OR (si.party_type = 'vendor' AND si.party_id IN (
+              SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
+            ))
+            OR (si.party_type = 'customer' AND si.party_id IN (
+              SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
+            ))
+          )
         GROUP BY si.id ORDER BY si.invoice_date DESC
       `,
           [tenantId, clientName],
@@ -608,8 +616,16 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
         SELECT ip.*, si.invoice_number
         FROM invoice_payments ip
         JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
-        WHERE ip.tenant_id = $1 AND si.customer_name = $2
-          AND (si.party_type IS NULL OR si.party_id IS NULL)
+        WHERE ip.tenant_id = $1 AND si.status != 'cancelled'
+          AND (
+            si.customer_name = $2
+            OR (si.party_type = 'vendor' AND si.party_id IN (
+              SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
+            ))
+            OR (si.party_type = 'customer' AND si.party_id IN (
+              SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
+            ))
+          )
         ORDER BY ip.payment_date DESC, ip.created_at DESC
       `,
           [tenantId, clientName],

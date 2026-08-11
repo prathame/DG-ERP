@@ -33,6 +33,59 @@ async function withNativeBooksDesk(tenantId: string): Promise<void> {
     client.release();
   }
 }
+
+/** Admin: wipe ops business data (payments/invoices/expenses/quotes/…) then Books COA re-seed. Keeps users + OWNER. */
+router.delete('/api/ops/wipe', requireAdmin, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const counts: Record<string, number> = {};
+    const del = async (label: string, sql: string, params: unknown[] = [tenantId]) => {
+      const r = await client.query(sql, params);
+      counts[label] = r.rowCount ?? 0;
+    };
+    await del('invoice_payments', `DELETE FROM invoice_payments WHERE tenant_id = $1`);
+    await del(
+      'standalone_invoices',
+      `UPDATE standalone_invoices SET status = 'cancelled', updated_at = NOW()
+       WHERE tenant_id = $1 AND status IS DISTINCT FROM 'cancelled'`,
+    );
+    await del('expenses', `DELETE FROM expenses WHERE tenant_id = $1`);
+    await del('quotations', `DELETE FROM quotations WHERE tenant_id = $1`);
+    await del('orders', `DELETE FROM orders WHERE tenant_id = $1`);
+    await del('credit_debit_notes', `DELETE FROM credit_debit_notes WHERE tenant_id = $1`);
+    await del('price_lists', `DELETE FROM price_lists WHERE tenant_id = $1`);
+    await del('products', `DELETE FROM products WHERE tenant_id = $1`);
+    await del('vendors', `DELETE FROM vendors WHERE tenant_id = $1 AND id != 'OWNER'`);
+    // optional tables — ignore if missing
+    for (const [label, sql] of [
+      ['staff_payments', `DELETE FROM staff_payments WHERE tenant_id = $1`],
+      ['staff_members', `DELETE FROM staff_members WHERE tenant_id = $1`],
+      ['banks', `DELETE FROM banks WHERE tenant_id = $1`],
+    ] as const) {
+      try {
+        await del(label, sql);
+      } catch {
+        counts[label] = 0;
+      }
+    }
+    const { deleted: booksDeleted } = await wipeNativeBooksDesk(client, tenantId);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Ops Wiped', 'ops', 'all', 'Business data cleared; Books COA re-seeded');
+    res.json({ ok: true, deleted: { ...counts, books: booksDeleted } });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
 const uploadDir = path.join(os.tmpdir(), 'miracle-uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({
