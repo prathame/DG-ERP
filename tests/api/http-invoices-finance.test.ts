@@ -185,7 +185,7 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     await pool.query(
       `INSERT INTO standalone_invoices
          (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total, grand_total, status, invoice_date, invoice_kind, notes)
-       VALUES ('INV-CASH-1', $1, 'MIR-CASH-test1', 'Rent Income', '[]', 500, 0, 500, 'paid', CURRENT_DATE, 'cash_income', 'Miracle cash income: rent')
+       VALUES ('INV-CASH-1', $1, 'CASH-test1', 'Rent Income', '[]', 500, 0, 500, 'paid', CURRENT_DATE, 'cash_income', 'Cash income: rent')
        ON CONFLICT DO NOTHING`,
       [TENANT],
     );
@@ -197,7 +197,7 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
 
     const cash = await api().get('/api/invoice-finance/cash-income').set(authHeaders(token, TENANT));
     expect(cash.status).toBe(200);
-    expect((cash.body as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'MIR-CASH-test1')).toBe(true);
+    expect((cash.body as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'CASH-test1')).toBe(true);
 
     const summary = await api().get('/api/invoice-finance/summary').set(authHeaders(token, TENANT));
     expect(summary.status).toBe(200);

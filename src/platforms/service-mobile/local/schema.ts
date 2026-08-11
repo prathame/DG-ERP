@@ -389,7 +389,37 @@ SET invoice_kind = 'cash_income'
 WHERE COALESCE(invoice_kind, 'sale') != 'cash_income'
   AND (
     invoice_number LIKE 'MIR-CASH-%'
+    OR invoice_number LIKE 'CASH-%'
+    OR invoice_number LIKE 'CASH/%'
     OR COALESCE(notes, '') LIKE 'Miracle cash income%'
+  );
+UPDATE standalone_invoices
+SET notes = CASE
+  WHEN notes LIKE 'Miracle cash income: %'
+    THEN 'Cash income: ' || substr(notes, length('Miracle cash income: ') + 1)
+  WHEN notes LIKE 'Miracle cash income %'
+    THEN 'Cash income: ' || substr(notes, length('Miracle cash income ') + 1)
+  ELSE notes
+END
+WHERE COALESCE(invoice_kind, 'sale') = 'cash_income'
+  AND notes LIKE 'Miracle cash income%';
+UPDATE invoice_payments
+SET notes = CASE
+  WHEN notes LIKE 'Miracle cash income: %'
+    THEN 'Cash income: ' || substr(notes, length('Miracle cash income: ') + 1)
+  WHEN notes LIKE 'Miracle cash income %'
+    THEN 'Cash income: ' || substr(notes, length('Miracle cash income ') + 1)
+  ELSE notes
+END
+WHERE notes LIKE 'Miracle cash income%';
+UPDATE standalone_invoices
+SET invoice_number = 'CASH-' || substr(invoice_number, 10)
+WHERE invoice_number LIKE 'MIR-CASH-%'
+  AND NOT EXISTS (
+    SELECT 1 FROM standalone_invoices o
+    WHERE o.tenant_id = standalone_invoices.tenant_id
+      AND o.id != standalone_invoices.id
+      AND o.invoice_number = 'CASH-' || substr(standalone_invoices.invoice_number, 10)
   );
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT;
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS address TEXT;
