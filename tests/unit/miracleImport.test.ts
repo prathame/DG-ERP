@@ -15,6 +15,8 @@ import {
   isCashIncomeLedgerType,
   isOpsPartyLedgerType,
   locateCompanyDir,
+  mapVoucherType,
+  normalizeMiracleDocNumber,
   pickMiraclePaymentReference,
   resolveMiraclePaymentMethod,
 } from '../../server/services/miracleImport';
@@ -1153,5 +1155,326 @@ describe('miracleImport', () => {
     expect(
       pickMiraclePaymentReference({ FIELD10: '', FIELD82: 'UTR999', FIELD12: 'V1' } as Record<string, string>, null),
     ).toBe('UTR999');
+  });
+
+  it('maps Miracle voucher codes including FIELD98 shortcuts', () => {
+    expect(normalizeMiracleDocNumber('GT/     1')).toBe('GT/1');
+    expect(mapVoucherType('SP', 'D', 'SS')).toBe('sales');
+    expect(mapVoucherType('SE', 'D', 'QS')).toBe('sales');
+    expect(mapVoucherType('CB', 'R', 'CR')).toBe('receipt');
+    expect(mapVoucherType('CB', 'P', 'CP')).toBe('payment');
+    expect(mapVoucherType('CN', '', 'CN')).toBe('credit_note');
+    expect(mapVoucherType('DN', '', 'DN')).toBe('debit_note');
+    expect(mapVoucherType('SR', '', '')).toBe('credit_note');
+    expect(mapVoucherType('PU', '', 'PU')).toBe('purchase');
+    expect(mapVoucherType('CT', '', 'CT')).toBe('contra');
+    expect(mapVoucherType('JR', 'J', 'JR')).toBe('journal');
+  });
+
+  it('imports credit notes and bill-matched receipts', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-cn-'));
+    tmpDirs.push(root);
+    const company = path.join(root, 'CMP0001');
+    fs.mkdirSync(company, { recursive: true });
+    fs.writeFileSync(path.join(company, 'version.txt'), 'Company Name : NOTE FIXTURE\nMiracle Version : 12.0\n');
+    const yr = path.join(company, 'YR25');
+    fs.mkdirSync(yr, { recursive: true });
+
+    writeDbf(
+      path.join(yr, 'rkaccm11.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+      ],
+      [
+        { FIELD01: 'GRPPARTY', FIELD02: 'Sundry Debtors', FIELD07: 'A' },
+        { FIELD01: 'GRPCASH', FIELD02: 'Cash', FIELD07: 'A' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCM01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 1 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'C', length: 8 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+        { name: 'FIELD10', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        {
+          FIELD01: 'AGPARTY1',
+          FIELD02: 'MITULBHAI',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'PR',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ACASHACT',
+          FIELD02: 'Cash Account',
+          FIELD04: 'A',
+          FIELD05: 'GRPCASH',
+          FIELD06: 'GRPCASH',
+          FIELD07: 'CS',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'AGO5S34X',
+          FIELD02: 'Sales A/c',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'TS',
+          FIELD10: 0,
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm02.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+      ],
+      [{ FIELD01: 'AGPARTY1', FIELD02: 'Addr' }],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD08', type: 'C', length: 10 },
+      ],
+      [{ FIELD01: 'PROD0001', FIELD02: 'Widget', FIELD08: 'Nos' }],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm29.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'M29F03', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'PROD0001', M29F03: 100 }],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT40.DBF'),
+      [
+        { name: 'T40F01', type: 'C', length: 12 },
+        { name: 'T40F09', type: 'C', length: 4 },
+        { name: 'T40F02', type: 'C', length: 40 },
+      ],
+      [{ T40F01: 'CNVOUCHER1', T40F09: 'XXXX', T40F02: 'Post sale discount' }],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'FIELD98', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'SSOLDINV01',
+          FIELD02: '20250501',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 5000,
+          FIELD07: 5000,
+          FIELD12: 'GT/1',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          FIELD98: 'SS',
+          T41FVNO: 'GT/     1',
+        },
+        {
+          FIELD01: 'SSNEWINV02',
+          FIELD02: '20250510',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 8000,
+          FIELD07: 8000,
+          FIELD12: 'GT/2',
+          FIELD16: 'D',
+          FIELD74: 'SP',
+          FIELD98: 'SS',
+          T41FVNO: 'GT/2',
+        },
+        {
+          FIELD01: 'CNVOUCHER1',
+          FIELD02: '20250512',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 500,
+          FIELD07: 500,
+          FIELD12: 'CN/1',
+          FIELD16: '',
+          FIELD74: 'CN',
+          FIELD98: 'CN',
+          T41FVNO: 'CN/1',
+        },
+        {
+          FIELD01: 'PUVOUCHER1',
+          FIELD02: '20250513',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'AGO5S34X',
+          FIELD06: 1200,
+          FIELD07: 1200,
+          FIELD12: 'PU/1',
+          FIELD16: '',
+          FIELD74: 'PU',
+          FIELD98: 'PU',
+          T41FVNO: 'PU/1',
+        },
+        {
+          FIELD01: 'CRBILLREF1',
+          FIELD02: '20250515',
+          FIELD04: 'AGPARTY1',
+          FIELD05: 'ACASHACT',
+          FIELD06: 8000,
+          FIELD07: 8000,
+          FIELD12: '',
+          FIELD16: 'R',
+          FIELD74: 'CB',
+          FIELD98: 'CR',
+          T41FVNO: '',
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD06', type: 'C', length: 1 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'SSOLDINV01',
+          FIELD03: 'AGPARTY1',
+          FIELD04: 'AGO5S34X',
+          FIELD05: 5000,
+          FIELD06: 'D',
+          FIELD12: '',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'SSNEWINV02',
+          FIELD03: 'AGPARTY1',
+          FIELD04: 'AGO5S34X',
+          FIELD05: 8000,
+          FIELD06: 'D',
+          FIELD12: '',
+          T41FVNO: '',
+        },
+        {
+          FIELD01: 'CRBILLREF1',
+          FIELD03: 'AGPARTY1',
+          FIELD04: 'ACASHACT',
+          FIELD05: 8000,
+          FIELD06: 'D',
+          FIELD12: 'GT/     2',
+          T41FVNO: 'GT/2',
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT02.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD08', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        { FIELD01: 'SSOLDINV01', FIELD03: 'PROD0001', FIELD06: 1, FIELD07: 5000, FIELD08: 5000 },
+        { FIELD01: 'SSNEWINV02', FIELD03: 'PROD0001', FIELD06: 1, FIELD07: 8000, FIELD08: 8000 },
+        { FIELD01: 'CNVOUCHER1', FIELD03: 'PROD0001', FIELD06: 1, FIELD07: 500, FIELD08: 500 },
+      ],
+    );
+
+    for (const t of [
+      'invoice_payments',
+      'vendor_payments',
+      'standalone_invoices',
+      'credit_debit_notes',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledger_details',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { summary, errors } = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(errors).toEqual([]);
+      expect(summary.coverage.creditNotes).toEqual({ source: 1, imported: 1, skipped: 0 });
+      expect(summary.coverage.purchasesBooksOnly).toBe(1);
+      expect(summary.coverage.billMatchedPayments).toBe(1);
+      expect(summary.creditDebitNotes).toBe(1);
+      expect(summary.invoices).toBe(2);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const note = await pool.query(
+      `SELECT note_type, total::float AS total, note_number FROM credit_debit_notes
+       WHERE tenant_id = $1 AND external_ref = $2`,
+      [TENANT, 'CNVOUCHER1'],
+    );
+    expect(note.rows[0]?.note_type).toBe('credit');
+    expect(note.rows[0]?.total).toBe(500);
+    expect(note.rows[0]?.note_number).toBe('CN/1');
+
+    const paid = await pool.query(
+      `SELECT si.invoice_number, ip.amount::float AS amount
+       FROM invoice_payments ip
+       JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+       WHERE ip.tenant_id = $1 AND ip.idempotency_key LIKE 'miracle:CRBILLREF1:%'`,
+      [TENANT],
+    );
+    expect(paid.rows).toHaveLength(1);
+    expect(paid.rows[0]?.invoice_number).toBe('GT/2');
+    expect(paid.rows[0]?.amount).toBe(8000);
+
+    const purchaseV = await pool.query(
+      `SELECT voucher_type FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2`,
+      [TENANT, 'PUVOUCHER1'],
+    );
+    expect(purchaseV.rows[0]?.voucher_type).toBe('purchase');
   });
 });

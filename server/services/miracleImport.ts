@@ -5,8 +5,11 @@
  * Ops dual-write (idempotent via external_ref / idempotency_key):
  *   PR ledgers → vendors
  *   products   → products
- *   SP/SE sales → standalone_invoices
- *   CB party R/P → invoice_payments (receipts FIFO) and/or vendor_payments
+ *   SP/SE/SS/QS sales → standalone_invoices
+ *   CN / sales return → credit_debit_notes (credit)
+ *   DN / purchase return → credit_debit_notes (debit)
+ *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments
+ *   PU purchase / CT contra → typed Books vouchers (ops purchase stock dual-write later)
  *   payment_method inferred from contra cash/bank ledger + cheque/instrument fields
  */
 import fs from 'fs';
@@ -38,10 +41,17 @@ export interface MiracleImportCoverage {
   cashIncomeInvoices: MiracleImportCoverageBucket;
   /** CB receipts/payments involving a trading/liability party */
   partyCash: MiracleImportCoverageBucket;
+  creditNotes: MiracleImportCoverageBucket;
+  debitNotes: MiracleImportCoverageBucket;
   /** Expense/capital/FA/etc. cash — kept in Books only */
   nonPartyCashSkipped: number;
   /** Journals — Books only (not ops) */
   journalsBooksOnly: number;
+  /** Purchase / purchase-return / contra — typed in Books; ops stock dual-write later */
+  purchasesBooksOnly: number;
+  contraBooksOnly: number;
+  /** Receipt slices matched via Miracle bill / invoice number (not FIFO) */
+  billMatchedPayments: number;
 }
 
 export interface MiracleImportSummary {
@@ -60,6 +70,7 @@ export interface MiracleImportSummary {
   invoices: number;
   vendorPayments: number;
   invoicePayments: number;
+  creditDebitNotes: number;
   /** Count of ops payments by inferred method (Cash / Bank Transfer / …) */
   paymentsByMethod: Record<string, number>;
   /** Post-import breakdown for UI */
@@ -149,9 +160,43 @@ function emptyCoverage(): MiracleImportCoverage {
     salesInvoices: { source: 0, imported: 0, skipped: 0 },
     cashIncomeInvoices: { source: 0, imported: 0, skipped: 0 },
     partyCash: { source: 0, imported: 0, skipped: 0 },
+    creditNotes: { source: 0, imported: 0, skipped: 0 },
+    debitNotes: { source: 0, imported: 0, skipped: 0 },
     nonPartyCashSkipped: 0,
     journalsBooksOnly: 0,
+    purchasesBooksOnly: 0,
+    contraBooksOnly: 0,
+    billMatchedPayments: 0,
   };
+}
+
+/** Collapse Miracle padded doc nos (`GT/     1` → `GT/1`). */
+export function normalizeMiracleDocNumber(raw: string | null | undefined): string {
+  const s = (raw || '').trim();
+  if (!s) return '';
+  return s.replace(/\s+/g, '');
+}
+
+/**
+ * Map Miracle header type/subtype (+ FIELD98 shortcut) → Books voucher_type.
+ * FIELD98 mirrors UI voucher shortcuts: SS sales, CR/CP cash, PU purchase, CN/DN notes, QS estimate.
+ */
+export function mapVoucherType(miracleType: string, subtype: string, field98 = ''): string {
+  const t = miracleType.toUpperCase();
+  const s = subtype.toUpperCase();
+  const f = field98.toUpperCase();
+
+  if ((t === 'CB' && s === 'R') || f === 'CR') return 'receipt';
+  if ((t === 'CB' && s === 'P') || f === 'CP') return 'payment';
+  if (t === 'JR' || s === 'J' || f === 'JR') return 'journal';
+  if (t === 'CT' || f === 'CT') return 'contra';
+  if (t === 'CN' || f === 'CN' || t === 'SR' || f === 'SR') return 'credit_note';
+  if (t === 'DN' || f === 'DN') return 'debit_note';
+  if (t === 'PU' || f === 'PU' || t === 'PH') return 'purchase';
+  if (t === 'QR' || f === 'QR') return 'purchase_return';
+  if (t === 'SP' || s === 'D' || f === 'SS') return 'sales';
+  if (t === 'SE' || f === 'QS') return 'sales';
+  return 'other';
 }
 
 export interface MiracleImportIssue {
@@ -203,17 +248,6 @@ function createIssueBag() {
       return { errors, warnings };
     },
   };
-}
-
-function mapVoucherType(miracleType: string, subtype: string): string {
-  const t = miracleType.toUpperCase();
-  const s = subtype.toUpperCase();
-  if (t === 'CB' && s === 'R') return 'receipt';
-  if (t === 'CB' && s === 'P') return 'payment';
-  if (t === 'JR' || s === 'J') return 'journal';
-  if (t === 'SP' || s === 'D') return 'sales';
-  if (t === 'SE') return 'sales';
-  return 'other';
 }
 
 function findYearDir(companyDir: string): { code: string; dir: string } | null {
@@ -610,7 +644,9 @@ async function allocateReceiptToInvoices(
   referenceNumber: string | null,
   miracleExt: string,
   narration: string | null,
-): Promise<{ invoicePayments: number; vendorPayments: number }> {
+  /** Miracle bill-wise refs (invoice numbers) — tried before FIFO */
+  preferredInvoiceNumbers: string[] = [],
+): Promise<{ invoicePayments: number; vendorPayments: number; billMatched: number }> {
   // Clear prior allocations for this Miracle voucher (re-import safe)
   await client.query(`DELETE FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key LIKE $2`, [
     tenantId,
@@ -623,7 +659,7 @@ async function allocateReceiptToInvoices(
 
   const open = (
     await client.query(
-      `SELECT si.id, si.grand_total::float AS grand_total,
+      `SELECT si.id, si.invoice_number, si.grand_total::float AS grand_total,
               COALESCE((SELECT SUM(ip.amount)::float FROM invoice_payments ip
                         WHERE ip.tenant_id = si.tenant_id AND ip.invoice_id = si.id), 0) AS paid
        FROM standalone_invoices si
@@ -632,15 +668,27 @@ async function allocateReceiptToInvoices(
        ORDER BY si.invoice_date ASC NULLS LAST, si.created_at ASC NULLS LAST, si.id ASC`,
       [tenantId, vendorId],
     )
-  ).rows as Array<{ id: string; grand_total: number; paid: number }>;
+  ).rows as Array<{ id: string; invoice_number: string; grand_total: number; paid: number }>;
+
+  const byNumber = new Map<string, (typeof open)[number]>();
+  for (const inv of open) {
+    const key = normalizeMiracleDocNumber(inv.invoice_number);
+    if (key && !byNumber.has(key)) byNumber.set(key, inv);
+  }
+
+  const paidSoFar = new Map<string, number>();
+  for (const inv of open) paidSoFar.set(inv.id, Number(inv.paid));
 
   let remaining = Math.round(amount * 100) / 100;
   let invoicePayments = 0;
+  let billMatched = 0;
   let slice = 0;
-  for (const inv of open) {
-    if (remaining <= 0.009) break;
-    const due = Math.round((Number(inv.grand_total) - Number(inv.paid)) * 100) / 100;
-    if (due <= 0.009) continue;
+
+  const applyTo = async (inv: (typeof open)[number], preferBill: boolean) => {
+    if (remaining <= 0.009) return;
+    const already = paidSoFar.get(inv.id) || 0;
+    const due = Math.round((Number(inv.grand_total) - already) * 100) / 100;
+    if (due <= 0.009) return;
     const apply = Math.min(remaining, due);
     const key = `miracle:${miracleExt}:${slice++}`;
     const id = uid('IP');
@@ -656,12 +704,17 @@ async function allocateReceiptToInvoices(
         paymentDate,
         paymentMethod,
         referenceNumber,
-        narration ? `Miracle receipt: ${narration}` : `Miracle receipt ${miracleExt}`,
+        narration
+          ? `Miracle receipt${preferBill ? ' (bill)' : ''}: ${narration}`
+          : `Miracle receipt ${miracleExt}${preferBill ? ' (bill)' : ''}`,
         key,
       ],
     );
     invoicePayments++;
-    if (Number(inv.paid) + apply >= Number(inv.grand_total) - 0.001) {
+    if (preferBill) billMatched++;
+    const newPaid = already + apply;
+    paidSoFar.set(inv.id, newPaid);
+    if (newPaid >= Number(inv.grand_total) - 0.001) {
       await client.query(
         `UPDATE standalone_invoices SET status = 'paid', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
         [inv.id, tenantId],
@@ -673,6 +726,21 @@ async function allocateReceiptToInvoices(
       );
     }
     remaining = Math.round((remaining - apply) * 100) / 100;
+  };
+
+  const seen = new Set<string>();
+  for (const raw of preferredInvoiceNumbers) {
+    const num = normalizeMiracleDocNumber(raw);
+    if (!num) continue;
+    const inv = byNumber.get(num);
+    if (!inv || seen.has(inv.id)) continue;
+    seen.add(inv.id);
+    await applyTo(inv, true);
+  }
+
+  for (const inv of open) {
+    if (seen.has(inv.id)) continue;
+    await applyTo(inv, false);
   }
 
   let vendorPayments = 0;
@@ -690,7 +758,89 @@ async function allocateReceiptToInvoices(
     );
     if (ok) vendorPayments = 1;
   }
-  return { invoicePayments, vendorPayments };
+  return { invoicePayments, vendorPayments, billMatched };
+}
+
+async function upsertOpsNote(
+  client: PoolClient,
+  tenantId: string,
+  externalRef: string,
+  noteType: 'credit' | 'debit',
+  noteNumber: string,
+  vendorId: string | null,
+  vendorName: string,
+  noteDate: string,
+  reason: string | null,
+  items: Array<{ description: string; quantity: number; price: number; lineNet: number; lineTotal: number }>,
+  referenceInvoice: string | null,
+): Promise<boolean> {
+  const subtotal = items.reduce((s, it) => s + it.lineNet, 0);
+  const total = items.reduce((s, it) => s + it.lineTotal, 0);
+  const resolvedItems = items.map(it => ({
+    description: it.description,
+    quantity: it.quantity,
+    price: it.price,
+    withGst: false,
+    lineNet: it.lineNet,
+    lineGst: 0,
+    lineTotal: it.lineTotal,
+  }));
+  const itemsJson = JSON.stringify(resolvedItems);
+  const existing = (
+    await client.query(`SELECT id FROM credit_debit_notes WHERE tenant_id = $1 AND external_ref = $2`, [
+      tenantId,
+      externalRef,
+    ])
+  ).rows[0] as { id: string } | undefined;
+  if (existing) {
+    await client.query(
+      `UPDATE credit_debit_notes SET
+         note_number = $3, note_type = $4, vendor_id = $5, vendor_name = $6, customer_name = $7,
+         note_date = $8, reason = $9, items = $10::jsonb, subtotal = $11, gst_rate = 0, gst_amount = 0,
+         total = $12, reference_invoice = $13, status = 'Active'
+       WHERE id = $1 AND tenant_id = $2`,
+      [
+        existing.id,
+        tenantId,
+        noteNumber,
+        noteType,
+        vendorId,
+        vendorName,
+        vendorName,
+        noteDate,
+        reason,
+        itemsJson,
+        subtotal,
+        total,
+        referenceInvoice,
+      ],
+    );
+    return true;
+  }
+  const id = uid(noteType === 'credit' ? 'CN' : 'DN');
+  await client.query(
+    `INSERT INTO credit_debit_notes
+       (id, tenant_id, note_number, note_type, vendor_id, vendor_name, customer_name, note_date,
+        reason, items, subtotal, gst_rate, gst_amount, total, reference_invoice, status, external_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,0,0,$12,$13,'Active',$14)`,
+    [
+      id,
+      tenantId,
+      noteNumber,
+      noteType,
+      vendorId,
+      vendorName,
+      vendorName,
+      noteDate,
+      reason,
+      itemsJson,
+      subtotal,
+      total,
+      referenceInvoice,
+      externalRef,
+    ],
+  );
+  return true;
 }
 
 export async function importMiracleCompany(
@@ -723,6 +873,7 @@ export async function importMiracleCompany(
     invoices: 0,
     vendorPayments: 0,
     invoicePayments: 0,
+    creditDebitNotes: 0,
     paymentsByMethod: {},
     coverage,
   };
@@ -1087,17 +1238,21 @@ export async function importMiracleCompany(
     paymentMethod: MiracleOpsPaymentMethod;
     referenceNumber: string | null;
     contraName: string | null;
+    /** Bill-wise invoice numbers from entry FIELD12 / T41FVNO */
+    billRefs: string[];
   };
   const pendingCash: PendingCash[] = [];
 
   for (const h of headers) {
     const ext = str(h.FIELD01);
     if (!ext) continue;
-    const miracleType = str(h.FIELD74) || str(h.FIELD98) || '';
+    const field98 = str(h.FIELD98) || '';
+    const miracleType = str(h.FIELD74) || field98 || '';
     const subtype = str(h.FIELD16) || '';
-    const voucherType = mapVoucherType(miracleType, subtype);
+    const voucherType = mapVoucherType(miracleType, subtype, field98);
     const vDate = dateStr(h.FIELD02) || '2025-04-01';
-    const vNumber = str(h.FIELD12) || str(h.T41FVNO) || null;
+    const vNumberRaw = str(h.FIELD12) || str(h.T41FVNO) || '';
+    const vNumber = normalizeMiracleDocNumber(vNumberRaw) || null;
     const partyExt = str(h.FIELD04);
     const contraExt = str(h.FIELD05);
     const amount = num(h.FIELD06) || num(h.FIELD07);
@@ -1221,10 +1376,9 @@ export async function importMiracleCompany(
       });
     }
 
-    if (voucherType === 'sales') {
-      coverage.salesInvoices.source++;
-      // Resolve party: header party, else first ops-party ledger on entries
+    const resolvePartyKey = (): string => {
       let partyKey = partyExt && vendorIds.has(partyExt) ? partyExt : '';
+      if (!partyKey && contraExt && vendorIds.has(contraExt)) partyKey = contraExt;
       if (!partyKey) {
         for (const e of ents) {
           const le = str(e.FIELD03);
@@ -1234,6 +1388,12 @@ export async function importMiracleCompany(
           }
         }
       }
+      return partyKey;
+    };
+
+    if (voucherType === 'sales') {
+      coverage.salesInvoices.source++;
+      const partyKey = resolvePartyKey();
       const meta = partyKey ? ledgerMeta.get(partyKey) : null;
       const vendorId = partyKey ? vendorIds.get(partyKey) || null : null;
       if (!partyKey || !vendorId) {
@@ -1287,6 +1447,66 @@ export async function importMiracleCompany(
         summary.invoices++;
         coverage.salesInvoices.imported++;
       }
+    } else if (voucherType === 'credit_note' || voucherType === 'debit_note' || voucherType === 'purchase_return') {
+      const noteType: 'credit' | 'debit' =
+        voucherType === 'debit_note' || voucherType === 'purchase_return' ? 'debit' : 'credit';
+      const bucket = noteType === 'credit' ? coverage.creditNotes : coverage.debitNotes;
+      bucket.source++;
+      const partyKey = resolvePartyKey();
+      const meta = partyKey ? ledgerMeta.get(partyKey) : null;
+      const vendorId = partyKey ? vendorIds.get(partyKey) || null : null;
+      if (!partyKey || !vendorId) {
+        bucket.skipped++;
+        bucket.skipReason = 'Note missing trading party';
+        issues.error({
+          stage: 'notes',
+          message: `${noteType} note missing trading party — skipped`,
+          externalRef: ext,
+        });
+      } else if (!(amount > 0) && opsLineItems.length === 0) {
+        bucket.skipped++;
+        bucket.skipReason = 'Note has invalid amount';
+        issues.error({
+          stage: 'notes',
+          message: `${noteType} note has invalid amount — skipped`,
+          externalRef: ext,
+        });
+      } else {
+        const noteItems =
+          opsLineItems.length > 0
+            ? opsLineItems.map(it => ({
+                description: it.description,
+                quantity: it.qty,
+                price: it.rate,
+                lineNet: it.taxable,
+                lineTotal: it.total,
+              }))
+            : [
+                {
+                  description: narration || `Miracle ${noteType} note`,
+                  quantity: 1,
+                  price: amount,
+                  lineNet: amount,
+                  lineTotal: amount,
+                },
+              ];
+        const prefix = noteType === 'credit' ? 'CN' : 'DN';
+        await upsertOpsNote(
+          client,
+          tenantId,
+          ext,
+          noteType,
+          vNumber || `${prefix}-${ext}`,
+          vendorId,
+          meta?.name || partyKey,
+          vDate,
+          narration,
+          noteItems,
+          null,
+        );
+        summary.creditDebitNotes++;
+        bucket.imported++;
+      }
     } else if (voucherType === 'receipt' || voucherType === 'payment') {
       // Contra = cash/bank side (FIELD05 usually; flip when party is on FIELD05)
       const partyOn04 = isOpsPartyLedgerType(ledgerTypes.get(partyExt));
@@ -1302,6 +1522,16 @@ export async function importMiracleCompany(
         contraGroupName: contraGroup || null,
         instrumentRef: referenceNumber,
       });
+      const billRefs: string[] = [];
+      const seenBill = new Set<string>();
+      for (const e of ents) {
+        for (const raw of [str(e.FIELD12), str(e.T41FVNO)]) {
+          const n = normalizeMiracleDocNumber(raw);
+          if (!n || seenBill.has(n)) continue;
+          seenBill.add(n);
+          billRefs.push(n);
+        }
+      }
       pendingCash.push({
         ext,
         voucherType,
@@ -1314,9 +1544,14 @@ export async function importMiracleCompany(
         paymentMethod,
         referenceNumber: referenceNumber || vNumber,
         contraName: contraMeta?.name || null,
+        billRefs,
       });
     } else if (voucherType === 'journal') {
       coverage.journalsBooksOnly++;
+    } else if (voucherType === 'purchase') {
+      coverage.purchasesBooksOnly++;
+    } else if (voucherType === 'contra') {
+      coverage.contraBooksOnly++;
     }
   }
 
@@ -1354,9 +1589,11 @@ export async function importMiracleCompany(
           ref,
           cash.ext,
           cash.narration ? `${cash.narration}${via}` : `Miracle receipt${via}`,
+          cash.billRefs,
         );
         summary.invoicePayments += allocated.invoicePayments;
         summary.vendorPayments += allocated.vendorPayments;
+        coverage.billMatchedPayments += allocated.billMatched;
         bumpPaymentMethod(summary.paymentsByMethod, method, allocated.invoicePayments + allocated.vendorPayments);
       } else {
         const ok = await upsertVendorPayment(

@@ -771,6 +771,12 @@ export async function initSchema() {
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_cdn_ref ON credit_debit_notes(tenant_id, reference_type, reference_id)',
     );
+    await client.query('ALTER TABLE credit_debit_notes ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_cdn_tenant_external_ref
+      ON credit_debit_notes (tenant_id, external_ref)
+      WHERE external_ref IS NOT NULL
+    `);
 
     // Price Lists — customer-wise + slab pricing
     await client.query(`

@@ -300,8 +300,13 @@
     "importCoverageSales": "Sales invoices (SP / SE)",
     "importCoverageCashIncome": "Cash income receipts (job work / scrap)",
     "importCoveragePartyCash": "Party receipts & payments",
+    "importCoverageCreditNotes": "Credit notes / sales returns",
+    "importCoverageDebitNotes": "Debit notes / purchase returns",
     "importCoverageNonPartyCash": "expense / capital / asset cash vouchers kept in Books only (not party ops)",
-    "importCoverageJournals": "journal voucher(s) kept in Books only"
+    "importCoverageJournals": "journal voucher(s) kept in Books only",
+    "importCoveragePurchasesBooks": "purchase voucher(s) typed in Books (stock dual-write later)",
+    "importCoverageContraBooks": "contra voucher(s) kept in Books only",
+    "importCoverageBillMatched": "receipt payment(s) matched to invoices by Miracle bill number"
   },
   "settings": {
     "title": "સેટિંગ્સ",
