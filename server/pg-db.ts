@@ -957,17 +957,6 @@ export async function initSchema() {
         AND notes ILIKE 'Miracle cash income%'
     `);
     await client.query(`
-      UPDATE invoice_payments
-      SET notes = CASE
-        WHEN notes ILIKE 'Miracle cash income: %'
-          THEN 'Cash income: ' || substring(notes from length('Miracle cash income: ') + 1)
-        WHEN notes ILIKE 'Miracle cash income %'
-          THEN 'Cash income: ' || substring(notes from length('Miracle cash income ') + 1)
-        ELSE notes
-      END
-      WHERE notes ILIKE 'Miracle cash income%'
-    `);
-    await client.query(`
       UPDATE standalone_invoices si
       SET invoice_number = regexp_replace(si.invoice_number, '^MIR-CASH-', 'CASH-')
       WHERE si.invoice_number LIKE 'MIR-CASH-%'
@@ -1014,6 +1003,18 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
     await client.query('ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    // After invoice_payments exists — normalize legacy Miracle cash-income payment notes
+    await client.query(`
+      UPDATE invoice_payments
+      SET notes = CASE
+        WHEN notes ILIKE 'Miracle cash income: %'
+          THEN 'Cash income: ' || substring(notes from length('Miracle cash income: ') + 1)
+        WHEN notes ILIKE 'Miracle cash income %'
+          THEN 'Cash income: ' || substring(notes from length('Miracle cash income ') + 1)
+        ELSE notes
+      END
+      WHERE notes ILIKE 'Miracle cash income%'
+    `);
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_payments_idempotency
       ON invoice_payments (tenant_id, idempotency_key)
