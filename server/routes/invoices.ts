@@ -370,6 +370,10 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
           customerName,
           partyId: resolvedPartyId,
           grandTotal,
+          subtotal,
+          taxCgst,
+          taxSgst,
+          taxIgst,
           invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10),
           notes: notes || null,
         });

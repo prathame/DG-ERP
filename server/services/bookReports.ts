@@ -105,7 +105,7 @@ export function classifyLedger(
 
   if (/\bincome\b|\bsales\b|\brevenue\b/.test(g)) return 'income';
   if (/\bexpense|\bpurchase|\bdirect exp|\bindirect/.test(g)) return 'expense';
-  if (/\bliabilit|\bpayable|\bloan\b|\bcreditor/.test(g)) return 'liability';
+  if (/\bliabilit|\bpayable|\bloan\b|\bcreditor|\bduties|\bgst|\bcgst|\bsgst|\bigst/.test(g)) return 'liability';
   if (/\bcapital|\breserve|\bsurplus/.test(g)) return 'capital';
   if (/\basset|\bdebtor|\bbank|\bcash|\bstock|\bcurrent asset/.test(g)) return 'asset';
 
