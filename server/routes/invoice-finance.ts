@@ -136,6 +136,7 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
         GROUP BY invoice_id
       ) ip ON si.id = ip.invoice_id
       WHERE si.tenant_id = $1 AND si.status != 'cancelled'
+        AND COALESCE(si.invoice_kind, 'sale') = 'sale'
       GROUP BY 1
       ORDER BY (SUM(si.grand_total) - COALESCE(SUM(ip.paid), 0)) DESC
     `,
@@ -223,6 +224,113 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
   }
 });
 
+/**
+ * Bifurcated KPIs: party sales (GT/…) vs Miracle cash-income (rent/scrap/MIR-CASH…).
+ * Party list stays on /summary; cash-income rows stay out of party outstanding.
+ */
+router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const kindTotals = (
+      await pool.query(
+        `
+        SELECT
+          COALESCE(si.invoice_kind, 'sale') AS invoice_kind,
+          COUNT(si.id)::int AS invoice_count,
+          COALESCE(SUM(si.grand_total), 0) AS invoiced,
+          COALESCE(SUM(ip.paid), 0) AS paid
+        FROM standalone_invoices si
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS paid
+          FROM invoice_payments WHERE tenant_id = $1
+          GROUP BY invoice_id
+        ) ip ON si.id = ip.invoice_id
+        WHERE si.tenant_id = $1 AND si.status IS DISTINCT FROM 'cancelled'
+        GROUP BY 1
+      `,
+        [tenantId],
+      )
+    ).rows as { invoice_kind: string; invoice_count: number; invoiced: number; paid: number }[];
+
+    const byKind = new Map(kindTotals.map(r => [r.invoice_kind, r]));
+    const sale = byKind.get('sale') || { invoice_count: 0, invoiced: 0, paid: 0 };
+    const cash = byKind.get('cash_income') || { invoice_count: 0, invoiced: 0, paid: 0 };
+
+    const businessType = await tenantBusinessType(tenantId);
+    let partyAdvances = 0;
+    if (businessType === 'service') {
+      partyAdvances = Number(
+        (await pool.query(`SELECT COALESCE(SUM(amount), 0) AS v FROM vendor_payments WHERE tenant_id = $1`, [tenantId]))
+          .rows[0]?.v,
+      );
+    }
+
+    const partyInvoiced = Number(sale.invoiced) || 0;
+    const partyReceivedOnBills = Number(sale.paid) || 0;
+    const partyReceived = partyReceivedOnBills + partyAdvances;
+    const cashIncome = Number(cash.invoiced) || 0;
+
+    res.json({
+      partyInvoiced,
+      partyReceived,
+      partyReceivedOnBills,
+      partyAdvances,
+      partyOutstanding: partyInvoiced - partyReceived,
+      partyInvoiceCount: Number(sale.invoice_count) || 0,
+      cashIncome,
+      cashIncomeReceived: Number(cash.paid) || 0,
+      cashIncomeCount: Number(cash.invoice_count) || 0,
+    });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Cash-income invoices (Miracle CB→income) — not party bills. */
+router.get('/api/invoice-finance/cash-income', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const rows = (
+      await pool.query(
+        `
+        SELECT si.id, si.invoice_number, si.invoice_date, si.customer_name, si.grand_total, si.status, si.notes,
+               COALESCE(ip.paid, 0) AS paid
+        FROM standalone_invoices si
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS paid
+          FROM invoice_payments WHERE tenant_id = $1
+          GROUP BY invoice_id
+        ) ip ON si.id = ip.invoice_id
+        WHERE si.tenant_id = $1
+          AND si.status IS DISTINCT FROM 'cancelled'
+          AND COALESCE(si.invoice_kind, 'sale') = 'cash_income'
+        ORDER BY si.invoice_date DESC NULLS LAST, si.id DESC
+      `,
+        [tenantId],
+      )
+    ).rows;
+
+    res.json(
+      rows.map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        invoiceNumber: r.invoice_number as string,
+        invoiceDate: r.invoice_date,
+        incomeHead: r.customer_name as string,
+        grandTotal: Number(r.grand_total) || 0,
+        paid: Number(r.paid) || 0,
+        status: r.status as string,
+        notes: (r.notes as string) || null,
+      })),
+    );
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 /** Flat open bills (Miracle-style bill-wise outstanding) — balance > 0 only. */
 router.get('/api/invoice-finance/open-bills', blockVendors, async (req: AuthRequest, res) => {
   try {
@@ -258,6 +366,7 @@ router.get('/api/invoice-finance/open-bills', blockVendors, async (req: AuthRequ
       ) ip ON si.id = ip.invoice_id
       WHERE si.tenant_id = $1
         AND si.status IS DISTINCT FROM 'cancelled'
+        AND COALESCE(si.invoice_kind, 'sale') = 'sale'
         AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
       ORDER BY si.customer_name ASC NULLS LAST, si.invoice_date ASC NULLS LAST, si.id ASC
     `,

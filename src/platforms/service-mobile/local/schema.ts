@@ -383,6 +383,14 @@ ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS grand_total NUMERIC DEF
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS terms TEXT;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS invoice_kind TEXT DEFAULT 'sale';
+UPDATE standalone_invoices
+SET invoice_kind = 'cash_income'
+WHERE COALESCE(invoice_kind, 'sale') != 'cash_income'
+  AND (
+    invoice_number LIKE 'MIR-CASH-%'
+    OR COALESCE(notes, '') LIKE 'Miracle cash income%'
+  );
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT;
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS salary NUMERIC DEFAULT 0;

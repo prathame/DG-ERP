@@ -181,6 +181,31 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(res.body.partyType).toBeNull();
   });
 
+  it('invoice-finance breakdown separates party sales from cash income', async () => {
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total, grand_total, status, invoice_date, invoice_kind, notes)
+       VALUES ('INV-CASH-1', $1, 'MIR-CASH-test1', 'Rent Income', '[]', 500, 0, 500, 'paid', CURRENT_DATE, 'cash_income', 'Miracle cash income: rent')
+       ON CONFLICT DO NOTHING`,
+      [TENANT],
+    );
+    const res = await api().get('/api/invoice-finance/breakdown').set(authHeaders(token, TENANT));
+    expect(res.status).toBe(200);
+    expect(Number(res.body.cashIncome)).toBeGreaterThanOrEqual(500);
+    expect(Number(res.body.cashIncomeCount)).toBeGreaterThanOrEqual(1);
+    expect(Number(res.body.partyInvoiced)).toBeGreaterThan(0);
+
+    const cash = await api().get('/api/invoice-finance/cash-income').set(authHeaders(token, TENANT));
+    expect(cash.status).toBe(200);
+    expect((cash.body as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'MIR-CASH-test1')).toBe(true);
+
+    const summary = await api().get('/api/invoice-finance/summary').set(authHeaders(token, TENANT));
+    expect(summary.status).toBe(200);
+    expect(
+      (summary.body as { clientName: string }[]).some(r => (r.clientName || '').toLowerCase() === 'rent income'),
+    ).toBe(false);
+  });
+
   it('invoice-finance open-bills lists unpaid invoices flat', async () => {
     const res = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
     expect(res.status).toBe(200);

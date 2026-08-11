@@ -42,6 +42,8 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type OpenBill = Awaited<ReturnType<typeof api.invoiceFinance.openBills>>[number];
+type FinanceBreakdown = Awaited<ReturnType<typeof api.invoiceFinance.breakdown>>;
+type CashIncomeRow = Awaited<ReturnType<typeof api.invoiceFinance.cashIncome>>[number];
 type PayModal = {
   /** collective = FIFO; invoice = one bill; bills = selected bill-wise; advance = no outstanding */
   mode: 'collective' | 'invoice' | 'bills' | 'advance';
@@ -68,7 +70,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   const { confirm, ConfirmRenderer } = useConfirm();
   const [summary, setSummary] = useState<Summary[]>([]);
   const [openBills, setOpenBills] = useState<OpenBill[]>([]);
-  const [listView, setListView] = useState<'parties' | 'bills'>('parties');
+  const [breakdown, setBreakdown] = useState<FinanceBreakdown | null>(null);
+  const [cashIncomeRows, setCashIncomeRows] = useState<CashIncomeRow[]>([]);
+  const [listView, setListView] = useState<'parties' | 'bills' | 'cash'>('parties');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   /** partyKey from summary (vendor:ID | customer:ID | name:…) */
@@ -123,9 +127,21 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       .catch(() => setOpenBills([]));
   };
 
+  const loadBreakdown = () => {
+    api.invoiceFinance
+      .breakdown()
+      .then(d => setBreakdown(d && typeof d === 'object' ? d : null))
+      .catch(() => setBreakdown(null));
+    api.invoiceFinance
+      .cashIncome()
+      .then(rows => setCashIncomeRows(Array.isArray(rows) ? rows : []))
+      .catch(() => setCashIncomeRows([]));
+  };
+
   const loadSummary = () => {
     setLoading(true);
     loadOpenBills();
+    loadBreakdown();
     api.invoiceFinance
       .summary()
       .then(rows => setSummary(Array.isArray(rows) ? rows : []))
@@ -481,18 +497,38 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       (b.invoiceNumber || '').toLowerCase().includes(q)
     );
   });
-  const totalReceived = safeSummary.reduce((s, c) => s + (Number(c.totalPaid) || 0), 0);
-  const totalInvoiced = safeSummary.reduce((s, c) => s + (Number(c.totalInvoiced) || 0), 0);
+  const filteredCash = cashIncomeRows.filter(r => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (r.incomeHead || '').toLowerCase().includes(q) ||
+      (r.invoiceNumber || '').toLowerCase().includes(q) ||
+      (r.notes || '').toLowerCase().includes(q)
+    );
+  });
+  const totalInvoiced = breakdown
+    ? Number(breakdown.partyInvoiced) || 0
+    : safeSummary.reduce((s, c) => s + (Number(c.totalInvoiced) || 0), 0);
+  const totalReceived = breakdown
+    ? Number(breakdown.partyReceived) || 0
+    : safeSummary.reduce((s, c) => s + (Number(c.totalPaid) || 0), 0);
   /**
    * Dealer/manufacturer: sum of positive client dues (credits ignored).
    * Service: Miracle advances live in vendor_payments and are folded into totalPaid —
    * Outstanding must be Invoiced − Received so over-collection shows as credit, not
    * “Received > Invoiced” with a still-positive outstanding.
    */
-  const totalOutstanding = isService
-    ? totalInvoiced - totalReceived
-    : safeSummary.reduce((s, c) => s + Math.max(0, Number(c.balance) || 0), 0);
-  const totalAdvances = isService ? safeSummary.reduce((s, c) => s + (Number(c.advanceBalance) || 0), 0) : 0;
+  const totalOutstanding = breakdown
+    ? Number(breakdown.partyOutstanding) || 0
+    : isService
+      ? totalInvoiced - totalReceived
+      : safeSummary.reduce((s, c) => s + Math.max(0, Number(c.balance) || 0), 0);
+  const totalAdvances = breakdown
+    ? Number(breakdown.partyAdvances) || 0
+    : isService
+      ? safeSummary.reduce((s, c) => s + (Number(c.advanceBalance) || 0), 0)
+      : 0;
+  const cashIncomeTotal = Number(breakdown?.cashIncome) || 0;
   const clientsLabel = tb(cfg.labels.vendors || 'Clients', t);
 
   // ── Client detail workspace (Distribution-style drill-down) ───────────────
@@ -982,14 +1018,18 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold">{listView === 'bills' ? 'Bill-wise outstanding' : clientsLabel}</h2>
+          <h2 className="text-xl font-bold">
+            {listView === 'bills' ? 'Bill-wise outstanding' : listView === 'cash' ? 'Cash income' : clientsLabel}
+          </h2>
           <p className="text-sm text-gray-500">
             {listView === 'bills'
-              ? 'Open bills by party — pay against specific invoice numbers'
-              : `Click a ${clientsLabel.replace(/s$/, '').toLowerCase()} to view their invoices and payments`}
+              ? 'Open party bills — pay against specific invoice numbers'
+              : listView === 'cash'
+                ? 'Rent / scrap / misc cash (MIR-CASH) — separate from party sales'
+                : `Party sales only — click a ${clientsLabel.replace(/s$/, '').toLowerCase()} for bills & payments`}
           </p>
         </div>
-        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm font-semibold">
+        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm font-semibold flex-wrap">
           <button
             type="button"
             onClick={() => setListView('parties')}
@@ -1010,22 +1050,34 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           >
             By bill
           </button>
+          <button
+            type="button"
+            onClick={() => setListView('cash')}
+            className={cn(
+              'px-3 py-1.5 rounded-lg',
+              listView === 'cash' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            Cash income
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:hidden">
-        <MobileKpiCard label={t('finance.totalInvoiced')} value={fmt(totalInvoiced)} accent="blue" />
+      <div className="grid grid-cols-2 gap-2 sm:hidden">
+        <MobileKpiCard label="Party sales" value={fmt(totalInvoiced)} accent="blue" />
         <MobileKpiCard label={t('finance.totalReceived')} value={fmt(totalReceived)} accent="green" />
         <MobileKpiCard
           label={t('finance.outstanding')}
           value={totalOutstanding < 0 ? `${fmt(totalOutstanding)} cr` : fmt(totalOutstanding)}
           accent={totalOutstanding > 0 ? 'rose' : 'green'}
         />
+        {cashIncomeTotal > 0.001 && <MobileKpiCard label="Cash income" value={fmt(cashIncomeTotal)} accent="amber" />}
       </div>
-      <div className="hidden sm:grid sm:grid-cols-3 gap-4">
+      <div className={cn('hidden sm:grid gap-4', cashIncomeTotal > 0.001 ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalInvoiced')}</p>
+          <p className="text-xs font-bold text-gray-400 uppercase">Party sales</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(totalInvoiced)}</p>
+          <p className="text-[10px] text-gray-400 mt-1">GT/ and other party bills</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">{t('finance.totalReceived')}</p>
@@ -1045,6 +1097,15 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             {totalOutstanding < 0 ? `${fmt(totalOutstanding)} credit` : fmt(totalOutstanding)}
           </p>
         </div>
+        {cashIncomeTotal > 0.001 && (
+          <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase">Cash income</p>
+            <p className="text-2xl font-bold text-amber-700 mt-1">{fmt(cashIncomeTotal)}</p>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Rent / scrap / misc · {breakdown?.cashIncomeCount || 0} entries
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="relative max-w-md">
@@ -1055,7 +1116,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           placeholder={
             listView === 'bills'
               ? 'Search party or bill number…'
-              : `${t('common.search')} ${clientsLabel.toLowerCase().replace(/s$/, '')}…`
+              : listView === 'cash'
+                ? 'Search income head or MIR-CASH…'
+                : `${t('common.search')} ${clientsLabel.toLowerCase().replace(/s$/, '')}…`
           }
           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         />
@@ -1065,6 +1128,53 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <div className="bg-white rounded-xl border border-gray-100 p-12 flex justify-center">
           <LoadingSpinner />
         </div>
+      ) : listView === 'cash' ? (
+        filteredCash.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <FileText size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500 mb-1">{search ? 'No matching cash income' : 'No cash income entries'}</p>
+            <p className="text-sm text-gray-400">
+              Miracle cash receipts to income ledgers (rent, scrap, etc.) appear here after import
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs font-bold uppercase text-gray-400">
+                <tr>
+                  <th className="text-left px-4 py-3">Income head</th>
+                  <th className="text-left px-4 py-3">Ref</th>
+                  <th className="text-left px-4 py-3">Date</th>
+                  <th className="text-right px-4 py-3">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredCash.map(r => (
+                  <tr key={r.id} className="hover:bg-gray-50/80">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold">{r.incomeHead || 'Cash income'}</p>
+                      {r.notes && <p className="text-xs text-gray-400 truncate max-w-xs">{r.notes}</p>}
+                    </td>
+                    <td className="px-4 py-3 font-medium">{r.invoiceNumber}</td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {r.invoiceDate ? formatDate(String(r.invoiceDate)) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-amber-700">{fmt(r.grandTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500 flex justify-between">
+              <span>
+                {filteredCash.length} cash income entr{filteredCash.length !== 1 ? 'ies' : 'y'}
+              </span>
+              <span>
+                Total:{' '}
+                <strong className="text-amber-700">{fmt(filteredCash.reduce((s, r) => s + r.grandTotal, 0))}</strong>
+              </span>
+            </div>
+          </div>
+        )
       ) : listView === 'bills' ? (
         filteredBills.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">

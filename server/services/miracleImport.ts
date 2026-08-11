@@ -524,6 +524,8 @@ async function upsertOpsInvoice(
   invoiceDate: string,
   notes: string | null,
   status: 'sent' | 'paid' = 'sent',
+  /** party bill vs Miracle cash-book income (rent/scrap/misc) */
+  invoiceKind: 'sale' | 'cash_income' = 'sale',
 ): Promise<string> {
   const subtotal = items.reduce((s, it) => s + it.taxable, 0);
   const taxTotal = items.reduce((s, it) => s + it.tax, 0);
@@ -547,8 +549,8 @@ async function upsertOpsInvoice(
     `INSERT INTO standalone_invoices
        (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone,
         party_type, party_id, items, subtotal, tax_total, grand_total, notes, status, invoice_date,
-        tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled, external_ref)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,0,0,false,false,$17)
+        tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled, external_ref, invoice_kind)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,0,0,false,false,$17,$18)
      ON CONFLICT (tenant_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE SET
        invoice_number = EXCLUDED.invoice_number,
        customer_name = EXCLUDED.customer_name,
@@ -564,6 +566,7 @@ async function upsertOpsInvoice(
        notes = EXCLUDED.notes,
        status = EXCLUDED.status,
        invoice_date = EXCLUDED.invoice_date,
+       invoice_kind = EXCLUDED.invoice_kind,
        updated_at = NOW()`,
     [
       id,
@@ -583,6 +586,7 @@ async function upsertOpsInvoice(
       status,
       invoiceDate,
       externalRef,
+      invoiceKind,
     ],
   );
   const row = (
@@ -1491,6 +1495,7 @@ export async function importMiracleCompany(
         cash.vDate,
         cash.narration ? `Miracle cash income: ${cash.narration}` : `Miracle cash income ${cash.ext}`,
         'paid',
+        'cash_income',
       );
       // Record payment against the invoice for Finance totals
       const via = cash.contraName ? ` via ${cash.contraName}` : '';

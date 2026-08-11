@@ -86,6 +86,7 @@ export function AnalyticsView({
   const [money, setMoney] = useState<{
     collections: number;
     revenue: number;
+    cashIncome?: number;
     distribution: number;
     expenses: number;
     outstanding: number;
@@ -172,10 +173,17 @@ export function AnalyticsView({
           },
           {
             id: 'revenue',
-            label: tb(cfg.analytics.revenueLabel, t),
+            label: serviceProductUx ? 'Party sales' : tb(cfg.analytics.revenueLabel, t),
             value: money.revenue,
             accent: 'blue' as const,
             show: true,
+          },
+          {
+            id: 'cashIncome',
+            label: 'Cash income',
+            value: Number(money.cashIncome) || 0,
+            accent: 'amber' as const,
+            show: serviceProductUx && (Number(money.cashIncome) || 0) > 0.001,
           },
           {
             id: 'dispatched',
@@ -201,13 +209,12 @@ export function AnalyticsView({
           {
             id: 'netIn',
             label: t('dashboard.netIn'),
-            // Offline Service: collections = invoice_payments and revenue = invoice totals —
-            // summing both double-counts the same money. Use cash in − expenses instead.
+            // Service: party collections + cash income − expenses (revenue is party sales, not double-counted).
             value: serviceProductUx
-              ? money.collections - money.expenses
+              ? money.collections + (Number(money.cashIncome) || 0) - money.expenses
               : money.collections + money.revenue - money.expenses,
             accent: ((serviceProductUx
-              ? money.collections - money.expenses
+              ? money.collections + (Number(money.cashIncome) || 0) - money.expenses
               : money.collections + money.revenue - money.expenses) >= 0
               ? 'green'
               : 'rose') as 'green' | 'rose',

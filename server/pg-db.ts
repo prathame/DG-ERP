@@ -928,6 +928,20 @@ export async function initSchema() {
       ON standalone_invoices (tenant_id, external_ref)
       WHERE external_ref IS NOT NULL
     `);
+    // sale = party bill (GT/…); cash_income = Miracle CB→income (rent/scrap/misc, often MIR-CASH-…)
+    await client.query(
+      `ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS invoice_kind TEXT NOT NULL DEFAULT 'sale'`,
+    );
+    await client.query(`
+      UPDATE standalone_invoices
+      SET invoice_kind = 'cash_income'
+      WHERE invoice_kind IS DISTINCT FROM 'cash_income'
+        AND (
+          invoice_number LIKE 'MIR-CASH-%'
+          OR COALESCE(notes, '') ILIKE 'Miracle cash income%'
+        )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_si_kind ON standalone_invoices(tenant_id, invoice_kind)');
 
     // In-app notifications (Super Admin / control-panel pushes)
     await client.query(`
