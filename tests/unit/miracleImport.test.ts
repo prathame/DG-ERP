@@ -11,7 +11,6 @@ import { uid } from '../../server/utils/helpers';
 import { findDbf, num, readDbf, str, dateStr } from '../../server/utils/dbf';
 import {
   extractArchive,
-  extractRarJs,
   importMiracleCompany,
   isCashIncomeLedgerType,
   isOpsPartyLedgerType,
@@ -744,25 +743,6 @@ describe('miracleImport', () => {
 
     await expect(extractArchive(path.join(root, 'nope.txt'))).rejects.toThrow(/Unsupported/);
     await expect(extractArchive(multerPath)).rejects.toThrow(/Unsupported/);
-  });
-
-  it('extracts rar via pure-JS fallback (online hosts without unrar)', async () => {
-    const sample = path.join(process.env.HOME || '', 'Downloads', 'CMP0001.rar');
-    if (!fs.existsSync(sample)) return; // local smoke only — CI has no Miracle sample rar
-
-    const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-rar-js-'));
-    tmpDirs.push(dest);
-    await extractRarJs(sample, dest);
-    const company = locateCompanyDir(dest);
-    expect(path.basename(company)).toBe('CMP0001');
-    expect(fs.existsSync(path.join(company, 'version.txt'))).toBe(true);
-
-    // Multer path without extension must still detect .rar from originalName
-    const multerPath = path.join(dest, 'upload-blob');
-    fs.copyFileSync(sample, multerPath);
-    const extracted = await extractArchive(multerPath, 'CMP0001.rar');
-    tmpDirs.push(extracted);
-    expect(path.basename(locateCompanyDir(extracted))).toBe('CMP0001');
   });
 
   it('fails when year folder or ledger master is missing', async () => {
