@@ -765,7 +765,13 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     // Collective: apply toward party's total due, oldest invoice first
     if (!invoiceId && partyKeyRaw) {
       const { partyType, partyId, clientName, partyKey } = parsePartyKey(String(partyKeyRaw));
-      let openInvoices: { id: string; grand_total: number; customer_name: string; paid: number }[] = [];
+      let openInvoices: {
+        id: string;
+        grand_total: number;
+        customer_name: string;
+        party_id: string | null;
+        paid: number;
+      }[] = [];
       if (partyType && partyId) {
         openInvoices = (
           await client.query(
