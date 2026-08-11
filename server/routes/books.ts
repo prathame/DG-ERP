@@ -20,6 +20,7 @@ import {
   type BookVoucherType,
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
+import { getBooksBalanceSheet, getBooksProfitLoss, getTrialBalance } from '../services/bookFinancialStatements';
 
 const router = Router();
 const uploadDir = path.join(os.tmpdir(), 'miracle-uploads');
@@ -363,6 +364,43 @@ router.get('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res
         amount: Number(i.amount || 0),
       })),
     });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/trial-balance', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    res.json(await getTrialBalance(pool, tenantId, from, to));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/profit-loss', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    res.json(await getBooksProfitLoss(pool, tenantId, from, to));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/balance-sheet', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const asOf =
+      (typeof req.query.asOf === 'string' && req.query.asOf.trim() ? req.query.asOf.trim() : null) ||
+      (typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null);
+    res.json(await getBooksBalanceSheet(pool, tenantId, asOf));
   } catch (err) {
     return handleApiError(req, res, err);
   }

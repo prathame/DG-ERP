@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
-import { BookOpen, CalendarDays, FileUp, Landmark, Package, Plus, Receipt } from 'lucide-react';
+import { BookOpen, CalendarDays, FileUp, Landmark, Package, Plus, Receipt, Scale } from 'lucide-react';
 import { MiracleImportPanel, summaryCount } from './MiracleImportPanel';
 import { CreateVoucherModal } from './CreateVoucherModal';
 import { DayBookPanel } from './DayBookPanel';
 import { LedgerStatementPanel } from './LedgerStatementPanel';
 import { VoucherDetailModal } from './VoucherDetailModal';
+import { BooksReportsPanel } from './BooksReportsPanel';
 
-type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook';
+type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports';
 
 interface BooksSummary {
   ledgers: number;
@@ -97,7 +98,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
   }, []);
 
   useEffect(() => {
-    if (panel === 'import' || panel === 'daybook' || selectedLedger) {
+    if (panel === 'import' || panel === 'daybook' || panel === 'reports' || selectedLedger) {
       setLoading(false);
       return;
     }
@@ -134,6 +135,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
     { id: 'ledgers', label: 'Ledgers', icon: <Landmark size={16} /> },
     { id: 'vouchers', label: 'Vouchers', icon: <Receipt size={16} /> },
     { id: 'daybook', label: 'Day book', icon: <CalendarDays size={16} /> },
+    { id: 'reports', label: 'Reports', icon: <Scale size={16} /> },
     { id: 'products', label: 'Products', icon: <Package size={16} /> },
     { id: 'import', label: 'Miracle Import', icon: <FileUp size={16} /> },
   ];
@@ -179,6 +181,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
         <MiracleImportPanel onComplete={() => loadSummary()} />
       ) : panel === 'daybook' ? (
         <DayBookPanel onOpenVoucher={setVoucherDetailId} />
+      ) : panel === 'reports' ? (
+        <BooksReportsPanel />
       ) : selectedLedger && panel === 'ledgers' ? (
         <LedgerStatementPanel
           ledgerId={selectedLedger.id}
@@ -212,7 +216,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
                 <span className="font-semibold text-orange-700">2. Statement</span> — open a ledger for party books
               </li>
               <li>
-                <span className="font-semibold text-orange-700">3. Day book</span> — every Dr/Cr line by date
+                <span className="font-semibold text-orange-700">3. Reports</span> — trial balance, P&amp;L, balance
+                sheet
               </li>
             </ol>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -226,11 +231,19 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
               </button>
               <button
                 type="button"
+                onClick={() => openPanel('reports')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
+              >
+                <Scale size={16} />
+                CA reports
+              </button>
+              <button
+                type="button"
                 onClick={() => openPanel('daybook')}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
               >
                 <CalendarDays size={16} />
-                Open day book
+                Day book
               </button>
             </div>
           </div>

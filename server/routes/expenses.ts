@@ -4,6 +4,7 @@ import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
+import { postExpenseToBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -94,20 +95,46 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     if (parsedAmount > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
     const id = uid('EXP');
     const date = expenseDate || new Date().toISOString().slice(0, 10);
-    await pool.query(
-      'INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [
-        id,
-        tenantId,
-        category.trim(),
-        description || null,
-        parsedAmount,
-        date,
-        paymentMethod || 'Cash',
-        referenceNumber || null,
-        notes || null,
-      ],
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [
+          id,
+          tenantId,
+          category.trim(),
+          description || null,
+          parsedAmount,
+          date,
+          paymentMethod || 'Cash',
+          referenceNumber || null,
+          notes || null,
+        ],
+      );
+      try {
+        await postExpenseToBooks(client, tenantId, {
+          id,
+          amount: parsedAmount,
+          expenseDate: date,
+          category: category.trim(),
+          description: description || notes || null,
+          paymentMethod: paymentMethod || 'Cash',
+        });
+      } catch {
+        /* Books dual-write must not block expense create */
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
     await logAudit(pool, tenantId, 'Expense Recorded', 'expense', id, `${category}: ₹${parsedAmount.toLocaleString()}`);
     res.status(201).json({
       id,
