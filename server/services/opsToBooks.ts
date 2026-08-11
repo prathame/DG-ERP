@@ -365,6 +365,68 @@ export async function postInvoicePaymentToBooks(
   });
 }
 
+async function resolveIncomeLedgerByHead(client: PoolClient, tenantId: string, incomeHead: string): Promise<string> {
+  const name = (incomeHead || 'Other Income').trim() || 'Other Income';
+  const byName = (
+    await client.query(
+      `SELECT id FROM book_ledgers
+       WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
+       LIMIT 1`,
+      [tenantId, name],
+    )
+  ).rows[0] as { id: string } | undefined;
+  if (byName) return byName.id;
+  const byIncome = (
+    await client.query(
+      `SELECT id FROM book_ledgers
+       WHERE tenant_id = $1
+         AND (ledger_type IN ('IN','JP') OR nature = 'I')
+         AND LOWER(name) LIKE $2
+       ORDER BY name
+       LIMIT 1`,
+      [tenantId, `%${name.toLowerCase()}%`],
+    )
+  ).rows[0] as { id: string } | undefined;
+  if (byIncome) return byIncome.id;
+  return ensureLedger(client, tenantId, `ops:INCOME:${name.slice(0, 60)}`, name, 'I', 'IN', 'ops:G-INCOME', 'Income');
+}
+
+/** Direct cash income → Dr Cash/Bank, Cr Income (no party AR). */
+export async function postCashIncomeToBooks(
+  client: PoolClient,
+  tenantId: string,
+  income: {
+    id: string;
+    amount: number;
+    incomeDate: string;
+    incomeHead: string;
+    paymentMethod?: string | null;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    invoiceNumber?: string | null;
+  },
+): Promise<string | null> {
+  if (!(await booksConfigured(client, tenantId))) return null;
+  const amt = round2(income.amount);
+  if (!(amt > 0)) return null;
+  const incomeLedgerId = await resolveIncomeLedgerByHead(client, tenantId, income.incomeHead);
+  const cashLedgerId = await resolveCashBankLedger(client, tenantId, income.paymentMethod || 'Cash');
+  return insertVoucher(client, tenantId, {
+    voucherType: 'receipt',
+    voucherDate: income.incomeDate,
+    voucherNumber: income.referenceNumber || income.invoiceNumber || null,
+    partyLedgerId: incomeLedgerId,
+    contraLedgerId: cashLedgerId,
+    amount: amt,
+    narration: income.notes || `Cash income: ${income.incomeHead}`,
+    externalRef: `ops:ci:${income.id}`,
+    entries: [
+      { ledgerId: cashLedgerId, debit: amt, credit: 0 },
+      { ledgerId: incomeLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}
+
 /** Expense → Dr Expense, Cr Cash/Bank */
 export async function postExpenseToBooks(
   client: PoolClient,

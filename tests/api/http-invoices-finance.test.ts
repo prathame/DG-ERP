@@ -206,6 +206,46 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     ).toBe(false);
   });
 
+  it('POST /api/invoice-finance/cash-income records paid cash income (not party outstanding)', async () => {
+    const res = await api().post('/api/invoice-finance/cash-income').set(authHeaders(token, TENANT)).send({
+      incomeHead: 'Scrap Sale',
+      amount: 250.5,
+      incomeDate: '2026-08-10',
+      paymentMethod: 'Cash',
+      notes: 'Yard scrap',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe('paid');
+    expect(res.body.incomeHead).toBe('Scrap Sale');
+    expect(Number(res.body.grandTotal)).toBeCloseTo(250.5, 2);
+    expect(Number(res.body.paid)).toBeCloseTo(250.5, 2);
+    expect(String(res.body.invoiceNumber)).toMatch(/^CASH\//);
+
+    const cash = await api().get('/api/invoice-finance/cash-income').set(authHeaders(token, TENANT));
+    expect(cash.status).toBe(200);
+    expect(
+      (cash.body as { invoiceNumber: string; incomeHead: string }[]).some(
+        r => r.invoiceNumber === res.body.invoiceNumber && r.incomeHead === 'Scrap Sale',
+      ),
+    ).toBe(true);
+
+    const open = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
+    expect(open.status).toBe(200);
+    expect((open.body as { invoiceId: string }[]).some(r => r.invoiceId === res.body.id)).toBe(false);
+
+    const summary = await api().get('/api/invoice-finance/summary').set(authHeaders(token, TENANT));
+    expect(summary.status).toBe(200);
+    expect(
+      (summary.body as { clientName: string }[]).some(r => (r.clientName || '').toLowerCase() === 'scrap sale'),
+    ).toBe(false);
+
+    const bad = await api()
+      .post('/api/invoice-finance/cash-income')
+      .set(authHeaders(token, TENANT))
+      .send({ incomeHead: '', amount: 10 });
+    expect(bad.status).toBe(400);
+  });
+
   it('Accounts P&L + Outstanding use party invoices for service (not cash income / distribution)', async () => {
     await pool.query(`UPDATE tenants SET business_type = 'service' WHERE id = $1`, [TENANT]);
     try {

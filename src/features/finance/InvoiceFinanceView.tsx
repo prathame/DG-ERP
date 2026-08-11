@@ -81,6 +81,15 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   const [detailLoading, setDetailLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<InvoicePartyPrefill | null>(null);
+  const [cashIncomeOpen, setCashIncomeOpen] = useState(false);
+  const [cashForm, setCashForm] = useState({
+    incomeHead: '',
+    amount: '',
+    incomeDate: new Date().toISOString().slice(0, 10),
+    paymentMethod: 'Cash',
+    referenceNumber: '',
+    notes: '',
+  });
   const [payModal, setPayModal] = useState<PayModal | null>(null);
   /** invoiceId → amount when mode === 'bills' */
   const [billAllocations, setBillAllocations] = useState<Record<string, string>>({});
@@ -93,6 +102,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
   });
   const [submitting, setSubmitting] = useState(false);
   const offlineAdvance = isServiceMobileMode();
+  const isReadOnly = accessLevel === 'view' || accessLevel === 'print';
   /** After opening a party from bill-wise list, open pay once detail loads. */
   const [pendingBillPay, setPendingBillPay] = useState<{
     partyKey: string;
@@ -107,6 +117,10 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       setBillAllocations({});
       return true;
     }
+    if (cashIncomeOpen) {
+      setCashIncomeOpen(false);
+      return true;
+    }
     if (createOpen) {
       setCreateOpen(false);
       setCreatePrefill(null);
@@ -119,6 +133,48 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     }
     return false;
   });
+
+  const submitCashIncome = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isReadOnly) return;
+    const head = cashForm.incomeHead.trim();
+    const amt = parseFloat(cashForm.amount);
+    if (!head) {
+      toast('Enter income head (e.g. Rent Income)', 'error');
+      return;
+    }
+    if (!(amt > 0)) {
+      toast('Amount must be greater than zero', 'error');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.invoiceFinance.createCashIncome({
+        incomeHead: head,
+        amount: amt,
+        incomeDate: cashForm.incomeDate,
+        paymentMethod: cashForm.paymentMethod,
+        referenceNumber: cashForm.referenceNumber.trim() || undefined,
+        notes: cashForm.notes.trim() || undefined,
+      });
+      toast(`Cash income recorded — ${head} ₹${amt.toLocaleString()}`, 'success');
+      setCashIncomeOpen(false);
+      setCashForm({
+        incomeHead: '',
+        amount: '',
+        incomeDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: 'Cash',
+        referenceNumber: '',
+        notes: '',
+      });
+      setListView('cash');
+      loadSummary();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to record cash income', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const loadOpenBills = () => {
     api.invoiceFinance
@@ -479,8 +535,6 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       toast((err as Error).message, 'error');
     }
   };
-
-  const isReadOnly = accessLevel === 'view' || accessLevel === 'print';
 
   const safeSummary = Array.isArray(summary) ? summary : [];
   const filtered = safeSummary.filter(c => {
@@ -1025,41 +1079,53 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             {listView === 'bills'
               ? 'Open party bills — pay against specific invoice numbers'
               : listView === 'cash'
-                ? 'Rent / scrap / misc cash (MIR-CASH) — separate from party sales'
+                ? 'Rent / scrap / misc — money already in, not party bills'
                 : `Party sales only — click a ${clientsLabel.replace(/s$/, '').toLowerCase()} for bills & payments`}
           </p>
         </div>
-        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm font-semibold flex-wrap">
-          <button
-            type="button"
-            onClick={() => setListView('parties')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg',
-              listView === 'parties' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
-            )}
-          >
-            By party
-          </button>
-          <button
-            type="button"
-            onClick={() => setListView('bills')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg',
-              listView === 'bills' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
-            )}
-          >
-            By bill
-          </button>
-          <button
-            type="button"
-            onClick={() => setListView('cash')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg',
-              listView === 'cash' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
-            )}
-          >
-            Cash income
-          </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {listView === 'cash' && !isReadOnly && (
+            <button
+              type="button"
+              onClick={() => setCashIncomeOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700"
+            >
+              <Plus size={16} />
+              Record cash income
+            </button>
+          )}
+          <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm font-semibold flex-wrap">
+            <button
+              type="button"
+              onClick={() => setListView('parties')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg',
+                listView === 'parties' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
+              )}
+            >
+              By party
+            </button>
+            <button
+              type="button"
+              onClick={() => setListView('bills')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg',
+                listView === 'bills' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
+              )}
+            >
+              By bill
+            </button>
+            <button
+              type="button"
+              onClick={() => setListView('cash')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg',
+                listView === 'cash' ? 'bg-brand text-white' : 'text-gray-600 hover:bg-gray-50',
+              )}
+            >
+              Cash income
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1133,9 +1199,21 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <FileText size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500 mb-1">{search ? 'No matching cash income' : 'No cash income entries'}</p>
-            <p className="text-sm text-gray-400">
-              Miracle cash receipts to income ledgers (rent, scrap, etc.) appear here after import
+            <p className="text-sm text-gray-400 mb-4">
+              {search
+                ? 'Try another income head or reference'
+                : 'Record rent, scrap, or misc cash here — or import Miracle MIR-CASH receipts'}
             </p>
+            {!search && !isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setCashIncomeOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700"
+              >
+                <Plus size={16} />
+                Record cash income
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -1413,6 +1491,105 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             </p>
           </div>
         </>
+      )}
+
+      {cashIncomeOpen && (
+        <AppModal
+          title="Record cash income"
+          subtitle="Money already received — rent, scrap, misc. Not a party bill."
+          onClose={() => setCashIncomeOpen(false)}
+          size="sm"
+          footer={
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCashIncomeOpen(false)}
+                className="flex-1 py-2 border rounded-lg font-medium"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                form="cash-income-form"
+                disabled={submitting}
+                className="flex-1 py-2 bg-amber-600 text-white rounded-lg font-bold"
+              >
+                {submitting ? t('common.saving') : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <form id="cash-income-form" onSubmit={submitCashIncome} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase">Income head</label>
+              <input
+                value={cashForm.incomeHead}
+                onChange={e => setCashForm(f => ({ ...f, incomeHead: e.target.value }))}
+                className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                placeholder="e.g. Rent Income, Scrap Sale"
+                required
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.amount')}</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={cashForm.amount}
+                onChange={e => setCashForm(f => ({ ...f, amount: e.target.value }))}
+                className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
+                <input
+                  type="date"
+                  value={cashForm.incomeDate}
+                  onChange={e => setCashForm(f => ({ ...f, incomeDate: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.paymentMethod')}</label>
+                <select
+                  value={cashForm.paymentMethod}
+                  onChange={e => setCashForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                >
+                  <option>Cash</option>
+                  <option>UPI</option>
+                  <option>Bank Transfer</option>
+                  <option>Cheque</option>
+                  <option>Card</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.reference')}</label>
+              <input
+                value={cashForm.referenceNumber}
+                onChange={e => setCashForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase">{t('finance.notes')}</label>
+              <input
+                value={cashForm.notes}
+                onChange={e => setCashForm(f => ({ ...f, notes: e.target.value }))}
+                className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                placeholder="Optional"
+              />
+            </div>
+          </form>
+        </AppModal>
       )}
       {ConfirmRenderer}
     </motion.div>
