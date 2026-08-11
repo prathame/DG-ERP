@@ -73,7 +73,14 @@ function openingLabel(l: LedgerRow) {
   return l.openingBalance < 0 ? `${amt} Cr` : `${amt} Dr`;
 }
 
-export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksPanel }) {
+export function BooksView({
+  initialPanel = 'overview',
+  /** Hide Books chrome when mounted inside Accounts (single nav surface). */
+  embedded = false,
+}: {
+  initialPanel?: BooksPanel;
+  embedded?: boolean;
+}) {
   const [panel, setPanel] = useState<BooksPanel>(initialPanel);
   const [summary, setSummary] = useState<BooksSummary | null>(null);
   const [ledgers, setLedgers] = useState<LedgerRow[]>([]);
@@ -137,7 +144,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
     { id: 'daybook', label: 'Day book', icon: <CalendarDays size={16} /> },
     { id: 'reports', label: 'Reports', icon: <Scale size={16} /> },
     { id: 'products', label: 'Products', icon: <Package size={16} /> },
-    { id: 'import', label: 'Miracle Import', icon: <FileUp size={16} /> },
+    { id: 'import', label: 'Data import', icon: <FileUp size={16} /> },
   ];
 
   const openPanel = (id: BooksPanel) => {
@@ -147,31 +154,31 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Books</h1>
-          <p className="text-sm text-slate-500">
-            CA books desk — ledgers, vouchers, day book from double-entry (Miracle CMP / Books vouchers)
-          </p>
+      {!embedded && (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Books</h1>
+            <p className="text-sm text-slate-500">Ledgers, vouchers, and day book from double-entry</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => openPanel(t.id)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
+                  panel === t.id && !selectedLedger
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => openPanel(t.id)}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                panel === t.id && !selectedLedger
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -227,7 +234,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
                 className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
               >
                 <FileUp size={16} />
-                Miracle Import
+                Data import
               </button>
               <button
                 type="button"
@@ -235,7 +242,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
                 className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
               >
                 <Scale size={16} />
-                CA reports
+                Reports
               </button>
               <button
                 type="button"
@@ -250,7 +257,7 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
           <div className="sm:col-span-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-2 font-semibold text-slate-800">Recent Miracle imports</h2>
             {!summary?.recentImports?.length ? (
-              <p className="text-sm text-slate-500">No imports yet — use Miracle Import to upload a CMP .rar / .zip.</p>
+              <p className="text-sm text-slate-500">No imports yet — use Data import to upload a CMP .rar / .zip.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {summary.recentImports.map(j => {

@@ -143,7 +143,7 @@ export function CreateVoucherModal({
   return (
     <AppModal
       title="New voucher"
-      subtitle="Miracle-style Books entry — receipt, payment, contra, or journal"
+      subtitle="Receipt, payment, contra, or journal"
       onClose={onClose}
       size="lg"
       footer={
@@ -316,7 +316,7 @@ export function CreateVoucherModal({
         {loadingLedgers && <p className="text-xs text-slate-500">Loading ledgers…</p>}
         {!loadingLedgers && ledgers.length === 0 && (
           <p className="text-xs text-amber-700">
-            No Books ledgers yet — import a Miracle CMP first (Books → Miracle Import), then enter vouchers here.
+            No ledgers yet — use Accounts → Data import (CMP), then enter vouchers here.
           </p>
         )}
       </div>

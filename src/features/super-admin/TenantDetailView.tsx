@@ -1279,7 +1279,7 @@ function TabCustomization({
                   </span>
                   {key === 'books' && (
                     <p className="text-[11px] text-gray-400 mt-1">
-                      Books desk + Miracle CMP import (ledgers, vouchers, products)
+                      Accounts ledgers / vouchers / CMP import (shown inside Accounts tab)
                     </p>
                   )}
                 </td>

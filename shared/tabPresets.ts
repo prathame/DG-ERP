@@ -47,7 +47,7 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   book_ledgers: { label: 'Ledgers', visible: false },
   book_vouchers: { label: 'Vouchers', visible: false },
   book_products: { label: 'Book Products', visible: false },
-  book_import: { label: 'Miracle Import', visible: false },
+  book_import: { label: 'Data import', visible: false },
   ...overrides,
 });
 
@@ -58,7 +58,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
     book_products: { label: 'Book Products', visible: true },
-    book_import: { label: 'Miracle Import', visible: true },
+    book_import: { label: 'Data import', visible: true },
   }),
   dealer: baseAllVisible({
     distribution: { label: 'Sales', visible: true },
@@ -71,7 +71,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
     book_products: { label: 'Book Products', visible: true },
-    book_import: { label: 'Miracle Import', visible: true },
+    book_import: { label: 'Data import', visible: true },
   }),
   retail: baseAllVisible({
     inventory: { label: 'Stock', visible: true },
@@ -99,7 +99,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
     book_ledgers: { label: 'Ledgers', visible: true },
     book_vouchers: { label: 'Vouchers', visible: true },
     book_products: { label: 'Book Products', visible: true },
-    book_import: { label: 'Miracle Import', visible: true },
+    book_import: { label: 'Data import', visible: true },
   }),
   silver_casting: baseAllVisible({
     inventory: { label: 'Metal Stock', visible: true },
@@ -192,7 +192,7 @@ export function isMiracleBooksFamilyVisible(tabConfig: TabConfig): boolean {
   });
 }
 
-/** Turn Books + Miracle Import (+ panel deep-link tabs) on or off together. */
+/** Turn Books + Data import (+ panel deep-link tabs) on or off together. */
 export function setMiracleBooksFamilyVisible(tabConfig: TabConfig, visible: boolean, preset?: TabConfig): TabConfig {
   const base = preset || tabConfig;
   const next: TabConfig = { ...tabConfig };

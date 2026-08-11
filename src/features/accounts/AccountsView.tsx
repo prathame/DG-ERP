@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   BarChart3,
@@ -17,6 +17,8 @@ import {
   Receipt,
   FileCheck,
   Upload,
+  Landmark,
+  FileUp,
 } from 'lucide-react';
 import {
   cn,
@@ -38,6 +40,11 @@ import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 import { MobileAccountsPanel } from './MobileAccountsPanel';
+import { BooksView } from '../books/BooksView';
+import { BooksReportsPanel } from '../books/BooksReportsPanel';
+import { DayBookPanel } from '../books/DayBookPanel';
+import { MiracleImportPanel } from '../books/MiracleImportPanel';
+import { VoucherDetailModal } from '../books/VoucherDetailModal';
 
 type AccountTab =
   | 'pnl'
@@ -46,6 +53,9 @@ type AccountTab =
   | 'ledger'
   | 'daybook'
   | 'notes'
+  | 'vouchers'
+  | 'trial'
+  | 'import'
   | 'sales'
   | 'distribution'
   | 'outstanding'
@@ -60,7 +70,17 @@ function fmtCurrency(n: number) {
   return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`;
 }
 
-export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
+export function AccountsView({
+  accessLevel: _accessLevel = 'full',
+  booksAccess = 'hidden',
+  initialTab,
+}: {
+  accessLevel?: 'hidden' | 'view' | 'print' | 'full';
+  /** When not hidden, CA ledgers/vouchers live under Accounts (no separate Books nav). */
+  booksAccess?: 'hidden' | 'view' | 'print' | 'full';
+  initialTab?: AccountTab | string | null;
+} = {}) {
+  void _accessLevel;
   const { toast } = useToast();
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
@@ -70,8 +90,8 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   const ds = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const partyLabel = tb(cfg.labels.vendors, t);
   const partySingular = partyLabel.replace(/s$/i, ''); // Vendor | Customer | Client (EN); other locales keep as-is
-  const businessType = cfg.type;
-  const [tab, setTab] = useState<AccountTab>('pnl');
+  const booksModuleOn = booksAccess !== 'hidden';
+  const [tab, setTab] = useState<AccountTab>((initialTab as AccountTab) || 'pnl');
   const now = new Date();
   const fyStart = now.getMonth() >= 3 ? `${now.getFullYear()}-04-01` : `${now.getFullYear() - 1}-04-01`;
   const [from, setFrom] = useState(fyStart);
@@ -81,8 +101,40 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   const [ledgerFilter, setLedgerFilter] = useState('all');
   const [gstMonth, setGstMonth] = useState(now.getMonth() + 1);
   const [gstYear, setGstYear] = useState(now.getFullYear());
+  /** Prefer double-entry panels when COA exists — same tab labels, no ops+books duplicates. */
+  const [booksDeskReady, setBooksDeskReady] = useState(false);
+  const [voucherDetailId, setVoucherDetailId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialTab) return;
+    setTab(initialTab as AccountTab);
+    setData(null);
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (!booksModuleOn) {
+      setBooksDeskReady(false);
+      return;
+    }
+    let cancelled = false;
+    fetchApi<{ ledgers?: number; vouchers?: number }>('/books/summary')
+      .then(s => {
+        if (!cancelled) setBooksDeskReady((Number(s?.ledgers) || 0) + (Number(s?.vouchers) || 0) > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setBooksDeskReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [booksModuleOn]);
+
+  const useBooksFor = (key: AccountTab) =>
+    booksDeskReady && (key === 'pnl' || key === 'balance' || key === 'ledger' || key === 'daybook');
+  const booksSelfContained = useBooksFor(tab) || tab === 'vouchers' || tab === 'trial' || tab === 'import';
 
   const loadData = async () => {
+    if (booksSelfContained) return;
     setLoading(true);
     setData(null);
     try {
@@ -167,9 +219,33 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     { key: 'pnl', label: 'Profit & Loss', shortLabel: 'P&L', icon: TrendingUp, group: 'accounts' },
     { key: 'balance', label: 'Balance Sheet', shortLabel: 'Balance', icon: Scale, group: 'accounts' },
     { key: 'cashflow', label: 'Cash Flow', shortLabel: 'Cash', icon: Banknote, group: 'accounts' },
-    { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: BookOpen, group: 'accounts' },
+    { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: Landmark, group: 'accounts' },
     { key: 'daybook', label: 'Day Book', shortLabel: 'DayBook', icon: BookOpen, group: 'accounts' },
+    {
+      key: 'vouchers',
+      label: 'Vouchers',
+      shortLabel: 'Vouchers',
+      icon: Receipt,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
+    {
+      key: 'trial',
+      label: 'Trial Balance',
+      shortLabel: 'Trial',
+      icon: Scale,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
     { key: 'notes', label: 'Credit/Debit Notes', shortLabel: 'Notes', icon: Receipt, group: 'accounts' },
+    {
+      key: 'import',
+      label: 'Data import',
+      shortLabel: 'Import',
+      icon: FileUp,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
     {
       key: 'sales',
       label: 'Sales Register',
@@ -212,7 +288,8 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
 
   const accountTabs = TABS.filter(t => t.group === 'accounts');
   const reportTabs = TABS.filter(t => t.group === 'reports');
-  const showDateRange = tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst';
+  const showDateRange =
+    !booksSelfContained && tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst';
   const selectTab = (key: string) => {
     setTab(key as AccountTab);
     setData(null);
@@ -228,15 +305,30 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     (Array.isArray((data as Record<string, unknown>).entries) || Array.isArray((data as Record<string, unknown>).rows)),
   );
 
+  const booksBody = booksSelfContained ? (
+    <div id="accounts-content" className="space-y-3">
+      {tab === 'pnl' && <BooksReportsPanel lockedKind="pnl" hideSourceNote />}
+      {tab === 'balance' && <BooksReportsPanel lockedKind="bs" hideSourceNote />}
+      {tab === 'trial' && <BooksReportsPanel lockedKind="tb" hideSourceNote />}
+      {tab === 'ledger' && <BooksView initialPanel="ledgers" embedded />}
+      {tab === 'daybook' && <DayBookPanel onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'vouchers' && <BooksView initialPanel="vouchers" embedded />}
+      {tab === 'import' && <MiracleImportPanel onComplete={() => setBooksDeskReady(true)} />}
+      {voucherDetailId && <VoucherDetailModal voucherId={voucherDetailId} onClose={() => setVoucherDetailId(null)} />}
+    </div>
+  ) : null;
+
   const reportBody = (
     <>
-      {loading && (
+      {booksBody}
+
+      {!booksSelfContained && loading && (
         <div className="py-16 sm:py-20 text-center">
           <LoadingSpinner />
         </div>
       )}
 
-      {!loading && data && (
+      {!booksSelfContained && !loading && data && (
         <div id="accounts-content">
           {tab === 'pnl' && <ProfitLoss data={data} ds={ds} cfg={cfg} />}
           {tab === 'balance' && <BalanceSheet data={data} partySingular={partySingular} />}
@@ -301,13 +393,14 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           onGstYear={setGstYear}
           loading={loading}
           onGenerate={loadData}
-          onExport={data ? exportRows : undefined}
+          onExport={!booksSelfContained && data ? exportRows : undefined}
           canExport={canExport}
-          onPrint={data ? handlePrint : undefined}
+          onPrint={!booksSelfContained && data ? handlePrint : undefined}
           gstr1Slot={gstr1Button(
             'w-full h-10 rounded-xl text-[13px] font-bold text-white inline-flex items-center justify-center gap-1.5 bg-[var(--dg-success)]',
           )}
-          showEmpty={!loading && !data && tab !== 'gstr2b'}
+          showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b'}
+          hideToolbar={booksSelfContained}
         >
           {reportBody}
         </MobileAccountsPanel>
@@ -336,7 +429,11 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <DesktopAccountsPanel
           title={getTabLabel('accounts', 'Accounts')}
-          subtitle="Financial statements, GST reports, and registers — generate statements for any period."
+          subtitle={
+            booksModuleOn
+              ? 'Statements, ledgers, vouchers, GST, and registers — one place for accounts.'
+              : 'Financial statements, GST reports, and registers — generate statements for any period.'
+          }
           accountTabs={accountTabs}
           reportTabs={complianceTabs}
           tab={tab}
@@ -347,7 +444,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           onTo={setTo}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
-          onLedgerFilter={setLedgerFilter}
+          onLedgerFilter={booksSelfContained ? undefined : setLedgerFilter}
           gstMonth={gstMonth}
           gstYear={gstYear}
           onGstMonth={setGstMonth}
@@ -359,9 +456,10 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           gstr1Slot={gstr1Button(
             'col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg text-sm font-bold text-white bg-[var(--dg-success)] hover:opacity-90',
           )}
-          showEmpty={!loading && !data && tab !== 'gstr2b'}
+          showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b'}
+          hideToolbar={booksSelfContained}
         >
-          {data && (
+          {!booksSelfContained && data && (
             <div className="flex justify-end gap-2 -mt-2">
               {canExport && (
                 <button
@@ -394,9 +492,13 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           <h2 className="text-xl font-bold flex items-center gap-2">
             <BarChart3 size={22} /> {getTabLabel('accounts', 'Accounts & Reports')}
           </h2>
-          <p className="text-sm text-gray-500">Financial statements, GST reports, registers — all in one place</p>
+          <p className="text-sm text-gray-500">
+            {booksModuleOn
+              ? 'Statements, ledgers, vouchers, GST, and registers — all in one place'
+              : 'Financial statements, GST reports, registers — all in one place'}
+          </p>
         </div>
-        {data && (
+        {!booksSelfContained && data && (
           <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
             {canExport && (
               <button
@@ -479,109 +581,120 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       </div>
 
       {/* Filters / date bar */}
-      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4">
-        <div
-          className={cn(
-            'grid gap-2 sm:flex sm:items-end sm:gap-3 sm:flex-wrap',
-            showDateRange || tab === 'gst' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
-          )}
-        >
-          {showDateRange && (
-            <>
-              <div className="min-w-0">
+      {!booksSelfContained && (
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4">
+          <div
+            className={cn(
+              'grid gap-2 sm:flex sm:items-end sm:gap-3 sm:flex-wrap',
+              showDateRange || tab === 'gst' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
+            )}
+          >
+            {showDateRange && (
+              <>
+                <div className="min-w-0">
+                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={from}
+                    onChange={e => setFrom(e.target.value)}
+                    className={dateControlClass}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                    To
+                  </label>
+                  <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
+                </div>
+              </>
+            )}
+            {tab === 'ledger' && (
+              <div className="col-span-2 sm:col-span-1 min-w-0 sm:min-w-[10rem]">
                 <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                  From
-                </label>
-                <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={dateControlClass} />
-              </div>
-              <div className="min-w-0">
-                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                  To
-                </label>
-                <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
-              </div>
-            </>
-          )}
-          {tab === 'ledger' && (
-            <div className="col-span-2 sm:col-span-1 min-w-0 sm:min-w-[10rem]">
-              <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                Type
-              </label>
-              <select value={ledgerFilter} onChange={e => setLedgerFilter(e.target.value)} className={dateControlClass}>
-                <option value="all">All</option>
-                <option value="sales">Sales/Distribution</option>
-                <option value="purchases">Purchases</option>
-                <option value="payments">Payments</option>
-              </select>
-            </div>
-          )}
-          {tab === 'gst' && (
-            <>
-              <div className="min-w-0">
-                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                  Month
+                  Type
                 </label>
                 <select
-                  value={gstMonth}
-                  onChange={e => setGstMonth(parseInt(e.target.value))}
+                  value={ledgerFilter}
+                  onChange={e => setLedgerFilter(e.target.value)}
                   className={dateControlClass}
                 >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-                    <option key={m} value={m}>
-                      {new Date(2000, m - 1).toLocaleString('en', { month: 'long' })}
-                    </option>
-                  ))}
+                  <option value="all">All</option>
+                  <option value="sales">Sales/Distribution</option>
+                  <option value="purchases">Purchases</option>
+                  <option value="payments">Payments</option>
                 </select>
               </div>
-              <div className="min-w-0">
-                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                  Year
-                </label>
-                <input
-                  type="number"
-                  value={gstYear}
-                  onChange={e => setGstYear(parseInt(e.target.value))}
-                  className={dateControlClass}
-                />
-              </div>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={loading}
-            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-brand text-white rounded-lg text-[13px] sm:text-sm font-bold disabled:opacity-60"
-          >
-            <Search size={15} /> {loading ? 'Loading...' : 'Generate'}
-          </button>
-          {tab === 'gst' && (
+            )}
+            {tab === 'gst' && (
+              <>
+                <div className="min-w-0">
+                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                    Month
+                  </label>
+                  <select
+                    value={gstMonth}
+                    onChange={e => setGstMonth(parseInt(e.target.value))}
+                    className={dateControlClass}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                      <option key={m} value={m}>
+                        {new Date(2000, m - 1).toLocaleString('en', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                    Year
+                  </label>
+                  <input
+                    type="number"
+                    value={gstYear}
+                    onChange={e => setGstYear(parseInt(e.target.value))}
+                    className={dateControlClass}
+                  />
+                </div>
+              </>
+            )}
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
-                  const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch (e) {
-                  alert((e as Error).message);
-                }
-              }}
-              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-emerald-600 text-white rounded-lg text-[13px] sm:text-sm font-bold hover:bg-emerald-700"
+              onClick={loadData}
+              disabled={loading}
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-brand text-white rounded-lg text-[13px] sm:text-sm font-bold disabled:opacity-60"
             >
-              <Download size={15} /> GSTR-1 JSON
+              <Search size={15} /> {loading ? 'Loading...' : 'Generate'}
             </button>
-          )}
+            {tab === 'gst' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
+                    const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (e) {
+                    alert((e as Error).message);
+                  }
+                }}
+                className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-emerald-600 text-white rounded-lg text-[13px] sm:text-sm font-bold hover:bg-emerald-700"
+              >
+                <Download size={15} /> GSTR-1 JSON
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {reportBody}
 
-      {!loading && !data && tab !== 'gstr2b' && (
+      {!booksSelfContained && !loading && !data && tab !== 'gstr2b' && (
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
           <BarChart3 size={40} className="mx-auto mb-2.5 opacity-30 sm:mb-3 sm:size-12" />
           <p className="font-medium text-sm sm:text-base">Select a statement and click Generate</p>

@@ -1,15 +1,10 @@
 /**
- * Miracle-shaped information architecture for Dhandho.
+ * App information architecture for Dhandho.
  *
- * Thesis: Dhandho is being redesigned as a voucher-first accounting ERP that
- * can replace Miracle for day-to-day work, while Miracle CMP import remains the
- * onboarding bridge. Navigation mirrors Miracle’s mental model:
+ *   Masters → Transactions → Reports (Accounts includes ledgers / vouchers / import)
  *
- *   Masters → Transactions → Books (COA / vouchers / import) → Reports
- *
- * Vertical extras (warranty, hospitality) stay optional sections.
- * Tab ids stay stable — only grouping and labels change. Visibility still
- * comes from shared/tabPresets.ts + SA / device overrides.
+ * Books tab ids remain for SA toggles + deep links; they redirect into Accounts.
+ * Visibility still comes from shared/tabPresets.ts + SA / device overrides.
  */
 
 export type NavArchitectureSectionId = 'home' | 'transactions' | 'reports' | 'books' | 'afterSales' | 'hospitality';
@@ -28,8 +23,8 @@ export const NAV_ARCHITECTURE: Record<NavArchitectureSectionId, readonly string[
     'verification',
   ],
   reports: ['accounts'],
-  /** Sidebar shows a single Books hub when `books` is on; else Miracle Import alone. */
-  books: ['books', 'book_import'],
+  /** No separate Books sidebar — capability lives under Accounts. */
+  books: [],
   afterSales: ['warranty', 'replacements', 'rewards'],
   hospitality: ['hosp_floor', 'hosp_waiter', 'hosp_kitchen', 'hosp_queue', 'hosp_parcels', 'hosp_menu', 'hosp_members'],
 };
@@ -40,10 +35,8 @@ export const NAV_ARCHITECTURE: Record<NavArchitectureSectionId, readonly string[
  */
 export const BOOKS_SIDEBAR_CHILD_TAB_IDS = ['book_ledgers', 'book_vouchers', 'book_products'] as const;
 
-/** Pick which Books sidebar entries to show given current visibility. */
-export function booksSidebarTabIds(visible: (tabId: string) => boolean): string[] {
-  if (visible('books')) return ['books'];
-  if (visible('book_import')) return ['book_import'];
+/** @deprecated Books sidebar removed — always empty. Kept for callers. */
+export function booksSidebarTabIds(_visible: (tabId: string) => boolean): string[] {
   return [];
 }
 

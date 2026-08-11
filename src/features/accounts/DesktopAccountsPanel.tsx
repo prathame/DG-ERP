@@ -38,6 +38,8 @@ type Props = {
   gstr1Slot?: React.ReactNode;
   children: React.ReactNode;
   showEmpty: boolean;
+  /** Self-contained panels (ledgers/vouchers/day book) — no Generate bar. */
+  hideToolbar?: boolean;
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -74,6 +76,7 @@ export function DesktopAccountsPanel({
   gstr1Slot,
   children,
   showEmpty,
+  hideToolbar = false,
 }: Props) {
   const fieldLabel = 'text-[10px] font-bold dg-muted uppercase tracking-wider block mb-1.5';
   const fieldInput =
@@ -183,7 +186,7 @@ export function DesktopAccountsPanel({
         </section>
       )}
 
-      {tab !== 'gstr2b' && (
+      {tab !== 'gstr2b' && !hideToolbar && (
         <section className="dg-glass-card rounded-2xl p-4 sm:p-5">
           <div
             className={cn(
