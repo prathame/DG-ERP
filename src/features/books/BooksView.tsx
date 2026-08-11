@@ -120,7 +120,8 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Books</h1>
           <p className="text-sm text-slate-500">
-            Miracle import fills working Dhandho data (parties, products, invoices, payments) plus Books ledgers
+            Miracle-shaped books desk — import a CMP to fill parties, products, invoices & payments, then work from
+            ledgers and vouchers here
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -162,6 +163,29 @@ export function BooksView({ initialPanel = 'overview' }: { initialPanel?: BooksP
               <div className="mt-1 text-3xl font-semibold text-slate-900">{c.value}</div>
             </div>
           ))}
+          <div className="sm:col-span-3 rounded-xl border border-orange-100 bg-orange-50/60 p-4">
+            <h2 className="mb-2 text-sm font-semibold text-slate-800">How Dhandho replaces Miracle</h2>
+            <ol className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+              <li>
+                <span className="font-semibold text-orange-700">1. Import</span> — upload Miracle CMP (.rar / .zip)
+              </li>
+              <li>
+                <span className="font-semibold text-orange-700">2. Work</span> — parties, invoices & payments land in
+                Transactions
+              </li>
+              <li>
+                <span className="font-semibold text-orange-700">3. Books</span> — ledgers & vouchers stay here for audit
+              </li>
+            </ol>
+            <button
+              type="button"
+              onClick={() => setPanel('import')}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
+            >
+              <FileUp size={16} />
+              Open Miracle Import
+            </button>
+          </div>
           <div className="sm:col-span-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-2 font-semibold text-slate-800">Recent Miracle imports</h2>
             {!summary?.recentImports?.length ? (

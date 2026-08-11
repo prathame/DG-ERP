@@ -26,6 +26,8 @@ const SHELL_KEYS = [
   'nav.invoiceShort',
   'nav.quotesShort',
   'navSections.supplyChain',
+  'navSections.transactions',
+  'navSections.reports',
   'common.syncNow',
   'common.downloadPdf',
   'dashboard.moneyOverview',

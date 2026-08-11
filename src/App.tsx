@@ -15,6 +15,7 @@ import {
   IndianRupee,
   ScanSearch,
   FileText,
+  FileUp,
   ShoppingBag,
   BarChart3,
   Search,
@@ -26,6 +27,7 @@ import {
   ListOrdered,
   BookOpen,
   IdCard,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
@@ -58,6 +60,7 @@ import {
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
 import { fillMissingTabPresetKeys, isTabVisibleForUser } from '../shared/tabPresets';
+import { booksSidebarTabIds, isNavItemActive } from './lib/navArchitecture';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -822,141 +825,93 @@ export default function App() {
   /** Tenant tabConfig (Super Admin), plus per-device Settings show/hide override. */
   const tv = (key: string) => isTabVisibleForUser(key, tabConfig, getTabVisiblePref(key));
 
+  /** Icons for Miracle-shaped sidebar (tab ids stay stable; grouping follows navArchitecture). */
+  const navIconByTab: Partial<Record<string, LucideIcon>> = {
+    analytics: LayoutDashboard,
+    masters: BookUser,
+    invoices: ReceiptIndianRupee,
+    quotations: FileText,
+    purchases: ShoppingBag,
+    sales: ShoppingCart,
+    distribution: Package,
+    inventory: Package,
+    finance: IndianRupee,
+    verification: ScanSearch,
+    accounts: BarChart3,
+    books: BookOpen,
+    book_import: FileUp,
+    warranty: ShieldCheck,
+    replacements: RefreshCw,
+    rewards: Gift,
+    hosp_floor: UtensilsCrossed,
+    hosp_waiter: ConciergeBell,
+    hosp_kitchen: ChefHat,
+    hosp_queue: ListOrdered,
+    hosp_parcels: ShoppingBag,
+    hosp_menu: BookOpen,
+    hosp_members: IdCard,
+  };
+  const navLabel = (id: string, fallback: string) => tc(id, fallback);
+  const navItem = (id: string, fallback: string, show: boolean) => ({
+    id,
+    label: navLabel(id, fallback),
+    icon: navIconByTab[id] ?? FileText,
+    show,
+  });
+
+  const booksSidebarIds = new Set(booksSidebarTabIds(tv));
+
+  // Miracle-shaped IA: Masters → Transactions → Books → Reports (+ vertical extras)
   const navSections = [
     {
       label: '',
       items: [
-        { id: 'analytics', label: tc('analytics', t('nav.analytics')), icon: LayoutDashboard, show: tv('analytics') },
-        { id: 'masters', label: tc('masters', t('nav.masters')), icon: BookUser, show: tv('masters') },
-        { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
-        {
-          id: 'distribution',
-          label: tc('distribution', t('nav.distribution')),
-          icon: Package,
-          show: tv('distribution'),
-        },
-        { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
+        navItem('analytics', t('nav.analytics'), tv('analytics')),
+        navItem('masters', t('nav.masters'), tv('masters')),
       ],
     },
     {
-      label: t('navSections.supplyChain'),
+      label: t('navSections.transactions'),
       items: [
-        {
-          id: 'purchases',
-          label: tc('purchases', t('nav.purchaseExpense')),
-          icon: ShoppingBag,
-          show: tv('purchases'),
-        },
-        {
-          id: 'verification',
-          label: tc('verification', t('nav.verification')),
-          icon: ScanSearch,
-          show: tv('verification'),
-        },
-      ],
-    },
-    {
-      label: t('navSections.financeReports'),
-      items: [
-        { id: 'invoices', label: tc('invoices', t('nav.invoices')), icon: ReceiptIndianRupee, show: tv('invoices') },
-        {
-          id: 'quotations',
-          label: tc('quotations', t('nav.quotesOrders')),
-          icon: FileText,
-          show: tv('quotations'),
-        },
-        { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
-        { id: 'accounts', label: tc('accounts', t('nav.accounts')), icon: BarChart3, show: tv('accounts') },
-      ],
-    },
-    {
-      label: t('navSections.afterSales'),
-      items: [
-        { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
-        {
-          id: 'replacements',
-          label: tc('replacements', t('nav.replacements')),
-          icon: RefreshCw,
-          show: tv('replacements'),
-        },
-        { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
-      ],
-    },
-    {
-      label: t('nav.hospitality'),
-      items: [
-        {
-          id: 'hosp_floor',
-          label: tc('hosp_floor', t('nav.hospFloor')),
-          icon: UtensilsCrossed,
-          show: tv('hosp_floor'),
-        },
-        {
-          id: 'hosp_waiter',
-          label: tc('hosp_waiter', t('nav.hospWaiter')),
-          icon: ConciergeBell,
-          show: tv('hosp_waiter'),
-        },
-        {
-          id: 'hosp_kitchen',
-          label: tc('hosp_kitchen', t('nav.hospKitchen')),
-          icon: ChefHat,
-          show: tv('hosp_kitchen'),
-        },
-        {
-          id: 'hosp_queue',
-          label: tc('hosp_queue', t('nav.hospQueue')),
-          icon: ListOrdered,
-          show: tv('hosp_queue'),
-        },
-        {
-          id: 'hosp_parcels',
-          label: tc('hosp_parcels', t('nav.hospParcels')),
-          icon: ShoppingBag,
-          show: tv('hosp_parcels'),
-        },
-        {
-          id: 'hosp_menu',
-          label: tc('hosp_menu', t('nav.hospMenu')),
-          icon: BookOpen,
-          show: tv('hosp_menu'),
-        },
-        {
-          id: 'hosp_members',
-          label: tc('hosp_members', t('nav.hospMembers')),
-          icon: IdCard,
-          show: tv('hosp_members'),
-        },
+        navItem('invoices', t('nav.invoices'), tv('invoices')),
+        navItem('quotations', t('nav.quotesOrders'), tv('quotations')),
+        navItem('purchases', t('nav.purchaseExpense'), tv('purchases')),
+        navItem('sales', t('nav.sales'), tv('sales')),
+        navItem('distribution', t('nav.distribution'), tv('distribution')),
+        navItem('inventory', t('nav.inventory'), tv('inventory')),
+        navItem('finance', t('nav.finance'), tv('finance')),
+        navItem('verification', t('nav.verification'), tv('verification')),
       ],
     },
     {
       label: t('navSections.books'),
       items: [
-        { id: 'books', label: tc('books', t('nav.books')), icon: BookOpen, show: tv('books') },
-        {
-          id: 'book_ledgers',
-          label: tc('book_ledgers', t('nav.bookLedgers')),
-          icon: BookUser,
-          show: tv('book_ledgers'),
-        },
-        {
-          id: 'book_vouchers',
-          label: tc('book_vouchers', t('nav.bookVouchers')),
-          icon: ReceiptIndianRupee,
-          show: tv('book_vouchers'),
-        },
-        {
-          id: 'book_products',
-          label: tc('book_products', t('nav.bookProducts')),
-          icon: Package,
-          show: tv('book_products'),
-        },
-        {
-          id: 'book_import',
-          label: tc('book_import', t('nav.bookImport')),
-          icon: FileText,
-          show: tv('book_import'),
-        },
+        navItem('books', t('nav.books'), booksSidebarIds.has('books')),
+        navItem('book_import', t('nav.bookImport'), booksSidebarIds.has('book_import')),
+      ],
+    },
+    {
+      label: t('navSections.reports'),
+      items: [navItem('accounts', t('nav.accounts'), tv('accounts'))],
+    },
+    {
+      label: t('navSections.afterSales'),
+      items: [
+        navItem('warranty', t('nav.warranty'), tv('warranty')),
+        navItem('replacements', t('nav.replacements'), tv('replacements')),
+        navItem('rewards', t('nav.rewards'), tv('rewards')),
+      ],
+    },
+    {
+      label: t('nav.hospitality'),
+      items: [
+        navItem('hosp_floor', t('nav.hospFloor'), tv('hosp_floor')),
+        navItem('hosp_waiter', t('nav.hospWaiter'), tv('hosp_waiter')),
+        navItem('hosp_kitchen', t('nav.hospKitchen'), tv('hosp_kitchen')),
+        navItem('hosp_queue', t('nav.hospQueue'), tv('hosp_queue')),
+        navItem('hosp_parcels', t('nav.hospParcels'), tv('hosp_parcels')),
+        navItem('hosp_menu', t('nav.hospMenu'), tv('hosp_menu')),
+        navItem('hosp_members', t('nav.hospMembers'), tv('hosp_members')),
       ],
     },
   ];
@@ -1468,7 +1423,7 @@ export default function App() {
                             }}
                             className={cn(
                               'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
-                              activeTab === item.id
+                              isNavItemActive(item.id, activeTab)
                                 ? desktopGlass
                                   ? 'dg-nav-active font-semibold pl-[7px]'
                                   : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
@@ -1477,7 +1432,11 @@ export default function App() {
                                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
-                            <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} className="shrink-0" />
+                            <item.icon
+                              size={18}
+                              strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
+                              className="shrink-0"
+                            />
                             {isSidebarOpen && <span className="truncate">{item.label}</span>}
                             {!isSidebarOpen && (
                               <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">

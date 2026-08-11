@@ -405,6 +405,8 @@
   "navSections": {
     "supplyChain": "सप्लाय चेन",
     "financeReports": "फायनान्स आणि अहवाल",
+    "transactions": "व्यवहार",
+    "reports": "अहवाल",
     "afterSales": "आफ्टर सेल्स",
     "books": "बुक्स"
   },
