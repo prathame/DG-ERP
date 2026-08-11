@@ -316,7 +316,7 @@ export function CreateVoucherModal({
         {loadingLedgers && <p className="text-xs text-slate-500">Loading ledgers…</p>}
         {!loadingLedgers && ledgers.length === 0 && (
           <p className="text-xs text-amber-700">
-            No ledgers yet — use Accounts → Data import (CMP), then enter vouchers here.
+            No ledgers yet — open Accounts → Ledger once to set up Cash/Bank, or add a client first.
           </p>
         )}
       </div>

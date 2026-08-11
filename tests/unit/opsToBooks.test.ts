@@ -195,7 +195,7 @@ describe('opsToBooks + CA statements', () => {
     expect(count.rows[0].c).toBe(1);
   });
 
-  it('posts bank receipt + expense; trading debit; skips empty books / zero', async () => {
+  it('posts bank receipt + expense; trading debit; seeds native books when empty; skips zero', async () => {
     await cleanupTestData(TENANT);
     const ledgers = await seedBooksShell();
 
@@ -209,6 +209,7 @@ describe('opsToBooks + CA statements', () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // No Miracle import — dual-write still boots Cash/Bank/Sales and posts
       expect(
         await postStandaloneInvoiceToBooks(client, emptyTenant, {
           id: 'x',
@@ -216,7 +217,11 @@ describe('opsToBooks + CA statements', () => {
           grandTotal: 10,
           invoiceDate: '2025-01-01',
         }),
-      ).toBeNull();
+      ).toBeTruthy();
+      const seeded = await client.query(`SELECT COUNT(*)::int AS c FROM book_ledgers WHERE tenant_id = $1`, [
+        emptyTenant,
+      ]);
+      expect(Number(seeded.rows[0]?.c)).toBeGreaterThanOrEqual(3);
 
       expect(
         await postStandaloneInvoiceToBooks(client, TENANT, {
