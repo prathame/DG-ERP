@@ -24,6 +24,31 @@ export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string
   }
 }
 
+/** Delete all Books rows for a tenant, then re-seed Cash / Bank / Sales + party ledgers. */
+export async function wipeNativeBooksDesk(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ deleted: Record<string, number> }> {
+  const deleted: Record<string, number> = {};
+  const tables = [
+    'book_voucher_entries',
+    'book_voucher_items',
+    'book_vouchers',
+    'book_ledger_details',
+    'book_ledgers',
+    'book_products',
+    'book_account_groups',
+    'book_import_jobs',
+    'book_financial_years',
+  ] as const;
+  for (const table of tables) {
+    const result = await client.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+    deleted[table] = result.rowCount ?? 0;
+  }
+  await ensureNativeBooksDesk(client, tenantId);
+  return { deleted };
+}
+
 async function resolveFinancialYearId(client: PoolClient, tenantId: string, voucherDate: string): Promise<string> {
   const active = (
     await client.query(

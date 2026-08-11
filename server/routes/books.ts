@@ -21,7 +21,7 @@ import {
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
 import { getBooksBalanceSheet, getBooksProfitLoss, getTrialBalance } from '../services/bookFinancialStatements';
-import { ensureNativeBooksDesk } from '../services/opsToBooks';
+import { ensureNativeBooksDesk, wipeNativeBooksDesk } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -43,6 +43,38 @@ const upload = multer({
 function tenantOf(req: AuthRequest): string | null {
   return (req.headers['x-tenant-id'] as string) || null;
 }
+
+/** Admin: clear Books (vouchers/ledgers/import) for this tenant and re-seed native COA. */
+router.delete('/api/books/all', requireAdmin, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { deleted } = await wipeNativeBooksDesk(client, tenantId);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Wiped', 'books', 'all', 'Books cleared and native COA re-seeded');
+    const [ledgers, vouchers] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS c FROM book_ledgers WHERE tenant_id = $1`, [tenantId]),
+      pool.query(`SELECT COUNT(*)::int AS c FROM book_vouchers WHERE tenant_id = $1`, [tenantId]),
+    ]);
+    res.json({
+      ok: true,
+      deleted,
+      ledgers: ledgers.rows[0]?.c ?? 0,
+      vouchers: vouchers.rows[0]?.c ?? 0,
+    });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
 
 router.get('/api/books/summary', blockVendors, async (req: AuthRequest, res) => {
   try {
