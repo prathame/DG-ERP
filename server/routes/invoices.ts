@@ -246,6 +246,9 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     for (const raw of items as LineIn[]) {
       const qty = Number(raw.qty) || 1;
       let rate = Number(raw.rate) || 0;
+      if (!Number.isFinite(rate) || rate < 0) {
+        return res.status(400).json({ error: 'Line rate cannot be negative' });
+      }
       const productId = raw.productId || undefined;
       let priceIncludesGst = false;
       if (productId) {
