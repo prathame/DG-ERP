@@ -92,9 +92,9 @@ export function HospitalityAccountsView() {
       <div className="flex justify-between items-end gap-3 flex-wrap">
         <div>
           <p className={hospEyebrowClass(shell)}>Hospitality</p>
-          <h1 className={hospTitleClass(shell)}>Accounts</h1>
+          <h1 className={hospTitleClass(shell)}>Sales summary</h1>
           <p className={hospSubClass(shell)}>
-            Restaurant books — food sales & expenses. Not dealer ledgers, stock COGS, or warranty.
+            Food sales and expenses for the floor — not full double-entry accounts or GST statements.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

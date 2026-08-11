@@ -59,7 +59,7 @@ import {
   isServiceProductUx,
 } from './platforms/service-cloud';
 import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
-import { fillMissingTabPresetKeys, isTabVisibleForUser } from '../shared/tabPresets';
+import { fillMissingTabPresetKeys, isMiracleBooksFamilyVisible, isTabVisibleForUser } from '../shared/tabPresets';
 import { isNavItemActive } from './lib/navArchitecture';
 import {
   getPhoneMode,
@@ -603,7 +603,7 @@ export default function App() {
       books: 'ledger',
       book_ledgers: 'ledger',
       book_vouchers: 'vouchers',
-      book_products: 'ledger',
+      book_products: 'products',
       book_import: 'import',
     };
     const accountsSeed = bookToAccounts[tab];
@@ -736,7 +736,7 @@ export default function App() {
           books: 'ledger',
           book_ledgers: 'ledger',
           book_vouchers: 'vouchers',
-          book_products: 'ledger',
+          book_products: 'products',
           book_import: 'import',
         };
         const seed = bookToAccounts[e.state.tab as string];
@@ -1905,7 +1905,9 @@ export default function App() {
                       ) : (
                         <AccountsView
                           accessLevel={getAccess('accounts')}
-                          booksAccess={getAccess('books')}
+                          booksAccess={
+                            isMiracleBooksFamilyVisible(tabConfig) && tv('books') ? getAccess('books') : 'hidden'
+                          }
                           initialTab={accountsInitialTab}
                         />
                       ))}

@@ -22,7 +22,6 @@ const DESCRIPTIONS: Partial<Record<MasterType, string>> = {
   priceList: 'Multi-tier pricing and discount rules.',
   rewardRules: 'Loyalty points, thresholds, and reward campaigns.',
   mapping: 'Link vendors to customers for sales and distribution.',
-  importData: 'Import Miracle company backup (.rar / .zip) into parties, products, invoices, and payments.',
 };
 
 /** Text CTA = open list (truthful labels per MasterType). */
@@ -36,7 +35,6 @@ const CTA: Partial<Record<MasterType, string>> = {
   priceList: 'Open Price List',
   rewardRules: 'Open Reward Rules',
   mapping: 'Open Mapping',
-  importData: 'Open Import',
 };
 
 type Props = {

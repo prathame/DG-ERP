@@ -55,6 +55,7 @@ type AccountTab =
   | 'notes'
   | 'vouchers'
   | 'trial'
+  | 'products'
   | 'import'
   | 'sales'
   | 'distribution'
@@ -129,9 +130,22 @@ export function AccountsView({
     };
   }, [booksModuleOn]);
 
-  const useBooksFor = (key: AccountTab) =>
+  const booksFor = (key: AccountTab) =>
     booksDeskReady && (key === 'pnl' || key === 'balance' || key === 'ledger' || key === 'daybook');
-  const booksSelfContained = useBooksFor(tab) || tab === 'vouchers' || tab === 'trial' || tab === 'import';
+  const booksSelfContained =
+    booksFor(tab) || tab === 'vouchers' || tab === 'trial' || tab === 'products' || tab === 'import';
+  const statementSourceNote = (() => {
+    if (tab === 'cashflow') return 'From operations (cash movements) — not double-entry.';
+    if (booksFor(tab) || tab === 'trial' || tab === 'vouchers' || tab === 'products') {
+      return 'From double-entry ledgers and vouchers.';
+    }
+    if (tab === 'pnl' || tab === 'balance' || tab === 'ledger' || tab === 'daybook') {
+      return 'From operations — set the period, then Generate.';
+    }
+    if (tab === 'outstanding') return 'Aging report only. Record payments in Collections.';
+    if (tab === 'payments') return 'Payment history report. Record new receipts in Collections.';
+    return null;
+  })();
 
   const loadData = async () => {
     if (booksSelfContained) return;
@@ -237,6 +251,14 @@ export function AccountsView({
       group: 'accounts',
       hide: !booksModuleOn,
     },
+    {
+      key: 'products',
+      label: 'Book products',
+      shortLabel: 'Products',
+      icon: Package,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
     { key: 'notes', label: 'Credit/Debit Notes', shortLabel: 'Notes', icon: Receipt, group: 'accounts' },
     {
       key: 'import',
@@ -262,8 +284,20 @@ export function AccountsView({
       group: 'reports',
       hide: cfg.accounts.hideTabs.includes('distribution'),
     },
-    { key: 'outstanding', label: t('business.outstanding'), shortLabel: 'Due', icon: Clock, group: 'reports' },
-    { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee, group: 'reports' },
+    {
+      key: 'outstanding',
+      label: `${t('business.outstanding')} (report)`,
+      shortLabel: 'Due',
+      icon: Clock,
+      group: 'reports',
+    },
+    {
+      key: 'payments',
+      label: 'Payment history',
+      shortLabel: 'Payments',
+      icon: IndianRupee,
+      group: 'reports',
+    },
     {
       key: 'stock',
       label: 'Stock Summary',
@@ -307,19 +341,28 @@ export function AccountsView({
 
   const booksBody = booksSelfContained ? (
     <div id="accounts-content" className="space-y-3">
-      {tab === 'pnl' && <BooksReportsPanel lockedKind="pnl" hideSourceNote />}
-      {tab === 'balance' && <BooksReportsPanel lockedKind="bs" hideSourceNote />}
-      {tab === 'trial' && <BooksReportsPanel lockedKind="tb" hideSourceNote />}
+      {tab === 'pnl' && <BooksReportsPanel lockedKind="pnl" />}
+      {tab === 'balance' && <BooksReportsPanel lockedKind="bs" />}
+      {tab === 'trial' && <BooksReportsPanel lockedKind="tb" />}
       {tab === 'ledger' && <BooksView initialPanel="ledgers" embedded />}
       {tab === 'daybook' && <DayBookPanel onOpenVoucher={setVoucherDetailId} />}
       {tab === 'vouchers' && <BooksView initialPanel="vouchers" embedded />}
+      {tab === 'products' && <BooksView initialPanel="products" embedded />}
       {tab === 'import' && <MiracleImportPanel onComplete={() => setBooksDeskReady(true)} />}
       {voucherDetailId && <VoucherDetailModal voucherId={voucherDetailId} onClose={() => setVoucherDetailId(null)} />}
     </div>
   ) : null;
 
+  /** P&L / Balance / Trial already print the same line inside BooksReportsPanel. */
+  const panelShowsOwnSourceNote = booksSelfContained && (tab === 'pnl' || tab === 'balance' || tab === 'trial');
+  const sourceBanner =
+    statementSourceNote && !panelShowsOwnSourceNote ? (
+      <p className="text-sm text-slate-500 px-0.5">{statementSourceNote}</p>
+    ) : null;
+
   const reportBody = (
     <>
+      {sourceBanner}
       {booksBody}
 
       {!booksSelfContained && loading && (

@@ -470,7 +470,9 @@ export function OnPremView({ saToken }: { saToken: string }) {
                         'relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors shrink-0',
                         familyOn ? 'bg-emerald-500' : 'bg-gray-300',
                       )}
-                      title={tab === 'books' ? 'Books desk + Miracle CMP import' : undefined}
+                      title={
+                        tab === 'books' ? 'Ledgers, vouchers & data import under Accounts (Miracle CMP)' : undefined
+                      }
                     >
                       <span
                         className={cn(
