@@ -890,6 +890,25 @@ export const api = {
           balance: number;
         }[]
       >('/invoice-finance/summary'),
+    /** Flat open bills (balance > 0) for Miracle-style bill-wise outstanding. */
+    openBills: () =>
+      fetchApi<
+        {
+          partyKey: string;
+          partyType: 'vendor' | 'customer' | null;
+          partyId: string | null;
+          clientName: string;
+          clientPhone: string | null;
+          invoiceId: string;
+          invoiceNumber: string;
+          invoiceDate: string;
+          dueDate?: string | null;
+          grandTotal: number;
+          paid: number;
+          balance: number;
+          status: string;
+        }[]
+      >('/invoice-finance/open-bills'),
     /** partyKey: vendor:ID | customer:ID | name:DisplayName (or plain name for legacy) */
     client: (partyKey: string) =>
       fetchApi<{
@@ -933,7 +952,9 @@ export const api = {
       invoiceId?: string;
       /** Toward party total due (FIFO across open invoices), or advance when none outstanding (offline). */
       partyKey?: string;
-      amount: number;
+      /** Explicit bill-wise splits (amount optional on body — summed from allocations). */
+      allocations?: { invoiceId: string; amount: number }[];
+      amount?: number;
       paymentDate: string;
       paymentMethod: string;
       referenceNumber?: string;
