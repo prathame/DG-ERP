@@ -284,6 +284,63 @@ export function locateCompanyDir(root: string): string {
   throw new MiracleImportValidationError('Could not find Miracle company folder (version.txt + year folder YRxx)');
 }
 
+/** Resolve archive member path under dest; reject `..` / absolute escapes. */
+function safeExtractPath(destDir: string, entryName: string): string | null {
+  const rel = entryName.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!rel || rel.includes('\0')) return null;
+  const resolved = path.resolve(destDir, rel);
+  const root = path.resolve(destDir);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) return null;
+  return resolved;
+}
+
+/**
+ * Pure-JS RAR extract (Emscripten unrar) — used on Render/online where `unrar` is not installed.
+ */
+export async function extractRarJs(archivePath: string, destDir: string): Promise<void> {
+  const { createExtractorFromData } = await import('node-unrar-js');
+  const data = Uint8Array.from(fs.readFileSync(archivePath)).buffer;
+  const extractor = await createExtractorFromData({ data });
+  const { files } = extractor.extract();
+  for (const file of files) {
+    const out = safeExtractPath(destDir, file.fileHeader.name);
+    if (!out) continue;
+    if (file.fileHeader.flags.directory) {
+      fs.mkdirSync(out, { recursive: true });
+      continue;
+    }
+    if (!file.extraction) continue;
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, Buffer.from(file.extraction));
+  }
+}
+
+async function extractRarArchive(archivePath: string, destDir: string): Promise<void> {
+  // 1) bsdtar (macOS)  2) system unrar  3) pure JS (Render / Linux without unrar)
+  try {
+    await execFileAsync('bsdtar', ['-xf', archivePath, '-C', destDir]);
+    return;
+  } catch {
+    /* try next */
+  }
+  try {
+    await execFileAsync('unrar', ['x', '-o+', archivePath, destDir]);
+    return;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/ENOENT|not found|spawn/i.test(msg)) {
+      // unrar present but failed — still try JS before giving up
+      try {
+        await extractRarJs(archivePath, destDir);
+        return;
+      } catch {
+        throw err;
+      }
+    }
+  }
+  await extractRarJs(archivePath, destDir);
+}
+
 /**
  * Extract Miracle CMP .zip / .rar.
  * `originalName` is required when the on-disk path has no extension (multer `dest` uploads).
@@ -295,12 +352,7 @@ export async function extractArchive(archivePath: string, originalName?: string)
     if (lower.endsWith('.zip')) {
       await execFileAsync('unzip', ['-q', archivePath, '-d', tmp]);
     } else if (lower.endsWith('.rar')) {
-      // macOS bsdtar can read many RAR v4 archives; fall back to unrar if present
-      try {
-        await execFileAsync('bsdtar', ['-xf', archivePath, '-C', tmp]);
-      } catch {
-        await execFileAsync('unrar', ['x', '-o+', archivePath, tmp]);
-      }
+      await extractRarArchive(archivePath, tmp);
     } else {
       throw new MiracleImportValidationError('Unsupported archive — upload .rar or .zip of the Miracle CMP folder');
     }

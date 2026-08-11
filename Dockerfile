@@ -10,7 +10,11 @@ FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
-RUN useradd --system --uid 1001 dhandho
+# unzip for Miracle .zip; .rar uses node-unrar-js (no system unrar on slim images / Render)
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends unzip \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd --system --uid 1001 dhandho
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
