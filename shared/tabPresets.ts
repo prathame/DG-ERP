@@ -160,6 +160,48 @@ export function tabToggleKeys(businessType?: string | null): string[] {
 }
 
 /**
+ * Books desk + Miracle CMP import — one SA / Settings toggle controls the whole family.
+ * Child tab ids stay in tab_config for deep links / BooksView panels.
+ */
+export const MIRACLE_BOOKS_TAB_IDS = [
+  'books',
+  'book_ledgers',
+  'book_vouchers',
+  'book_products',
+  'book_import',
+] as const;
+
+export type MiracleBooksTabId = (typeof MIRACLE_BOOKS_TAB_IDS)[number];
+
+export function isMiracleBooksTabId(tabId: string): boolean {
+  return (MIRACLE_BOOKS_TAB_IDS as readonly string[]).includes(tabId);
+}
+
+/** SA / on-prem toggle list: collapse Miracle family to a single `books` row. */
+export function tabToggleKeysForSa(businessType?: string | null): string[] {
+  return tabToggleKeys(businessType).filter(id => !isMiracleBooksTabId(id) || id === 'books');
+}
+
+/** True when any Miracle/Books tab is Super-Admin ON (after fillMissingTabPresetKeys). */
+export function isMiracleBooksFamilyVisible(tabConfig: TabConfig): boolean {
+  return MIRACLE_BOOKS_TAB_IDS.some(id => {
+    const entry = tabConfig[id];
+    return entry != null && entry.visible !== false;
+  });
+}
+
+/** Turn Books + Miracle Import (+ panel deep-link tabs) on or off together. */
+export function setMiracleBooksFamilyVisible(tabConfig: TabConfig, visible: boolean, preset?: TabConfig): TabConfig {
+  const base = preset || tabConfig;
+  const next: TabConfig = { ...tabConfig };
+  for (const id of MIRACLE_BOOKS_TAB_IDS) {
+    const cur = next[id] ?? base[id] ?? { label: id, visible: true };
+    next[id] = { label: cur.label || base[id]?.label || id, visible };
+  }
+  return next;
+}
+
+/**
  * Old hotel_restaurant preset (#172) hid quotations as "Quotes & Orders".
  * #181 renamed to Party Quotes + visible. Fingerprint SA-off as Party Quotes / custom label.
  */
@@ -232,11 +274,20 @@ export function isToggleableTabId(tabId: string): boolean {
  * Super Admin has turned ON. SA-off tabs are excluded entirely (no toggle, no nav) —
  * pass a `tabConfig` already filled via `fillMissingTabPresetKeys` so missing keys
  * fall back to the business-type preset instead of looking SA-disabled.
+ * Miracle/Books family collapses to a single `books` toggle.
  */
 export function getToggleableNavTabs(tabConfig: TabConfig): { id: string; label: string }[] {
+  const miracleOn = isMiracleBooksFamilyVisible(tabConfig);
   return Object.entries(tabConfig)
-    .filter(([id, cfg]) => isToggleableTabId(id) && cfg.visible !== false)
-    .map(([id, cfg]) => ({ id, label: cfg.label }));
+    .filter(([id, cfg]) => {
+      if (!isToggleableTabId(id)) return false;
+      if (isMiracleBooksTabId(id)) return id === 'books' && miracleOn;
+      return cfg.visible !== false;
+    })
+    .map(([id, cfg]) => ({
+      id,
+      label: id === 'books' ? cfg.label || 'Books' : cfg.label,
+    }));
 }
 
 /**
