@@ -2,16 +2,21 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { clientLogger, ensureCorrelationId } from '../../lib/logger';
+import { hardReloadApp, isStaleChunkError, reloadOnceOnStaleChunk } from '../../lib/reloadOnStaleChunk';
 
 /** Catches lazy-route / render failures so the app shell stays usable. */
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, errorId: null };
+    this.state = { error: null, errorId: null, staleChunk: false };
   }
 
   static getDerivedStateFromError(error) {
-    return { error, errorId: ensureCorrelationId().slice(0, 8) };
+    return {
+      error,
+      errorId: ensureCorrelationId().slice(0, 8),
+      staleChunk: isStaleChunkError(error),
+    };
   }
 
   componentDidCatch(error, info) {
@@ -19,10 +24,13 @@ export class ErrorBoundary extends React.Component {
       componentStack: info?.componentStack,
       errorId: this.state.errorId,
     });
+    if (isStaleChunkError(error)) {
+      void reloadOnceOnStaleChunk(error);
+    }
   }
 
   reset = () => {
-    this.setState({ error: null, errorId: null });
+    this.setState({ error: null, errorId: null, staleChunk: false });
     this.props.onReset?.();
   };
 
@@ -33,23 +41,40 @@ export class ErrorBoundary extends React.Component {
           <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center mb-4" aria-hidden="true">
             <AlertTriangle className="text-rose-600" size={24} />
           </div>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Something went wrong</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">
+            {this.state.staleChunk ? 'App update needed' : 'Something went wrong'}
+          </h2>
           <p className="text-sm text-gray-500 max-w-sm mb-2">
-            This screen failed to load. Your data is safe — try again or switch tabs.
+            {this.state.staleChunk
+              ? 'A newer version was deployed. Reload to load this screen — logout will not fix it.'
+              : 'This screen failed to load. Your data is safe — try again or switch tabs.'}
           </p>
           {this.state.errorId ? (
             <p className="text-xs text-gray-400 mb-6 font-mono">Ref: {this.state.errorId}</p>
           ) : (
             <div className="mb-6" />
           )}
-          <button
-            type="button"
-            onClick={this.reset}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
-          >
-            <RefreshCw size={16} />
-            Try again
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {this.state.staleChunk ? (
+              <button
+                type="button"
+                onClick={() => void hardReloadApp()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
+              >
+                <RefreshCw size={16} />
+                Reload app
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={this.reset}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
+              >
+                <RefreshCw size={16} />
+                Try again
+              </button>
+            )}
+          </div>
         </div>
       );
     }
