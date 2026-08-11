@@ -50,8 +50,13 @@ export function booksSidebarTabIds(visible: (tabId: string) => boolean): string[
 const BOOKS_FAMILY_TAB_IDS = new Set<string>(['books', 'book_import', ...BOOKS_SIDEBAR_CHILD_TAB_IDS]);
 
 /** Highlight the Books hub when any Books / Miracle child tab is active. */
-export function isNavItemActive(itemId: string, activeTab: string): boolean {
+export function isNavItemActive(
+  itemId: string,
+  activeTab: string,
+  opts?: { /** Service: masters hub also owns Invoice Finance (collections) */ serviceClientsHub?: boolean },
+): boolean {
   if (itemId === activeTab) return true;
   if (itemId === 'books' && BOOKS_FAMILY_TAB_IDS.has(activeTab)) return true;
+  if (opts?.serviceClientsHub && itemId === 'masters' && activeTab === 'finance') return true;
   return false;
 }

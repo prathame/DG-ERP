@@ -36,4 +36,10 @@ describe('navArchitecture', () => {
     expect(isNavItemActive('books', 'book_vouchers')).toBe(true);
     expect(isNavItemActive('invoices', 'book_import')).toBe(false);
   });
+
+  it('highlights Clients hub when service collections (finance) is active', () => {
+    expect(isNavItemActive('masters', 'finance', { serviceClientsHub: true })).toBe(true);
+    expect(isNavItemActive('masters', 'finance')).toBe(false);
+    expect(isNavItemActive('masters', 'invoices', { serviceClientsHub: true })).toBe(false);
+  });
 });

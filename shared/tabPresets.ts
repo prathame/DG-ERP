@@ -84,12 +84,14 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   }),
   /** Service / consulting — Miracle CMP → clients, invoices & payments; Books hub for COA/vouchers */
   service: baseAllVisible({
+    /** Sidebar: Clients hub (Directory + Collections); finance tab id kept for deep links / SA */
+    masters: { label: 'Clients', visible: true },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
     sales: { label: 'Sales Entry', visible: false },
     purchases: { label: 'Expenses', visible: true },
     verification: { label: 'Search / Verify', visible: false },
-    finance: { label: 'Invoice Finance', visible: true },
+    finance: { label: 'Collections', visible: true },
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
