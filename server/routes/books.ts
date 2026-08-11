@@ -340,6 +340,7 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
       contraName: detail.contra_name,
       amount: Number(detail.amount || 0),
       narration: detail.narration,
+      ops: created.ops,
     });
   } catch (err) {
     try {
