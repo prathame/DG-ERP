@@ -27,8 +27,13 @@ export interface MiracleImportCoverage {
   salesInvoices: MiracleImportCoverageBucket;
   cashIncomeInvoices: MiracleImportCoverageBucket;
   partyCash: MiracleImportCoverageBucket;
+  creditNotes: MiracleImportCoverageBucket;
+  debitNotes: MiracleImportCoverageBucket;
   nonPartyCashSkipped: number;
   journalsBooksOnly: number;
+  purchasesBooksOnly: number;
+  contraBooksOnly: number;
+  billMatchedPayments: number;
 }
 
 export interface MiracleImportUploadResult {
@@ -59,8 +64,13 @@ export function parseCoverage(s: Record<string, unknown> | undefined): MiracleIm
     salesInvoices: bucket(c.salesInvoices),
     cashIncomeInvoices: bucket(c.cashIncomeInvoices),
     partyCash: bucket(c.partyCash),
+    creditNotes: bucket(c.creditNotes),
+    debitNotes: bucket(c.debitNotes),
     nonPartyCashSkipped: Number(c.nonPartyCashSkipped) || 0,
     journalsBooksOnly: Number(c.journalsBooksOnly) || 0,
+    purchasesBooksOnly: Number(c.purchasesBooksOnly) || 0,
+    contraBooksOnly: Number(c.contraBooksOnly) || 0,
+    billMatchedPayments: Number(c.billMatchedPayments) || 0,
   };
 }
 
@@ -195,6 +205,18 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
       ...coverage.partyCash,
       note: coverage.partyCash.skipReason,
     },
+    {
+      key: 'creditNotes',
+      label: t('masters.importCoverageCreditNotes'),
+      ...coverage.creditNotes,
+      note: coverage.creditNotes.skipReason,
+    },
+    {
+      key: 'debitNotes',
+      label: t('masters.importCoverageDebitNotes'),
+      ...coverage.debitNotes,
+      note: coverage.debitNotes.skipReason,
+    },
   ];
 
   return (
@@ -231,7 +253,11 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
           </tbody>
         </table>
       </div>
-      {(coverage.nonPartyCashSkipped > 0 || coverage.journalsBooksOnly > 0) && (
+      {(coverage.nonPartyCashSkipped > 0 ||
+        coverage.journalsBooksOnly > 0 ||
+        coverage.purchasesBooksOnly > 0 ||
+        coverage.contraBooksOnly > 0 ||
+        coverage.billMatchedPayments > 0) && (
         <ul className="mt-2 space-y-1 text-xs text-slate-600">
           {coverage.nonPartyCashSkipped > 0 && (
             <li>
@@ -241,6 +267,21 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
           {coverage.journalsBooksOnly > 0 && (
             <li>
               {coverage.journalsBooksOnly} {t('masters.importCoverageJournals')}
+            </li>
+          )}
+          {coverage.purchasesBooksOnly > 0 && (
+            <li>
+              {coverage.purchasesBooksOnly} {t('masters.importCoveragePurchasesBooks')}
+            </li>
+          )}
+          {coverage.contraBooksOnly > 0 && (
+            <li>
+              {coverage.contraBooksOnly} {t('masters.importCoverageContraBooks')}
+            </li>
+          )}
+          {coverage.billMatchedPayments > 0 && (
+            <li>
+              {coverage.billMatchedPayments} {t('masters.importCoverageBillMatched')}
             </li>
           )}
         </ul>
