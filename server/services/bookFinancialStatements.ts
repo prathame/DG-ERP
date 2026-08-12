@@ -177,6 +177,131 @@ export async function getBooksProfitLoss(pool: Pool, tenantId: string, from: str
   };
 }
 
+type TradingLine = {
+  name: string;
+  groupName: string | null;
+  amount: number;
+  kind: 'opening_stock' | 'closing_stock' | 'sales' | 'purchase' | 'direct' | 'trading';
+};
+
+function stockLike(name: string, groupName: string | null): boolean {
+  return /\bstock\b|\binventory\b/.test(`${name} ${groupName || ''}`.toLowerCase());
+}
+
+function salesLike(name: string, groupName: string | null): boolean {
+  return /\bsales\b|\brevenue\b/.test(`${name} ${groupName || ''}`.toLowerCase());
+}
+
+function purchaseOrDirectLike(name: string, groupName: string | null): boolean {
+  const s = `${name} ${groupName || ''}`.toLowerCase();
+  return /\bpurchase|\bdirect exp|\bcarriage in|\bfreight in|\bwages\b/.test(s);
+}
+
+/**
+ * Miracle-style Trading account (gross profit) before P&L.
+ * Debit: opening stock, purchases / direct costs, trading debit balances.
+ * Credit: sales / trading credit balances, closing stock.
+ */
+export async function getTradingAccount(pool: Pool, tenantId: string, from: string | null, to: string | null) {
+  const rows = toTbRows(await loadLedgerAggregates(pool, tenantId, from, to));
+  const debit: TradingLine[] = [];
+  const credit: TradingLine[] = [];
+  const used = new Set<string>();
+
+  for (const r of rows) {
+    if (r.statementClass === 'asset' && stockLike(r.name, r.groupName)) {
+      used.add(r.ledgerId);
+      if (r.openingDebit >= 0.005) {
+        debit.push({
+          name: `Opening stock — ${r.name}`,
+          groupName: r.groupName,
+          amount: r.openingDebit,
+          kind: 'opening_stock',
+        });
+      }
+      if (r.closingDebit >= 0.005) {
+        credit.push({
+          name: `Closing stock — ${r.name}`,
+          groupName: r.groupName,
+          amount: r.closingDebit,
+          kind: 'closing_stock',
+        });
+      }
+    }
+  }
+
+  for (const r of rows) {
+    if (used.has(r.ledgerId)) continue;
+    if (r.statementClass === 'trading') {
+      used.add(r.ledgerId);
+      const net = periodNetIncome(r);
+      if (net > 0.005) {
+        credit.push({ name: r.name, groupName: r.groupName, amount: net, kind: 'trading' });
+      } else if (net < -0.005) {
+        debit.push({ name: r.name, groupName: r.groupName, amount: round2(-net), kind: 'trading' });
+      }
+      continue;
+    }
+    if (r.statementClass === 'income' && salesLike(r.name, r.groupName)) {
+      used.add(r.ledgerId);
+      const amt = periodNetIncome(r);
+      if (Math.abs(amt) >= 0.005) {
+        credit.push({ name: r.name, groupName: r.groupName, amount: amt, kind: 'sales' });
+      }
+      continue;
+    }
+    if (r.statementClass === 'expense' && purchaseOrDirectLike(r.name, r.groupName)) {
+      used.add(r.ledgerId);
+      const amt = periodNetExpense(r);
+      if (Math.abs(amt) >= 0.005) {
+        debit.push({
+          name: r.name,
+          groupName: r.groupName,
+          amount: amt,
+          kind: /\bpurchase/.test(`${r.name} ${r.groupName || ''}`.toLowerCase()) ? 'purchase' : 'direct',
+        });
+      }
+    }
+  }
+
+  const totalDebitRaw = round2(debit.reduce((s, x) => s + x.amount, 0));
+  const totalCreditRaw = round2(credit.reduce((s, x) => s + x.amount, 0));
+  const grossProfit = round2(totalCreditRaw - totalDebitRaw);
+
+  const debitOut = [...debit].sort((a, b) => b.amount - a.amount);
+  const creditOut = [...credit].sort((a, b) => b.amount - a.amount);
+
+  if (grossProfit >= 0.005) {
+    debitOut.push({
+      name: 'Gross profit c/d',
+      groupName: 'Trading',
+      amount: grossProfit,
+      kind: 'trading',
+    });
+  } else if (grossProfit <= -0.005) {
+    creditOut.push({
+      name: 'Gross loss c/d',
+      groupName: 'Trading',
+      amount: Math.abs(grossProfit),
+      kind: 'trading',
+    });
+  }
+
+  const totalDebit = round2(debitOut.reduce((s, x) => s + x.amount, 0));
+  const totalCredit = round2(creditOut.reduce((s, x) => s + x.amount, 0));
+
+  return {
+    from,
+    to,
+    debit: debitOut,
+    credit: creditOut,
+    totalDebit,
+    totalCredit,
+    grossProfit,
+    grossLabel: grossProfit >= 0 ? 'Gross profit' : 'Gross loss',
+  };
+}
+
 export async function getBooksBalanceSheet(pool: Pool, tenantId: string, asOf: string | null) {
   // BS uses all movements through asOf; income/expense closed via net profit plug
   const rows = toTbRows(await loadLedgerAggregates(pool, tenantId, null, asOf));

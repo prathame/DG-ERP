@@ -12,7 +12,7 @@ function fyDefaults() {
   return { from: fyStart, to: now.toISOString().slice(0, 10) };
 }
 
-type ReportKind = 'tb' | 'pnl' | 'bs';
+type ReportKind = 'tb' | 'trading' | 'pnl' | 'bs';
 
 interface TbResponse {
   from: string | null;
@@ -37,6 +37,17 @@ interface TbResponse {
     closingDebit: number;
     closingCredit: number;
   }>;
+}
+
+interface TradingResponse {
+  from: string | null;
+  to: string | null;
+  debit: Array<{ name: string; amount: number }>;
+  credit: Array<{ name: string; amount: number }>;
+  totalDebit: number;
+  totalCredit: number;
+  grossProfit: number;
+  grossLabel: string;
 }
 
 interface PnlResponse {
@@ -79,6 +90,7 @@ export function BooksReportsPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tb, setTb] = useState<TbResponse | null>(null);
+  const [trading, setTrading] = useState<TradingResponse | null>(null);
   const [pnl, setPnl] = useState<PnlResponse | null>(null);
   const [bs, setBs] = useState<BsResponse | null>(null);
 
@@ -99,6 +111,15 @@ export function BooksReportsPanel({
           const data = await fetchApi<TbResponse>(`/books/trial-balance?${qs}`);
           if (!cancelled) {
             setTb(data);
+            setTrading(null);
+            setPnl(null);
+            setBs(null);
+          }
+        } else if (kind === 'trading') {
+          const data = await fetchApi<TradingResponse>(`/books/trading-account?${qs}`);
+          if (!cancelled) {
+            setTrading(data);
+            setTb(null);
             setPnl(null);
             setBs(null);
           }
@@ -107,6 +128,7 @@ export function BooksReportsPanel({
           if (!cancelled) {
             setPnl(data);
             setTb(null);
+            setTrading(null);
             setBs(null);
           }
         } else {
@@ -114,6 +136,7 @@ export function BooksReportsPanel({
           if (!cancelled) {
             setBs(data);
             setTb(null);
+            setTrading(null);
             setPnl(null);
           }
         }
@@ -130,6 +153,7 @@ export function BooksReportsPanel({
 
   const tabs: { id: ReportKind; label: string }[] = [
     { id: 'tb', label: 'Trial balance' },
+    { id: 'trading', label: 'Trading A/c' },
     { id: 'pnl', label: 'Profit & loss' },
     { id: 'bs', label: 'Balance sheet' },
   ];
@@ -248,6 +272,53 @@ export function BooksReportsPanel({
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : kind === 'trading' && trading ? (
+        <div className="space-y-3">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-slate-800">Debit</h3>
+              <ul className="divide-y divide-slate-100 text-sm">
+                {trading.debit.length === 0 && <li className="py-2 text-slate-500">No debit lines</li>}
+                {trading.debit.map(r => (
+                  <li key={`dr-${r.name}`} className="flex justify-between gap-2 py-1.5">
+                    <span>{r.name}</span>
+                    <span className="tabular-nums font-medium">{money(r.amount)}</span>
+                  </li>
+                ))}
+                <li className="flex justify-between gap-2 border-t border-slate-200 pt-2 font-semibold">
+                  <span>Total</span>
+                  <span className="tabular-nums">{money(trading.totalDebit)}</span>
+                </li>
+              </ul>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-slate-800">Credit</h3>
+              <ul className="divide-y divide-slate-100 text-sm">
+                {trading.credit.length === 0 && <li className="py-2 text-slate-500">No credit lines</li>}
+                {trading.credit.map(r => (
+                  <li key={`cr-${r.name}`} className="flex justify-between gap-2 py-1.5">
+                    <span>{r.name}</span>
+                    <span className="tabular-nums font-medium">{money(r.amount)}</span>
+                  </li>
+                ))}
+                <li className="flex justify-between gap-2 border-t border-slate-200 pt-2 font-semibold">
+                  <span>Total</span>
+                  <span className="tabular-nums">{money(trading.totalCredit)}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+              trading.grossProfit >= 0
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+          >
+            {trading.grossLabel}: ₹{money(Math.abs(trading.grossProfit))}
+            <span className="ml-2 font-normal text-slate-500">(carries to Profit &amp; Loss)</span>
           </div>
         </div>
       ) : kind === 'pnl' && pnl ? (

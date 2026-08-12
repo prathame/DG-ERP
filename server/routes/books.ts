@@ -23,6 +23,7 @@ import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrC
 import {
   getBooksBalanceSheet,
   getBooksProfitLoss,
+  getTradingAccount,
   getTrialBalance,
   getFundBook,
 } from '../services/bookFinancialStatements';
@@ -520,6 +521,18 @@ router.get('/api/books/profit-loss', blockVendors, async (req: AuthRequest, res)
     const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
     res.json(await getBooksProfitLoss(pool, tenantId, from, to));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/trading-account', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    res.json(await getTradingAccount(pool, tenantId, from, to));
   } catch (err) {
     return handleApiError(req, res, err);
   }
