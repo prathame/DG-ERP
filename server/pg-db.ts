@@ -1661,6 +1661,35 @@ export async function initSchema() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_book_import_jobs_tenant ON book_import_jobs(tenant_id)`);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS book_bank_recon_marks (
+        tenant_id TEXT NOT NULL,
+        entry_id TEXT NOT NULL,
+        ledger_id TEXT NOT NULL,
+        reconciled_on DATE NOT NULL,
+        PRIMARY KEY (tenant_id, entry_id)
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_book_brm_ledger ON book_bank_recon_marks(tenant_id, ledger_id, reconciled_on)`,
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS book_bank_recon_sessions (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        ledger_id TEXT NOT NULL,
+        as_of DATE NOT NULL,
+        statement_balance NUMERIC(18,2) NOT NULL DEFAULT 0,
+        notes TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, ledger_id, as_of)
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_book_brs_ledger ON book_bank_recon_sessions(tenant_id, ledger_id)`,
+    );
+
+    await client.query(`
       UPDATE tenants SET tab_config = tab_config || '{"books":{"label":"Books","visible":false},"book_ledgers":{"label":"Ledgers","visible":false},"book_vouchers":{"label":"Vouchers","visible":false},"book_products":{"label":"Book Products","visible":false},"book_import":{"label":"Miracle Import","visible":false}}'::jsonb
       WHERE tab_config IS NOT NULL
         AND NOT (tab_config ? 'books')

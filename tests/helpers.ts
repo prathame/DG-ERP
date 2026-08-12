@@ -64,6 +64,8 @@ export async function cleanupTestData(tenantId: string) {
     'service_cloud_device_slots',
     'service_cloud_sessions',
     'user_sessions',
+    'book_bank_recon_marks',
+    'book_bank_recon_sessions',
     'book_voucher_items',
     'book_voucher_entries',
     'book_vouchers',

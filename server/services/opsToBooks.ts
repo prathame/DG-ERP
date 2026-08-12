@@ -71,6 +71,8 @@ export async function wipeNativeBooksDesk(
 ): Promise<{ deleted: Record<string, number> }> {
   const deleted: Record<string, number> = {};
   const tables = [
+    'book_bank_recon_marks',
+    'book_bank_recon_sessions',
     'book_voucher_entries',
     'book_voucher_items',
     'book_vouchers',
