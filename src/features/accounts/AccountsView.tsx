@@ -1877,6 +1877,7 @@ function ReportTable({
             { k: 'vendorName', l: partySingular },
             { k: 'totalBilled', l: 'Billed', r: true },
             { k: 'totalPaid', l: 'Paid', r: true },
+            ...(data.source === 'invoice_finance' ? [{ k: 'advanceBalance', l: 'Advance', r: true }] : []),
             { k: 'balance', l: 'Balance', r: true },
             { k: 'd0_30', l: '0-30d', r: true },
             { k: 'd31_60', l: '31-60d', r: true },
@@ -1938,27 +1939,34 @@ function ReportTable({
       <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-bold text-gray-600">{count} records</span>
         {tab === 'outstanding' && (
-          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => setOutstandingView('party')}
-              className={cn(
-                'rounded-md px-2.5 py-1',
-                outstandingView === 'party' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50',
-              )}
-            >
-              Party-wise
-            </button>
-            <button
-              type="button"
-              onClick={() => setOutstandingView('bills')}
-              className={cn(
-                'rounded-md px-2.5 py-1',
-                outstandingView === 'bills' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50',
-              )}
-            >
-              Bill-to-bill
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {data.source === 'invoice_finance' ? (
+              <p className="text-[11px] text-gray-400 max-w-xs">
+                Bill-to-bill = open invoices. Party Paid includes Collections advances. Pay in Collections.
+              </p>
+            ) : null}
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setOutstandingView('party')}
+                className={cn(
+                  'rounded-md px-2.5 py-1',
+                  outstandingView === 'party' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50',
+                )}
+              >
+                Party-wise
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutstandingView('bills')}
+                className={cn(
+                  'rounded-md px-2.5 py-1',
+                  outstandingView === 'bills' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50',
+                )}
+              >
+                Bill-to-bill
+              </button>
+            </div>
           </div>
         )}
       </div>
