@@ -7,6 +7,8 @@ import {
   postStandaloneInvoiceToBooks,
   postDistributionBatchToBooks,
   postVendorPaymentToBooks,
+  postPurchaseBatchToBooks,
+  postSupplierPaymentToBooks,
 } from '../../server/services/opsToBooks';
 import {
   describeBalance,
@@ -506,5 +508,119 @@ describe('opsToBooks + CA statements', () => {
     expect(pnl.netProfit).toBeLessThan(0);
     const bs = await getBooksBalanceSheet(pool, TENANT, '2025-10-31');
     expect(bs.assets.some(a => a.name.includes('Net loss'))).toBe(true);
+  });
+
+  it('posts purchase batch + supplier payment (Dr Purchase / Cr Supplier)', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const supplierId = uid('S');
+    await pool.query(
+      `INSERT INTO suppliers (id, tenant_id, name) VALUES ($1,$2,'Acme Supplier') ON CONFLICT DO NOTHING`,
+      [supplierId, TENANT],
+    );
+    const batchId = uid('PB');
+    const payId = uid('SP');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const pur = await postPurchaseBatchToBooks(client, TENANT, {
+        batchId,
+        supplierId,
+        supplierName: 'Acme Supplier',
+        billValue: 10000,
+        purchaseDate: '2025-07-01',
+      });
+      expect(pur).toBeTruthy();
+      const again = await postPurchaseBatchToBooks(client, TENANT, {
+        batchId,
+        supplierId,
+        supplierName: 'Acme Supplier',
+        billValue: 10000,
+        purchaseDate: '2025-07-01',
+      });
+      expect(again).toBe(pur);
+      const pay = await postSupplierPaymentToBooks(client, TENANT, {
+        id: payId,
+        amount: 4000,
+        paymentDate: '2025-07-05',
+        paymentMethod: 'Cash',
+        supplierId,
+        supplierName: 'Acme Supplier',
+      });
+      expect(pay).toBeTruthy();
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const purchase = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:PURCHASE'`, [TENANT])
+    ).rows[0] as { id: string };
+    const supplier = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref=$2`, [
+        TENANT,
+        `ops:supplier:${supplierId}`,
+      ])
+    ).rows[0] as { id: string };
+    const purLines = await pool.query(
+      `SELECT e.debit::float AS debit, e.credit::float AS credit, e.ledger_id
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id
+       WHERE e.tenant_id=$1 AND v.external_ref=$2`,
+      [TENANT, `ops:pur:${batchId}`],
+    );
+    expect(purLines.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ledger_id: purchase.id, debit: 10000, credit: 0 }),
+        expect.objectContaining({ ledger_id: supplier.id, debit: 0, credit: 10000 }),
+      ]),
+    );
+    const tb = await getTrialBalance(pool, TENANT, '2025-07-01', '2025-07-31');
+    expect(tb.balanced).toBe(true);
+  });
+
+  it('retail distribution posts purchase (not sales)', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    await pool.query(`UPDATE tenants SET business_type = 'retail' WHERE id = $1`, [TENANT]);
+    const vendorId = uid('V');
+    await pool.query(
+      `INSERT INTO vendors (id, tenant_id, name) VALUES ($1,$2,'Retail Supplier') ON CONFLICT DO NOTHING`,
+      [vendorId, TENANT],
+    );
+    const batchId = uid('D');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const vId = await postDistributionBatchToBooks(client, TENANT, {
+        batchId,
+        vendorId,
+        vendorName: 'Retail Supplier',
+        billValue: 2500,
+        distributionDate: '2025-08-01',
+      });
+      expect(vId).toBeTruthy();
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const v = (
+      await pool.query(`SELECT voucher_type FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+        TENANT,
+        `ops:dist:${batchId}`,
+      ])
+    ).rows[0] as { voucher_type: string };
+    expect(v.voucher_type).toBe('purchase');
+    const purchase = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:PURCHASE'`, [TENANT])
+    ).rows[0] as { id: string };
+    const lines = await pool.query(
+      `SELECT e.ledger_id, e.debit::float AS debit, e.credit::float AS credit
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id
+       WHERE e.tenant_id=$1 AND v.external_ref=$2`,
+      [TENANT, `ops:dist:${batchId}`],
+    );
+    expect(lines.rows.some(r => r.ledger_id === purchase.id && Number(r.debit) === 2500)).toBe(true);
+    await pool.query(`UPDATE tenants SET business_type = 'service' WHERE id = $1`, [TENANT]);
   });
 });
