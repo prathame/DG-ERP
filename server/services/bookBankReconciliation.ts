@@ -100,6 +100,7 @@ export async function getBankReconciliation(
      LEFT JOIN book_bank_recon_marks m
        ON m.tenant_id = e.tenant_id AND m.entry_id = e.id
      WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date <= $3
+       AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')
      ORDER BY v.voucher_date, v.voucher_number NULLS LAST, e.line_no
      LIMIT 10000`,
     [tenantId, selected.id, asOf],

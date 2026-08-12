@@ -60,6 +60,7 @@ async function loadLedgerAggregates(
     LEFT JOIN book_account_groups g ON g.id = l.group_id AND g.tenant_id = l.tenant_id
     LEFT JOIN book_voucher_entries e ON e.ledger_id = l.id AND e.tenant_id = l.tenant_id
     LEFT JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+      AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')
     WHERE l.tenant_id = $1
     GROUP BY l.id, l.name, l.nature, l.ledger_type, l.opening_balance, l.opening_side, g.name
     ORDER BY l.name`;
@@ -452,7 +453,8 @@ export async function getFundBook(
       `SELECT COALESCE(SUM(e.debit),0)::float AS debit, COALESCE(SUM(e.credit),0)::float AS credit
        FROM book_voucher_entries e
        JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
-       WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date < $3`,
+       WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date < $3
+         AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`,
       [tenantId, selected.id, from],
     );
     priorSigned = Number(prior.rows[0]?.debit || 0) - Number(prior.rows[0]?.credit || 0);
@@ -475,7 +477,8 @@ export async function getFundBook(
            ) AS particulars
     FROM book_voucher_entries e
     JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
-    WHERE e.tenant_id = $1 AND e.ledger_id = $2`;
+    WHERE e.tenant_id = $1 AND e.ledger_id = $2
+      AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`;
   if (from) {
     params.push(from);
     sql += ` AND v.voucher_date >= $${params.length}`;

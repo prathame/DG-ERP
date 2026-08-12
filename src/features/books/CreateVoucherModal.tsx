@@ -4,7 +4,7 @@ import { fetchApi } from '../../api';
 import { AppModal } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
-type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra' | 'sales' | 'credit_note' | 'debit_note';
+type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra' | 'sales' | 'credit_note' | 'debit_note' | 'memorandum';
 
 interface LedgerOption {
   id: string;
@@ -28,6 +28,7 @@ const TYPE_OPTIONS: { id: VoucherKind; label: string; hint: string }[] = [
   { id: 'debit_note', label: 'Debit note', hint: 'Party ← Sales/income' },
   { id: 'contra', label: 'Contra', hint: 'Cash ↔ Bank transfer' },
   { id: 'journal', label: 'Journal', hint: 'Multi-ledger adjustment' },
+  { id: 'memorandum', label: 'Memorandum', hint: 'Non-posting journal' },
 ];
 
 function todayIso() {
@@ -128,7 +129,7 @@ export function CreateVoucherModal({
         voucherNumber: voucherNumber.trim() || null,
         narration: narration.trim() || null,
       };
-      if (voucherType === 'journal') {
+      if (voucherType === 'journal' || voucherType === 'memorandum') {
         body.entries = lines.map(l => ({
           ledgerId: l.ledgerId,
           debit: Number(l.debit) || 0,
@@ -174,7 +175,7 @@ export function CreateVoucherModal({
   return (
     <AppModal
       title="New voucher"
-      subtitle="Receipt, payment, sales, credit/debit note, contra, or journal"
+      subtitle="Receipt, payment, sales, credit/debit note, contra, journal, or memorandum"
       onClose={onClose}
       size="lg"
       footer={
@@ -220,6 +221,12 @@ export function CreateVoucherModal({
           ))}
         </div>
 
+        {voucherType === 'memorandum' && (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Memorandum lines are stored for reference and stay off trial balance, day book, and cash/bank books.
+          </p>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
             <span className="mb-1 block text-slate-600">Date</span>
@@ -241,10 +248,12 @@ export function CreateVoucherModal({
           </label>
         </div>
 
-        {voucherType === 'journal' ? (
+        {voucherType === 'journal' || voucherType === 'memorandum' ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">Journal lines</span>
+              <span className="text-sm font-medium text-slate-700">
+                {voucherType === 'memorandum' ? 'Memorandum lines' : 'Journal lines'}
+              </span>
               <button
                 type="button"
                 onClick={() => setLines(prev => [...prev, newLine()])}

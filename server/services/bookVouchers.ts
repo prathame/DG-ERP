@@ -16,8 +16,20 @@ export const BOOK_VOUCHER_TYPES = [
   'sales',
   'credit_note',
   'debit_note',
+  'pdc_receipt',
+  'pdc_payment',
+  'memorandum',
 ] as const;
 export type BookVoucherType = (typeof BOOK_VOUCHER_TYPES)[number];
+
+/** Memo / PDC types — stored for register views but excluded from TB, P&L, day/cash/bank books. */
+export const BOOK_NON_POSTING_TYPES = ['pdc_receipt', 'pdc_payment', 'memorandum'] as const;
+export type BookNonPostingType = (typeof BOOK_NON_POSTING_TYPES)[number];
+export const BOOK_NON_POSTING_TYPES_SQL = `('pdc_receipt','pdc_payment','memorandum')`;
+
+export function isNonPostingVoucherType(t: string): boolean {
+  return (BOOK_NON_POSTING_TYPES as readonly string[]).includes(t);
+}
 
 export interface BookVoucherEntryInput {
   ledgerId: string;
@@ -38,6 +50,10 @@ export interface CreateBookVoucherInput {
   amount?: number;
   /** Journal: explicit lines (must balance). Ignored for simple types if amount+ledgers given. */
   entries?: BookVoucherEntryInput[];
+  /** Cheque / instrument number (PDC). */
+  instrumentRef?: string | null;
+  /** Cheque maturity / due date (PDC). */
+  maturityDate?: string | null;
 }
 
 export class BookVoucherValidationError extends Error {
@@ -111,7 +127,8 @@ async function assertLedgersExist(client: PoolClient, tenantId: string, ledgerId
 }
 
 function buildSimpleEntries(
-  voucherType: 'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note',
+  voucherType:
+    'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note' | 'pdc_receipt' | 'pdc_payment',
   partyLedgerId: string,
   contraLedgerId: string,
   amount: number,
@@ -121,14 +138,14 @@ function buildSimpleEntries(
   if (partyLedgerId === contraLedgerId) {
     throw new BookVoucherValidationError('Party and contra ledgers must be different');
   }
-  if (voucherType === 'receipt') {
+  if (voucherType === 'receipt' || voucherType === 'pdc_receipt') {
     // Debit cash/bank, Credit party
     return [
       { ledgerId: contraLedgerId, debit: amt, credit: 0 },
       { ledgerId: partyLedgerId, debit: 0, credit: amt },
     ];
   }
-  if (voucherType === 'payment') {
+  if (voucherType === 'payment' || voucherType === 'pdc_payment') {
     // Debit party, Credit cash/bank
     return [
       { ledgerId: partyLedgerId, debit: amt, credit: 0 },
@@ -301,9 +318,13 @@ export async function createBookVoucher(
   let contraLedgerId: string | null = input.contraLedgerId || null;
   let amount = round2(Number(input.amount) || 0);
 
-  if (input.voucherType === 'journal') {
+  if (input.voucherType === 'journal' || input.voucherType === 'memorandum') {
     if (!input.entries?.length) {
-      throw new BookVoucherValidationError('Journal vouchers require entry lines');
+      throw new BookVoucherValidationError(
+        input.voucherType === 'memorandum'
+          ? 'Memorandum vouchers require entry lines'
+          : 'Journal vouchers require entry lines',
+      );
     }
     lines = normalizeEntries(input.entries);
     amount = round2(lines.reduce((s, e) => s + e.debit, 0));
@@ -316,7 +337,9 @@ export async function createBookVoucher(
           ? 'Contra requires from (contra) and to (party) ledgers'
           : input.voucherType === 'sales' || input.voucherType === 'credit_note' || input.voucherType === 'debit_note'
             ? 'Party and sales/return ledgers are required'
-            : 'Party and cash/bank ledgers are required',
+            : input.voucherType === 'pdc_receipt' || input.voucherType === 'pdc_payment'
+              ? 'Party and bank ledgers are required for PDC'
+              : 'Party and cash/bank ledgers are required',
       );
     }
     if (input.entries?.length) {
@@ -324,6 +347,13 @@ export async function createBookVoucher(
       amount = round2(lines.reduce((s, e) => s + e.debit, 0));
     } else {
       lines = normalizeEntries(buildSimpleEntries(input.voucherType, partyLedgerId, contraLedgerId, amount));
+    }
+  }
+
+  if (input.voucherType === 'pdc_receipt' || input.voucherType === 'pdc_payment') {
+    const maturity = (input.maturityDate || '').trim();
+    if (maturity && !/^\d{4}-\d{2}-\d{2}$/.test(maturity)) {
+      throw new BookVoucherValidationError('maturityDate must be YYYY-MM-DD');
     }
   }
 
@@ -336,12 +366,19 @@ export async function createBookVoucher(
   const financialYearId = await resolveFinancialYearId(client, tenantId, voucherDate);
   const voucherId = uid('BV');
   const externalRef = `manual:${voucherId}`;
+  const memoStatus = isNonPostingVoucherType(input.voucherType) ? 'open' : null;
+  const instrumentRef = input.instrumentRef?.trim() || null;
+  const maturityDate =
+    input.voucherType === 'pdc_receipt' || input.voucherType === 'pdc_payment'
+      ? input.maturityDate?.trim() || null
+      : null;
 
   await client.query(
     `INSERT INTO book_vouchers
        (id, tenant_id, financial_year_id, voucher_type, voucher_date, voucher_number,
-        party_ledger_id, contra_ledger_id, amount, narration, external_ref)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        party_ledger_id, contra_ledger_id, amount, narration, external_ref,
+        instrument_ref, maturity_date, memo_status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [
       voucherId,
       tenantId,
@@ -354,6 +391,9 @@ export async function createBookVoucher(
       amount,
       input.narration?.trim() || null,
       externalRef,
+      instrumentRef,
+      maturityDate,
+      memoStatus,
     ],
   );
 
@@ -560,9 +600,13 @@ export async function updateBookVoucher(
     input.contraLedgerId !== undefined ? input.contraLedgerId || null : row.contra_ledger_id;
   let amount = input.amount !== undefined ? round2(Number(input.amount) || 0) : round2(Number(row.amount) || 0);
 
-  if (voucherType === 'journal') {
+  if (voucherType === 'journal' || voucherType === 'memorandum') {
     if (!input.entries?.length) {
-      throw new BookVoucherValidationError('Journal vouchers require entry lines');
+      throw new BookVoucherValidationError(
+        voucherType === 'memorandum'
+          ? 'Memorandum vouchers require entry lines'
+          : 'Journal vouchers require entry lines',
+      );
     }
     lines = normalizeEntries(input.entries);
     amount = round2(lines.reduce((s, e) => s + e.debit, 0));
@@ -578,7 +622,8 @@ export async function updateBookVoucher(
     } else {
       lines = normalizeEntries(
         buildSimpleEntries(
-          voucherType as 'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note',
+          voucherType as
+            'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note' | 'pdc_receipt' | 'pdc_payment',
           partyLedgerId,
           contraLedgerId,
           amount,
@@ -667,4 +712,115 @@ export async function updateBookVoucher(
   }
 
   return { id: voucherId, voucherType, amount, ops };
+}
+
+/** Turn an open PDC into a posting receipt/payment; PDC stays as memo history. */
+export async function realisePdcVoucher(
+  client: PoolClient,
+  tenantId: string,
+  pdcId: string,
+  opts?: { voucherDate?: string | null; voucherNumber?: string | null },
+): Promise<{ pdcId: string; realisedId: string; voucherType: string; amount: number }> {
+  const row = (
+    await client.query(
+      `SELECT id, voucher_type, voucher_date, voucher_number, party_ledger_id, contra_ledger_id,
+              amount, narration, instrument_ref, maturity_date, memo_status, realised_voucher_id
+       FROM book_vouchers WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, pdcId],
+    )
+  ).rows[0] as
+    | {
+        id: string;
+        voucher_type: string;
+        voucher_date: string;
+        voucher_number: string | null;
+        party_ledger_id: string | null;
+        contra_ledger_id: string | null;
+        amount: number;
+        narration: string | null;
+        instrument_ref: string | null;
+        maturity_date: string | null;
+        memo_status: string | null;
+        realised_voucher_id: string | null;
+      }
+    | undefined;
+
+  if (!row) throw new BookVoucherValidationError('PDC voucher not found');
+  if (row.voucher_type !== 'pdc_receipt' && row.voucher_type !== 'pdc_payment') {
+    throw new BookVoucherValidationError('Only PDC vouchers can be realised');
+  }
+  if (row.memo_status !== 'open') {
+    throw new BookVoucherValidationError(
+      row.memo_status === 'realised' ? 'PDC is already realised' : 'PDC is not open',
+    );
+  }
+  if (!row.party_ledger_id || !row.contra_ledger_id) {
+    throw new BookVoucherValidationError('PDC is missing party or bank ledger');
+  }
+
+  const postingType: 'receipt' | 'payment' = row.voucher_type === 'pdc_receipt' ? 'receipt' : 'payment';
+  const toIsoDate = (v: unknown): string => {
+    if (!v) return '';
+    if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+    const s = String(v).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    return '';
+  };
+  const realiseDate = toIsoDate(opts?.voucherDate) || toIsoDate(row.maturity_date) || toIsoDate(row.voucher_date);
+  if (!realiseDate) throw new BookVoucherValidationError('Could not resolve realisation date');
+  const chq = row.instrument_ref ? `Chq ${row.instrument_ref}` : 'PDC';
+  const narration = [row.narration, `Realised from ${chq}`].filter(Boolean).join(' — ');
+
+  const created = await createBookVoucher(client, tenantId, {
+    voucherType: postingType,
+    voucherDate: realiseDate,
+    voucherNumber: opts?.voucherNumber?.trim() || row.voucher_number,
+    narration,
+    partyLedgerId: row.party_ledger_id,
+    contraLedgerId: row.contra_ledger_id,
+    amount: Number(row.amount) || 0,
+  });
+
+  await client.query(
+    `UPDATE book_vouchers
+     SET memo_status = 'realised', realised_voucher_id = $1
+     WHERE tenant_id = $2 AND id = $3`,
+    [created.id, tenantId, pdcId],
+  );
+
+  return {
+    pdcId,
+    realisedId: created.id,
+    voucherType: postingType,
+    amount: created.amount,
+  };
+}
+
+export async function cancelMemoVoucher(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+): Promise<{ id: string; voucherType: string }> {
+  const row = (
+    await client.query(`SELECT id, voucher_type, memo_status FROM book_vouchers WHERE tenant_id = $1 AND id = $2`, [
+      tenantId,
+      voucherId,
+    ])
+  ).rows[0] as { id: string; voucher_type: string; memo_status: string | null } | undefined;
+
+  if (!row) throw new BookVoucherValidationError('Voucher not found');
+  if (!isNonPostingVoucherType(row.voucher_type)) {
+    throw new BookVoucherValidationError('Only PDC / memorandum vouchers can be cancelled this way');
+  }
+  if (row.memo_status !== 'open') {
+    throw new BookVoucherValidationError('Only open memo vouchers can be cancelled');
+  }
+
+  await client.query(`UPDATE book_vouchers SET memo_status = 'cancelled' WHERE tenant_id = $1 AND id = $2`, [
+    tenantId,
+    voucherId,
+  ]);
+  return { id: voucherId, voucherType: row.voucher_type };
 }

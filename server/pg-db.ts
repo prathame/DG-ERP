@@ -1605,6 +1605,10 @@ export async function initSchema() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_book_vouchers_tenant ON book_vouchers(tenant_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_book_vouchers_date ON book_vouchers(tenant_id, voucher_date)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_book_vouchers_type ON book_vouchers(tenant_id, voucher_type)`);
+    await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS instrument_ref TEXT`);
+    await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS maturity_date DATE`);
+    await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS memo_status TEXT`);
+    await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS realised_voucher_id TEXT`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS book_voucher_entries (

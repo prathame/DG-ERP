@@ -49,6 +49,7 @@ import { FundBookPanel } from '../books/FundBookPanel';
 import { BankReconPanel } from '../books/BankReconPanel';
 import { TradeRegisterPanel } from '../books/TradeRegisterPanel';
 import { BooksNotesPanel } from '../books/BooksNotesPanel';
+import { BooksPdcPanel } from '../books/BooksPdcPanel';
 import { MiracleImportPanel } from '../books/MiracleImportPanel';
 import { VoucherDetailModal } from '../books/VoucherDetailModal';
 
@@ -62,6 +63,7 @@ type AccountTab =
   | 'cashbook'
   | 'bankbook'
   | 'bankrecon'
+  | 'pdc'
   | 'booksales'
   | 'bookpurchase'
   | 'notes'
@@ -152,6 +154,7 @@ export function AccountsView({
       key === 'cashbook' ||
       key === 'bankbook' ||
       key === 'bankrecon' ||
+      key === 'pdc' ||
       key === 'booksales' ||
       key === 'bookpurchase' ||
       key === 'notes');
@@ -213,6 +216,7 @@ export function AccountsView({
       booksales: 'Books Sales Register',
       bookpurchase: 'Books Purchase Register',
       notes: 'Credit / Debit Notes',
+      pdc: 'PDC Register',
       sales: 'Sales Register',
       distribution: ds ? 'Sales Register' : 'Distribution Register',
       outstanding: 'Outstanding Report',
@@ -293,6 +297,14 @@ export function AccountsView({
       label: 'Bank Recon',
       shortLabel: 'BRS',
       icon: FileCheck,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
+    {
+      key: 'pdc',
+      label: 'PDC',
+      shortLabel: 'PDC',
+      icon: Clock,
       group: 'accounts',
       hide: !booksModuleOn,
     },
@@ -427,6 +439,7 @@ export function AccountsView({
       {tab === 'cashbook' && <FundBookPanel kind="cash" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'bankbook' && <FundBookPanel kind="bank" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'bankrecon' && <BankReconPanel onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'pdc' && <BooksPdcPanel onOpenVoucher={setVoucherDetailId} />}
       {tab === 'booksales' && <TradeRegisterPanel kind="sales" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'bookpurchase' && <TradeRegisterPanel kind="purchase" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'notes' && <BooksNotesPanel onOpenVoucher={setVoucherDetailId} />}
