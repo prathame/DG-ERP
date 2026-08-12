@@ -21,6 +21,7 @@ import {
   FileUp,
   Wallet,
   Building2,
+  CalendarDays,
 } from 'lucide-react';
 import {
   cn,
@@ -50,6 +51,7 @@ import { BankReconPanel } from '../books/BankReconPanel';
 import { TradeRegisterPanel } from '../books/TradeRegisterPanel';
 import { BooksNotesPanel } from '../books/BooksNotesPanel';
 import { BooksPdcPanel } from '../books/BooksPdcPanel';
+import { DailyStatusPanel } from '../books/DailyStatusPanel';
 import { MiracleImportPanel } from '../books/MiracleImportPanel';
 import { VoucherDetailModal } from '../books/VoucherDetailModal';
 
@@ -64,6 +66,7 @@ type AccountTab =
   | 'bankbook'
   | 'bankrecon'
   | 'pdc'
+  | 'dailystatus'
   | 'booksales'
   | 'bookpurchase'
   | 'notes'
@@ -155,6 +158,7 @@ export function AccountsView({
       key === 'bankbook' ||
       key === 'bankrecon' ||
       key === 'pdc' ||
+      key === 'dailystatus' ||
       key === 'booksales' ||
       key === 'bookpurchase' ||
       key === 'notes');
@@ -217,6 +221,7 @@ export function AccountsView({
       bookpurchase: 'Books Purchase Register',
       notes: 'Credit / Debit Notes',
       pdc: 'PDC Register',
+      dailystatus: 'Daily Status',
       sales: 'Sales Register',
       distribution: ds ? 'Sales Register' : 'Distribution Register',
       outstanding: 'Outstanding Report',
@@ -264,6 +269,14 @@ export function AccountsView({
     hide?: boolean;
   }[] = [
     { key: 'pnl', label: 'Profit & Loss', shortLabel: 'P&L', icon: TrendingUp, group: 'accounts' },
+    {
+      key: 'dailystatus',
+      label: 'Daily Status',
+      shortLabel: 'Status',
+      icon: CalendarDays,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
     {
       key: 'trading',
       label: 'Trading A/c',
@@ -431,6 +444,7 @@ export function AccountsView({
   const booksBody = booksSelfContained ? (
     <div id="accounts-content" className="space-y-3">
       {tab === 'pnl' && <BooksReportsPanel lockedKind="pnl" />}
+      {tab === 'dailystatus' && <DailyStatusPanel onNavigate={selectTab} />}
       {tab === 'trading' && <BooksReportsPanel lockedKind="trading" />}
       {tab === 'balance' && <BooksReportsPanel lockedKind="bs" />}
       {tab === 'trial' && <BooksReportsPanel lockedKind="tb" />}

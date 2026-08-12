@@ -39,6 +39,7 @@ import {
 } from '../services/bookBankReconciliation';
 import { getTradeRegister } from '../services/bookTradeRegister';
 import { getProductLedger, getBooksStockSummary } from '../services/bookProductLedger';
+import { getBooksDailyStatus } from '../services/bookDailyStatus';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 
 const router = Router();
@@ -432,6 +433,22 @@ router.get('/api/books/stock-summary', blockVendors, async (req: AuthRequest, re
       (typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null);
     res.json(await getBooksStockSummary(pool, tenantId, asOf));
   } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/daily-status', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const date =
+      (typeof req.query.date === 'string' && req.query.date.trim() ? req.query.date.trim() : null) ||
+      new Date().toISOString().slice(0, 10);
+    res.json(await getBooksDailyStatus(pool, tenantId, date));
+  } catch (err) {
+    if (err && typeof err === 'object' && 'status' in err && Number((err as { status: number }).status) === 400) {
+      return res.status(400).json({ error: err instanceof Error ? err.message : 'Bad request' });
+    }
     return handleApiError(req, res, err);
   }
 });
