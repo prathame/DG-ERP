@@ -11,7 +11,9 @@
  *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
  *   QR purchase returns (with ops product lines) → InStock → PurchaseReturned (miracle:pr:)
  *   CN / sales return → credit_debit_notes (credit); with ops product lines → inventory InStock (miracle:cn:)
+ *     (gst_amount from Books CGST/SGST/IGST debit lines when present)
  *   DN → credit_debit_notes (debit) — no ops stock
+ *     (gst_amount from Books CGST/SGST/IGST debit lines when present)
  *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments (advances reported)
  *   CB → income (JP/IN) → cash_income invoices (native Collections)
  * Unsupported ops shapes stay Books-only with explicit skip reasons (no fake ops rows):
@@ -723,6 +725,57 @@ export function applySalesGstToLineItems(
   });
 }
 
+type NoteLineItem = {
+  description: string;
+  quantity: number;
+  price: number;
+  lineNet: number;
+  lineTotal: number;
+  withGst?: boolean;
+  lineGst?: number;
+};
+
+/**
+ * Allocate voucher GST onto credit/debit note lines (exclusive vs inclusive heuristic).
+ * CN/DN both use Books GST debit lines (output reverse / input respectively).
+ */
+export function applyNoteGstToItems(lines: NoteLineItem[], voucherTax: number, voucherAmount: number): NoteLineItem[] {
+  if (!(voucherTax > 0) || !lines.length) {
+    return lines.map(l => ({ ...l, withGst: false, lineGst: 0 }));
+  }
+
+  const sumLines = lines.reduce((s, l) => s + (Number(l.lineTotal) || Number(l.lineNet) || 0), 0);
+  const taxableGuess = round2(Math.max(0, Number(voucherAmount) || 0) - voucherTax);
+  const exclusive =
+    sumLines <= 0 || Math.abs(sumLines - taxableGuess) <= Math.abs(sumLines - (Number(voucherAmount) || 0));
+
+  let allocated = 0;
+  return lines.map((line, i) => {
+    const base = Number(line.lineTotal) || Number(line.lineNet) || 0;
+    const weight = sumLines > 0 ? base / sumLines : 1 / lines.length;
+    const taxRaw = round2(voucherTax * weight);
+    const lineGst = i === lines.length - 1 ? round2(voucherTax - allocated) : taxRaw;
+    if (i < lines.length - 1) allocated = round2(allocated + lineGst);
+
+    let lineNet: number;
+    let lineTotal: number;
+    if (exclusive) {
+      lineNet = round2(base);
+      lineTotal = round2(lineNet + lineGst);
+    } else {
+      lineTotal = round2(base);
+      lineNet = round2(Math.max(0, lineTotal - lineGst));
+    }
+    return {
+      ...line,
+      lineNet,
+      lineGst,
+      lineTotal,
+      withGst: true,
+    };
+  });
+}
+
 export type OpsPurchaseUnit = {
   productId: string;
   costPrice: number;
@@ -1148,18 +1201,29 @@ async function upsertOpsNote(
   vendorName: string,
   noteDate: string,
   reason: string | null,
-  items: Array<{ description: string; quantity: number; price: number; lineNet: number; lineTotal: number }>,
+  items: Array<{
+    description: string;
+    quantity: number;
+    price: number;
+    lineNet: number;
+    lineTotal: number;
+    withGst?: boolean;
+    lineGst?: number;
+  }>,
   referenceInvoice: string | null,
+  gstAmount = 0,
 ): Promise<boolean> {
-  const subtotal = items.reduce((s, it) => s + it.lineNet, 0);
-  const total = items.reduce((s, it) => s + it.lineTotal, 0);
+  const subtotal = round2(items.reduce((s, it) => s + it.lineNet, 0));
+  const tax = round2(Math.max(0, Number(gstAmount) || 0));
+  const total = round2(items.reduce((s, it) => s + it.lineTotal, 0));
+  const gstRate = subtotal > 0 && tax > 0 ? round2((100 * tax) / subtotal) : 0;
   const resolvedItems = items.map(it => ({
     description: it.description,
     quantity: it.quantity,
     price: it.price,
-    withGst: false,
+    withGst: Boolean(it.withGst && (Number(it.lineGst) || 0) > 0),
     lineNet: it.lineNet,
-    lineGst: 0,
+    lineGst: Number(it.lineGst) || 0,
     lineTotal: it.lineTotal,
   }));
   const itemsJson = JSON.stringify(resolvedItems);
@@ -1173,8 +1237,8 @@ async function upsertOpsNote(
     await client.query(
       `UPDATE credit_debit_notes SET
          note_number = $3, note_type = $4, vendor_id = $5, vendor_name = $6, customer_name = $7,
-         note_date = $8, reason = $9, items = $10::jsonb, subtotal = $11, gst_rate = 0, gst_amount = 0,
-         total = $12, reference_invoice = $13, status = 'Active'
+         note_date = $8, reason = $9, items = $10::jsonb, subtotal = $11, gst_rate = $12, gst_amount = $13,
+         total = $14, reference_invoice = $15, status = 'Active'
        WHERE id = $1 AND tenant_id = $2`,
       [
         existing.id,
@@ -1188,6 +1252,8 @@ async function upsertOpsNote(
         reason,
         itemsJson,
         subtotal,
+        gstRate,
+        tax,
         total,
         referenceInvoice,
       ],
@@ -1199,7 +1265,7 @@ async function upsertOpsNote(
     `INSERT INTO credit_debit_notes
        (id, tenant_id, note_number, note_type, vendor_id, vendor_name, customer_name, note_date,
         reason, items, subtotal, gst_rate, gst_amount, total, reference_invoice, status, external_ref)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,0,0,$12,$13,'Active',$14)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,'Active',$16)`,
     [
       id,
       tenantId,
@@ -1212,6 +1278,8 @@ async function upsertOpsNote(
       reason,
       itemsJson,
       subtotal,
+      gstRate,
+      tax,
       total,
       referenceInvoice,
       externalRef,
@@ -1956,7 +2024,8 @@ export async function importMiracleCompany(
           externalRef: ext,
         });
       } else {
-        const noteItems =
+        const gstAmount = collectVoucherGst(ents, ledgerMeta, 'D').total;
+        const rawItems =
           opsLineItems.length > 0
             ? opsLineItems.map(it => ({
                 description: it.description,
@@ -1974,6 +2043,7 @@ export async function importMiracleCompany(
                   lineTotal: amount,
                 },
               ];
+        const noteItems = applyNoteGstToItems(rawItems, gstAmount, amount);
         const prefix = noteType === 'credit' ? 'CN' : 'DN';
         await upsertOpsNote(
           client,
@@ -1987,6 +2057,7 @@ export async function importMiracleCompany(
           narration,
           noteItems,
           null,
+          gstAmount,
         );
         summary.creditDebitNotes++;
         bucket.imported++;
