@@ -11,10 +11,13 @@ import { round2 } from './bookReports';
 /**
  * Ensure Cash / Bank / Sales Income (+ party ledgers for existing clients) exist.
  * Safe to call on every Books list/summary and before ops dual-write.
+ *
+ * After Miracle import, cash is usually `ACASHACT` ("Cash Account"). Do not also
+ * seed `ops:CASH` with the same display name — uniqueness is only on external_ref.
  */
 export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string): Promise<void> {
-  await ensureLedger(client, tenantId, 'ops:CASH', 'Cash Account', 'B', 'CS', 'ops:G-CASH', 'Cash-in-Hand');
-  await ensureLedger(client, tenantId, 'ops:BANK', 'Bank Account', 'B', 'BK', 'ops:G-BANK', 'Bank Accounts');
+  await ensureCashOrBankDeskLedger(client, tenantId, 'CS');
+  await ensureCashOrBankDeskLedger(client, tenantId, 'BK');
   await ensureLedger(client, tenantId, 'ops:SALES_INCOME', 'Sales Income', 'I', 'IN', 'ops:G-INCOME', 'Income');
   await ensureLedger(client, tenantId, 'ops:PURCHASE', 'Purchase Account', 'E', 'EX', 'ops:G-PURCHASE', 'Purchases');
   await ensureOutputGstLedgers(client, tenantId);
@@ -24,6 +27,58 @@ export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string
   for (const v of vendors) {
     await resolvePartyLedgerId(client, tenantId, v.id, v.name);
   }
+}
+
+/**
+ * Prefer Miracle / existing CS|BK ledgers over creating a second "Cash Account" / "Bank Account".
+ * Also drops an empty native `ops:CASH`/`ops:BANK` duplicate when another CS/BK already exists.
+ */
+async function ensureCashOrBankDeskLedger(
+  client: PoolClient,
+  tenantId: string,
+  ledgerType: 'CS' | 'BK',
+): Promise<string> {
+  const opsRef = ledgerType === 'CS' ? 'ops:CASH' : 'ops:BANK';
+  const miracleRef = ledgerType === 'CS' ? 'ACASHACT' : null;
+  const displayName = ledgerType === 'CS' ? 'Cash Account' : 'Bank Account';
+  const groupExt = ledgerType === 'CS' ? 'ops:G-CASH' : 'ops:G-BANK';
+  const groupName = ledgerType === 'CS' ? 'Cash-in-Hand' : 'Bank Accounts';
+
+  const preferred = (
+    await client.query(
+      `SELECT id, external_ref FROM book_ledgers
+       WHERE tenant_id = $1 AND ledger_type = $2
+       ORDER BY
+         CASE
+           WHEN $3::text IS NOT NULL AND external_ref = $3 THEN 0
+           WHEN external_ref = $4 THEN 1
+           WHEN LOWER(name) = LOWER($5) THEN 2
+           ELSE 3
+         END,
+         name
+       LIMIT 1`,
+      [tenantId, ledgerType, miracleRef, opsRef, displayName],
+    )
+  ).rows[0] as { id: string; external_ref: string | null } | undefined;
+
+  if (preferred) {
+    // Cleanup: empty native twin left over from older dual-seed
+    if (preferred.external_ref !== opsRef) {
+      await client.query(
+        `DELETE FROM book_ledgers bl
+         WHERE bl.tenant_id = $1
+           AND bl.external_ref = $2
+           AND bl.id <> $3
+           AND NOT EXISTS (
+             SELECT 1 FROM book_voucher_entries e WHERE e.tenant_id = bl.tenant_id AND e.ledger_id = bl.id
+           )`,
+        [tenantId, opsRef, preferred.id],
+      );
+    }
+    return preferred.id;
+  }
+
+  return ensureLedger(client, tenantId, opsRef, displayName, 'B', ledgerType, groupExt, groupName);
 }
 
 /** Output GST payable ledgers (Duties & Taxes) — used when dual-writing GST invoices. */
@@ -351,23 +406,9 @@ async function resolveCashBankLedger(client: PoolClient, tenantId: string, payme
   const method = (paymentMethod || 'Cash').toLowerCase();
   const wantBank = /bank|neft|rtgs|upi|cheque|card|online|transfer/.test(method);
   if (wantBank) {
-    const bank = (
-      await client.query(
-        `SELECT id FROM book_ledgers WHERE tenant_id = $1 AND ledger_type = 'BK' ORDER BY name LIMIT 1`,
-        [tenantId],
-      )
-    ).rows[0] as { id: string } | undefined;
-    if (bank) return bank.id;
-    return ensureLedger(client, tenantId, 'ops:BANK', 'Bank Account', 'B', 'BK', 'ops:G-BANK', 'Bank Accounts');
+    return ensureCashOrBankDeskLedger(client, tenantId, 'BK');
   }
-  const cash = (
-    await client.query(
-      `SELECT id FROM book_ledgers WHERE tenant_id = $1 AND ledger_type = 'CS' ORDER BY name LIMIT 1`,
-      [tenantId],
-    )
-  ).rows[0] as { id: string } | undefined;
-  if (cash) return cash.id;
-  return ensureLedger(client, tenantId, 'ops:CASH', 'Cash Account', 'B', 'CS', 'ops:G-CASH', 'Cash-in-Hand');
+  return ensureCashOrBankDeskLedger(client, tenantId, 'CS');
 }
 
 async function resolveExpenseLedger(client: PoolClient, tenantId: string, category: string | null): Promise<string> {

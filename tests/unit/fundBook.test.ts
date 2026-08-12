@@ -28,18 +28,20 @@ async function seed() {
   );
   const cash = uid('BL');
   const spareCash = uid('BL');
+  const dualOpsCash = uid('BL');
   const bank = uid('BL');
   const party = uid('BL');
   await pool.query(
     `INSERT INTO book_ledgers (id, tenant_id, name, group_id, nature, ledger_type, opening_balance, opening_side, external_ref)
      VALUES
-       ($1,$5,'Petty Cash',$6,'A','CS',100,'D','L-PETTY'),
-       ($2,$5,'Cash Account',$6,'A','CS',4000,'D','ACASHACT'),
-       ($3,$5,'HDFC Bank',$6,'A','BK',1000,'D','ops:BANK'),
-       ($4,$5,'PARTY ONE',$6,'A','PR',0,'D','L-PARTY')`,
-    [spareCash, cash, bank, party, TENANT, g],
+       ($1,$6,'Petty Cash',$7,'A','CS',100,'D','L-PETTY'),
+       ($2,$6,'Cash Account',$7,'A','CS',4000,'D','ACASHACT'),
+       ($3,$6,'Cash Account',$7,'A','CS',0,'D','ops:CASH'),
+       ($4,$6,'HDFC Bank',$7,'A','BK',1000,'D','ops:BANK'),
+       ($5,$6,'PARTY ONE',$7,'A','PR',0,'D','L-PARTY')`,
+    [spareCash, cash, dualOpsCash, bank, party, TENANT, g],
   );
-  return { cash, spareCash, bank, party };
+  return { cash, spareCash, dualOpsCash, bank, party };
 }
 
 describe('getFundBook (cash / bank book)', () => {
@@ -90,7 +92,7 @@ describe('getFundBook (cash / bank book)', () => {
     const book = await getFundBook(pool, TENANT, 'cash', '2025-05-01', '2025-05-31');
     expect(book.ledger?.id).toBe(cash);
     expect(book.ledger?.externalRef).toBe('ACASHACT');
-    expect(book.accounts.map(a => a.id).sort()).toEqual([cash, spareCash].sort());
+    expect(book.accounts.map(a => a.externalRef).sort()).toEqual(['ACASHACT', 'L-PETTY', 'ops:CASH'].sort());
     expect(book.opening.balance).toBe(4000);
     expect(book.lines).toHaveLength(2);
     expect(book.lines[0].debit).toBe(500);
