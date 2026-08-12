@@ -415,7 +415,8 @@ export function BooksView({
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-500">
-              Desk posts receipt/payment. Use New voucher for journal, contra, sales, purchase, notes.
+              Desk posts receipt, payment, contra, and simple journal. Use New voucher for sales/purchase/notes or
+              multi-line journals.
             </p>
             <button
               type="button"

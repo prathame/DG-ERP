@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchApi } from '../../api';
 import { SearchSelect } from '../../components/ui/SearchSelect';
-import { isCashBankLedger } from './bookLedgerUtils';
+import { isCashBankLedger, twoLineJournalEntries } from './bookLedgerUtils';
 
-type EntrySide = 'receipt' | 'payment';
+type DeskMode = 'receipt' | 'payment' | 'contra' | 'journal';
 
 interface LedgerOption {
   id: string;
@@ -16,18 +16,29 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const MODE_TABS: { id: DeskMode; label: string }[] = [
+  { id: 'receipt', label: 'Receipt' },
+  { id: 'payment', label: 'Payment' },
+  { id: 'contra', label: 'Contra' },
+  { id: 'journal', label: 'Journal' },
+];
+
 /**
- * Miracle-style voucher desk: rapid cash/bank receipt & payment on the Vouchers tab.
+ * Miracle-style voucher desk: receipt / payment / contra / simple journal.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
 export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
   const [ledgers, setLedgers] = useState<LedgerOption[]>([]);
   const [loadingLedgers, setLoadingLedgers] = useState(true);
-  const [side, setSide] = useState<EntrySide>('receipt');
+  const [mode, setMode] = useState<DeskMode>('receipt');
   const [voucherDate, setVoucherDate] = useState(todayIso);
   const [voucherNumber, setVoucherNumber] = useState('');
   const [partyLedgerId, setPartyLedgerId] = useState('');
   const [fundLedgerId, setFundLedgerId] = useState('');
+  const [fromFundId, setFromFundId] = useState('');
+  const [toFundId, setToFundId] = useState('');
+  const [debitLedgerId, setDebitLedgerId] = useState('');
+  const [creditLedgerId, setCreditLedgerId] = useState('');
   const [amount, setAmount] = useState('');
   const [narration, setNarration] = useState('');
   const [saving, setSaving] = useState(false);
@@ -46,7 +57,12 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
         const funds = rows.filter(isCashBankLedger);
         if (funds.length) {
           const cash = funds.find(l => (l.ledgerType || '').toUpperCase() === 'CS' || /cash/i.test(l.name));
-          setFundLedgerId(prev => prev || (cash || funds[0])!.id);
+          const bank = funds.find(l => l.id !== (cash || funds[0])!.id);
+          const primary = (cash || funds[0])!.id;
+          const secondary = (bank || funds[Math.min(1, funds.length - 1)])!.id;
+          setFundLedgerId(prev => prev || primary);
+          setFromFundId(prev => prev || primary);
+          setToFundId(prev => prev || secondary);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load ledgers');
@@ -61,7 +77,17 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
 
   useEffect(() => {
     if (!loadingLedgers) amountRef.current?.focus();
-  }, [loadingLedgers, side, lastSaved]);
+  }, [loadingLedgers, mode, lastSaved]);
+
+  const allLedgerOptions = useMemo(
+    () =>
+      ledgers.map(l => ({
+        value: l.id,
+        label: l.name,
+        sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
+      })),
+    [ledgers],
+  );
 
   const fundOptions = useMemo(() => {
     const funds = ledgers.filter(isCashBankLedger);
@@ -91,39 +117,88 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
     setError(null);
     setLastSaved(null);
     const amt = Number(amount);
-    if (!partyLedgerId) {
-      setError('Select a party / ledger');
-      return;
-    }
-    if (!fundLedgerId) {
-      setError('Select a cash or bank account');
-      return;
-    }
-    if (partyLedgerId === fundLedgerId) {
-      setError('Party and cash/bank must be different ledgers');
-      return;
-    }
     if (!(amt > 0)) {
       setError('Enter an amount greater than zero');
       return;
     }
+
+    let body: Record<string, unknown>;
+    let savedLabel: string;
+
+    if (mode === 'receipt' || mode === 'payment') {
+      if (!partyLedgerId) {
+        setError('Select a party / ledger');
+        return;
+      }
+      if (!fundLedgerId) {
+        setError('Select a cash or bank account');
+        return;
+      }
+      if (partyLedgerId === fundLedgerId) {
+        setError('Party and cash/bank must be different ledgers');
+        return;
+      }
+      body = {
+        voucherType: mode,
+        voucherDate,
+        voucherNumber: voucherNumber.trim() || null,
+        narration: narration.trim() || null,
+        partyLedgerId,
+        contraLedgerId: fundLedgerId,
+        amount: amt,
+      };
+      const fundName = ledgers.find(l => l.id === fundLedgerId)?.name || 'fund';
+      savedLabel = `${mode === 'receipt' ? 'Receipt' : 'Payment'} ₹${amt.toLocaleString('en-IN')} via ${fundName}`;
+    } else if (mode === 'contra') {
+      if (!fromFundId || !toFundId) {
+        setError('Select from and to cash/bank accounts');
+        return;
+      }
+      if (fromFundId === toFundId) {
+        setError('From and to must be different accounts');
+        return;
+      }
+      body = {
+        voucherType: 'contra',
+        voucherDate,
+        voucherNumber: voucherNumber.trim() || null,
+        narration: narration.trim() || null,
+        partyLedgerId: toFundId,
+        contraLedgerId: fromFundId,
+        amount: amt,
+      };
+      const fromName = ledgers.find(l => l.id === fromFundId)?.name || 'from';
+      const toName = ledgers.find(l => l.id === toFundId)?.name || 'to';
+      savedLabel = `Contra ₹${amt.toLocaleString('en-IN')} ${fromName} → ${toName}`;
+    } else {
+      if (!debitLedgerId || !creditLedgerId) {
+        setError('Select debit and credit ledgers');
+        return;
+      }
+      if (debitLedgerId === creditLedgerId) {
+        setError('Debit and credit must be different ledgers');
+        return;
+      }
+      body = {
+        voucherType: 'journal',
+        voucherDate,
+        voucherNumber: voucherNumber.trim() || null,
+        narration: narration.trim() || null,
+        entries: twoLineJournalEntries(debitLedgerId, creditLedgerId, amt),
+      };
+      const drName = ledgers.find(l => l.id === debitLedgerId)?.name || 'Dr';
+      const crName = ledgers.find(l => l.id === creditLedgerId)?.name || 'Cr';
+      savedLabel = `Journal ₹${amt.toLocaleString('en-IN')} Dr ${drName} / Cr ${crName}`;
+    }
+
     setSaving(true);
     try {
       await fetchApi('/books/vouchers', {
         method: 'POST',
-        body: JSON.stringify({
-          voucherType: side,
-          voucherDate,
-          voucherNumber: voucherNumber.trim() || null,
-          narration: narration.trim() || null,
-          partyLedgerId,
-          contraLedgerId: fundLedgerId,
-          amount: amt,
-        }),
+        body: JSON.stringify(body),
       });
       await onSaved();
-      const fundName = ledgers.find(l => l.id === fundLedgerId)?.name || 'fund';
-      setLastSaved(`${side === 'receipt' ? 'Receipt' : 'Payment'} ₹${amt.toLocaleString('en-IN')} via ${fundName}`);
+      setLastSaved(savedLabel);
       setAmount('');
       setNarration('');
       setVoucherNumber('');
@@ -135,34 +210,37 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
     }
   }
 
+  const subtitle =
+    mode === 'contra'
+      ? 'Cash ↔ bank transfer — Save & next for rapid posting'
+      : mode === 'journal'
+        ? 'Two-line journal (Dr / Cr) — multi-line stays in New voucher'
+        : 'Cash / bank receipt & payment — Save & next for rapid posting';
+
   return (
     <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-bold text-slate-900">Voucher desk</h3>
-          <p className="text-xs text-slate-500">
-            Cash / bank receipt & payment — Save & next for rapid posting (like Miracle)
-          </p>
+          <p className="text-xs text-slate-500">{subtitle}</p>
         </div>
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
-          <button
-            type="button"
-            onClick={() => setSide('receipt')}
-            className={`rounded-md px-3 py-1.5 ${
-              side === 'receipt' ? 'bg-slate-800 font-medium text-white' : 'text-slate-600'
-            }`}
-          >
-            Receipt (in)
-          </button>
-          <button
-            type="button"
-            onClick={() => setSide('payment')}
-            className={`rounded-md px-3 py-1.5 ${
-              side === 'payment' ? 'bg-slate-800 font-medium text-white' : 'text-slate-600'
-            }`}
-          >
-            Payment (out)
-          </button>
+        <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+          {MODE_TABS.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                setMode(t.id);
+                setError(null);
+                setLastSaved(null);
+              }}
+              className={`rounded-md px-3 py-1.5 ${
+                mode === t.id ? 'bg-slate-800 font-medium text-white' : 'text-slate-600'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -191,24 +269,76 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
             placeholder="Optional"
           />
         </label>
-        <div className="text-sm sm:col-span-2">
-          <span className="text-xs text-slate-500">{side === 'receipt' ? 'Received from' : 'Paid to'}</span>
-          <SearchSelect
-            options={partyOptions}
-            value={partyLedgerId}
-            onChange={setPartyLedgerId}
-            placeholder={loadingLedgers ? 'Loading…' : 'Select party / ledger'}
-          />
-        </div>
-        <div className="text-sm sm:col-span-2">
-          <span className="text-xs text-slate-500">Cash / bank</span>
-          <SearchSelect
-            options={fundOptions}
-            value={fundLedgerId}
-            onChange={setFundLedgerId}
-            placeholder={loadingLedgers ? 'Loading…' : 'Select cash or bank'}
-          />
-        </div>
+
+        {(mode === 'receipt' || mode === 'payment') && (
+          <>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">{mode === 'receipt' ? 'Received from' : 'Paid to'}</span>
+              <SearchSelect
+                options={partyOptions}
+                value={partyLedgerId}
+                onChange={setPartyLedgerId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select party / ledger'}
+              />
+            </div>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Cash / bank</span>
+              <SearchSelect
+                options={fundOptions}
+                value={fundLedgerId}
+                onChange={setFundLedgerId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select cash or bank'}
+              />
+            </div>
+          </>
+        )}
+
+        {mode === 'contra' && (
+          <>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">From (withdraw)</span>
+              <SearchSelect
+                options={fundOptions}
+                value={fromFundId}
+                onChange={setFromFundId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Source cash / bank'}
+              />
+            </div>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">To (deposit)</span>
+              <SearchSelect
+                options={fundOptions}
+                value={toFundId}
+                onChange={setToFundId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Destination cash / bank'}
+              />
+            </div>
+          </>
+        )}
+
+        {mode === 'journal' && (
+          <>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Debit ledger</span>
+              <SearchSelect
+                options={allLedgerOptions}
+                value={debitLedgerId}
+                onChange={setDebitLedgerId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select ledger to debit'}
+              />
+            </div>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Credit ledger</span>
+              <SearchSelect
+                options={allLedgerOptions}
+                value={creditLedgerId}
+                onChange={setCreditLedgerId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select ledger to credit'}
+              />
+            </div>
+          </>
+        )}
+
         <label className="block text-sm">
           <span className="text-xs text-slate-500">Amount</span>
           <input
