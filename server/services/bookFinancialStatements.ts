@@ -411,7 +411,7 @@ export async function getFundBook(
         debit: 0,
         credit: 0,
         balance: 0,
-        balanceSide: null as const,
+        balanceSide: null as ReturnType<typeof splitDrCr>['side'],
         balanceLabel: '0.00',
       },
       lines: [] as Array<{
@@ -432,7 +432,7 @@ export async function getFundBook(
         debit: 0,
         credit: 0,
         balance: 0,
-        balanceSide: null as const,
+        balanceSide: null as ReturnType<typeof splitDrCr>['side'],
         balanceLabel: '0.00',
       },
     };
