@@ -3,6 +3,8 @@
  * Tokens stay server-side; this helper only picks which phone_number_id + token to use.
  */
 
+const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || 'v21.0';
+
 export type WhatsAppSendMode = 'company' | 'company_selected' | 'per_user';
 
 export const WHATSAPP_SEND_MODES: readonly WhatsAppSendMode[] = ['company', 'company_selected', 'per_user'] as const;
@@ -66,4 +68,43 @@ export function resolveWhatsAppCreds(input: ResolveWhatsAppCredsInput): WhatsApp
   const accessToken = (input.userAccessToken || '').trim();
   if (!phoneNumberId || !accessToken) return null;
   return { phoneNumberId, accessToken };
+}
+
+/** Meta Cloud API text send (shared by /whatsapp/send and auto reminders). */
+export async function callMetaSendText(opts: {
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  body: string;
+}): Promise<{ ok: true; messageId?: string } | { ok: false; status: number; error: string }> {
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(opts.phoneNumberId)}/messages`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${opts.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: opts.to,
+        type: 'text',
+        text: { preview_url: true, body: opts.body },
+      }),
+    });
+  } catch (err) {
+    return { ok: false, status: 502, error: err instanceof Error ? err.message : 'Meta request failed' };
+  }
+
+  const raw = (await res.json().catch(() => ({}))) as {
+    messages?: { id?: string }[];
+    error?: { message?: string; error_user_msg?: string };
+  };
+  if (!res.ok) {
+    const msg = raw.error?.error_user_msg || raw.error?.message || `Meta API ${res.status}`;
+    return { ok: false, status: res.status >= 400 && res.status < 600 ? res.status : 502, error: msg };
+  }
+  return { ok: true, messageId: raw.messages?.[0]?.id };
 }
