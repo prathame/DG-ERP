@@ -14,6 +14,20 @@ export function isCashBankLedger(l: BookLedgerLike): boolean {
   return t === 'CS' || t === 'BK' || t === 'BN' || /cash|bank/.test(g);
 }
 
+/** Sales / income ledger (Miracle IN / TS / JP or name/group hint). */
+export function isSalesIncomeLedger(l: BookLedgerLike): boolean {
+  const t = (l.ledgerType || '').toUpperCase();
+  const g = `${l.groupName || ''} ${l.name || ''}`.toLowerCase();
+  return t === 'IN' || t === 'TS' || t === 'JP' || /sales|income|revenue|return/.test(g);
+}
+
+/** Purchase / expense account (Miracle EX / PU / TP or name/group hint). */
+export function isPurchaseAccountLedger(l: BookLedgerLike): boolean {
+  const t = (l.ledgerType || '').toUpperCase();
+  const g = `${l.groupName || ''} ${l.name || ''}`.toLowerCase();
+  return t === 'EX' || t === 'PU' || t === 'TP' || /purchase|bought|expense/.test(g);
+}
+
 /** Balanced two-line journal for desk: Dr debitLedger / Cr creditLedger. */
 export function twoLineJournalEntries(
   debitLedgerId: string,

@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchApi } from '../../api';
 import { SearchSelect } from '../../components/ui/SearchSelect';
-import { isCashBankLedger, twoLineJournalEntries } from './bookLedgerUtils';
+import {
+  isCashBankLedger,
+  isPurchaseAccountLedger,
+  isSalesIncomeLedger,
+  twoLineJournalEntries,
+} from './bookLedgerUtils';
 
-type DeskMode = 'receipt' | 'payment' | 'contra' | 'journal';
+type DeskMode = 'receipt' | 'payment' | 'sales' | 'purchase' | 'contra' | 'journal';
 
 interface LedgerOption {
   id: string;
@@ -19,12 +24,14 @@ function todayIso() {
 const MODE_TABS: { id: DeskMode; label: string }[] = [
   { id: 'receipt', label: 'Receipt' },
   { id: 'payment', label: 'Payment' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'purchase', label: 'Purchase' },
   { id: 'contra', label: 'Contra' },
   { id: 'journal', label: 'Journal' },
 ];
 
 /**
- * Miracle-style voucher desk: receipt / payment / contra / simple journal.
+ * Miracle-style voucher desk: receipt / payment / sales / purchase / contra / simple journal.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
 export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
@@ -35,6 +42,8 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   const [voucherNumber, setVoucherNumber] = useState('');
   const [partyLedgerId, setPartyLedgerId] = useState('');
   const [fundLedgerId, setFundLedgerId] = useState('');
+  const [salesIncomeId, setSalesIncomeId] = useState('');
+  const [purchaseAccountId, setPurchaseAccountId] = useState('');
   const [fromFundId, setFromFundId] = useState('');
   const [toFundId, setToFundId] = useState('');
   const [debitLedgerId, setDebitLedgerId] = useState('');
@@ -64,6 +73,10 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           setFromFundId(prev => prev || primary);
           setToFundId(prev => prev || secondary);
         }
+        const sales = rows.filter(isSalesIncomeLedger);
+        if (sales.length) setSalesIncomeId(prev => prev || sales[0]!.id);
+        const purch = rows.filter(isPurchaseAccountLedger);
+        if (purch.length) setPurchaseAccountId(prev => prev || purch[0]!.id);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load ledgers');
       } finally {
@@ -99,19 +112,42 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
     }));
   }, [ledgers]);
 
-  const partyOptions = useMemo(() => {
-    const parties = ledgers.filter(l => {
-      if (l.id === fundLedgerId) return false;
-      if (isCashBankLedger(l)) return false;
-      return true;
-    });
-    const list = parties.length ? parties : ledgers.filter(l => l.id !== fundLedgerId);
+  const salesIncomeOptions = useMemo(() => {
+    const sales = ledgers.filter(isSalesIncomeLedger);
+    const list = sales.length ? sales : ledgers;
     return list.map(l => ({
       value: l.id,
       label: l.name,
       sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
     }));
-  }, [ledgers, fundLedgerId]);
+  }, [ledgers]);
+
+  const purchaseAccountOptions = useMemo(() => {
+    const purch = ledgers.filter(isPurchaseAccountLedger);
+    const list = purch.length ? purch : ledgers;
+    return list.map(l => ({
+      value: l.id,
+      label: l.name,
+      sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [ledgers]);
+
+  const partyOptions = useMemo(() => {
+    const excludeId = mode === 'sales' ? salesIncomeId : mode === 'purchase' ? purchaseAccountId : fundLedgerId;
+    const parties = ledgers.filter(l => {
+      if (l.id === excludeId) return false;
+      if (mode === 'receipt' || mode === 'payment') {
+        if (isCashBankLedger(l)) return false;
+      }
+      return true;
+    });
+    const list = parties.length ? parties : ledgers.filter(l => l.id !== excludeId);
+    return list.map(l => ({
+      value: l.id,
+      label: l.name,
+      sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [ledgers, fundLedgerId, salesIncomeId, purchaseAccountId, mode]);
 
   async function handleSave() {
     setError(null);
@@ -149,6 +185,31 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       };
       const fundName = ledgers.find(l => l.id === fundLedgerId)?.name || 'fund';
       savedLabel = `${mode === 'receipt' ? 'Receipt' : 'Payment'} ₹${amt.toLocaleString('en-IN')} via ${fundName}`;
+    } else if (mode === 'sales' || mode === 'purchase') {
+      if (!partyLedgerId) {
+        setError(mode === 'sales' ? 'Select a customer / party' : 'Select a supplier / party');
+        return;
+      }
+      const contraId = mode === 'sales' ? salesIncomeId : purchaseAccountId;
+      if (!contraId) {
+        setError(mode === 'sales' ? 'Select a sales / income account' : 'Select a purchase account');
+        return;
+      }
+      if (partyLedgerId === contraId) {
+        setError('Party and account must be different ledgers');
+        return;
+      }
+      body = {
+        voucherType: mode,
+        voucherDate,
+        voucherNumber: voucherNumber.trim() || null,
+        narration: narration.trim() || null,
+        partyLedgerId,
+        contraLedgerId: contraId,
+        amount: amt,
+      };
+      const partyName = ledgers.find(l => l.id === partyLedgerId)?.name || 'party';
+      savedLabel = `${mode === 'sales' ? 'Sales' : 'Purchase'} ₹${amt.toLocaleString('en-IN')} — ${partyName}`;
     } else if (mode === 'contra') {
       if (!fromFundId || !toFundId) {
         setError('Select from and to cash/bank accounts');
@@ -215,7 +276,11 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       ? 'Cash ↔ bank transfer — Save & next for rapid posting'
       : mode === 'journal'
         ? 'Two-line journal (Dr / Cr) — multi-line stays in New voucher'
-        : 'Cash / bank receipt & payment — Save & next for rapid posting';
+        : mode === 'sales'
+          ? 'Party sale on account — customer + sales income'
+          : mode === 'purchase'
+            ? 'Party purchase on account — supplier + purchase account'
+            : 'Cash / bank receipt & payment — Save & next for rapid posting';
 
   return (
     <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
@@ -234,7 +299,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                 setError(null);
                 setLastSaved(null);
               }}
-              className={`rounded-md px-3 py-1.5 ${
+              className={`rounded-md px-2.5 py-1.5 ${
                 mode === t.id ? 'bg-slate-800 font-medium text-white' : 'text-slate-600'
               }`}
             >
@@ -288,6 +353,52 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                 value={fundLedgerId}
                 onChange={setFundLedgerId}
                 placeholder={loadingLedgers ? 'Loading…' : 'Select cash or bank'}
+              />
+            </div>
+          </>
+        )}
+
+        {mode === 'sales' && (
+          <>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Customer / party</span>
+              <SearchSelect
+                options={partyOptions}
+                value={partyLedgerId}
+                onChange={setPartyLedgerId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select customer'}
+              />
+            </div>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Sales / income</span>
+              <SearchSelect
+                options={salesIncomeOptions}
+                value={salesIncomeId}
+                onChange={setSalesIncomeId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select sales account'}
+              />
+            </div>
+          </>
+        )}
+
+        {mode === 'purchase' && (
+          <>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Supplier / party</span>
+              <SearchSelect
+                options={partyOptions}
+                value={partyLedgerId}
+                onChange={setPartyLedgerId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select supplier'}
+              />
+            </div>
+            <div className="text-sm sm:col-span-2">
+              <span className="text-xs text-slate-500">Purchase account</span>
+              <SearchSelect
+                options={purchaseAccountOptions}
+                value={purchaseAccountId}
+                onChange={setPurchaseAccountId}
+                placeholder={loadingLedgers ? 'Loading…' : 'Select purchase account'}
               />
             </div>
           </>
