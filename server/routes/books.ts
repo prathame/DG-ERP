@@ -20,7 +20,12 @@ import {
   type BookVoucherType,
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
-import { getBooksBalanceSheet, getBooksProfitLoss, getTrialBalance } from '../services/bookFinancialStatements';
+import {
+  getBooksBalanceSheet,
+  getBooksProfitLoss,
+  getTrialBalance,
+  getFundBook,
+} from '../services/bookFinancialStatements';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 
 const router = Router();
@@ -569,6 +574,34 @@ router.get('/api/books/day-book', blockVendors, async (req: AuthRequest, res) =>
         narration: r.narration,
       })),
     );
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/cash-book', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    const ledgerId =
+      typeof req.query.ledgerId === 'string' && req.query.ledgerId.trim() ? req.query.ledgerId.trim() : null;
+    res.json(await getFundBook(pool, tenantId, 'cash', from, to, ledgerId));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/bank-book', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    const ledgerId =
+      typeof req.query.ledgerId === 'string' && req.query.ledgerId.trim() ? req.query.ledgerId.trim() : null;
+    res.json(await getFundBook(pool, tenantId, 'bank', from, to, ledgerId));
   } catch (err) {
     return handleApiError(req, res, err);
   }
