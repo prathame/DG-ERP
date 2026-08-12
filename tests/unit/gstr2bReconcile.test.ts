@@ -255,5 +255,59 @@ describe('gstr2bReconcile', () => {
 
   it('rejects JSON without B2B data', async () => {
     await expect(reconcileGstr2b(pool, TENANT, {})).rejects.toThrow(/No B2B data/);
+    await expect(reconcileGstr2b(pool, TENANT, { b2b: [] })).rejects.toThrow(/No B2B data/);
+  });
+
+  it('aggregates ops lines, falls back to batch_id, and handles sparse 2B fields', async () => {
+    await cleanupTestData(TENANT);
+    await ensureTenant();
+
+    const supplierId = uid('SU');
+    await pool.query(
+      `INSERT INTO suppliers (id, tenant_id, name, gst_number)
+       VALUES ($1,$2,'Multi Line Co','29CCCCC2222C2Z5')`,
+      [supplierId, TENANT],
+    );
+    const productId = uid('PR');
+    await pool.query(`INSERT INTO products (id, tenant_id, name) VALUES ($1,$2,'Part')`, [productId, TENANT]);
+    // Same GSTIN + invoice → aggregate billed; second row uses batch_id when invoice_number is null
+    await pool.query(
+      `INSERT INTO product_purchases
+         (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
+       VALUES
+         ($1,$3,'agg-batch',$4,$5,'2025-08-01',100,false,100,0,'AGG/1','BC-AGG-1'),
+         ($2,$3,'agg-batch',$4,$5,'2025-08-01',50,false,50,0,'AGG/1','BC-AGG-2')`,
+      [uid('PP'), uid('PP'), TENANT, productId, supplierId],
+    );
+    await pool.query(
+      `INSERT INTO product_purchases
+         (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
+       VALUES ($1,$2,'FALLBACK-INV',$3,$4,'2025-08-02',75,false,75,0,NULL,'BC-FB-1')`,
+      [uid('PP'), TENANT, productId, supplierId],
+    );
+
+    const result = await reconcileGstr2b(pool, TENANT, {
+      b2b: [
+        {
+          ctin: '29CCCCC2222C2Z5',
+          inv: [
+            { inum: 'AGG/1', val: 150, itcavl: 'N' },
+            { inum: 'FALLBACK-INV', val: 75 },
+          ],
+        },
+        { ctin: '29CCCCC2222C2Z5', trdnm: 'No Inv Array' },
+        { ctin: '', trdnm: 'Bad', inv: [{ inum: '', val: 1 }] },
+      ],
+    });
+
+    const agg = result.rows.find(r => normalizeGstr2bKeyPart(r.invoiceNumber) === 'AGG1');
+    expect(agg?.status).toBe('matched');
+    expect(agg?.bookVal).toBe(150);
+    expect(agg?.itcAvailable).toBe(false);
+    expect(agg?.source).toBe('ops');
+
+    const fb = result.rows.find(r => normalizeGstr2bKeyPart(r.invoiceNumber) === 'FALLBACKINV');
+    expect(fb?.status).toBe('matched');
+    expect(fb?.bookVal).toBe(75);
   });
 });

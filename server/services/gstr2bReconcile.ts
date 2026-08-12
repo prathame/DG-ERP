@@ -51,7 +51,6 @@ function round2(n: number): number {
 
 function dateStr(d: unknown): string {
   if (!d) return '';
-  if (typeof d === 'string') return d.slice(0, 10);
   if (d instanceof Date) return d.toISOString().slice(0, 10);
   return String(d).slice(0, 10);
 }
@@ -115,9 +114,9 @@ async function mergeBooksPurchases(pool: Pool, tenantId: string, bookMap: Map<st
     if (existing) {
       // Prefer Books voucher total (invoice value) when dual-written with ops stock.
       existing.bookVal = amount;
-      existing.source = existing.source === 'ops' || existing.source === 'both' ? 'both' : 'books';
+      if (existing.source === 'ops' || existing.source === 'both') existing.source = 'both';
       if (!existing.date) existing.date = dateStr(v.voucher_date);
-      if (!existing.supplierName) existing.supplierName = v.party_name || existing.supplierName;
+      if (!existing.supplierName && v.party_name) existing.supplierName = v.party_name;
     } else {
       bookMap.set(key, {
         supplierName: v.party_name || gstinRaw,
