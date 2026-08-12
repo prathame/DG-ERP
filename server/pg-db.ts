@@ -648,6 +648,21 @@ export async function initSchema() {
     )`);
     await client.query('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(tenant_id, expense_date)');
 
+    // Alternate delivery addresses for distribution buyers (vendors)
+    await client.query(`CREATE TABLE IF NOT EXISTS vendor_ship_to (
+      id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      vendor_id TEXT NOT NULL,
+      label TEXT,
+      name TEXT NOT NULL,
+      gstin TEXT,
+      address TEXT,
+      is_default BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(id, tenant_id)
+    )`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vendor_ship_to_vendor ON vendor_ship_to(tenant_id, vendor_id)');
+
     // Staff directory
     await client.query(`CREATE TABLE IF NOT EXISTS staff_members (
       id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id),
