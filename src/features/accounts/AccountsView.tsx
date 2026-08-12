@@ -54,6 +54,7 @@ import { BooksPdcPanel } from '../books/BooksPdcPanel';
 import { DailyStatusPanel } from '../books/DailyStatusPanel';
 import { MiracleImportPanel } from '../books/MiracleImportPanel';
 import { VoucherDetailModal } from '../books/VoucherDetailModal';
+import { BooksOutstandingPanel } from '../books/BooksOutstandingPanel';
 
 type AccountTab =
   | 'pnl'
@@ -161,7 +162,8 @@ export function AccountsView({
       key === 'dailystatus' ||
       key === 'booksales' ||
       key === 'bookpurchase' ||
-      key === 'notes');
+      key === 'notes' ||
+      key === 'outstanding');
   const booksSelfContained =
     booksFor(tab) || tab === 'vouchers' || tab === 'trial' || tab === 'products' || tab === 'import';
   const statementSourceNote = (() => {
@@ -175,7 +177,11 @@ export function AccountsView({
     if (tab === 'pnl' || tab === 'balance' || tab === 'daybook') {
       return 'From operations — set the period, then Generate.';
     }
-    if (tab === 'outstanding') return 'Party aging + bill-to-bill open bills. Record payments in Collections.';
+    if (tab === 'outstanding') {
+      return booksDeskReady
+        ? 'Bill-wise party dues — collect against a bill or party (FIFO). Posts Invoice Finance + Books receipt.'
+        : 'Party aging + bill-to-bill open bills. Record payments in Collections.';
+    }
     if (tab === 'payments') return 'Payment history report. Record new receipts in Collections.';
     return null;
   })();
@@ -388,7 +394,7 @@ export function AccountsView({
     },
     {
       key: 'outstanding',
-      label: `${t('business.outstanding')} (report)`,
+      label: booksDeskReady ? t('business.outstanding') : `${t('business.outstanding')} (report)`,
       shortLabel: 'Due',
       icon: Clock,
       group: 'reports',
@@ -457,6 +463,7 @@ export function AccountsView({
       {tab === 'booksales' && <TradeRegisterPanel kind="sales" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'bookpurchase' && <TradeRegisterPanel kind="purchase" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'notes' && <BooksNotesPanel onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'outstanding' && <BooksOutstandingPanel />}
       {tab === 'vouchers' && <BooksView initialPanel="vouchers" embedded />}
       {tab === 'products' && <BooksView initialPanel="products" embedded />}
       {tab === 'import' && <MiracleImportPanel onComplete={() => setBooksDeskReady(true)} />}
