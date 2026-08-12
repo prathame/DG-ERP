@@ -19,6 +19,14 @@ import {
 } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { reconcileGstr2b } from '../services/gstr2bReconcile';
+import {
+  extractGstr2bRtnprd,
+  isGstr2bImsAction,
+  listGstr2bImsActions,
+  loadGstr2bImsActionMap,
+  mergeImsActionsIntoRows,
+  upsertGstr2bImsAction,
+} from '../services/gstr2bIms';
 
 const router = Router();
 
@@ -1305,7 +1313,7 @@ router.get('/api/gstr3b/compute', async (req, res) => {
   }
 });
 
-// GSTR-2B Reconciliation — stateless, upload JSON → match ops + Books purchases
+// GSTR-2B Reconciliation — upload JSON → match ops + Books purchases (+ local IMS actions)
 router.post('/api/gstr2b/reconcile', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -1316,6 +1324,66 @@ router.post('/api/gstr2b/reconcile', blockVendors, async (req: AuthRequest, res)
 
     try {
       const result = await reconcileGstr2b(pool, tenantId, twoBData);
+      const rtnprd = extractGstr2bRtnprd(twoBData);
+      const actionMap = rtnprd ? await loadGstr2bImsActionMap(pool, tenantId, rtnprd) : new Map();
+      const rows = mergeImsActionsIntoRows(result.rows, actionMap);
+      res.json({ ...result, rows, rtnprd: rtnprd || null });
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 400) return res.status(400).json({ error: (err as Error).message });
+      throw err;
+    }
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// Local IMS-lite — list Accept/Hold/Reject for a return period
+router.get('/api/gstr2b/ims-actions', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const rtnprd = String(req.query.rtnprd || '')
+      .trim()
+      .toUpperCase();
+    if (!rtnprd) return res.status(400).json({ error: 'rtnprd query param required (e.g. 062025)' });
+    const actions = await listGstr2bImsActions(pool, tenantId, rtnprd);
+    res.json({ rtnprd, actions });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// Local IMS-lite — upsert or clear Accept/Hold/Reject (no GST portal push)
+router.put('/api/gstr2b/ims-actions', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const body = req.body as {
+      rtnprd?: string;
+      ctin?: string;
+      invoiceNumber?: string;
+      action?: string | null;
+      note?: string | null;
+    };
+    const actionRaw = body.action;
+    const action =
+      actionRaw === null || actionRaw === '' || actionRaw === undefined
+        ? null
+        : isGstr2bImsAction(actionRaw)
+          ? actionRaw
+          : null;
+    if (actionRaw != null && actionRaw !== '' && action === null) {
+      return res.status(400).json({ error: 'action must be accept, hold, reject, or empty to clear' });
+    }
+    try {
+      const result = await upsertGstr2bImsAction(pool, tenantId, {
+        rtnprd: String(body.rtnprd || ''),
+        ctin: String(body.ctin || ''),
+        invoiceNumber: String(body.invoiceNumber || ''),
+        action,
+        note: body.note,
+      });
       res.json(result);
     } catch (err) {
       const status = (err as { status?: number }).status;
