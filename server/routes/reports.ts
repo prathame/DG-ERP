@@ -3,6 +3,7 @@ import { blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { DISTRIBUTION_BILL_UNIT_SQL, INVOICE_IS_GST_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { foldVendorAdvancesIntoOutstanding, type OutstandingPartyAgg } from '../services/outstandingAdvances';
 
 const router = Router();
 
@@ -247,17 +248,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
         paid: number;
       }[];
 
-      type Agg = {
-        vendorId: string;
-        vendorName: string;
-        totalBilled: number;
-        totalPaid: number;
-        balance: number;
-        d0_30: number;
-        d31_60: number;
-        d61_90: number;
-        d90plus: number;
-      };
+      type Agg = OutstandingPartyAgg;
       const byParty = new Map<string, Agg>();
       const bills: OutstandingBillRow[] = [];
       for (const inv of open) {
@@ -273,6 +264,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
             totalBilled: 0,
             totalPaid: 0,
             balance: 0,
+            advanceBalance: 0,
             d0_30: 0,
             d31_60: 0,
             d61_90: 0,
@@ -302,6 +294,28 @@ router.get('/api/reports/outstanding', async (req, res) => {
           ageBucket,
         });
       }
+
+      // Service only: fold unallocated vendor_payments (Miracle advances) — same as Collections /summary
+      if (businessType === 'service') {
+        const vpRows = (
+          await pool.query(
+            `
+            SELECT vp.vendor_id, v.name,
+                   COALESCE(SUM(vp.amount), 0)::float AS advance
+            FROM vendor_payments vp
+            JOIN vendors v ON v.id = vp.vendor_id AND v.tenant_id = vp.tenant_id
+            WHERE vp.tenant_id = $1
+            GROUP BY vp.vendor_id, v.name
+          `,
+            [tenantId],
+          )
+        ).rows as { vendor_id: string; name: string; advance: number }[];
+        foldVendorAdvancesIntoOutstanding(
+          byParty,
+          vpRows.map(vp => ({ vendorId: vp.vendor_id, vendorName: vp.name, advance: Number(vp.advance) || 0 })),
+        );
+      }
+
       const rows = [...byParty.values()].sort((a, b) => b.balance - a.balance);
       bills.sort((a, b) => b.days - a.days || b.balance - a.balance);
       const totals = rows.reduce(
@@ -309,13 +323,23 @@ router.get('/api/reports/outstanding', async (req, res) => {
           acc.totalBilled += r.totalBilled;
           acc.totalPaid += r.totalPaid;
           acc.balance += r.balance;
+          acc.advanceBalance += r.advanceBalance;
           acc.d0_30 += r.d0_30;
           acc.d31_60 += r.d31_60;
           acc.d61_90 += r.d61_90;
           acc.d90plus += r.d90plus;
           return acc;
         },
-        { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
+        {
+          totalBilled: 0,
+          totalPaid: 0,
+          balance: 0,
+          advanceBalance: 0,
+          d0_30: 0,
+          d31_60: 0,
+          d61_90: 0,
+          d90plus: 0,
+        },
       );
       return res.json({
         rows,
