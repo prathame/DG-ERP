@@ -16,7 +16,10 @@ import {
 import {
   BOOK_VOUCHER_TYPES,
   BookVoucherValidationError,
+  BookVoucherNotFoundError,
   createBookVoucher,
+  deleteBookVoucher,
+  updateBookVoucher,
   type BookVoucherType,
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
@@ -482,14 +485,21 @@ router.get('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res
       voucherType: v.voucher_type,
       voucherDate: v.voucher_date,
       voucherNumber: v.voucher_number,
+      partyLedgerId: v.party_ledger_id,
+      contraLedgerId: v.contra_ledger_id,
       partyName: v.party_name,
       contraName: v.contra_name,
       amount: Number(v.amount || 0),
       narration: v.narration,
       miracleType: v.miracle_type,
+      externalRef: v.external_ref,
+      editableBody:
+        String(v.external_ref || '').startsWith('manual:') &&
+        (BOOK_VOUCHER_TYPES as readonly string[]).includes(String(v.voucher_type)),
       entries: entries.map(e => ({
         id: e.id,
         lineNo: e.line_no,
+        ledgerId: e.ledger_id,
         ledgerName: e.ledger_name,
         debit: Number(e.debit || 0),
         credit: Number(e.credit || 0),
@@ -795,6 +805,78 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
       /* ignore */
     }
     if (err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+/** Update Books voucher (header always; body rebuild for manual vouchers). */
+router.put('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const { id } = req.params;
+  const body = req.body || {};
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const updated = await updateBookVoucher(client, tenantId, id, {
+      voucherDate: body.voucherDate !== undefined ? String(body.voucherDate || '') : undefined,
+      voucherNumber: body.voucherNumber !== undefined ? body.voucherNumber : undefined,
+      narration: body.narration !== undefined ? body.narration : undefined,
+      partyLedgerId: body.partyLedgerId !== undefined ? body.partyLedgerId : undefined,
+      contraLedgerId: body.contraLedgerId !== undefined ? body.contraLedgerId : undefined,
+      amount: body.amount !== undefined ? Number(body.amount) : undefined,
+      entries: Array.isArray(body.entries) ? body.entries : undefined,
+    });
+    await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Books Voucher Updated',
+      'book_voucher',
+      updated.id,
+      `${updated.voucherType} ₹${updated.amount}`,
+    );
+    res.json({ id: updated.id, voucherType: updated.voucherType, amount: updated.amount, ops: updated.ops });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookVoucherNotFoundError || err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+/** Delete Books voucher (clears dual-write ops payments for manual receipts/payments). */
+router.delete('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const { id } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deleted = await deleteBookVoucher(client, tenantId, id);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Voucher Deleted', 'book_voucher', deleted.id, deleted.voucherType);
+    res.json({ ok: true, id: deleted.id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookVoucherNotFoundError || err instanceof BookVoucherValidationError) {
       return res.status(err.status).json({ error: err.message });
     }
     return handleApiError(req, res, err);

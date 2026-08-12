@@ -40,6 +40,14 @@ export class BookVoucherValidationError extends Error {
   }
 }
 
+export class BookVoucherNotFoundError extends Error {
+  readonly status = 404;
+  constructor(message = 'Voucher not found') {
+    super(message);
+    this.name = 'BookVoucherNotFoundError';
+  }
+}
+
 export interface BookVoucherOpsResult {
   dualWrite: 'receipt' | 'payment' | 'skipped';
   reason?: string;
@@ -372,4 +380,276 @@ export async function createBookVoucher(
   }
 
   return { id: voucherId, voucherType: input.voucherType, amount, ops };
+}
+
+async function clearBooksDualWritePayments(client: PoolClient, tenantId: string, voucherId: string): Promise<void> {
+  const base = `books:${voucherId}`;
+  const removed = await client.query(
+    `DELETE FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key LIKE $2 RETURNING invoice_id`,
+    [tenantId, `${base}:%`],
+  );
+  await client.query(`DELETE FROM vendor_payments WHERE tenant_id = $1 AND idempotency_key = $2`, [tenantId, base]);
+  const invoiceIds = [...new Set((removed.rows as { invoice_id: string }[]).map(r => r.invoice_id))];
+  for (const invoiceId of invoiceIds) {
+    const paid = Number(
+      (
+        await client.query(
+          `SELECT COALESCE(SUM(amount),0)::float AS paid FROM invoice_payments WHERE tenant_id = $1 AND invoice_id = $2`,
+          [tenantId, invoiceId],
+        )
+      ).rows[0]?.paid || 0,
+    );
+    const grand = Number(
+      (
+        await client.query(`SELECT grand_total::float AS g FROM standalone_invoices WHERE tenant_id = $1 AND id = $2`, [
+          tenantId,
+          invoiceId,
+        ])
+      ).rows[0]?.g || 0,
+    );
+    const status = paid >= grand - 0.001 && grand > 0 ? 'paid' : 'sent';
+    await client.query(
+      `UPDATE standalone_invoices SET status = $1, updated_at = NOW() WHERE tenant_id = $2 AND id = $3`,
+      [status, tenantId, invoiceId],
+    );
+  }
+}
+
+async function loadVoucherRow(client: PoolClient, tenantId: string, voucherId: string) {
+  const row = (
+    await client.query(
+      `SELECT id, voucher_type, voucher_date, voucher_number, party_ledger_id, contra_ledger_id,
+              amount::float AS amount, narration, external_ref, financial_year_id
+       FROM book_vouchers WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, voucherId],
+    )
+  ).rows[0] as
+    | {
+        id: string;
+        voucher_type: string;
+        voucher_date: string | Date;
+        voucher_number: string | null;
+        party_ledger_id: string | null;
+        contra_ledger_id: string | null;
+        amount: number;
+        narration: string | null;
+        external_ref: string | null;
+        financial_year_id: string | null;
+      }
+    | undefined;
+  if (!row) throw new BookVoucherNotFoundError();
+  return row;
+}
+
+function asIsoDate(value: string | Date): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value || '');
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return s.slice(0, 10);
+}
+
+function isManualVoucher(externalRef: string | null | undefined): boolean {
+  return String(externalRef || '').startsWith('manual:');
+}
+
+export async function deleteBookVoucher(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+): Promise<{ id: string; voucherType: string }> {
+  const row = await loadVoucherRow(client, tenantId, voucherId);
+  if (isManualVoucher(row.external_ref) && (row.voucher_type === 'receipt' || row.voucher_type === 'payment')) {
+    await clearBooksDualWritePayments(client, tenantId, voucherId);
+  }
+
+  await client.query(
+    `DELETE FROM book_bank_recon_marks
+     WHERE tenant_id = $1 AND entry_id IN (
+       SELECT id FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2
+     )`,
+    [tenantId, voucherId],
+  );
+  await client.query(`DELETE FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2`, [
+    tenantId,
+    voucherId,
+  ]);
+  await client.query(`DELETE FROM book_voucher_items WHERE tenant_id = $1 AND voucher_id = $2`, [tenantId, voucherId]);
+  await client.query(`DELETE FROM book_vouchers WHERE tenant_id = $1 AND id = $2`, [tenantId, voucherId]);
+  return { id: voucherId, voucherType: row.voucher_type };
+}
+
+export type UpdateBookVoucherInput = {
+  voucherDate?: string;
+  voucherNumber?: string | null;
+  narration?: string | null;
+  partyLedgerId?: string | null;
+  contraLedgerId?: string | null;
+  amount?: number;
+  entries?: BookVoucherEntryInput[];
+};
+
+export async function updateBookVoucher(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+  input: UpdateBookVoucherInput,
+): Promise<{ id: string; voucherType: string; amount: number; ops: BookVoucherOpsResult }> {
+  const row = await loadVoucherRow(client, tenantId, voucherId);
+  const voucherType = row.voucher_type;
+  const manual = isManualVoucher(row.external_ref);
+  const bodyEditRequested =
+    input.partyLedgerId !== undefined ||
+    input.contraLedgerId !== undefined ||
+    input.amount !== undefined ||
+    input.entries !== undefined;
+
+  if (bodyEditRequested && !manual) {
+    throw new BookVoucherValidationError('Ops dual-write vouchers only allow date / number / narration edits');
+  }
+  if (bodyEditRequested && !BOOK_VOUCHER_TYPES.includes(voucherType as BookVoucherType)) {
+    throw new BookVoucherValidationError(`Cannot rebuild entries for voucher type: ${voucherType}`);
+  }
+
+  const voucherDateRaw =
+    input.voucherDate !== undefined ? String(input.voucherDate || '').trim() : asIsoDate(row.voucher_date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(voucherDateRaw)) {
+    throw new BookVoucherValidationError('voucherDate must be YYYY-MM-DD');
+  }
+
+  const voucherNumber = input.voucherNumber !== undefined ? input.voucherNumber?.trim() || null : row.voucher_number;
+  const narration = input.narration !== undefined ? input.narration?.trim() || null : row.narration;
+
+  if (!bodyEditRequested) {
+    const financialYearId = await resolveFinancialYearId(client, tenantId, voucherDateRaw);
+    await client.query(
+      `UPDATE book_vouchers
+       SET voucher_date = $1, voucher_number = $2, narration = $3, financial_year_id = $4
+       WHERE tenant_id = $5 AND id = $6`,
+      [voucherDateRaw, voucherNumber, narration, financialYearId, tenantId, voucherId],
+    );
+    return {
+      id: voucherId,
+      voucherType,
+      amount: round2(Number(row.amount) || 0),
+      ops: { dualWrite: 'skipped', reason: 'Header-only update' },
+    };
+  }
+
+  // Rebuild body (manual vouchers only)
+  let lines: ReturnType<typeof normalizeEntries>;
+  let partyLedgerId: string | null =
+    input.partyLedgerId !== undefined ? input.partyLedgerId || null : row.party_ledger_id;
+  let contraLedgerId: string | null =
+    input.contraLedgerId !== undefined ? input.contraLedgerId || null : row.contra_ledger_id;
+  let amount = input.amount !== undefined ? round2(Number(input.amount) || 0) : round2(Number(row.amount) || 0);
+
+  if (voucherType === 'journal') {
+    if (!input.entries?.length) {
+      throw new BookVoucherValidationError('Journal vouchers require entry lines');
+    }
+    lines = normalizeEntries(input.entries);
+    amount = round2(lines.reduce((s, e) => s + e.debit, 0));
+    partyLedgerId = lines[0]?.ledgerId || null;
+    contraLedgerId = lines[1]?.ledgerId || null;
+  } else {
+    if (!partyLedgerId || !contraLedgerId) {
+      throw new BookVoucherValidationError('Party and contra ledgers are required');
+    }
+    if (input.entries?.length) {
+      lines = normalizeEntries(input.entries);
+      amount = round2(lines.reduce((s, e) => s + e.debit, 0));
+    } else {
+      lines = normalizeEntries(
+        buildSimpleEntries(
+          voucherType as 'receipt' | 'payment' | 'contra' | 'sales',
+          partyLedgerId,
+          contraLedgerId,
+          amount,
+        ),
+      );
+    }
+  }
+
+  await assertLedgersExist(
+    client,
+    tenantId,
+    lines.map(l => l.ledgerId),
+  );
+
+  if (voucherType === 'receipt' || voucherType === 'payment') {
+    await clearBooksDualWritePayments(client, tenantId, voucherId);
+  }
+
+  await client.query(
+    `DELETE FROM book_bank_recon_marks
+     WHERE tenant_id = $1 AND entry_id IN (
+       SELECT id FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2
+     )`,
+    [tenantId, voucherId],
+  );
+  await client.query(`DELETE FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2`, [
+    tenantId,
+    voucherId,
+  ]);
+
+  const financialYearId = await resolveFinancialYearId(client, tenantId, voucherDateRaw);
+  await client.query(
+    `UPDATE book_vouchers
+     SET voucher_date = $1, voucher_number = $2, narration = $3, financial_year_id = $4,
+         party_ledger_id = $5, contra_ledger_id = $6, amount = $7
+     WHERE tenant_id = $8 AND id = $9`,
+    [
+      voucherDateRaw,
+      voucherNumber,
+      narration,
+      financialYearId,
+      partyLedgerId,
+      contraLedgerId,
+      amount,
+      tenantId,
+      voucherId,
+    ],
+  );
+
+  const externalRef = row.external_ref || `manual:${voucherId}`;
+  let lineNo = 0;
+  for (const line of lines) {
+    lineNo++;
+    await client.query(
+      `INSERT INTO book_voucher_entries
+         (id, tenant_id, voucher_id, line_no, ledger_id, debit, credit, narration, external_ref)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        uid('BE'),
+        tenantId,
+        voucherId,
+        lineNo,
+        line.ledgerId,
+        line.debit,
+        line.credit,
+        line.narration,
+        `${externalRef}:${lineNo}`,
+      ],
+    );
+  }
+
+  let ops: BookVoucherOpsResult = { dualWrite: 'skipped', reason: 'Not a receipt/payment voucher' };
+  if (voucherType === 'receipt' || voucherType === 'payment') {
+    ops = await dualWritePartyCash(
+      client,
+      tenantId,
+      voucherId,
+      voucherType,
+      partyLedgerId,
+      contraLedgerId,
+      amount,
+      voucherDateRaw,
+      voucherNumber,
+      narration,
+    );
+  }
+
+  return { id: voucherId, voucherType, amount, ops };
 }
