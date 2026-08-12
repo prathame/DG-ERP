@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool, cleanupTestData } from '../helpers';
 import { uid } from '../../server/utils/helpers';
 import { BookVoucherValidationError, createBookVoucher, realisePdcVoucher } from '../../server/services/bookVouchers';
+import { upsertPurchaseStockIn } from '../../server/services/purchaseStockOps';
 
 const TENANT = 'T-TEST-BOOK-VOUCHERS';
 
@@ -588,6 +589,84 @@ describe('bookVouchers', () => {
         [TENANT, created.id],
       );
       expect(items.rows[0].n).toBe(1);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  it('dual-writes sales items to ops Sold stock when products resolve', async () => {
+    await cleanupTestData(TENANT);
+    await pool.query('ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    const { party } = await seedLedgers();
+    const sales = uid('BL');
+    const g = (
+      await pool.query(`SELECT group_id AS id FROM book_ledgers WHERE tenant_id=$1 AND id=$2`, [TENANT, party])
+    ).rows[0] as { id: string };
+    await pool.query(
+      `INSERT INTO book_ledgers (id, tenant_id, name, group_id, nature, ledger_type, opening_balance, external_ref)
+       VALUES ($1,$2,'Sales A/c',$3,'I','IN',0,'L-SALES')`,
+      [sales, TENANT, g.id],
+    );
+    const supplierId = uid('SU');
+    await pool.query(`INSERT INTO suppliers (id, tenant_id, name) VALUES ($1,$2,'Seed Supp')`, [supplierId, TENANT]);
+    const productId = uid('PR');
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, stock, external_ref) VALUES ($1,$2,'Bolt',10,0,'X-BOLT2')`,
+      [productId, TENANT],
+    );
+
+    const seedClient = await pool.connect();
+    try {
+      await seedClient.query('BEGIN');
+      await upsertPurchaseStockIn(
+        seedClient,
+        TENANT,
+        'books:pur:seed-sale',
+        'PU/S',
+        '2025-06-01',
+        supplierId,
+        [{ productId, qty: 2, rate: 10, amount: 20 }],
+        0,
+        20,
+      );
+      await seedClient.query('COMMIT');
+    } catch (e) {
+      await seedClient.query('ROLLBACK');
+      throw e;
+    } finally {
+      seedClient.release();
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await createBookVoucher(client, TENANT, {
+        voucherType: 'sales',
+        voucherDate: '2025-06-04',
+        partyLedgerId: party,
+        contraLedgerId: sales,
+        amount: 20,
+        items: [{ productId, qty: 2, rate: 10, amount: 20 }],
+      });
+      await client.query('COMMIT');
+
+      expect(created.ops.dualWrite).toBe('sales');
+      expect(created.ops.stockUnits).toBe(2);
+
+      const stock = await pool.query(`SELECT stock::int AS s FROM products WHERE tenant_id=$1 AND id=$2`, [
+        TENANT,
+        productId,
+      ]);
+      expect(stock.rows[0].s).toBe(0);
+      const sold = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM product_inventory WHERE tenant_id=$1 AND batch_id=$2 AND status='Sold'`,
+        [TENANT, `books:sal:${created.id}`],
+      );
+      expect(sold.rows[0].n).toBe(2);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

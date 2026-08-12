@@ -15,6 +15,12 @@ import {
   upsertPurchaseStockIn,
   upsertPurchaseStockReturn,
 } from './purchaseStockOps';
+import {
+  clearBooksCreditNoteStockIn,
+  clearBooksSaleStockOut,
+  upsertCreditNoteStockIn,
+  upsertSaleStockOut,
+} from './salesStockOps';
 
 export const BOOK_VOUCHER_TYPES = [
   'receipt',
@@ -93,7 +99,7 @@ export class BookVoucherNotFoundError extends Error {
 }
 
 export interface BookVoucherOpsResult {
-  dualWrite: 'receipt' | 'payment' | 'purchase' | 'purchase_return' | 'skipped';
+  dualWrite: 'receipt' | 'payment' | 'purchase' | 'purchase_return' | 'sales' | 'credit_note' | 'skipped';
   reason?: string;
   vendorId?: string;
   vendorName?: string;
@@ -441,6 +447,38 @@ async function dualWritePurchaseStock(
   };
 }
 
+async function dualWriteSalesStock(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+  voucherType: 'sales' | 'credit_note',
+  items: BookVoucherItemInput[] | undefined,
+): Promise<BookVoucherOpsResult> {
+  if (!items?.length) {
+    return { dualWrite: 'skipped', reason: 'No product lines for stock dual-write' };
+  }
+
+  const resolved: Array<{ productId: string; qty: number }> = [];
+  for (const raw of items) {
+    const qty = Math.max(0, Math.round(Number(raw.qty) || 0));
+    if (!(qty > 0)) continue;
+    const opsId = await resolveOpsProductId(client, tenantId, raw.productId);
+    if (!opsId) continue;
+    resolved.push({ productId: opsId, qty });
+  }
+  if (!resolved.length) {
+    return { dualWrite: 'skipped', reason: 'No matching ops products for stock lines' };
+  }
+
+  if (voucherType === 'sales') {
+    const { units, shortfall } = await upsertSaleStockOut(client, tenantId, `books:sal:${voucherId}`, resolved);
+    return { dualWrite: 'sales', stockUnits: units, stockShortfall: shortfall };
+  }
+
+  const { units } = await upsertCreditNoteStockIn(client, tenantId, `books:cn:${voucherId}`, resolved);
+  return { dualWrite: 'credit_note', stockUnits: units };
+}
+
 export async function createBookVoucher(
   client: PoolClient,
   tenantId: string,
@@ -605,6 +643,9 @@ export async function createBookVoucher(
       input.voucherNumber?.trim() || null,
       input.items,
     );
+  } else if (input.voucherType === 'sales' || input.voucherType === 'credit_note') {
+    await persistVoucherItems(client, tenantId, voucherId, input.items);
+    ops = await dualWriteSalesStock(client, tenantId, voucherId, input.voucherType, input.items);
   }
 
   return { id: voucherId, voucherType: input.voucherType, amount, ops };
@@ -693,6 +734,12 @@ export async function deleteBookVoucher(
   }
   if (isManualVoucher(row.external_ref) && row.voucher_type === 'purchase') {
     await clearBooksPurchaseStockIn(client, tenantId, voucherId);
+  }
+  if (isManualVoucher(row.external_ref) && row.voucher_type === 'sales') {
+    await clearBooksSaleStockOut(client, tenantId, voucherId);
+  }
+  if (isManualVoucher(row.external_ref) && row.voucher_type === 'credit_note') {
+    await clearBooksCreditNoteStockIn(client, tenantId, voucherId);
   }
 
   await client.query(

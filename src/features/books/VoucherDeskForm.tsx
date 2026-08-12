@@ -57,7 +57,7 @@ const MODE_TABS: { id: DeskMode; label: string }[] = [
 
 /**
  * Miracle-style voucher desk: cash/bank, sales/purchase/return, CN/DN, contra, multi-line journal.
- * Purchase / PR optional product lines dual-write ops stock when products resolve.
+ * Purchase / PR / sales / CN optional product lines dual-write ops stock when products resolve.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
 export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
@@ -165,6 +165,8 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
 
   const usesSalesContra = mode === 'sales' || mode === 'credit_note' || mode === 'debit_note';
   const usesPurchaseContra = mode === 'purchase' || mode === 'purchase_return';
+  const usesStockLines =
+    mode === 'purchase' || mode === 'purchase_return' || mode === 'sales' || mode === 'credit_note';
 
   const partyOptions = useMemo(() => {
     const excludeId = usesSalesContra ? salesIncomeId : usesPurchaseContra ? purchaseAccountId : fundLedgerId;
@@ -275,7 +277,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           contraLedgerId: contraId,
           amount: amt,
         };
-        if (usesPurchaseContra) {
+        if (usesStockLines) {
           const items = stockLines
             .filter(l => l.productId && Number(l.qty) > 0)
             .map(l => {
@@ -302,7 +304,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                   ? 'Credit note'
                   : 'Debit note';
         const stockHint =
-          usesPurchaseContra && Array.isArray(body.items) && (body.items as unknown[]).length
+          usesStockLines && Array.isArray(body.items) && (body.items as unknown[]).length
             ? ` · ${(body.items as unknown[]).length} stock line(s)`
             : '';
         savedLabel = `${label} ₹${amt.toLocaleString('en-IN')} — ${partyName}${stockHint}`;
@@ -347,7 +349,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       if (mode === 'journal') {
         setJournalLines([newJournalLine(), newJournalLine()]);
       } else {
-        if (usesPurchaseContra) setStockLines([newStockLine()]);
+        if (usesStockLines) setStockLines([newStockLine()]);
         amountRef.current?.focus();
       }
     } catch (e) {
@@ -363,13 +365,13 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       : mode === 'journal'
         ? 'Multi-line journal — lines must balance'
         : mode === 'sales'
-          ? 'Party sale on account — customer + sales income'
+          ? 'Party sale on account — optional product lines for stock-out'
           : mode === 'purchase'
             ? 'Party purchase on account — optional product lines for stock-in'
             : mode === 'purchase_return'
               ? 'Purchase return — optional product lines for stock-out'
               : mode === 'credit_note'
-                ? 'Credit note / sales return — sales/return ← customer'
+                ? 'Credit note / sales return — optional product lines for stock-in'
                 : mode === 'debit_note'
                   ? 'Debit note — customer ← sales income'
                   : 'Cash / bank receipt & payment — Save & next for rapid posting';
@@ -565,7 +567,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
         </label>
       </div>
 
-      {usesPurchaseContra && (
+      {usesStockLines && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-600">
