@@ -1268,7 +1268,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           <>
             <div className="sm:hidden space-y-2">
               {filteredBills.map(b => (
-                <Fragment key={b.invoiceId}>
+                <div key={b.invoiceId} className="space-y-1">
                   <MobileListRow
                     icon={<FileText />}
                     title={b.invoiceNumber || 'Bill'}
@@ -1277,7 +1277,26 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                     meta="Due"
                     onClick={() => openClient(b.partyKey)}
                   />
-                </Fragment>
+                  {!isReadOnly && (
+                    <div className="flex gap-1 pl-0.5">
+                      <button
+                        type="button"
+                        onClick={() => openClientAndPayBill(b.partyKey, b.invoiceId)}
+                        className="px-2.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-50"
+                      >
+                        Pay
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openClientAndPayBillWise(b.partyKey)}
+                        className="px-2.5 py-1.5 text-xs font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+                        title="Pay multiple bills for this party"
+                      >
+                        Bills
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
             <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 overflow-hidden">
