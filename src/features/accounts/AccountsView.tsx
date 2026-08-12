@@ -2034,6 +2034,7 @@ type ReconRow = {
   bookVal: number;
   diff: number;
   itcAvailable: boolean;
+  source?: 'ops' | 'books' | 'both' | null;
 };
 function Gstr2bReconciliation() {
   const { toast } = useToast();
@@ -2077,6 +2078,13 @@ function Gstr2bReconciliation() {
     return <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', b.cls)}>{b.label}</span>;
   };
 
+  const sourceLabel = (s: ReconRow['source']) => {
+    if (s === 'ops') return 'Ops';
+    if (s === 'books') return 'Books';
+    if (s === 'both') return 'Both';
+    return '—';
+  };
+
   const exportCsv = () => {
     exportToCsv(
       filtered.map(r => ({
@@ -2085,6 +2093,7 @@ function Gstr2bReconciliation() {
         GSTIN: r.ctin,
         Invoice: r.invoiceNumber,
         Date: r.date,
+        Source: sourceLabel(r.source),
         '2B Value': r.twoBVal,
         'Book Value': r.bookVal,
         Difference: r.diff,
@@ -2117,7 +2126,9 @@ function Gstr2bReconciliation() {
             {uploading ? 'Processing...' : 'Upload 2B JSON'}
             <input type="file" accept=".json" onChange={handleUpload} className="hidden" disabled={uploading} />
           </label>
-          <p className="text-xs text-gray-400">Download GSTR-2B JSON from gst.gov.in → Upload here</p>
+          <p className="text-xs text-gray-400">
+            Download GSTR-2B JSON from gst.gov.in → match against Ops purchases and Books purchase vouchers
+          </p>
         </div>
         {rows.length > 0 && (
           <div className="flex items-center gap-2">
@@ -2175,6 +2186,7 @@ function Gstr2bReconciliation() {
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-left">Supplier</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Invoice</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Date</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Source</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">2B Value</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Book Value</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Diff</th>
@@ -2191,6 +2203,7 @@ function Gstr2bReconciliation() {
                     </td>
                     <td className="px-4 py-3 text-sm font-mono text-gray-700">{r.invoiceNumber}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{r.date ? formatDate(r.date) : '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{sourceLabel(r.source)}</td>
                     <td className="px-4 py-3 text-sm text-right">{r.twoBVal ? fmtCurrency(r.twoBVal) : '—'}</td>
                     <td className="px-4 py-3 text-sm text-right">{r.bookVal ? fmtCurrency(r.bookVal) : '—'}</td>
                     <td
@@ -2212,7 +2225,7 @@ function Gstr2bReconciliation() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-400">
+                    <td colSpan={9} className="py-8 text-center text-gray-400">
                       No entries{filter !== 'all' ? ` with status "${filter}"` : ''}
                     </td>
                   </tr>
@@ -2229,7 +2242,7 @@ function Gstr2bReconciliation() {
           <FileCheck size={48} className="mx-auto mb-3 text-gray-300" />
           <p className="text-gray-500 font-medium text-lg">GSTR-2B Reconciliation</p>
           <p className="text-gray-400 text-sm mt-1">
-            Upload your GSTR-2B JSON from the GST portal to reconcile with your purchase records
+            Upload your GSTR-2B JSON from the GST portal to reconcile with Ops purchases and Books purchase vouchers
           </p>
           <p className="text-gray-400 text-xs mt-3">Go to gst.gov.in → Returns → GSTR-2B → Download JSON</p>
         </div>
