@@ -304,12 +304,13 @@
     "importCoverageDebitNotes": "डेबिट नोट",
     "importCoverageNonPartyCash": "खर्च / भांडवल / मालमत्ता रोख फक्त Books मध्ये (पार्टी ops नाही)",
     "importCoverageJournals": "जर्नल फक्त Books मध्ये — ops मध्ये नाही",
-    "importCoveragePurchasesBooks": "परचेज फक्त Books मध्ये — स्टॉक ops अद्याप नाही",
+    "importCoveragePurchasesBooks": "purchase(s) kept in Books only — missing party or product lines for stock",
     "importCoveragePurchaseReturns": "परचेज रिटर्न फक्त Books मध्ये — रिटर्न स्क्रीन नाही",
     "importCoverageContraBooks": "कॉन्ट्रा फक्त Books मध्ये — ops मध्ये नाही",
     "importCoverageUnsupported": "असमर्थित व्हाउचर प्रकार फक्त Books मध्ये",
     "importCoverageAdvances": "पावती शिल्लक पार्टी अॅडव्हान्स म्हणून (खुले बिल नाही)",
-    "importCoverageBillMatched": "पावती पेमेंट बिल नंबरने इनव्हॉइसशी जुळले"
+    "importCoverageBillMatched": "पावती पेमेंट बिल नंबरने इनव्हॉइसशी जुळले",
+    "importCoveragePurchases": "Purchases → stock"
   },
   "settings": {
     "title": "सेटिंग्ज",

@@ -6,12 +6,13 @@
  *   PR/LI ledgers → vendors
  *   products → products
  *   SP/SE/SS/QS sales → standalone_invoices
+ *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
  *   CN / sales return → credit_debit_notes (credit)
  *   DN → credit_debit_notes (debit)
  *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments (advances reported)
  *   CB → income (JP/IN) → cash_income invoices (native Collections)
  * Unsupported ops shapes stay Books-only with explicit skip reasons (no fake ops rows):
- *   purchase returns, purchases, journals, contra, unknown vouchers, non-party expense cash
+ *   purchase returns, purchases without items/products, journals, contra, unknown vouchers, non-party expense cash
  */
 import fs from 'fs';
 import os from 'os';
@@ -49,8 +50,8 @@ export interface MiracleImportCoverage {
   nonPartyCashSkipped: number;
   /** Journals — Books only */
   journalsBooksOnly: number;
-  /** Purchases — Books only (no ops purchase stock yet) */
-  purchasesBooksOnly: number;
+  /** Purchases → ops stock when items + products resolve; else skipped Books-only */
+  purchases: MiracleImportCoverageBucket;
   /** Purchase returns — Books only (no ops return screen) */
   purchaseReturnsSkipped: number;
   contraBooksOnly: number;
@@ -79,6 +80,10 @@ export interface MiracleImportSummary {
   vendorPayments: number;
   invoicePayments: number;
   creditDebitNotes: number;
+  /** Miracle purchase batches dual-written to ops stock */
+  purchaseBatches: number;
+  /** Units added to product_inventory from Miracle purchases */
+  purchaseStockUnits: number;
   /** Count of ops payments by inferred method (Cash / Bank Transfer / …) */
   paymentsByMethod: Record<string, number>;
   /** Post-import breakdown for UI */
@@ -172,7 +177,7 @@ function emptyCoverage(): MiracleImportCoverage {
     debitNotes: { source: 0, imported: 0, skipped: 0 },
     nonPartyCashSkipped: 0,
     journalsBooksOnly: 0,
-    purchasesBooksOnly: 0,
+    purchases: { source: 0, imported: 0, skipped: 0 },
     purchaseReturnsSkipped: 0,
     contraBooksOnly: 0,
     unsupportedVouchersBooksOnly: 0,
@@ -193,9 +198,9 @@ function warnBooksOnlySkips(
       'purchase return(s) kept in Books only — Dhandho has no purchase-return screen yet (not imported as debit notes)',
     ],
     [
-      coverage.purchasesBooksOnly,
+      coverage.purchases.skipped,
       'purchases',
-      'purchase voucher(s) kept in Books only — ops purchase/stock dual-write is not supported yet',
+      'purchase voucher(s) kept in Books only — missing supplier party or ops product lines',
     ],
     [coverage.journalsBooksOnly, 'journals', 'journal voucher(s) kept in Books only — not dual-written to ops'],
     [coverage.contraBooksOnly, 'contra', 'contra voucher(s) kept in Books only — not dual-written to ops'],
@@ -550,6 +555,133 @@ async function upsertOpsProduct(
   return row.id;
 }
 
+async function upsertOpsSupplier(
+  client: PoolClient,
+  tenantId: string,
+  externalRef: string,
+  name: string,
+  phone: string | null,
+  email: string | null,
+  address: string | null,
+  gstNumber: string | null,
+  supplierIds: Map<string, string>,
+): Promise<string> {
+  const existing = (
+    await client.query(`SELECT id FROM suppliers WHERE tenant_id = $1 AND external_ref = $2`, [tenantId, externalRef])
+  ).rows[0] as { id: string } | undefined;
+  if (existing) {
+    await client.query(
+      `UPDATE suppliers SET
+         name = $1,
+         phone = COALESCE($2, phone),
+         email = COALESCE($3, email),
+         address = COALESCE($4, address),
+         gst_number = COALESCE($5, gst_number)
+       WHERE tenant_id = $6 AND id = $7`,
+      [name, phone, email, address, gstNumber, tenantId, existing.id],
+    );
+    supplierIds.set(externalRef, existing.id);
+    return existing.id;
+  }
+  const byName = (
+    await client.query(`SELECT id FROM suppliers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`, [
+      tenantId,
+      name,
+    ])
+  ).rows[0] as { id: string } | undefined;
+  if (byName) {
+    await client.query(
+      `UPDATE suppliers SET
+         external_ref = COALESCE(external_ref, $1),
+         phone = COALESCE($2, phone),
+         email = COALESCE($3, email),
+         address = COALESCE($4, address),
+         gst_number = COALESCE($5, gst_number)
+       WHERE tenant_id = $6 AND id = $7`,
+      [externalRef, phone, email, address, gstNumber, tenantId, byName.id],
+    );
+    supplierIds.set(externalRef, byName.id);
+    return byName.id;
+  }
+  const id = uid('SU');
+  await client.query(
+    `INSERT INTO suppliers (id, tenant_id, name, phone, email, address, gst_number, external_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, tenantId, name, phone, email, address, gstNumber, externalRef],
+  );
+  supplierIds.set(externalRef, id);
+  return id;
+}
+
+/**
+ * Idempotent Miracle purchase → ops stock (product_purchases + product_inventory + products.stock).
+ * batch_id = miracle:pur:{voucherExt}. Re-import replaces InStock units for that batch only.
+ */
+async function upsertOpsPurchaseStock(
+  client: PoolClient,
+  tenantId: string,
+  voucherExt: string,
+  invoiceNumber: string | null,
+  purchaseDate: string,
+  supplierId: string,
+  lines: Array<{ productId: string; qty: number; rate: number; amount: number }>,
+): Promise<{ units: number }> {
+  const batchId = `miracle:pur:${voucherExt}`;
+  const existing = (
+    await client.query(
+      `SELECT product_id, COUNT(*)::int AS n
+       FROM product_inventory
+       WHERE tenant_id = $1 AND batch_id = $2 AND status = 'InStock'
+       GROUP BY product_id`,
+      [tenantId, batchId],
+    )
+  ).rows as Array<{ product_id: string; n: number }>;
+  for (const row of existing) {
+    await client.query(`UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND tenant_id = $3`, [
+      row.n,
+      row.product_id,
+      tenantId,
+    ]);
+  }
+  await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'InStock'`, [
+    tenantId,
+    batchId,
+  ]);
+  await client.query(`DELETE FROM product_purchases WHERE tenant_id = $1 AND batch_id = $2`, [tenantId, batchId]);
+
+  let units = 0;
+  let seq = 0;
+  for (const line of lines) {
+    const qty = Math.max(1, Math.round(Number(line.qty) || 0));
+    const rate = Number(line.rate) || 0;
+    const billed = qty > 0 ? (Number(line.amount) || rate * qty) / qty : rate;
+    for (let i = 0; i < qty; i++) {
+      seq++;
+      units++;
+      const purchaseId = `${batchId}-${seq}`;
+      const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
+      const invId = `PI-${batchId}-${seq}`;
+      await client.query(
+        `INSERT INTO product_purchases
+           (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,false,$8,0,$9,$10)`,
+        [purchaseId, tenantId, batchId, line.productId, supplierId, purchaseDate, rate, billed, invoiceNumber, barcode],
+      );
+      await client.query(
+        `INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type)
+         VALUES ($1,$2,$3,$4,'InStock',$5,'piece')`,
+        [invId, line.productId, barcode, batchId, tenantId],
+      );
+    }
+    await client.query(`UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3`, [
+      qty,
+      line.productId,
+      tenantId,
+    ]);
+  }
+  return { units };
+}
+
 async function upsertOpsInvoice(
   client: PoolClient,
   tenantId: string,
@@ -762,6 +894,8 @@ export async function importMiracleCompany(
     vendorPayments: 0,
     invoicePayments: 0,
     creditDebitNotes: 0,
+    purchaseBatches: 0,
+    purchaseStockUnits: 0,
     paymentsByMethod: {},
     coverage,
   };
@@ -791,6 +925,7 @@ export async function importMiracleCompany(
   const vendorIds = new Map<string, string>();
   const opsProductIds = new Map<string, string>();
   const opsProductNames = new Map<string, string>();
+  const supplierIds = new Map<string, string>();
   const ledgerMeta = new Map<
     string,
     { name: string; gstin: string | null; phone: string | null; address: string | null; ledgerType: string }
@@ -1519,7 +1654,58 @@ export async function importMiracleCompany(
     } else if (voucherType === 'journal') {
       coverage.journalsBooksOnly++;
     } else if (voucherType === 'purchase') {
-      coverage.purchasesBooksOnly++;
+      coverage.purchases.source++;
+      const partyKey = resolvePartyKey();
+      const meta = partyKey ? ledgerMeta.get(partyKey) : null;
+      const stockLines = opsLineItems
+        .filter(it => it.productId && Number(it.qty) > 0)
+        .map(it => ({
+          productId: String(it.productId),
+          qty: Number(it.qty) || 0,
+          rate: Number(it.rate) || 0,
+          amount: Number(it.total) || 0,
+        }));
+      if (!partyKey || !meta) {
+        coverage.purchases.skipped++;
+        coverage.purchases.skipReason = 'Purchase missing trading party';
+        issues.warn({
+          stage: 'purchases',
+          message: 'Purchase voucher missing trading party — Books only (no ops stock)',
+          externalRef: ext,
+        });
+      } else if (!stockLines.length) {
+        coverage.purchases.skipped++;
+        coverage.purchases.skipReason = 'Purchase has no ops product lines';
+        issues.warn({
+          stage: 'purchases',
+          message: 'Purchase voucher has no matching ops products — Books only (no ops stock)',
+          externalRef: ext,
+        });
+      } else {
+        const supplierId = await upsertOpsSupplier(
+          client,
+          tenantId,
+          partyKey,
+          meta.name || partyKey,
+          meta.phone || null,
+          null,
+          meta.address || null,
+          meta.gstin || null,
+          supplierIds,
+        );
+        const { units } = await upsertOpsPurchaseStock(
+          client,
+          tenantId,
+          ext,
+          vNumber || `PU-${ext}`,
+          vDate,
+          supplierId,
+          stockLines,
+        );
+        summary.purchaseBatches++;
+        summary.purchaseStockUnits += units;
+        coverage.purchases.imported++;
+      }
     } else if (voucherType === 'contra') {
       coverage.contraBooksOnly++;
     } else {
