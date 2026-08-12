@@ -1548,7 +1548,7 @@ export function CreateInvoiceModal({
           <input
             type="number"
             min={0}
-            max={28}
+            max={40}
             inputMode="numeric"
             value={row.gstPercent}
             onChange={e =>
@@ -1911,7 +1911,7 @@ export function CreateInvoiceModal({
                                 <input
                                   type="number"
                                   min={0}
-                                  max={28}
+                                  max={40}
                                   value={row.gstPercent}
                                   onChange={e =>
                                     setRows(

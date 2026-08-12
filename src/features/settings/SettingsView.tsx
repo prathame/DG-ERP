@@ -1879,8 +1879,8 @@ export function SettingsView({
                           <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
                             {st('settings.defaultGstRatePct')}
                           </label>
-                          <div className="flex gap-2 mt-1">
-                            {[3, 5, 12, 18, 28].map(rate => (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {[0, 5, 18, 40].map(rate => (
                               <button
                                 key={rate}
                                 type="button"
@@ -1891,6 +1891,22 @@ export function SettingsView({
                                     ? 'bg-brand text-white border-brand'
                                     : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
                                 )}
+                              >
+                                {rate}%
+                              </button>
+                            ))}
+                            {[12, 28].map(rate => (
+                              <button
+                                key={rate}
+                                type="button"
+                                onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
+                                className={cn(
+                                  'px-2.5 py-2 rounded-lg text-xs font-semibold border transition-colors',
+                                  profileForm.defaultGstRate === rate
+                                    ? 'bg-brand text-white border-brand'
+                                    : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-brand',
+                                )}
+                                title="Legacy slab (still selectable)"
                               >
                                 {rate}%
                               </button>
@@ -1908,6 +1924,7 @@ export function SettingsView({
                                 })
                               }
                               className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                              aria-label="Custom GST rate"
                             />
                           </div>
                           <p className="text-xs text-gray-500 mt-1">{st('settings.gstSplitHint')}</p>
@@ -1959,7 +1976,7 @@ export function SettingsView({
                           {st('settings.defaultGstRatePct')}
                         </label>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {[3, 5, 12, 18, 28].map(rate => (
+                          {[0, 5, 18, 40].map(rate => (
                             <button
                               key={rate}
                               type="button"
@@ -1970,6 +1987,22 @@ export function SettingsView({
                                   ? 'dg-bg-primary border-transparent'
                                   : 'bg-white border-gray-200 text-gray-600 hover:border-[var(--dg-primary)]',
                               )}
+                            >
+                              {rate}%
+                            </button>
+                          ))}
+                          {[12, 28].map(rate => (
+                            <button
+                              key={rate}
+                              type="button"
+                              onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
+                              className={cn(
+                                'px-2.5 py-2 rounded-lg text-xs font-semibold border transition-colors',
+                                profileForm.defaultGstRate === rate
+                                  ? 'dg-bg-primary border-transparent'
+                                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-[var(--dg-primary)]',
+                              )}
+                              title="Legacy slab (still selectable)"
                             >
                               {rate}%
                             </button>
@@ -1987,6 +2020,7 @@ export function SettingsView({
                               })
                             }
                             className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                            aria-label="Custom GST rate"
                           />
                         </div>
                         <p className="text-xs text-gray-500 mt-1">{st('settings.gstSplitHint')}</p>
