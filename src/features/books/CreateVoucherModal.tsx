@@ -4,7 +4,17 @@ import { fetchApi } from '../../api';
 import { AppModal } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
-type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra' | 'sales' | 'credit_note' | 'debit_note' | 'memorandum';
+type VoucherKind =
+  | 'receipt'
+  | 'payment'
+  | 'journal'
+  | 'contra'
+  | 'sales'
+  | 'purchase'
+  | 'purchase_return'
+  | 'credit_note'
+  | 'debit_note'
+  | 'memorandum';
 
 interface LedgerOption {
   id: string;
@@ -24,6 +34,8 @@ const TYPE_OPTIONS: { id: VoucherKind; label: string; hint: string }[] = [
   { id: 'receipt', label: 'Receipt', hint: 'Cash/Bank ← Party' },
   { id: 'payment', label: 'Payment', hint: 'Party ← Cash/Bank' },
   { id: 'sales', label: 'Sales', hint: 'Party ← Sales income' },
+  { id: 'purchase', label: 'Purchase', hint: 'Purchase ← Supplier' },
+  { id: 'purchase_return', label: 'Purchase return', hint: 'Supplier ← Purchase' },
   { id: 'credit_note', label: 'Credit note', hint: 'Sales/return ← Party' },
   { id: 'debit_note', label: 'Debit note', hint: 'Party ← Sales/income' },
   { id: 'contra', label: 'Contra', hint: 'Cash ↔ Bank transfer' },
@@ -117,7 +129,22 @@ export function CreateVoucherModal({
     }));
   }, [ledgers]);
 
+  const purchaseAccountOptions = useMemo(() => {
+    const purchish = ledgers.filter(l => {
+      const t = (l.ledgerType || '').toUpperCase();
+      const g = `${l.groupName || ''} ${l.name}`.toLowerCase();
+      return t === 'EX' || t === 'PU' || t === 'TP' || /purchase|bought|expense/.test(g);
+    });
+    const list = purchish.length ? purchish : ledgers;
+    return list.map(l => ({
+      value: l.id,
+      label: l.name,
+      sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [ledgers]);
+
   const usesSalesContra = voucherType === 'sales' || voucherType === 'credit_note' || voucherType === 'debit_note';
+  const usesPurchaseContra = voucherType === 'purchase' || voucherType === 'purchase_return';
 
   async function handleSave() {
     setError(null);
@@ -158,9 +185,11 @@ export function CreateVoucherModal({
       ? 'To (deposit / destination)'
       : voucherType === 'payment'
         ? 'Party (paid to)'
-        : voucherType === 'sales' || voucherType === 'credit_note' || voucherType === 'debit_note'
-          ? 'Party (customer)'
-          : 'Party';
+        : voucherType === 'purchase' || voucherType === 'purchase_return'
+          ? 'Party (supplier)'
+          : voucherType === 'sales' || voucherType === 'credit_note' || voucherType === 'debit_note'
+            ? 'Party (customer)'
+            : 'Party';
   const contraLabel =
     voucherType === 'contra'
       ? 'From (withdraw / source)'
@@ -168,14 +197,29 @@ export function CreateVoucherModal({
         ? 'Cash / Bank (received in)'
         : voucherType === 'credit_note'
           ? 'Sales / return (debited)'
-          : voucherType === 'sales' || voucherType === 'debit_note'
-            ? 'Sales income'
-            : 'Cash / Bank (paid from)';
+          : voucherType === 'purchase'
+            ? 'Purchase account'
+            : voucherType === 'purchase_return'
+              ? 'Purchase / return (credited)'
+              : voucherType === 'sales' || voucherType === 'debit_note'
+                ? 'Sales income'
+                : 'Cash / Bank (paid from)';
+
+  const contraOptions = usesPurchaseContra
+    ? purchaseAccountOptions
+    : usesSalesContra
+      ? salesIncomeOptions
+      : cashBankOptions;
+  const contraPlaceholder = usesPurchaseContra
+    ? 'Select purchase account'
+    : usesSalesContra
+      ? 'Select sales / income'
+      : 'Select cash/bank';
 
   return (
     <AppModal
       title="New voucher"
-      subtitle="Receipt, payment, sales, credit/debit note, contra, journal, or memorandum"
+      subtitle="Receipt, payment, sales, purchase, notes, contra, journal, or memorandum"
       onClose={onClose}
       size="lg"
       footer={
@@ -323,10 +367,10 @@ export function CreateVoucherModal({
             <label className="block text-sm sm:col-span-1">
               <span className="mb-1 block text-slate-600">{contraLabel}</span>
               <SearchSelect
-                options={usesSalesContra ? salesIncomeOptions : cashBankOptions}
+                options={contraOptions}
                 value={contraLedgerId}
                 onChange={setContraLedgerId}
-                placeholder={usesSalesContra ? 'Select sales / income' : 'Select cash/bank'}
+                placeholder={contraPlaceholder}
               />
             </label>
             <label className="block text-sm sm:col-span-2">

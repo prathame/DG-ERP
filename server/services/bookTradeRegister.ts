@@ -11,6 +11,7 @@ export type TradeRegisterRow = {
   voucherId: string;
   date: string | Date;
   voucherNumber: string | null;
+  voucherType: string;
   partyName: string | null;
   contraName: string | null;
   amount: number;
@@ -38,15 +39,19 @@ export async function getTradeRegister(
   from: string | null,
   to: string | null,
 ) {
-  const params: unknown[] = [tenantId, kind];
+  const params: unknown[] = [tenantId];
   let sql = `
     SELECT v.id, v.voucher_date, v.voucher_number, v.amount::float AS amount,
-           v.narration, v.external_ref,
+           v.narration, v.external_ref, v.voucher_type,
            pl.name AS party_name, cl.name AS contra_name
     FROM book_vouchers v
     LEFT JOIN book_ledgers pl ON pl.id = v.party_ledger_id AND pl.tenant_id = v.tenant_id
     LEFT JOIN book_ledgers cl ON cl.id = v.contra_ledger_id AND cl.tenant_id = v.tenant_id
-    WHERE v.tenant_id = $1 AND v.voucher_type = $2`;
+    WHERE v.tenant_id = $1 AND (
+      ($2::text = 'sales' AND v.voucher_type = 'sales')
+      OR ($2::text = 'purchase' AND v.voucher_type IN ('purchase','purchase_return'))
+    )`;
+  params.push(kind);
   if (from) {
     params.push(from);
     sql += ` AND v.voucher_date >= $${params.length}`;
@@ -91,21 +96,29 @@ export async function getTradeRegister(
   }
 
   const rows: TradeRegisterRow[] = vouchers.map(v => {
-    const amount = round2(Number(v.amount || 0));
+    const rawAmount = round2(Number(v.amount || 0));
+    const isReturn = String(v.voucher_type) === 'purchase_return';
+    const amount = isReturn ? round2(-rawAmount) : rawAmount;
     const gst = gstByVoucher.get(v.id) || { cgst: 0, sgst: 0, igst: 0 };
-    const tax = round2(gst.cgst + gst.sgst + gst.igst);
-    const taxable = round2(Math.max(0, amount - tax));
+    // Purchase returns credit input GST back — flip sign with the bill
+    const sign = isReturn ? -1 : 1;
+    const cgst = round2(gst.cgst * sign);
+    const sgst = round2(gst.sgst * sign);
+    const igst = round2(gst.igst * sign);
+    const tax = round2(Math.abs(cgst) + Math.abs(sgst) + Math.abs(igst));
+    const taxable = round2(Math.max(0, rawAmount - tax) * sign);
     return {
       voucherId: String(v.id),
       date: typeof v.voucher_date === 'string' ? v.voucher_date.slice(0, 10) : v.voucher_date,
       voucherNumber: v.voucher_number,
+      voucherType: String(v.voucher_type || kind),
       partyName: v.party_name,
       contraName: v.contra_name,
       amount,
       taxable,
-      cgst: gst.cgst,
-      sgst: gst.sgst,
-      igst: gst.igst,
+      cgst,
+      sgst,
+      igst,
       narration: v.narration,
       externalRef: v.external_ref,
     };
