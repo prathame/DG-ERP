@@ -3,6 +3,8 @@ import {
   isCashBankLedger,
   isPurchaseAccountLedger,
   isSalesIncomeLedger,
+  journalDeskTotals,
+  journalEntriesFromDeskLines,
   twoLineJournalEntries,
 } from '../../src/features/books/bookLedgerUtils';
 
@@ -49,5 +51,35 @@ describe('twoLineJournalEntries', () => {
       { ledgerId: 'L-DR', debit: 250.5, credit: 0 },
       { ledgerId: 'L-CR', debit: 0, credit: 250.5 },
     ]);
+  });
+});
+
+describe('journalEntriesFromDeskLines / journalDeskTotals', () => {
+  it('drops empty ledgers and zero amounts', () => {
+    expect(
+      journalEntriesFromDeskLines([
+        { ledgerId: 'A', debit: '100', credit: '' },
+        { ledgerId: '', debit: '50', credit: '' },
+        { ledgerId: 'B', debit: '', credit: '100' },
+        { ledgerId: 'C', debit: '0', credit: '0' },
+      ]),
+    ).toEqual([
+      { ledgerId: 'A', debit: 100, credit: 0 },
+      { ledgerId: 'B', debit: 0, credit: 100 },
+    ]);
+  });
+
+  it('reports balance for multi-line journals', () => {
+    const entries = journalEntriesFromDeskLines([
+      { ledgerId: 'A', debit: '60', credit: '' },
+      { ledgerId: 'B', debit: '40', credit: '' },
+      { ledgerId: 'C', debit: '', credit: '100' },
+    ]);
+    expect(journalDeskTotals(entries)).toEqual({ debit: 100, credit: 100, balanced: true });
+    expect(journalDeskTotals([{ ledgerId: 'A', debit: 10, credit: 0 }])).toEqual({
+      debit: 10,
+      credit: 0,
+      balanced: false,
+    });
   });
 });
