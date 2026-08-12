@@ -38,6 +38,7 @@ import {
   saveBankReconStatement,
 } from '../services/bookBankReconciliation';
 import { getTradeRegister } from '../services/bookTradeRegister';
+import { getProductLedger, getBooksStockSummary } from '../services/bookProductLedger';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 
 const router = Router();
@@ -403,6 +404,33 @@ router.get('/api/books/products', blockVendors, async (req: AuthRequest, res) =>
         externalRef: r.external_ref,
       })),
     );
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/products/:id/ledger', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    const result = await getProductLedger(pool, tenantId, req.params.id, from, to);
+    if (!result) return res.status(404).json({ error: 'Product not found' });
+    res.json(result);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/stock-summary', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const asOf =
+      (typeof req.query.asOf === 'string' && req.query.asOf.trim() ? req.query.asOf.trim() : null) ||
+      (typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null);
+    res.json(await getBooksStockSummary(pool, tenantId, asOf));
   } catch (err) {
     return handleApiError(req, res, err);
   }

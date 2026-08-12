@@ -1647,6 +1647,9 @@ export async function initSchema() {
     await client.query(
       `CREATE INDEX IF NOT EXISTS idx_book_vitems_voucher ON book_voucher_items(tenant_id, voucher_id)`,
     );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_book_vitems_product ON book_voucher_items(tenant_id, product_id)`,
+    );
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS book_import_jobs (

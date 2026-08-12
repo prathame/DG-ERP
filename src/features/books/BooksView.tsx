@@ -6,6 +6,7 @@ import { MiracleImportPanel, summaryCount } from './MiracleImportPanel';
 import { CreateVoucherModal } from './CreateVoucherModal';
 import { DayBookPanel } from './DayBookPanel';
 import { LedgerStatementPanel } from './LedgerStatementPanel';
+import { ProductLedgerPanel } from './ProductLedgerPanel';
 import { VoucherDetailModal } from './VoucherDetailModal';
 import { BooksReportsPanel } from './BooksReportsPanel';
 
@@ -92,11 +93,14 @@ export function BooksView({
   const [showCreateVoucher, setShowCreateVoucher] = useState(false);
   const [vouchersTick, setVouchersTick] = useState(0);
   const [selectedLedger, setSelectedLedger] = useState<{ id: string; name: string } | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string } | null>(null);
+  const [stockByProduct, setStockByProduct] = useState<Record<string, number>>({});
   const [voucherDetailId, setVoucherDetailId] = useState<string | null>(null);
 
   useEffect(() => {
     setPanel(initialPanel);
     setSelectedLedger(null);
+    setSelectedProduct(null);
   }, [initialPanel]);
 
   const loadSummary = useCallback(async () => {
@@ -105,7 +109,7 @@ export function BooksView({
   }, []);
 
   useEffect(() => {
-    if (panel === 'import' || panel === 'daybook' || panel === 'reports' || selectedLedger) {
+    if (panel === 'import' || panel === 'daybook' || panel === 'reports' || selectedLedger || selectedProduct) {
       setLoading(false);
       return;
     }
@@ -120,8 +124,16 @@ export function BooksView({
           const rows = await fetchApi<LedgerRow[]>(`/books/ledgers${q}`);
           if (!cancelled) setLedgers(rows);
         } else if (panel === 'products') {
-          const rows = await fetchApi<ProductRow[]>('/books/products');
-          if (!cancelled) setProducts(rows);
+          const [rows, stock] = await Promise.all([
+            fetchApi<ProductRow[]>('/books/products'),
+            fetchApi<{ rows: Array<{ productId: string; qty: number }> }>('/books/stock-summary'),
+          ]);
+          if (!cancelled) {
+            setProducts(rows);
+            const map: Record<string, number> = {};
+            for (const r of stock?.rows || []) map[r.productId] = r.qty;
+            setStockByProduct(map);
+          }
         } else if (panel === 'vouchers') {
           const rows = await fetchApi<VoucherRow[]>('/books/vouchers');
           if (!cancelled) setVouchers(rows);
@@ -135,7 +147,7 @@ export function BooksView({
     return () => {
       cancelled = true;
     };
-  }, [panel, search, loadSummary, vouchersTick, selectedLedger]);
+  }, [panel, search, loadSummary, vouchersTick, selectedLedger, selectedProduct]);
 
   const tabs: { id: BooksPanel; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <BookOpen size={16} /> },
@@ -149,6 +161,7 @@ export function BooksView({
 
   const openPanel = (id: BooksPanel) => {
     setSelectedLedger(null);
+    setSelectedProduct(null);
     setPanel(id);
   };
 
@@ -167,7 +180,7 @@ export function BooksView({
                 type="button"
                 onClick={() => openPanel(t.id)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  panel === t.id && !selectedLedger
+                  panel === t.id && !selectedLedger && !selectedProduct
                     ? 'bg-orange-500 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
@@ -195,6 +208,13 @@ export function BooksView({
           ledgerId={selectedLedger.id}
           ledgerName={selectedLedger.name}
           onBack={() => setSelectedLedger(null)}
+          onOpenVoucher={setVoucherDetailId}
+        />
+      ) : selectedProduct && panel === 'products' ? (
+        <ProductLedgerPanel
+          productId={selectedProduct.id}
+          productName={selectedProduct.name}
+          onBack={() => setSelectedProduct(null)}
           onOpenVoucher={setVoucherDetailId}
         />
       ) : loading ? (
@@ -341,27 +361,48 @@ export function BooksView({
           </div>
         </div>
       ) : panel === 'products' ? (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Unit</th>
-                <th className="px-3 py-2">HSN</th>
-                <th className="px-3 py-2 text-right">Sale rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map(p => (
-                <tr key={p.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 font-medium">{p.name}</td>
-                  <td className="px-3 py-2">{p.unit || '—'}</td>
-                  <td className="px-3 py-2">{p.hsnCode || '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(p.saleRate)}</td>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-500">
+            Book products with on-hand qty from voucher lines — click a row for the item ledger.
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">Unit</th>
+                  <th className="px-3 py-2">HSN</th>
+                  <th className="px-3 py-2 text-right">Qty</th>
+                  <th className="px-3 py-2 text-right">Sale rate</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {products.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
+                      No book products yet — import from Miracle or dual-write sales/purchases with items.
+                    </td>
+                  </tr>
+                ) : (
+                  products.map(p => (
+                    <tr
+                      key={p.id}
+                      className="cursor-pointer border-t border-slate-100 hover:bg-orange-50/50"
+                      onClick={() => setSelectedProduct({ id: p.id, name: p.name })}
+                    >
+                      <td className="px-3 py-2 font-medium text-orange-900">{p.name}</td>
+                      <td className="px-3 py-2">{p.unit || '—'}</td>
+                      <td className="px-3 py-2">{p.hsnCode || '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {(stockByProduct[p.id] ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(p.saleRate)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
