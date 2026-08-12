@@ -6,6 +6,7 @@
  *   PR/LI ledgers → vendors
  *   products → products
  *   SP/SE/SS/QS sales → standalone_invoices
+ *     (gst_enabled + tax_* from Books CGST/SGST/IGST credit lines when present)
  *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
  *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
  *   CN / sales return → credit_debit_notes (credit); with ops product lines → inventory InStock (miracle:cn:)
@@ -618,22 +619,105 @@ async function upsertOpsSupplier(
   return id;
 }
 
+export type VoucherGstSplit = { cgst: number; sgst: number; igst: number; total: number };
+
 /**
- * Sum purchase input GST (CGST/SGST/IGST debit lines) from Miracle voucher entries.
+ * Sum CGST/SGST/IGST from Miracle voucher entries on the given side
+ * (purchase input = debit, sales output = credit).
  */
-export function sumPurchaseInputGst(ents: DbfRecord[], ledgerMeta: Map<string, { name: string }>): number {
-  let tax = 0;
+export function collectVoucherGst(
+  ents: DbfRecord[],
+  ledgerMeta: Map<string, { name: string }>,
+  side: 'D' | 'C',
+): VoucherGstSplit {
+  let cgst = 0;
+  let sgst = 0;
+  let igst = 0;
   for (const e of ents) {
     const ledgerExt = str(e.FIELD03);
     if (!ledgerExt) continue;
     const meta = ledgerMeta.get(ledgerExt);
     if (!meta) continue;
-    if (!classifyGst(ledgerExt, meta.name)) continue;
+    const kind = classifyGst(ledgerExt, meta.name);
+    if (!kind) continue;
     const amt = num(e.FIELD05);
-    const side = str(e.FIELD06).toUpperCase();
-    if (side === 'D' && amt > 0) tax += amt;
+    const entrySide = str(e.FIELD06).toUpperCase();
+    if (entrySide !== side || !(amt > 0)) continue;
+    if (kind === 'cgst') cgst += amt;
+    else if (kind === 'sgst') sgst += amt;
+    else igst += amt;
   }
-  return round2(tax);
+  cgst = round2(cgst);
+  sgst = round2(sgst);
+  igst = round2(igst);
+  return { cgst, sgst, igst, total: round2(cgst + sgst + igst) };
+}
+
+/** Sum purchase input GST (CGST/SGST/IGST debit lines). */
+export function sumPurchaseInputGst(ents: DbfRecord[], ledgerMeta: Map<string, { name: string }>): number {
+  return collectVoucherGst(ents, ledgerMeta, 'D').total;
+}
+
+/** Sales output GST split from CGST/SGST/IGST credit lines. */
+export function sumSalesOutputGst(ents: DbfRecord[], ledgerMeta: Map<string, { name: string }>): VoucherGstSplit {
+  return collectVoucherGst(ents, ledgerMeta, 'C');
+}
+
+type SalesLineItem = {
+  description: string;
+  hsnSac?: string | null;
+  qty: number;
+  rate: number;
+  gstPercent: number;
+  discountPercent: number;
+  productId?: string | null;
+  taxable: number;
+  tax: number;
+  total: number;
+};
+
+/**
+ * Allocate voucher output GST onto sales line items (exclusive vs inclusive heuristic).
+ * When voucherTax is 0, lines are left unchanged.
+ */
+export function applySalesGstToLineItems(
+  lines: SalesLineItem[],
+  voucherTax: number,
+  voucherAmount: number,
+): SalesLineItem[] {
+  if (!(voucherTax > 0) || !lines.length) return lines;
+
+  const sumLines = lines.reduce((s, l) => s + (Number(l.total) || Number(l.taxable) || 0), 0);
+  const taxableGuess = round2(Math.max(0, Number(voucherAmount) || 0) - voucherTax);
+  const exclusive =
+    sumLines <= 0 || Math.abs(sumLines - taxableGuess) <= Math.abs(sumLines - (Number(voucherAmount) || 0));
+
+  let allocated = 0;
+  return lines.map((line, i) => {
+    const base = Number(line.total) || Number(line.taxable) || 0;
+    const weight = sumLines > 0 ? base / sumLines : 1 / lines.length;
+    const taxRaw = round2(voucherTax * weight);
+    const tax = i === lines.length - 1 ? round2(voucherTax - allocated) : taxRaw;
+    if (i < lines.length - 1) allocated = round2(allocated + tax);
+
+    let taxable: number;
+    let total: number;
+    if (exclusive) {
+      taxable = round2(base);
+      total = round2(taxable + tax);
+    } else {
+      total = round2(base);
+      taxable = round2(Math.max(0, total - tax));
+    }
+    const gstPercent = taxable > 0 ? round2((100 * tax) / taxable) : 0;
+    return {
+      ...line,
+      taxable,
+      tax,
+      total,
+      gstPercent,
+    };
+  });
 }
 
 export type OpsPurchaseUnit = {
@@ -895,10 +979,16 @@ async function upsertOpsInvoice(
   status: 'sent' | 'paid' = 'sent',
   /** party bill vs Miracle cash-book income (rent/scrap/misc) */
   invoiceKind: 'sale' | 'cash_income' = 'sale',
+  gstSplit: VoucherGstSplit = { cgst: 0, sgst: 0, igst: 0, total: 0 },
 ): Promise<string> {
   const subtotal = items.reduce((s, it) => s + it.taxable, 0);
   const taxTotal = items.reduce((s, it) => s + it.tax, 0);
   const grandTotal = subtotal + taxTotal;
+  const taxCgst = round2(gstSplit.cgst);
+  const taxSgst = round2(gstSplit.sgst);
+  const taxIgst = round2(gstSplit.igst);
+  const isInterstate = taxIgst > 0;
+  const gstEnabled = taxTotal > 0;
   const id = uid('INV');
   // Prefer stable Miracle number; fall back to MIR-<ext>. On re-import keep external_ref unique.
   // If invoice_number conflicts with a different row, append short ext suffix.
@@ -919,7 +1009,7 @@ async function upsertOpsInvoice(
        (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone,
         party_type, party_id, items, subtotal, tax_total, grand_total, notes, status, invoice_date,
         tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled, external_ref, invoice_kind)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,0,0,false,false,$17,$18)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
      ON CONFLICT (tenant_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE SET
        invoice_number = EXCLUDED.invoice_number,
        customer_name = EXCLUDED.customer_name,
@@ -935,6 +1025,11 @@ async function upsertOpsInvoice(
        notes = EXCLUDED.notes,
        status = EXCLUDED.status,
        invoice_date = EXCLUDED.invoice_date,
+       tax_cgst = EXCLUDED.tax_cgst,
+       tax_sgst = EXCLUDED.tax_sgst,
+       tax_igst = EXCLUDED.tax_igst,
+       is_interstate = EXCLUDED.is_interstate,
+       gst_enabled = EXCLUDED.gst_enabled,
        invoice_kind = EXCLUDED.invoice_kind,
        updated_at = NOW()`,
     [
@@ -954,6 +1049,11 @@ async function upsertOpsInvoice(
       notes,
       status,
       invoiceDate,
+      taxCgst,
+      taxSgst,
+      taxIgst,
+      isInterstate,
+      gstEnabled,
       externalRef,
       invoiceKind,
     ],
@@ -1703,7 +1803,8 @@ export async function importMiracleCompany(
           externalRef: ext,
         });
       } else {
-        const lineItems =
+        const gstSplit = sumSalesOutputGst(ents, ledgerMeta);
+        const rawLines =
           opsLineItems.length > 0
             ? opsLineItems
             : [
@@ -1720,6 +1821,7 @@ export async function importMiracleCompany(
                   total: amount,
                 },
               ];
+        const lineItems = applySalesGstToLineItems(rawLines, gstSplit.total, amount);
         await upsertOpsInvoice(
           client,
           tenantId,
@@ -1733,6 +1835,9 @@ export async function importMiracleCompany(
           lineItems,
           vDate,
           narration,
+          'sent',
+          'sale',
+          gstSplit,
         );
         summary.invoices++;
         coverage.salesInvoices.imported++;
