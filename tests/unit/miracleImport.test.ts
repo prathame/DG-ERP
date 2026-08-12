@@ -3057,4 +3057,421 @@ describe('miracleImport', () => {
     expect(parsed[0]?.lineGst).toBe(18);
     expect(parsed[0]?.lineNet).toBe(100);
   });
+
+  it('dual-writes Miracle sales as Sold stock-out (idempotent)', async () => {
+    await pool.query('ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-sale-stock-'));
+    tmpDirs.push(root);
+    const company = path.join(root, 'CMP0001');
+    fs.mkdirSync(company, { recursive: true });
+    fs.writeFileSync(path.join(company, 'version.txt'), 'Company Name : SALE STOCK\nMiracle Version : 12.0\n');
+    const yr = path.join(company, 'YR25');
+    fs.mkdirSync(yr, { recursive: true });
+
+    writeDbf(
+      path.join(yr, 'rkaccm11.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+      ],
+      [
+        { FIELD01: 'GRPPARTY', FIELD02: 'Sundry', FIELD07: 'A' },
+        { FIELD01: 'GRPPUR', FIELD02: 'Purchases', FIELD07: 'E' },
+        { FIELD01: 'GRPSALES', FIELD02: 'Sales', FIELD07: 'I' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCM01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 1 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'C', length: 8 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+        { name: 'FIELD10', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        {
+          FIELD01: 'ASUPPLY1',
+          FIELD02: 'SUPPLIER ONE',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'PR',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ACUST01',
+          FIELD02: 'BUYER ONE',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'PR',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'APURCH01',
+          FIELD02: 'Purchase Account',
+          FIELD04: 'A',
+          FIELD05: 'GRPPUR',
+          FIELD06: 'GRPPUR',
+          FIELD07: 'EX',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ASALES01',
+          FIELD02: 'Sales Account',
+          FIELD04: 'A',
+          FIELD05: 'GRPSALES',
+          FIELD06: 'GRPSALES',
+          FIELD07: 'IN',
+          FIELD10: 0,
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD08', type: 'C', length: 10 },
+      ],
+      [{ FIELD01: 'PRODSL01', FIELD02: 'Widget', FIELD08: 'Nos' }],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm29.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'M29F03', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'PRODSL01', M29F03: 40 }],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'FIELD98', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'PUSL0001',
+          FIELD02: '20250801',
+          FIELD04: 'ASUPPLY1',
+          FIELD05: 'APURCH01',
+          FIELD06: 120,
+          FIELD07: 120,
+          FIELD12: 'PU/1',
+          FIELD16: '',
+          FIELD74: 'PU',
+          FIELD98: 'PU',
+          T41FVNO: 'PU/1',
+        },
+        {
+          FIELD01: 'SPSL0001',
+          FIELD02: '20250802',
+          FIELD04: 'ACUST01',
+          FIELD05: 'ASALES01',
+          FIELD06: 80,
+          FIELD07: 80,
+          FIELD12: 'SP/1',
+          FIELD16: '',
+          FIELD74: 'SP',
+          FIELD98: 'SP',
+          T41FVNO: 'SP/1',
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD06', type: 'C', length: 1 },
+      ],
+      [
+        { FIELD01: 'PUSL0001', FIELD03: 'APURCH01', FIELD04: 'ASUPPLY1', FIELD05: 120, FIELD06: 'D' },
+        { FIELD01: 'PUSL0001', FIELD03: 'ASUPPLY1', FIELD04: 'APURCH01', FIELD05: 120, FIELD06: 'C' },
+        { FIELD01: 'SPSL0001', FIELD03: 'ACUST01', FIELD04: 'ASALES01', FIELD05: 80, FIELD06: 'D' },
+        { FIELD01: 'SPSL0001', FIELD03: 'ASALES01', FIELD04: 'ACUST01', FIELD05: 80, FIELD06: 'C' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT02.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD08', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        { FIELD01: 'PUSL0001', FIELD03: 'PRODSL01', FIELD06: 3, FIELD07: 40, FIELD08: 120 },
+        { FIELD01: 'SPSL0001', FIELD03: 'PRODSL01', FIELD06: 2, FIELD07: 40, FIELD08: 80 },
+      ],
+    );
+
+    for (const t of [
+      'product_inventory',
+      'product_purchases',
+      'suppliers',
+      'products',
+      'vendors',
+      'standalone_invoices',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]).catch(() => undefined);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const runOnce = async () => {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await importMiracleCompany(client, TENANT, company, jobId);
+        await client.query('COMMIT');
+        return result;
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    };
+
+    const first = await runOnce();
+    expect(first.errors).toEqual([]);
+    expect(first.summary.coverage.purchases.imported).toBe(1);
+    expect(first.summary.coverage.salesInvoices.imported).toBe(1);
+    expect(first.summary.saleStockUnits).toBe(2);
+
+    const stock = await pool.query(
+      `SELECT stock::float AS stock FROM products WHERE tenant_id=$1 AND external_ref=$2`,
+      [TENANT, 'PRODSL01'],
+    );
+    expect(stock.rows[0]?.stock).toBe(1);
+    const sold = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory
+       WHERE tenant_id=$1 AND batch_id=$2 AND status='Sold'`,
+      [TENANT, 'miracle:sal:SPSL0001'],
+    );
+    expect(sold.rows[0]?.n).toBe(2);
+    const inStock = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory
+       WHERE tenant_id=$1 AND product_id=(SELECT id FROM products WHERE tenant_id=$1 AND external_ref=$2)
+         AND status='InStock'`,
+      [TENANT, 'PRODSL01'],
+    );
+    expect(inStock.rows[0]?.n).toBe(1);
+    const inv = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM standalone_invoices WHERE tenant_id=$1 AND external_ref=$2`,
+      [TENANT, 'SPSL0001'],
+    );
+    expect(inv.rows[0]?.n).toBe(1);
+
+    const second = await runOnce();
+    expect(second.summary.saleStockUnits).toBe(2);
+    const stock2 = await pool.query(
+      `SELECT stock::float AS stock FROM products WHERE tenant_id=$1 AND external_ref=$2`,
+      [TENANT, 'PRODSL01'],
+    );
+    expect(stock2.rows[0]?.stock).toBe(1);
+    const sold2 = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory
+       WHERE tenant_id=$1 AND batch_id=$2 AND status='Sold'`,
+      [TENANT, 'miracle:sal:SPSL0001'],
+    );
+    expect(sold2.rows[0]?.n).toBe(2);
+  });
+
+  it('warns when Miracle sale finds no InStock units', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-sale-short-'));
+    tmpDirs.push(root);
+    const company = path.join(root, 'CMP0001');
+    fs.mkdirSync(company, { recursive: true });
+    fs.writeFileSync(path.join(company, 'version.txt'), 'Company Name : SALE SHORT\nMiracle Version : 12.0\n');
+    const yr = path.join(company, 'YR25');
+    fs.mkdirSync(yr, { recursive: true });
+
+    writeDbf(
+      path.join(yr, 'rkaccm11.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+      ],
+      [
+        { FIELD01: 'GRPPARTY', FIELD02: 'Sundry Debtors', FIELD07: 'A' },
+        { FIELD01: 'GRPSALES', FIELD02: 'Sales', FIELD07: 'I' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCM01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 1 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'C', length: 8 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+        { name: 'FIELD10', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        {
+          FIELD01: 'ACUST01',
+          FIELD02: 'BUYER ONE',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'PR',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ASALES01',
+          FIELD02: 'Sales Account',
+          FIELD04: 'A',
+          FIELD05: 'GRPSALES',
+          FIELD06: 'GRPSALES',
+          FIELD07: 'IN',
+          FIELD10: 0,
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD08', type: 'C', length: 10 },
+      ],
+      [{ FIELD01: 'PRODSS01', FIELD02: 'Ghost', FIELD08: 'Nos' }],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm29.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'M29F03', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'PRODSS01', M29F03: 10 }],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'FIELD98', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'SPSH0001',
+          FIELD02: '20250802',
+          FIELD04: 'ACUST01',
+          FIELD05: 'ASALES01',
+          FIELD06: 20,
+          FIELD07: 20,
+          FIELD12: 'SP/1',
+          FIELD16: '',
+          FIELD74: 'SP',
+          FIELD98: 'SP',
+          T41FVNO: 'SP/1',
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD06', type: 'C', length: 1 },
+      ],
+      [
+        { FIELD01: 'SPSH0001', FIELD03: 'ACUST01', FIELD04: 'ASALES01', FIELD05: 20, FIELD06: 'D' },
+        { FIELD01: 'SPSH0001', FIELD03: 'ASALES01', FIELD04: 'ACUST01', FIELD05: 20, FIELD06: 'C' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT02.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD08', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'SPSH0001', FIELD03: 'PRODSS01', FIELD06: 2, FIELD07: 10, FIELD08: 20 }],
+    );
+
+    for (const t of [
+      'product_inventory',
+      'products',
+      'vendors',
+      'standalone_invoices',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]).catch(() => undefined);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(result.errors).toEqual([]);
+      expect(result.summary.coverage.salesInvoices.imported).toBe(1);
+      expect(result.summary.saleStockUnits).toBe(0);
+      expect(result.warnings.some(w => /Sale short/.test(w.message))).toBe(true);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
 });
