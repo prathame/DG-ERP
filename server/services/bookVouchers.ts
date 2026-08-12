@@ -8,7 +8,15 @@ import { uid } from '../utils/helpers';
 import { resolveMiraclePaymentMethod } from './miracleImport';
 import { allocatePartyReceipt, resolveVendorForBookLedger, upsertVendorPayment } from './partyCashOps';
 
-export const BOOK_VOUCHER_TYPES = ['receipt', 'payment', 'journal', 'contra', 'sales'] as const;
+export const BOOK_VOUCHER_TYPES = [
+  'receipt',
+  'payment',
+  'journal',
+  'contra',
+  'sales',
+  'credit_note',
+  'debit_note',
+] as const;
 export type BookVoucherType = (typeof BOOK_VOUCHER_TYPES)[number];
 
 export interface BookVoucherEntryInput {
@@ -103,7 +111,7 @@ async function assertLedgersExist(client: PoolClient, tenantId: string, ledgerId
 }
 
 function buildSimpleEntries(
-  voucherType: 'receipt' | 'payment' | 'contra' | 'sales',
+  voucherType: 'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note',
   partyLedgerId: string,
   contraLedgerId: string,
   amount: number,
@@ -127,11 +135,18 @@ function buildSimpleEntries(
       { ledgerId: contraLedgerId, debit: 0, credit: amt },
     ];
   }
-  if (voucherType === 'sales') {
-    // Debit party (AR), Credit sales income
+  if (voucherType === 'sales' || voucherType === 'debit_note') {
+    // Debit party (AR), Credit sales / income (DN = additional charge)
     return [
       { ledgerId: partyLedgerId, debit: amt, credit: 0 },
       { ledgerId: contraLedgerId, debit: 0, credit: amt },
+    ];
+  }
+  if (voucherType === 'credit_note') {
+    // Sales return / CN: Debit sales (or return), Credit party
+    return [
+      { ledgerId: contraLedgerId, debit: amt, credit: 0 },
+      { ledgerId: partyLedgerId, debit: 0, credit: amt },
     ];
   }
   // contra: transfer from contra (credit) → party/to (debit)
@@ -299,8 +314,8 @@ export async function createBookVoucher(
       throw new BookVoucherValidationError(
         input.voucherType === 'contra'
           ? 'Contra requires from (contra) and to (party) ledgers'
-          : input.voucherType === 'sales'
-            ? 'Party and sales income ledgers are required'
+          : input.voucherType === 'sales' || input.voucherType === 'credit_note' || input.voucherType === 'debit_note'
+            ? 'Party and sales/return ledgers are required'
             : 'Party and cash/bank ledgers are required',
       );
     }
@@ -563,7 +578,7 @@ export async function updateBookVoucher(
     } else {
       lines = normalizeEntries(
         buildSimpleEntries(
-          voucherType as 'receipt' | 'payment' | 'contra' | 'sales',
+          voucherType as 'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note',
           partyLedgerId,
           contraLedgerId,
           amount,
