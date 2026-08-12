@@ -57,7 +57,9 @@ function OtherList({ title, entries }: { title: string; entries: AccountsGuideEn
       </summary>
       <div className="px-3 pb-1 space-y-2">
         {entries.map(e => (
-          <EntryCard key={e.key} entry={e} />
+          <React.Fragment key={e.key}>
+            <EntryCard entry={e} />
+          </React.Fragment>
         ))}
       </div>
     </details>
