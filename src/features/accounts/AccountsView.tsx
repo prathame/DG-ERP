@@ -47,6 +47,7 @@ import { BooksReportsPanel } from '../books/BooksReportsPanel';
 import { DayBookPanel } from '../books/DayBookPanel';
 import { FundBookPanel } from '../books/FundBookPanel';
 import { BankReconPanel } from '../books/BankReconPanel';
+import { TradeRegisterPanel } from '../books/TradeRegisterPanel';
 import { MiracleImportPanel } from '../books/MiracleImportPanel';
 import { VoucherDetailModal } from '../books/VoucherDetailModal';
 
@@ -60,6 +61,8 @@ type AccountTab =
   | 'cashbook'
   | 'bankbook'
   | 'bankrecon'
+  | 'booksales'
+  | 'bookpurchase'
   | 'notes'
   | 'vouchers'
   | 'trial'
@@ -147,7 +150,9 @@ export function AccountsView({
       key === 'daybook' ||
       key === 'cashbook' ||
       key === 'bankbook' ||
-      key === 'bankrecon');
+      key === 'bankrecon' ||
+      key === 'booksales' ||
+      key === 'bookpurchase');
   const booksSelfContained =
     booksFor(tab) || tab === 'vouchers' || tab === 'trial' || tab === 'products' || tab === 'import';
   const statementSourceNote = (() => {
@@ -203,6 +208,8 @@ export function AccountsView({
       cashflow: 'Cash Flow Statement',
       ledger: 'General Ledger',
       daybook: 'Day Book',
+      booksales: 'Books Sales Register',
+      bookpurchase: 'Books Purchase Register',
       notes: 'Credit / Debit Notes',
       sales: 'Sales Register',
       distribution: ds ? 'Sales Register' : 'Distribution Register',
@@ -284,6 +291,22 @@ export function AccountsView({
       label: 'Bank Recon',
       shortLabel: 'BRS',
       icon: FileCheck,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
+    {
+      key: 'booksales',
+      label: 'Sales Reg.',
+      shortLabel: 'SlsReg',
+      icon: ShoppingCart,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
+    {
+      key: 'bookpurchase',
+      label: 'Purchase Reg.',
+      shortLabel: 'PurReg',
+      icon: Truck,
       group: 'accounts',
       hide: !booksModuleOn,
     },
@@ -402,6 +425,8 @@ export function AccountsView({
       {tab === 'cashbook' && <FundBookPanel kind="cash" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'bankbook' && <FundBookPanel kind="bank" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'bankrecon' && <BankReconPanel onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'booksales' && <TradeRegisterPanel kind="sales" onOpenVoucher={setVoucherDetailId} />}
+      {tab === 'bookpurchase' && <TradeRegisterPanel kind="purchase" onOpenVoucher={setVoucherDetailId} />}
       {tab === 'vouchers' && <BooksView initialPanel="vouchers" embedded />}
       {tab === 'products' && <BooksView initialPanel="products" embedded />}
       {tab === 'import' && <MiracleImportPanel onComplete={() => setBooksDeskReady(true)} />}

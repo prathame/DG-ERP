@@ -32,6 +32,7 @@ import {
   markBankReconEntries,
   saveBankReconStatement,
 } from '../services/bookBankReconciliation';
+import { getTradeRegister } from '../services/bookTradeRegister';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 
 const router = Router();
@@ -620,6 +621,31 @@ router.get('/api/books/bank-book', blockVendors, async (req: AuthRequest, res) =
     const ledgerId =
       typeof req.query.ledgerId === 'string' && req.query.ledgerId.trim() ? req.query.ledgerId.trim() : null;
     res.json(await getFundBook(pool, tenantId, 'bank', from, to, ledgerId));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Miracle-style Books sales / purchase voucher registers. */
+router.get('/api/books/sales-register', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    res.json(await getTradeRegister(pool, tenantId, 'sales', from, to));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/purchase-register', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
+    const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
+    res.json(await getTradeRegister(pool, tenantId, 'purchase', from, to));
   } catch (err) {
     return handleApiError(req, res, err);
   }
