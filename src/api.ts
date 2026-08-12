@@ -1153,6 +1153,17 @@ export const api = {
         signedQrCode?: string;
         mode: string;
       }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
+    generateInvoiceIrn: (invoiceId: string) =>
+      fetchApi<{
+        ok: boolean;
+        irn: string;
+        ackNo: string;
+        ackDt: string;
+        qrCode: string;
+        signedQrCode?: string;
+        mode: string;
+        invoiceId: string;
+      }>('/gst/irn/generate-invoice', { method: 'POST', body: JSON.stringify({ invoiceId }) }),
     generateEwb: (data: {
       batchId: string;
       vehicleNo: string;
@@ -1162,6 +1173,25 @@ export const api = {
       transporterId?: string;
     }) =>
       fetchApi<{ ok: boolean; ewbNo: string; ewbDt: string; ewbValidTill: string; mode: string }>('/gst/ewb/generate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    generateInvoiceEwb: (data: {
+      invoiceId: string;
+      vehicleNo: string;
+      distance: number;
+      transportMode?: string;
+      transporterName?: string;
+      transporterId?: string;
+    }) =>
+      fetchApi<{
+        ok: boolean;
+        ewbNo: string;
+        ewbDt: string;
+        ewbValidTill: string;
+        mode: string;
+        invoiceId: string;
+      }>('/gst/ewb/generate-invoice', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

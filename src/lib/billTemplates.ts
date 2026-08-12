@@ -505,6 +505,12 @@ export type StandaloneInvoicePrint = {
   paidAmount?: number;
   advanceApplied?: number;
   outstanding?: number;
+  /** E-invoice / E-way (standalone tax invoices) */
+  irn?: string | null;
+  irnAckNo?: string | null;
+  irnAckDt?: string | null;
+  irnQr?: string | null;
+  ewbNumber?: string | null;
 };
 
 export type StandaloneInvoicePrintCompany = {
@@ -522,7 +528,13 @@ export function generateStandaloneInvoiceHtml(
   inv: StandaloneInvoicePrint,
   company: StandaloneInvoicePrintCompany,
   billSettings: Record<string, unknown>,
-  options?: { qrDataUrl?: string; hideNotes?: boolean; hasGst?: boolean; docType?: BillDocType },
+  options?: {
+    qrDataUrl?: string;
+    hideNotes?: boolean;
+    hasGst?: boolean;
+    docType?: BillDocType;
+    irnQrDataUrl?: string;
+  },
 ): string {
   const isQuote = options?.docType === 'quotation';
   const color = safeColor(billSettings.primaryColor as string);
@@ -563,6 +575,16 @@ export function generateStandaloneInvoiceHtml(
     received > 0.001 ||
     (inv.advanceApplied || 0) > 0.001 ||
     (typeof inv.outstanding === 'number' && inv.outstanding > 0.001);
+  const irn = !isQuote && hasGst ? String(inv.irn || '') : '';
+  const irnAckNo = irn ? String(inv.irnAckNo || '') : '';
+  const irnAckDt = irn ? String(inv.irnAckDt || '') : '';
+  const ewbNumber = !isQuote && hasGst ? String(inv.ewbNumber || '') : '';
+  const irnQrPayload = irn ? String(inv.irnQr || '') : '';
+  const irnQrSrc =
+    options?.irnQrDataUrl ||
+    (irnQrPayload
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`
+      : '');
 
   // HSN-wise GST summary (end of bill — matches classic Tax Invoice layout)
   const hsnMap = new Map<
@@ -660,7 +682,16 @@ export function generateStandaloneInvoiceHtml(
         ${isQuote && inv.dueDate ? `<tr class="cust-row"><td class="cust-label">Valid until</td><td>${fmtDate(inv.dueDate)}</td></tr>` : ''}
         ${!isQuote && inv.status === 'paid' ? '<tr class="cust-row"><td class="cust-label">Status</td><td><strong>PAID</strong></td></tr>' : ''}
         ${isQuote && inv.status ? `<tr class="cust-row"><td class="cust-label">Status</td><td><strong>${esc(inv.status)}</strong></td></tr>` : ''}
+        ${ewbNumber ? `<tr class="cust-row"><td class="cust-label">E-Way Bill</td><td><strong style="font-family:monospace;">${esc(ewbNumber)}</strong></td></tr>` : ''}
+        ${irn ? `<tr class="cust-row"><td class="cust-label">IRN</td><td style="font-family:monospace;font-size:9px;word-break:break-all;">${esc(irn)}</td></tr>` : ''}
+        ${irnAckNo ? `<tr class="cust-row"><td class="cust-label">Ack No.</td><td><strong style="font-family:monospace;">${esc(irnAckNo)}</strong></td></tr>` : ''}
+        ${irnAckDt ? `<tr class="cust-row"><td class="cust-label">Ack Date</td><td>${esc(irnAckDt)}</td></tr>` : ''}
       </table>
+      ${
+        irnQrSrc
+          ? `<div style="text-align:center;margin-top:8px;"><img src="${irnQrSrc}" style="width:100px;height:100px;" alt="E-Invoice QR" /><div style="font-size:9px;color:#666;margin-top:2px;">E-Invoice QR</div></div>`
+          : ''
+      }
     </td>
   </tr>
 </table>

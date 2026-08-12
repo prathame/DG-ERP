@@ -19,6 +19,11 @@ import {
   resolveSupplyType,
   type GstApiMode,
 } from '../services/nic-api';
+import {
+  generateStandaloneInvoiceEwb,
+  generateStandaloneInvoiceIrn,
+  StandaloneInvoiceGstError,
+} from '../services/standaloneInvoiceGst';
 
 const router = Router();
 
@@ -32,7 +37,7 @@ function safeError(err: unknown): string {
   const msg = err instanceof Error ? err.message : 'Internal server error';
   // Allow only short, expected validation/config messages (no DB/stack/path leakage)
   if (
-    /^(GST API|IRN|EWB|E-way bill|not configured|already has|Batch not|required|Invalid|credentials|crypto|pincode|GSTIN|B2B)/i.test(
+    /^(GST API|IRN|EWB|E-way bill|Invoice|not configured|already has|Batch not|required|Invalid|credentials|crypto|pincode|GSTIN|B2B|Valid|vehicleNo|distance)/i.test(
       msg,
     ) &&
     msg.length < 160 &&
@@ -488,6 +493,51 @@ router.post('/api/gst/ewb/generate', requireAdmin, blockVendors, async (req: Aut
   }
 });
 
+/** Standalone invoice (ops desk / Miracle import) e-invoice — parallel to batch IRN. */
+router.post('/api/gst/irn/generate-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { invoiceId, sellerPin, buyerPin } = req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const result = await generateStandaloneInvoiceIrn(pool, tenantId, String(invoiceId), { sellerPin, buyerPin });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Invoice IRN generate failed', {
+      status,
+      publicMessage: safeError(err),
+    });
+  }
+});
+
+router.post('/api/gst/ewb/generate-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { invoiceId, vehicleNo, distance, transportMode, transporterName, transporterId, sellerPin, buyerPin } =
+      req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const result = await generateStandaloneInvoiceEwb(pool, tenantId, {
+      invoiceId: String(invoiceId),
+      vehicleNo: String(vehicleNo || ''),
+      distance: Number(distance),
+      transportMode,
+      transporterName,
+      transporterId,
+      sellerPin,
+      buyerPin,
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Invoice EWB generate failed', {
+      status,
+      publicMessage: safeError(err),
+    });
+  }
+});
+
 router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -505,6 +555,10 @@ router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) =
 
     await pool.query(
       'UPDATE product_distribution SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL WHERE irn=$1 AND tenant_id=$2',
+      [irn, tenantId],
+    );
+    await pool.query(
+      'UPDATE standalone_invoices SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL WHERE irn=$1 AND tenant_id=$2',
       [irn, tenantId],
     );
 

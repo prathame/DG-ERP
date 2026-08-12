@@ -70,6 +70,11 @@ function mapStandaloneInvoice(r: Record<string, unknown>) {
     createdAt: r.created_at,
     // Only present when the query joins invoice_payments (list/get below) — else 0.
     paidAmount: Number(r.paid_amount) || 0,
+    irn: (r.irn as string) || null,
+    irnAckNo: (r.irn_ack_no as string) || null,
+    irnAckDt: (r.irn_ack_dt as string) || null,
+    irnQr: (r.irn_qr as string) || null,
+    ewbNumber: (r.ewb_number as string) || null,
   };
 }
 
