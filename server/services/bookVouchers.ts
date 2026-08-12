@@ -2,11 +2,19 @@
  * Manual Books voucher create — Miracle-shaped desk (receipt / payment / journal / contra).
  * Persists to book_vouchers + book_voucher_entries.
  * Receipt/payment dual-write to Invoice Finance when party ledger maps to a vendor.
+ * Purchase / purchase_return with product lines dual-write ops stock when supplier + products resolve.
  */
 import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
 import { resolveMiraclePaymentMethod } from './miracleImport';
 import { allocatePartyReceipt, resolveVendorForBookLedger, upsertVendorPayment } from './partyCashOps';
+import {
+  clearBooksPurchaseStockIn,
+  resolveOpsProductId,
+  resolveSupplierForBookLedger,
+  upsertPurchaseStockIn,
+  upsertPurchaseStockReturn,
+} from './purchaseStockOps';
 
 export const BOOK_VOUCHER_TYPES = [
   'receipt',
@@ -40,6 +48,14 @@ export interface BookVoucherEntryInput {
   narration?: string | null;
 }
 
+export interface BookVoucherItemInput {
+  /** Ops product id or book_products id (resolved via external_ref / name). */
+  productId: string;
+  qty: number;
+  rate?: number;
+  amount?: number;
+}
+
 export interface CreateBookVoucherInput {
   voucherType: BookVoucherType;
   voucherDate: string;
@@ -52,6 +68,8 @@ export interface CreateBookVoucherInput {
   amount?: number;
   /** Journal: explicit lines (must balance). Ignored for simple types if amount+ledgers given. */
   entries?: BookVoucherEntryInput[];
+  /** Purchase / purchase_return product lines for ops stock dual-write. */
+  items?: BookVoucherItemInput[];
   /** Cheque / instrument number (PDC). */
   instrumentRef?: string | null;
   /** Cheque maturity / due date (PDC). */
@@ -75,7 +93,7 @@ export class BookVoucherNotFoundError extends Error {
 }
 
 export interface BookVoucherOpsResult {
-  dualWrite: 'receipt' | 'payment' | 'skipped';
+  dualWrite: 'receipt' | 'payment' | 'purchase' | 'purchase_return' | 'skipped';
   reason?: string;
   vendorId?: string;
   vendorName?: string;
@@ -83,6 +101,10 @@ export interface BookVoucherOpsResult {
   invoicePayments?: number;
   vendorPayments?: number;
   billMatched?: number;
+  supplierId?: string;
+  supplierName?: string;
+  stockUnits?: number;
+  stockShortfall?: number;
 }
 
 function round2(n: number): number {
@@ -325,6 +347,100 @@ async function dualWritePartyCash(
   };
 }
 
+async function persistVoucherItems(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+  items: BookVoucherItemInput[] | undefined,
+): Promise<void> {
+  await client.query(`DELETE FROM book_voucher_items WHERE tenant_id = $1 AND voucher_id = $2`, [tenantId, voucherId]);
+  if (!items?.length) return;
+  let lineNo = 0;
+  for (const raw of items) {
+    const productId = String(raw.productId || '').trim();
+    const qty = Number(raw.qty) || 0;
+    if (!productId || !(qty > 0)) continue;
+    lineNo += 1;
+    const rate = round2(Number(raw.rate) || 0);
+    const amount = round2(Number(raw.amount) || rate * qty);
+    await client.query(
+      `INSERT INTO book_voucher_items
+         (id, tenant_id, voucher_id, line_no, product_id, qty, rate, amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [uid('BI'), tenantId, voucherId, lineNo, productId, qty, rate, amount],
+    );
+  }
+}
+
+async function dualWritePurchaseStock(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+  voucherType: 'purchase' | 'purchase_return',
+  partyLedgerId: string | null,
+  amount: number,
+  voucherDate: string,
+  voucherNumber: string | null,
+  items: BookVoucherItemInput[] | undefined,
+): Promise<BookVoucherOpsResult> {
+  if (!items?.length) {
+    return { dualWrite: 'skipped', reason: 'No product lines for stock dual-write' };
+  }
+  if (!partyLedgerId) {
+    return { dualWrite: 'skipped', reason: 'No party ledger' };
+  }
+
+  const resolved: Array<{ productId: string; qty: number; rate: number; amount: number }> = [];
+  for (const raw of items) {
+    const qty = Math.max(0, Math.round(Number(raw.qty) || 0));
+    if (!(qty > 0)) continue;
+    const opsId = await resolveOpsProductId(client, tenantId, raw.productId);
+    if (!opsId) continue;
+    const rate = round2(Number(raw.rate) || 0);
+    const lineAmount = round2(Number(raw.amount) || rate * qty);
+    resolved.push({ productId: opsId, qty, rate, amount: lineAmount });
+  }
+  if (!resolved.length) {
+    return { dualWrite: 'skipped', reason: 'No matching ops products for stock lines' };
+  }
+
+  if (voucherType === 'purchase') {
+    const supplier = await resolveSupplierForBookLedger(client, tenantId, partyLedgerId);
+    if (!supplier) {
+      return { dualWrite: 'skipped', reason: 'Party ledger is not linked to a supplier' };
+    }
+    const { units } = await upsertPurchaseStockIn(
+      client,
+      tenantId,
+      `books:pur:${voucherId}`,
+      voucherNumber || `PU-${voucherId}`,
+      voucherDate,
+      supplier.supplierId,
+      resolved,
+      0,
+      amount,
+    );
+    return {
+      dualWrite: 'purchase',
+      supplierId: supplier.supplierId,
+      supplierName: supplier.supplierName,
+      stockUnits: units,
+    };
+  }
+
+  const { units, shortfall } = await upsertPurchaseStockReturn(
+    client,
+    tenantId,
+    `books:pr:${voucherId}`,
+    resolved.map(l => ({ productId: l.productId, qty: l.qty })),
+  );
+  return {
+    dualWrite: 'purchase_return',
+    stockUnits: units,
+    stockShortfall: shortfall,
+  };
+}
+
 export async function createBookVoucher(
   client: PoolClient,
   tenantId: string,
@@ -476,6 +592,19 @@ export async function createBookVoucher(
       input.voucherNumber?.trim() || null,
       input.narration?.trim() || null,
     );
+  } else if (input.voucherType === 'purchase' || input.voucherType === 'purchase_return') {
+    await persistVoucherItems(client, tenantId, voucherId, input.items);
+    ops = await dualWritePurchaseStock(
+      client,
+      tenantId,
+      voucherId,
+      input.voucherType,
+      partyLedgerId,
+      amount,
+      voucherDate,
+      input.voucherNumber?.trim() || null,
+      input.items,
+    );
   }
 
   return { id: voucherId, voucherType: input.voucherType, amount, ops };
@@ -561,6 +690,9 @@ export async function deleteBookVoucher(
   const row = await loadVoucherRow(client, tenantId, voucherId);
   if (isManualVoucher(row.external_ref) && (row.voucher_type === 'receipt' || row.voucher_type === 'payment')) {
     await clearBooksDualWritePayments(client, tenantId, voucherId);
+  }
+  if (isManualVoucher(row.external_ref) && row.voucher_type === 'purchase') {
+    await clearBooksPurchaseStockIn(client, tenantId, voucherId);
   }
 
   await client.query(

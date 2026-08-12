@@ -29,6 +29,7 @@ interface LedgerOption {
 }
 
 type JournalLine = { key: string; ledgerId: string; debit: string; credit: string };
+type StockLine = { key: string; productId: string; qty: string; rate: string };
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -36,6 +37,10 @@ function todayIso() {
 
 function newJournalLine(): JournalLine {
   return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, ledgerId: '', debit: '', credit: '' };
+}
+
+function newStockLine(): StockLine {
+  return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, productId: '', qty: '1', rate: '' };
 }
 
 const MODE_TABS: { id: DeskMode; label: string }[] = [
@@ -52,10 +57,12 @@ const MODE_TABS: { id: DeskMode; label: string }[] = [
 
 /**
  * Miracle-style voucher desk: cash/bank, sales/purchase/return, CN/DN, contra, multi-line journal.
+ * Purchase / PR optional product lines dual-write ops stock when products resolve.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
 export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
   const [ledgers, setLedgers] = useState<LedgerOption[]>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string; unit?: string }>>([]);
   const [loadingLedgers, setLoadingLedgers] = useState(true);
   const [mode, setMode] = useState<DeskMode>('receipt');
   const [voucherDate, setVoucherDate] = useState(todayIso);
@@ -67,6 +74,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   const [fromFundId, setFromFundId] = useState('');
   const [toFundId, setToFundId] = useState('');
   const [journalLines, setJournalLines] = useState<JournalLine[]>(() => [newJournalLine(), newJournalLine()]);
+  const [stockLines, setStockLines] = useState<StockLine[]>(() => [newStockLine()]);
   const [amount, setAmount] = useState('');
   const [narration, setNarration] = useState('');
   const [saving, setSaving] = useState(false);
@@ -79,9 +87,13 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
     (async () => {
       setLoadingLedgers(true);
       try {
-        const rows = await fetchApi<LedgerOption[]>('/books/ledgers');
+        const [rows, productRows] = await Promise.all([
+          fetchApi<LedgerOption[]>('/books/ledgers'),
+          fetchApi<Array<{ id: string; name: string; unit?: string }>>('/books/products').catch(() => []),
+        ]);
         if (cancelled) return;
         setLedgers(rows);
+        setProducts(Array.isArray(productRows) ? productRows : []);
         const funds = rows.filter(isCashBankLedger);
         if (funds.length) {
           const cash = funds.find(l => (l.ledgerType || '').toUpperCase() === 'CS' || /cash/i.test(l.name));
@@ -171,6 +183,16 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
     }));
   }, [ledgers, fundLedgerId, salesIncomeId, purchaseAccountId, mode, usesSalesContra, usesPurchaseContra]);
 
+  const productOptions = useMemo(
+    () =>
+      products.map(p => ({
+        value: p.id,
+        label: p.name,
+        sublabel: p.unit || undefined,
+      })),
+    [products],
+  );
+
   async function handleSave() {
     setError(null);
     setLastSaved(null);
@@ -253,6 +275,21 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           contraLedgerId: contraId,
           amount: amt,
         };
+        if (usesPurchaseContra) {
+          const items = stockLines
+            .filter(l => l.productId && Number(l.qty) > 0)
+            .map(l => {
+              const qty = Number(l.qty) || 0;
+              const rate = Number(l.rate) || 0;
+              return {
+                productId: l.productId,
+                qty,
+                rate,
+                amount: rate > 0 ? Math.round(rate * qty * 100) / 100 : 0,
+              };
+            });
+          if (items.length) body.items = items;
+        }
         const partyName = ledgers.find(l => l.id === partyLedgerId)?.name || 'party';
         const label =
           mode === 'sales'
@@ -264,7 +301,11 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                 : mode === 'credit_note'
                   ? 'Credit note'
                   : 'Debit note';
-        savedLabel = `${label} ₹${amt.toLocaleString('en-IN')} — ${partyName}`;
+        const stockHint =
+          usesPurchaseContra && Array.isArray(body.items) && (body.items as unknown[]).length
+            ? ` · ${(body.items as unknown[]).length} stock line(s)`
+            : '';
+        savedLabel = `${label} ₹${amt.toLocaleString('en-IN')} — ${partyName}${stockHint}`;
       } else if (mode === 'contra') {
         if (!fromFundId || !toFundId) {
           setError('Select from and to cash/bank accounts');
@@ -306,6 +347,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       if (mode === 'journal') {
         setJournalLines([newJournalLine(), newJournalLine()]);
       } else {
+        if (usesPurchaseContra) setStockLines([newStockLine()]);
         amountRef.current?.focus();
       }
     } catch (e) {
@@ -323,9 +365,9 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
         : mode === 'sales'
           ? 'Party sale on account — customer + sales income'
           : mode === 'purchase'
-            ? 'Party purchase on account — supplier + purchase account'
+            ? 'Party purchase on account — optional product lines for stock-in'
             : mode === 'purchase_return'
-              ? 'Purchase return — supplier ← purchase account'
+              ? 'Purchase return — optional product lines for stock-out'
               : mode === 'credit_note'
                 ? 'Credit note / sales return — sales/return ← customer'
                 : mode === 'debit_note'
@@ -522,6 +564,74 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           />
         </label>
       </div>
+
+      {usesPurchaseContra && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-600">
+              Stock lines (optional — dual-write ops inventory when products resolve)
+            </span>
+            <button
+              type="button"
+              onClick={() => setStockLines(prev => [...prev, newStockLine()])}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50"
+            >
+              <Plus size={14} /> Add item
+            </button>
+          </div>
+          {!productOptions.length && (
+            <p className="text-xs text-amber-700">
+              No Books products yet — import or add products for stock dual-write.
+            </p>
+          )}
+          {stockLines.map((line, idx) => (
+            <div
+              key={line.key}
+              className="grid gap-2 rounded-lg border border-slate-100 bg-white/80 p-2 sm:grid-cols-12"
+            >
+              <div className="sm:col-span-6">
+                <SearchSelect
+                  options={productOptions}
+                  value={line.productId}
+                  onChange={v => setStockLines(prev => prev.map((l, i) => (i === idx ? { ...l, productId: v } : l)))}
+                  placeholder={loadingLedgers ? 'Loading…' : 'Product'}
+                />
+              </div>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Qty"
+                value={line.qty}
+                onChange={e =>
+                  setStockLines(prev => prev.map((l, i) => (i === idx ? { ...l, qty: e.target.value } : l)))
+                }
+                className="rounded-lg border border-slate-200 px-2 py-2 text-sm tabular-nums sm:col-span-2"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Rate"
+                value={line.rate}
+                onChange={e =>
+                  setStockLines(prev => prev.map((l, i) => (i === idx ? { ...l, rate: e.target.value } : l)))
+                }
+                className="rounded-lg border border-slate-200 px-2 py-2 text-sm tabular-nums sm:col-span-2"
+              />
+              <button
+                type="button"
+                disabled={stockLines.length <= 1}
+                onClick={() => setStockLines(prev => prev.filter((_, i) => i !== idx))}
+                className="inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 disabled:opacity-30 sm:col-span-2"
+                aria-label="Remove item"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {mode === 'journal' && (
         <div className="space-y-2">

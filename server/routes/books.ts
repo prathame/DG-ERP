@@ -842,6 +842,7 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
       contraLedgerId: body.contraLedgerId ?? null,
       amount: body.amount != null ? Number(body.amount) : undefined,
       entries: Array.isArray(body.entries) ? body.entries : undefined,
+      items: Array.isArray(body.items) ? body.items : undefined,
       instrumentRef: body.instrumentRef ?? null,
       maturityDate: body.maturityDate ?? null,
     });
