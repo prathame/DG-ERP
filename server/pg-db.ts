@@ -1092,6 +1092,25 @@ export async function initSchema() {
     // Reverse charge (RCM) — liability + ITC on GSTR-3B; excluded from forward-charge PURCHASE_TAX_SQL
     await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS is_rcm BOOLEAN DEFAULT false');
 
+    // Local IMS-lite decisions on GSTR-2B reconcile (Accept / Hold / Reject) — not portal push
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS gstr2b_ims_actions (
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        rtnprd TEXT NOT NULL,
+        ctin TEXT NOT NULL,
+        invoice_number TEXT NOT NULL,
+        ctin_norm TEXT NOT NULL,
+        inum_norm TEXT NOT NULL,
+        action TEXT NOT NULL CHECK (action IN ('accept','hold','reject')),
+        note TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, rtnprd, ctin_norm, inum_norm)
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_gstr2b_ims_tenant_period ON gstr2b_ims_actions(tenant_id, rtnprd)',
+    );
+
     // Business type
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'manufacturer'");
 

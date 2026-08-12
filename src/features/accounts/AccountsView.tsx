@@ -2023,7 +2023,7 @@ function ReportTable({
   );
 }
 
-// GSTR-2B Reconciliation — upload JSON from GST portal, match against purchases
+// GSTR-2B Reconciliation — upload JSON from GST portal, match against purchases (+ local IMS)
 type ReconRow = {
   status: string;
   supplier: string;
@@ -2035,13 +2035,16 @@ type ReconRow = {
   diff: number;
   itcAvailable: boolean;
   source?: 'ops' | 'books' | 'both' | null;
+  imsAction?: 'accept' | 'hold' | 'reject' | null;
 };
 function Gstr2bReconciliation() {
   const { toast } = useToast();
   const [rows, setRows] = React.useState<ReconRow[]>([]);
   const [stats, setStats] = React.useState<Record<string, number>>({});
+  const [rtnprd, setRtnprd] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState('all');
   const [uploading, setUploading] = React.useState(false);
+  const [savingKey, setSavingKey] = React.useState<string | null>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2050,18 +2053,52 @@ function Gstr2bReconciliation() {
     try {
       const text = await file.text();
       const json = JSON.parse(text);
-      const res = await fetchApi<{ rows: ReconRow[]; stats: Record<string, number> }>('/gstr2b/reconcile', {
+      const res = await fetchApi<{
+        rows: ReconRow[];
+        stats: Record<string, number>;
+        rtnprd?: string | null;
+      }>('/gstr2b/reconcile', {
         method: 'POST',
         body: JSON.stringify(json),
       });
       setRows(res.rows);
       setStats(res.stats);
+      setRtnprd(res.rtnprd || null);
       toast(`Reconciled ${res.stats.total} invoices`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
       setUploading(false);
       e.target.value = '';
+    }
+  };
+
+  const setImsAction = async (row: ReconRow, action: '' | 'accept' | 'hold' | 'reject') => {
+    if (!rtnprd) {
+      toast('Upload a 2B JSON that includes rtnprd/fp so IMS actions can be saved for that period', 'error');
+      return;
+    }
+    const key = `${row.ctin}::${row.invoiceNumber}`;
+    setSavingKey(key);
+    try {
+      await fetchApi('/gstr2b/ims-actions', {
+        method: 'PUT',
+        body: JSON.stringify({
+          rtnprd,
+          ctin: row.ctin,
+          invoiceNumber: row.invoiceNumber,
+          action: action || null,
+        }),
+      });
+      setRows(prev =>
+        prev.map(r =>
+          r.ctin === row.ctin && r.invoiceNumber === row.invoiceNumber ? { ...r, imsAction: action || null } : r,
+        ),
+      );
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSavingKey(null);
     }
   };
 
@@ -2085,6 +2122,13 @@ function Gstr2bReconciliation() {
     return '—';
   };
 
+  const imsLabel = (a: ReconRow['imsAction']) => {
+    if (a === 'accept') return 'Accept';
+    if (a === 'hold') return 'Hold';
+    if (a === 'reject') return 'Reject';
+    return '';
+  };
+
   const exportCsv = () => {
     exportToCsv(
       filtered.map(r => ({
@@ -2098,6 +2142,8 @@ function Gstr2bReconciliation() {
         'Book Value': r.bookVal,
         Difference: r.diff,
         'ITC Available': r.itcAvailable ? 'Yes' : 'No',
+        'IMS Action': imsLabel(r.imsAction),
+        Period: rtnprd || '',
       })),
       'gstr2b-reconciliation',
     );
@@ -2126,9 +2172,17 @@ function Gstr2bReconciliation() {
             {uploading ? 'Processing...' : 'Upload 2B JSON'}
             <input type="file" accept=".json" onChange={handleUpload} className="hidden" disabled={uploading} />
           </label>
-          <p className="text-xs text-gray-400">
-            Download GSTR-2B JSON from gst.gov.in → match against Ops purchases and Books purchase vouchers
-          </p>
+          <div>
+            <p className="text-xs text-gray-400">
+              Download GSTR-2B JSON from gst.gov.in → match Ops + Books, then triage locally (IMS-lite)
+            </p>
+            {rtnprd ? (
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                Period <span className="font-mono font-semibold">{rtnprd}</span> — Accept / Hold / Reject stay on this
+                device (not pushed to GST portal)
+              </p>
+            ) : null}
+          </div>
         </div>
         {rows.length > 0 && (
           <div className="flex items-center gap-2">
@@ -2144,6 +2198,7 @@ function Gstr2bReconciliation() {
               onClick={() => {
                 setRows([]);
                 setStats({});
+                setRtnprd(null);
                 setFilter('all');
               }}
               className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"
@@ -2191,41 +2246,60 @@ function Gstr2bReconciliation() {
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Book Value</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Diff</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-center">ITC</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">IMS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">{statusBadge(r.status)}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 text-sm">{r.supplier}</p>
-                      <p className="text-[10px] text-gray-400 font-mono">{r.ctin}</p>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-mono text-gray-700">{r.invoiceNumber}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{r.date ? formatDate(r.date) : '—'}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{sourceLabel(r.source)}</td>
-                    <td className="px-4 py-3 text-sm text-right">{r.twoBVal ? fmtCurrency(r.twoBVal) : '—'}</td>
-                    <td className="px-4 py-3 text-sm text-right">{r.bookVal ? fmtCurrency(r.bookVal) : '—'}</td>
-                    <td
-                      className={cn(
-                        'px-4 py-3 text-sm text-right font-medium',
-                        Math.abs(r.diff) > 1 ? 'text-rose-600' : 'text-gray-400',
-                      )}
-                    >
-                      {r.diff ? `₹${r.diff.toLocaleString('en-IN')}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {r.itcAvailable ? (
-                        <span className="text-emerald-600 font-bold">✓</span>
-                      ) : (
-                        <span className="text-gray-300">✗</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((r, i) => {
+                  const rowKey = `${r.ctin}::${r.invoiceNumber}`;
+                  const busy = savingKey === rowKey;
+                  return (
+                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900 text-sm">{r.supplier}</p>
+                        <p className="text-[10px] text-gray-400 font-mono">{r.ctin}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-700">{r.invoiceNumber}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{r.date ? formatDate(r.date) : '—'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{sourceLabel(r.source)}</td>
+                      <td className="px-4 py-3 text-sm text-right">{r.twoBVal ? fmtCurrency(r.twoBVal) : '—'}</td>
+                      <td className="px-4 py-3 text-sm text-right">{r.bookVal ? fmtCurrency(r.bookVal) : '—'}</td>
+                      <td
+                        className={cn(
+                          'px-4 py-3 text-sm text-right font-medium',
+                          Math.abs(r.diff) > 1 ? 'text-rose-600' : 'text-gray-400',
+                        )}
+                      >
+                        {r.diff ? `₹${r.diff.toLocaleString('en-IN')}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {r.itcAvailable ? (
+                          <span className="text-emerald-600 font-bold">✓</span>
+                        ) : (
+                          <span className="text-gray-300">✗</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={r.imsAction || ''}
+                          disabled={busy || !rtnprd}
+                          onChange={e => setImsAction(r, e.target.value as '' | 'accept' | 'hold' | 'reject')}
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white disabled:opacity-50"
+                          title={!rtnprd ? 'JSON must include rtnprd/fp' : 'Local IMS decision'}
+                        >
+                          <option value="">—</option>
+                          <option value="accept">Accept</option>
+                          <option value="hold">Hold</option>
+                          <option value="reject">Reject</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-gray-400">
+                    <td colSpan={10} className="py-8 text-center text-gray-400">
                       No entries{filter !== 'all' ? ` with status "${filter}"` : ''}
                     </td>
                   </tr>
@@ -2244,7 +2318,10 @@ function Gstr2bReconciliation() {
           <p className="text-gray-400 text-sm mt-1">
             Upload your GSTR-2B JSON from the GST portal to reconcile with Ops purchases and Books purchase vouchers
           </p>
-          <p className="text-gray-400 text-xs mt-3">Go to gst.gov.in → Returns → GSTR-2B → Download JSON</p>
+          <p className="text-gray-400 text-xs mt-3">
+            Go to gst.gov.in → Returns → GSTR-2B → Download JSON. Mark Accept / Hold / Reject locally (IMS-lite — not
+            portal sync).
+          </p>
         </div>
       )}
     </div>

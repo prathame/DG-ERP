@@ -75,6 +75,7 @@ export async function cleanupTestData(tenantId: string) {
     'book_account_groups',
     'book_financial_years',
     'book_import_jobs',
+    'gstr2b_ims_actions',
   ];
   // Hospitality children first (same order as deleteTenant — non-CASCADE FKs)
   const hospSql = [
