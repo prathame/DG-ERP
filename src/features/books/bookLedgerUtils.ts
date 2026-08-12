@@ -13,3 +13,16 @@ export function isCashBankLedger(l: BookLedgerLike): boolean {
   const g = `${l.groupName || ''} ${l.name || ''}`.toLowerCase();
   return t === 'CS' || t === 'BK' || t === 'BN' || /cash|bank/.test(g);
 }
+
+/** Balanced two-line journal for desk: Dr debitLedger / Cr creditLedger. */
+export function twoLineJournalEntries(
+  debitLedgerId: string,
+  creditLedgerId: string,
+  amount: number,
+): Array<{ ledgerId: string; debit: number; credit: number }> {
+  const amt = Math.round(Number(amount) * 100) / 100;
+  return [
+    { ledgerId: debitLedgerId, debit: amt, credit: 0 },
+    { ledgerId: creditLedgerId, debit: 0, credit: amt },
+  ];
+}

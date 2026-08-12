@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCashBankLedger } from '../../src/features/books/bookLedgerUtils';
+import { isCashBankLedger, twoLineJournalEntries } from '../../src/features/books/bookLedgerUtils';
 
 describe('isCashBankLedger', () => {
   it('detects Miracle CS/BK/BN types', () => {
@@ -16,5 +16,14 @@ describe('isCashBankLedger', () => {
   it('rejects ordinary party ledgers', () => {
     expect(isCashBankLedger({ ledgerType: 'PR', name: 'ACME TRADERS' })).toBe(false);
     expect(isCashBankLedger({ ledgerType: 'IN', name: 'Sales' })).toBe(false);
+  });
+});
+
+describe('twoLineJournalEntries', () => {
+  it('builds balanced Dr/Cr lines', () => {
+    expect(twoLineJournalEntries('L-DR', 'L-CR', 250.5)).toEqual([
+      { ledgerId: 'L-DR', debit: 250.5, credit: 0 },
+      { ledgerId: 'L-CR', debit: 0, credit: 250.5 },
+    ]);
   });
 });
