@@ -1507,6 +1507,7 @@ describe('miracleImport', () => {
       expect(summary.coverage.billMatchedPayments).toBe(1);
       expect(summary.creditDebitNotes).toBe(1);
       expect(summary.invoices).toBe(2);
+      expect(summary.creditNoteStockUnits).toBe(1);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -1522,6 +1523,12 @@ describe('miracleImport', () => {
     expect(note.rows[0]?.note_type).toBe('credit');
     expect(note.rows[0]?.total).toBe(500);
     expect(note.rows[0]?.note_number).toBe('CN/1');
+
+    const cnInv = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory WHERE tenant_id=$1 AND batch_id=$2 AND status='InStock'`,
+      [TENANT, 'miracle:cn:CNVOUCHER1'],
+    );
+    expect(cnInv.rows[0]?.n).toBe(1);
 
     const paid = await pool.query(
       `SELECT si.invoice_number, ip.amount::float AS amount
@@ -1961,5 +1968,225 @@ describe('miracleImport', () => {
       0,
     );
     expect(taxSum).toBeCloseTo(18, 5);
+  });
+
+  it('dual-writes Miracle credit-note product lines into ops stock (idempotent); DN skips stock', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-cn-stock-'));
+    tmpDirs.push(root);
+    const company = path.join(root, 'CMP0001');
+    fs.mkdirSync(company, { recursive: true });
+    fs.writeFileSync(path.join(company, 'version.txt'), 'Company Name : CN STOCK\nMiracle Version : 12.0\n');
+    const yr = path.join(company, 'YR25');
+    fs.mkdirSync(yr, { recursive: true });
+
+    writeDbf(
+      path.join(yr, 'rkaccm11.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+      ],
+      [
+        { FIELD01: 'GRPPARTY', FIELD02: 'Sundry Debtors', FIELD07: 'A' },
+        { FIELD01: 'GRPSALES', FIELD02: 'Sales', FIELD07: 'I' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCM01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 1 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'C', length: 8 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+        { name: 'FIELD10', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        {
+          FIELD01: 'APARTY01',
+          FIELD02: 'CUSTOMER ONE',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'PR',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ASALES01',
+          FIELD02: 'Sales Account',
+          FIELD04: 'A',
+          FIELD05: 'GRPSALES',
+          FIELD06: 'GRPSALES',
+          FIELD07: 'IN',
+          FIELD10: 0,
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD08', type: 'C', length: 10 },
+      ],
+      [{ FIELD01: 'PRODCN01', FIELD02: 'Returned Bolt', FIELD08: 'Nos' }],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm29.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'M29F03', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'PRODCN01', M29F03: 40 }],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'FIELD98', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'CNSTOCK001',
+          FIELD02: '20250620',
+          FIELD04: 'APARTY01',
+          FIELD05: 'ASALES01',
+          FIELD06: 120,
+          FIELD07: 120,
+          FIELD12: 'CN/88',
+          FIELD16: '',
+          FIELD74: 'CN',
+          FIELD98: 'CN',
+          T41FVNO: 'CN/88',
+        },
+        {
+          FIELD01: 'DNSTOCK001',
+          FIELD02: '20250621',
+          FIELD04: 'APARTY01',
+          FIELD05: 'ASALES01',
+          FIELD06: 40,
+          FIELD07: 40,
+          FIELD12: 'DN/1',
+          FIELD16: '',
+          FIELD74: 'DN',
+          FIELD98: 'DN',
+          T41FVNO: 'DN/1',
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD06', type: 'C', length: 1 },
+      ],
+      [
+        { FIELD01: 'CNSTOCK001', FIELD03: 'ASALES01', FIELD04: 'APARTY01', FIELD05: 120, FIELD06: 'D' },
+        { FIELD01: 'CNSTOCK001', FIELD03: 'APARTY01', FIELD04: 'ASALES01', FIELD05: 120, FIELD06: 'C' },
+        { FIELD01: 'DNSTOCK001', FIELD03: 'APARTY01', FIELD04: 'ASALES01', FIELD05: 40, FIELD06: 'D' },
+        { FIELD01: 'DNSTOCK001', FIELD03: 'ASALES01', FIELD04: 'APARTY01', FIELD05: 40, FIELD06: 'C' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT02.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD08', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        { FIELD01: 'CNSTOCK001', FIELD03: 'PRODCN01', FIELD06: 3, FIELD07: 40, FIELD08: 120 },
+        { FIELD01: 'DNSTOCK001', FIELD03: 'PRODCN01', FIELD06: 1, FIELD07: 40, FIELD08: 40 },
+      ],
+    );
+
+    for (const t of [
+      'product_inventory',
+      'product_purchases',
+      'credit_debit_notes',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]).catch(() => undefined);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const runOnce = async () => {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await importMiracleCompany(client, TENANT, company, jobId);
+        await client.query('COMMIT');
+        return result;
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    };
+
+    const first = await runOnce();
+    expect(first.errors).toEqual([]);
+    expect(first.summary.coverage.creditNotes).toEqual({ source: 1, imported: 1, skipped: 0 });
+    expect(first.summary.coverage.debitNotes).toEqual({ source: 1, imported: 1, skipped: 0 });
+    expect(first.summary.creditNoteStockUnits).toBe(3);
+
+    const stock = await pool.query(
+      `SELECT stock::float AS stock FROM products WHERE tenant_id=$1 AND external_ref=$2`,
+      [TENANT, 'PRODCN01'],
+    );
+    expect(stock.rows[0]?.stock).toBe(3);
+    const cnInv = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory WHERE tenant_id=$1 AND batch_id=$2 AND status='InStock'`,
+      [TENANT, 'miracle:cn:CNSTOCK001'],
+    );
+    expect(cnInv.rows[0]?.n).toBe(3);
+    const dnInv = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory WHERE tenant_id=$1 AND batch_id LIKE $2`,
+      [TENANT, 'miracle:dn:%'],
+    );
+    expect(dnInv.rows[0]?.n).toBe(0);
+
+    const second = await runOnce();
+    expect(second.summary.creditNoteStockUnits).toBe(3);
+    const stock2 = await pool.query(
+      `SELECT stock::float AS stock FROM products WHERE tenant_id=$1 AND external_ref=$2`,
+      [TENANT, 'PRODCN01'],
+    );
+    expect(stock2.rows[0]?.stock).toBe(3);
+    const cnInv2 = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM product_inventory WHERE tenant_id=$1 AND batch_id=$2 AND status='InStock'`,
+      [TENANT, 'miracle:cn:CNSTOCK001'],
+    );
+    expect(cnInv2.rows[0]?.n).toBe(3);
   });
 });
