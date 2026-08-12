@@ -928,6 +928,12 @@ export async function initSchema() {
       ON standalone_invoices (tenant_id, external_ref)
       WHERE external_ref IS NOT NULL
     `);
+    // E-invoice / E-way on standalone (Miracle-imported + ops desk) invoices
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS irn TEXT');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS irn_ack_no TEXT');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS irn_ack_dt TEXT');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS irn_qr TEXT');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS ewb_number TEXT');
     // sale = party bill; cash_income = rent/scrap/misc (import or Record cash income — same kind)
     await client.query(
       `ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS invoice_kind TEXT NOT NULL DEFAULT 'sale'`,

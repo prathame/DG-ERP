@@ -145,6 +145,17 @@ async function buildStandaloneInvoiceHtml(
           `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
         )
       : '';
+  const irnQrPayload =
+    !isQuote && typeof inv.irnQr === 'string' && inv.irnQr.trim()
+      ? inv.irnQr.trim()
+      : !isQuote && typeof inv.irn === 'string' && inv.irn.trim()
+        ? inv.irn.trim()
+        : '';
+  const irnQrDataUrl = irnQrPayload
+    ? await fetchImageAsDataUrl(
+        `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`,
+      )
+    : '';
   const phoneUx = isServiceProductUx(options?.businessType);
   const hasGst = invoiceHasGst(inv);
   const html = generateStandaloneInvoiceHtml(
@@ -162,7 +173,13 @@ async function buildStandaloneInvoiceHtml(
       signatureBase64: sigSrc || bs.signatureBase64,
       primaryColor: color,
     },
-    { qrDataUrl: upiQrDataUrl || undefined, hideNotes: phoneUx, hasGst, docType },
+    {
+      qrDataUrl: upiQrDataUrl || undefined,
+      hideNotes: phoneUx,
+      hasGst,
+      docType,
+      irnQrDataUrl: irnQrDataUrl || undefined,
+    },
   );
   const filename = standaloneInvoicePdfBasename(inv.customerName);
   return { html, filename, hasGst };
