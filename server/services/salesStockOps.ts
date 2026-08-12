@@ -1,6 +1,6 @@
 /**
- * Ops sales / credit-note stock dual-write.
- * Shared by Miracle import (miracle:sal: / miracle:cn:) and Books desk (books:sal: / books:cn:).
+ * Ops sales / credit-note / debit-note stock dual-write.
+ * Shared by Miracle import (miracle:sal: / miracle:cn:) and Books desk (books:sal: / books:cn: / books:dn:).
  */
 import type { PoolClient } from 'pg';
 
@@ -122,6 +122,19 @@ export async function upsertCreditNoteStockIn(
 /** Clear Books desk sale Sold marks for a voucher (does not restore InStock). */
 export async function clearBooksSaleStockOut(client: PoolClient, tenantId: string, voucherId: string): Promise<void> {
   const batchId = `books:sal:${voucherId}`;
+  await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'Sold'`, [
+    tenantId,
+    batchId,
+  ]);
+}
+
+/** Clear Books desk debit-note Sold marks for a voucher (does not restore InStock). */
+export async function clearBooksDebitNoteStockOut(
+  client: PoolClient,
+  tenantId: string,
+  voucherId: string,
+): Promise<void> {
+  const batchId = `books:dn:${voucherId}`;
   await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'Sold'`, [
     tenantId,
     batchId,
