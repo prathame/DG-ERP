@@ -1,11 +1,26 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
-import { uid, logAudit } from '../utils/helpers';
+import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
 
 const router = Router();
+
+/** Next SI/FY/#### under a tenant advisory lock (safe under concurrency). */
+async function allocateNextSelfInvoiceNumber(client: { query: typeof pool.query }, tenantId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1 || ':purchase_self_invoice_seq'))`, [tenantId]);
+  const fy = indianFinancialYear();
+  const prefix = `SI/${fy}/`;
+  const { rows } = await client.query(
+    `SELECT invoice_number FROM product_purchases
+     WHERE tenant_id = $1 AND invoice_number LIKE $2
+     ORDER BY invoice_number DESC
+     LIMIT 1`,
+    [tenantId, `${prefix}%`],
+  );
+  return nextSelfInvoiceNumber(rows[0]?.invoice_number as string | undefined, fy);
+}
 
 // ============ SUPPLIERS CRUD ============
 
@@ -194,6 +209,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
     const batchId = uid('PB');
     const paidAmount = amountPaid ? Math.max(0, Number(amountPaid)) : 0;
+    let resolvedInvoiceNumber = typeof invoiceNumber === 'string' ? invoiceNumber.trim() : '';
 
     let totalBilled = 0;
     let totalQty = 0;
@@ -249,6 +265,9 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      if (isRcm && !resolvedInvoiceNumber) {
+        resolvedInvoiceNumber = await allocateNextSelfInvoiceNumber(client, tenantId);
+      }
       // Bulk INSERT all purchase rows in one query
       const purchaseVals: string[] = [];
       const purchasePs: unknown[] = [];
@@ -271,7 +290,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
             u.gstApplied,
             u.billedPrice,
             u.disc,
-            invoiceNumber || null,
+            resolvedInvoiceNumber || null,
             isRcm,
           );
           pIdx += 12;
@@ -386,6 +405,8 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       billValue: totalBilled,
       amountPaid: paidAmount,
       balanceRemaining: totalBilled - paidAmount,
+      isRcm,
+      invoiceNumber: resolvedInvoiceNumber || null,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -400,7 +421,9 @@ router.get('/api/purchases/batches', async (req, res) => {
     let sql = `
       SELECT pp.batch_id, pp.supplier_id, s.name as supplier_name, MIN(pp.purchase_date) as purchase_date,
         COUNT(*) as total, SUM(COALESCE(pp.billed_price, pp.cost_price)) as bill_value,
-        STRING_AGG(DISTINCT p.name, ',') as product_names
+        STRING_AGG(DISTINCT p.name, ',') as product_names,
+        BOOL_OR(COALESCE(pp.is_rcm, false)) as is_rcm,
+        MAX(pp.invoice_number) as invoice_number
       FROM product_purchases pp
       JOIN products p ON pp.product_id = p.id AND p.tenant_id = $1
       JOIN suppliers s ON pp.supplier_id = s.id AND s.tenant_id = $1
@@ -442,6 +465,8 @@ router.get('/api/purchases/batches', async (req, res) => {
           billValue: billVal,
           amountPaid: paid,
           balanceRemaining: billVal - paid,
+          isRcm: !!r.is_rcm,
+          invoiceNumber: (r.invoice_number as string) || null,
         };
       }),
     );
@@ -475,7 +500,9 @@ router.get('/api/purchases/batch/:batchId', async (req, res) => {
         `
       SELECT pp.batch_id, pp.supplier_id, s.name as supplier_name, MIN(pp.purchase_date) as purchase_date,
         COUNT(*) as total, SUM(COALESCE(pp.billed_price, pp.cost_price)) as bill_value,
-        STRING_AGG(DISTINCT p.name, ',') as product_names
+        STRING_AGG(DISTINCT p.name, ',') as product_names,
+        BOOL_OR(COALESCE(pp.is_rcm, false)) as is_rcm,
+        MAX(pp.invoice_number) as invoice_number
       FROM product_purchases pp
       JOIN products p ON pp.product_id = p.id AND p.tenant_id = $1
       JOIN suppliers s ON pp.supplier_id = s.id AND s.tenant_id = $1
@@ -493,6 +520,7 @@ router.get('/api/purchases/batch/:batchId', async (req, res) => {
         productName: string;
         quantity: number;
         costPrice: number;
+        billedPrice: number;
         discountPercent: number;
         withGst: boolean;
       }
@@ -505,6 +533,7 @@ router.get('/api/purchases/batch/:batchId', async (req, res) => {
           productName: r.product_name as string,
           quantity: 0,
           costPrice: Number(r.cost_price),
+          billedPrice: Number(r.billed_price ?? r.cost_price),
           discountPercent: Number(r.discount_percent) || 0,
           withGst: !!r.gst_applied,
         };
@@ -533,6 +562,8 @@ router.get('/api/purchases/batch/:batchId', async (req, res) => {
       billValue,
       amountPaid: batchPaid,
       balanceRemaining: billValue - batchPaid,
+      isRcm: !!batch.is_rcm,
+      invoiceNumber: (batch.invoice_number as string) || null,
       items: Object.values(groups),
     });
   } catch (err) {

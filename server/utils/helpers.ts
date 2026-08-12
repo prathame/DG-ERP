@@ -67,6 +67,25 @@ export function applyRcmToGstr3b(args: {
   };
 }
 
+/** Indian FY label used in doc numbers: Apr–Mar → YYYY-YY (e.g. 2026-27). */
+export function indianFinancialYear(now = new Date()): string {
+  return now.getMonth() >= 3
+    ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
+    : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
+}
+
+/** Next SI/{FY}/#### from the last stored self-invoice number (empty → 0001). */
+export function nextSelfInvoiceNumber(
+  lastInvoiceNumber: string | null | undefined,
+  fy = indianFinancialYear(),
+): string {
+  const prefix = `SI/${fy}/`;
+  const last = String(lastInvoiceNumber || '');
+  const m = last.match(/\/(\d+)$/);
+  const next = (m ? Number(m[1]) : 0) + 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
 /**
  * Standalone invoice was created as a GST bill (frozen at create).
  * Legacy NULL → treat tax_total > 0 as GST (backfill-compatible).

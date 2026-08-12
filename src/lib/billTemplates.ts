@@ -1229,3 +1229,33 @@ export function generateQuotationHtml(q: QuotationBillInput, options?: { hideNot
     },
   );
 }
+
+/** Thin RCM self-invoice print (no fancy layout). */
+export function generatePurchaseSelfInvoiceHtml(opts: {
+  invoiceNumber: string;
+  supplierName: string;
+  purchaseDate: string;
+  items: { name: string; qty: number; taxable: number; tax: number }[];
+  companyName?: string;
+}): string {
+  const rows = opts.items
+    .map(
+      it =>
+        `<tr><td>${esc(it.name)}</td><td style="text-align:right">${esc(it.qty)}</td><td style="text-align:right">${esc(it.taxable.toFixed(2))}</td><td style="text-align:right">${esc(it.tax.toFixed(2))}</td></tr>`,
+    )
+    .join('');
+  const taxable = opts.items.reduce((s, it) => s + Number(it.taxable || 0), 0);
+  const tax = opts.items.reduce((s, it) => s + Number(it.tax || 0), 0);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Self Invoice (Reverse Charge) — ${esc(opts.invoiceNumber)}</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;font-size:12px;padding:16px;color:#111}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #222;padding:6px 8px;text-align:left}th{font-size:11px;text-transform:uppercase}.title{font-size:18px;font-weight:700;text-align:center;margin:0 0 12px}</style>
+</head><body>
+<div class="title">Self Invoice (Reverse Charge)</div>
+<p><strong>${esc(opts.companyName || 'Buyer')}</strong></p>
+<p>Self-invoice no.: <strong style="font-family:monospace">${esc(opts.invoiceNumber)}</strong></p>
+<p>Supplier: ${esc(opts.supplierName)} · Date: ${esc(opts.purchaseDate)}</p>
+<table><thead><tr><th>Item</th><th>Qty</th><th>Taxable</th><th>GST (RCM)</th></tr></thead><tbody>${rows}
+<tr><td colspan="2"><strong>Total</strong></td><td style="text-align:right"><strong>${esc(taxable.toFixed(2))}</strong></td><td style="text-align:right"><strong>${esc(tax.toFixed(2))}</strong></td></tr>
+</tbody></table>
+<p style="margin-top:12px;font-size:11px;color:#555">GST under reverse charge is payable by the recipient.</p>
+</body></html>`;
+}

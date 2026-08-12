@@ -4,6 +4,8 @@ import {
   PURCHASE_RCM_TAX_SQL,
   PURCHASE_RCM_TAXABLE_SQL,
   applyRcmToGstr3b,
+  indianFinancialYear,
+  nextSelfInvoiceNumber,
 } from '../../server/utils/helpers';
 
 describe('purchase RCM helpers', () => {
@@ -45,5 +47,16 @@ describe('purchase RCM helpers', () => {
       reverseChargeTax: 0,
       reverseChargeTaxable: 0,
     });
+  });
+
+  it('auto-allocates SI/{FY}/#### from last self-invoice number', () => {
+    const fy = indianFinancialYear(new Date('2026-08-12T00:00:00'));
+    expect(fy).toBe('2026-27');
+    expect(nextSelfInvoiceNumber(null, fy)).toBe('SI/2026-27/0001');
+    expect(nextSelfInvoiceNumber('', fy)).toBe('SI/2026-27/0001');
+    expect(nextSelfInvoiceNumber('SI/2026-27/0001', fy)).toBe('SI/2026-27/0002');
+    expect(nextSelfInvoiceNumber('SI/2026-27/0099', fy)).toBe('SI/2026-27/0100');
+    // Pre-April uses previous calendar year's FY start
+    expect(indianFinancialYear(new Date('2026-03-15T00:00:00'))).toBe('2025-26');
   });
 });
