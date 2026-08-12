@@ -12,7 +12,8 @@ import {
   Truck,
   UserPlus,
 } from 'lucide-react';
-import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
+import { cn, formatDate, exportToCsv, getTabLabel, openPrintWindow, printBillInWindow } from '../../lib/utils';
+import { generatePurchaseSelfInvoiceHtml } from '../../lib/billTemplates';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
@@ -59,6 +60,8 @@ interface PurchaseBatch {
   billValue: number;
   amountPaid: number;
   balanceRemaining: number;
+  isRcm?: boolean;
+  invoiceNumber?: string | null;
 }
 
 export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
@@ -377,7 +380,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     }
     setSubmitting(true);
     try {
-      await fetchApi('/purchases/batch', {
+      const created = (await fetchApi('/purchases/batch', {
         method: 'POST',
         body: JSON.stringify({
           supplierId: purchaseForm.supplierId,
@@ -397,7 +400,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             };
           }),
         }),
-      });
+      })) as { invoiceNumber?: string | null; isRcm?: boolean };
       setModalOpen(false);
       setPurchaseRows([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]);
       setPurchaseForm({
@@ -408,7 +411,8 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
         isRcm: false,
       });
       load();
-      toast(`Purchase recorded — ${validRows.length} product(s), ${purchaseTotals.items} items`, 'success');
+      const si = created?.isRcm && created.invoiceNumber ? ` · Self-invoice ${created.invoiceNumber}` : '';
+      toast(`Purchase recorded — ${validRows.length} product(s), ${purchaseTotals.items} items${si}`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -519,6 +523,40 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 <h3 className="font-bold text-lg">{supplierName}</h3>
                 {isBillFullyPaid(Number(bd.billValue), Number(bd.balanceRemaining)) && <PaidBadge />}
                 <span className="text-xs text-gray-500">Purchase — {formatDate(bd.purchaseDate as string)}</span>
+                {bd.isRcm ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                    RCM{bd.invoiceNumber ? ` · ${String(bd.invoiceNumber)}` : ''}
+                  </span>
+                ) : null}
+                {bd.isRcm && bd.invoiceNumber ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const items = ((bd.items as Record<string, unknown>[]) || []).map(it => {
+                        const qty = Number(it.quantity) || 0;
+                        const cost = Number(it.costPrice) || 0;
+                        const billed = Number(it.billedPrice ?? cost);
+                        return {
+                          name: String(it.productName || 'Item'),
+                          qty,
+                          taxable: Math.round(cost * qty * 100) / 100,
+                          tax: Math.round(Math.max(0, billed - cost) * qty * 100) / 100,
+                        };
+                      });
+                      const html = generatePurchaseSelfInvoiceHtml({
+                        invoiceNumber: String(bd.invoiceNumber),
+                        supplierName: String(bd.supplierName || supplierName || 'Supplier'),
+                        purchaseDate: formatDate(bd.purchaseDate as string),
+                        items,
+                      });
+                      const w = openPrintWindow('Self invoice…');
+                      if (w) printBillInWindow(w, html, String(bd.invoiceNumber));
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg"
+                  >
+                    <Receipt size={16} /> Print self invoice
+                  </button>
+                ) : null}
                 {Number(bd.balanceRemaining) > 0 && (
                   <button
                     type="button"
@@ -740,6 +778,11 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium">Purchase — {formatDate(batch.purchaseDate)}</p>
+                      {batch.isRcm && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                          RCM{batch.invoiceNumber ? ` · ${batch.invoiceNumber}` : ''}
+                        </span>
+                      )}
                       {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -1354,12 +1397,12 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     ))}
                   </select>
                 </FormField>
-                <FormField label="Invoice No.">
+                <FormField label={purchaseForm.isRcm ? 'Self-invoice no.' : 'Invoice No.'}>
                   <input
                     value={purchaseForm.invoiceNumber}
                     onChange={e => setPurchaseForm({ ...purchaseForm, invoiceNumber: e.target.value })}
                     className={cn(formControlClass, 'font-mono')}
-                    placeholder="e.g. INV-001"
+                    placeholder={purchaseForm.isRcm ? 'Auto SI/FY/#### if blank' : 'e.g. INV-001'}
                   />
                 </FormField>
                 <FormField label="Date">
