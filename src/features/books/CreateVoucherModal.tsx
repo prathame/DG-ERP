@@ -4,7 +4,7 @@ import { fetchApi } from '../../api';
 import { AppModal } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
-type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra' | 'sales';
+type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra' | 'sales' | 'credit_note' | 'debit_note';
 
 interface LedgerOption {
   id: string;
@@ -24,6 +24,8 @@ const TYPE_OPTIONS: { id: VoucherKind; label: string; hint: string }[] = [
   { id: 'receipt', label: 'Receipt', hint: 'Cash/Bank ← Party' },
   { id: 'payment', label: 'Payment', hint: 'Party ← Cash/Bank' },
   { id: 'sales', label: 'Sales', hint: 'Party ← Sales income' },
+  { id: 'credit_note', label: 'Credit note', hint: 'Sales/return ← Party' },
+  { id: 'debit_note', label: 'Debit note', hint: 'Party ← Sales/income' },
   { id: 'contra', label: 'Contra', hint: 'Cash ↔ Bank transfer' },
   { id: 'journal', label: 'Journal', hint: 'Multi-ledger adjustment' },
 ];
@@ -39,13 +41,15 @@ function newLine(): JournalLine {
 export function CreateVoucherModal({
   onClose,
   onCreated,
+  initialType = 'receipt',
 }: {
   onClose: () => void;
   onCreated: () => void | Promise<void>;
+  initialType?: VoucherKind;
 }) {
   const [ledgers, setLedgers] = useState<LedgerOption[]>([]);
   const [loadingLedgers, setLoadingLedgers] = useState(true);
-  const [voucherType, setVoucherType] = useState<VoucherKind>('receipt');
+  const [voucherType, setVoucherType] = useState<VoucherKind>(initialType);
   const [voucherDate, setVoucherDate] = useState(todayIso);
   const [voucherNumber, setVoucherNumber] = useState('');
   const [narration, setNarration] = useState('');
@@ -102,7 +106,7 @@ export function CreateVoucherModal({
     const salesish = ledgers.filter(l => {
       const t = (l.ledgerType || '').toUpperCase();
       const g = `${l.groupName || ''} ${l.name}`.toLowerCase();
-      return t === 'IN' || t === 'TS' || t === 'JP' || /sales|income|revenue/.test(g);
+      return t === 'IN' || t === 'TS' || t === 'JP' || /sales|income|revenue|return/.test(g);
     });
     const list = salesish.length ? salesish : ledgers;
     return list.map(l => ({
@@ -111,6 +115,8 @@ export function CreateVoucherModal({
       sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
     }));
   }, [ledgers]);
+
+  const usesSalesContra = voucherType === 'sales' || voucherType === 'credit_note' || voucherType === 'debit_note';
 
   async function handleSave() {
     setError(null);
@@ -151,7 +157,7 @@ export function CreateVoucherModal({
       ? 'To (deposit / destination)'
       : voucherType === 'payment'
         ? 'Party (paid to)'
-        : voucherType === 'sales'
+        : voucherType === 'sales' || voucherType === 'credit_note' || voucherType === 'debit_note'
           ? 'Party (customer)'
           : 'Party';
   const contraLabel =
@@ -159,14 +165,16 @@ export function CreateVoucherModal({
       ? 'From (withdraw / source)'
       : voucherType === 'receipt'
         ? 'Cash / Bank (received in)'
-        : voucherType === 'sales'
-          ? 'Sales income'
-          : 'Cash / Bank (paid from)';
+        : voucherType === 'credit_note'
+          ? 'Sales / return (debited)'
+          : voucherType === 'sales' || voucherType === 'debit_note'
+            ? 'Sales income'
+            : 'Cash / Bank (paid from)';
 
   return (
     <AppModal
       title="New voucher"
-      subtitle="Receipt, payment, sales, contra, or journal"
+      subtitle="Receipt, payment, sales, credit/debit note, contra, or journal"
       onClose={onClose}
       size="lg"
       footer={
@@ -194,7 +202,7 @@ export function CreateVoucherModal({
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         )}
 
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {TYPE_OPTIONS.map(opt => (
             <button
               key={opt.id}
@@ -306,16 +314,10 @@ export function CreateVoucherModal({
             <label className="block text-sm sm:col-span-1">
               <span className="mb-1 block text-slate-600">{contraLabel}</span>
               <SearchSelect
-                options={
-                  voucherType === 'sales'
-                    ? salesIncomeOptions
-                    : voucherType === 'contra'
-                      ? cashBankOptions
-                      : cashBankOptions
-                }
+                options={usesSalesContra ? salesIncomeOptions : cashBankOptions}
                 value={contraLedgerId}
                 onChange={setContraLedgerId}
-                placeholder={voucherType === 'sales' ? 'Select sales income' : 'Select cash/bank'}
+                placeholder={usesSalesContra ? 'Select sales / income' : 'Select cash/bank'}
               />
             </label>
             <label className="block text-sm sm:col-span-2">

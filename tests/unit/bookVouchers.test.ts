@@ -165,6 +165,71 @@ describe('bookVouchers', () => {
     }
   });
 
+  it('creates credit and debit note vouchers with correct sides', async () => {
+    await cleanupTestData(TENANT);
+    const { party } = await seedLedgers();
+    const sales = uid('BL');
+    const g = (await pool.query(`SELECT id FROM book_account_groups WHERE tenant_id = $1 LIMIT 1`, [TENANT]))
+      .rows[0] as { id: string };
+    await pool.query(
+      `INSERT INTO book_ledgers (id, tenant_id, name, group_id, nature, ledger_type, opening_balance, external_ref)
+       VALUES ($1,$2,'Sales Income',$3,'I','IN',0,'L-SALES')`,
+      [sales, TENANT, g.id],
+    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cn = await createBookVoucher(client, TENANT, {
+        voucherType: 'credit_note',
+        voucherDate: '2025-07-01',
+        voucherNumber: 'CN/1',
+        partyLedgerId: party,
+        contraLedgerId: sales,
+        amount: 250,
+        narration: 'Sales return',
+      });
+      expect(cn.voucherType).toBe('credit_note');
+      expect(cn.amount).toBe(250);
+
+      const dn = await createBookVoucher(client, TENANT, {
+        voucherType: 'debit_note',
+        voucherDate: '2025-07-02',
+        voucherNumber: 'DN/1',
+        partyLedgerId: party,
+        contraLedgerId: sales,
+        amount: 80,
+        narration: 'Extra charge',
+      });
+      expect(dn.voucherType).toBe('debit_note');
+      await client.query('COMMIT');
+
+      const cnEntries = await pool.query(
+        `SELECT ledger_id, debit::float AS debit, credit::float AS credit
+         FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2 ORDER BY line_no`,
+        [TENANT, cn.id],
+      );
+      expect(cnEntries.rows).toEqual([
+        expect.objectContaining({ ledger_id: sales, debit: 250, credit: 0 }),
+        expect.objectContaining({ ledger_id: party, debit: 0, credit: 250 }),
+      ]);
+
+      const dnEntries = await pool.query(
+        `SELECT ledger_id, debit::float AS debit, credit::float AS credit
+         FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2 ORDER BY line_no`,
+        [TENANT, dn.id],
+      );
+      expect(dnEntries.rows).toEqual([
+        expect.objectContaining({ ledger_id: party, debit: 80, credit: 0 }),
+        expect.objectContaining({ ledger_id: sales, debit: 0, credit: 80 }),
+      ]);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
   it('rejects unbalanced journals and same-ledger cash vouchers', async () => {
     await cleanupTestData(TENANT);
     const { cash, party } = await seedLedgers();
