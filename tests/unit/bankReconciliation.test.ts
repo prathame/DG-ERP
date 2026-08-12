@@ -98,15 +98,25 @@ describe('bank reconciliation (BRS)', () => {
     expect(recon.statementBalance).toBe(0);
     expect(recon.difference).toBe(-1000);
 
+    // Query override without persisting
+    const overridden = await getBankReconciliation(pool, TENANT, '2025-07-31', bank, 1000);
+    expect(overridden.statementBalance).toBe(1000);
+    expect(overridden.difference).toBe(0);
+    expect(overridden.balanced).toBe(true);
+
     const depositId = recon.lines.find(l => l.debit === 500)!.entryId;
     const chequeId = recon.lines.find(l => l.credit === 200)!.entryId;
 
     const markClient = await pool.connect();
     try {
       await markClient.query('BEGIN');
+      expect(await markBankReconEntries(markClient, TENANT, bank, [], true, '2025-07-31')).toBe(0);
+      expect(await markBankReconEntries(markClient, TENANT, bank, ['not-an-entry'], true, '2025-07-31')).toBe(0);
       // Clear the cheque only — deposit still in transit
       await markBankReconEntries(markClient, TENANT, bank, [chequeId], true, '2025-07-31');
       await saveBankReconStatement(markClient, TENANT, bank, '2025-07-31', 800);
+      // Update existing session
+      await saveBankReconStatement(markClient, TENANT, bank, '2025-07-31', 800, 'ok');
       await markClient.query('COMMIT');
     } finally {
       markClient.release();
@@ -135,5 +145,26 @@ describe('bank reconciliation (BRS)', () => {
     recon = await getBankReconciliation(pool, TENANT, '2025-07-31', bank);
     expect(recon.unclearedCheques).toBe(200);
     expect(recon.balanced).toBe(false);
+  });
+
+  it('returns empty shell when no bank ledgers; prefers ops:BANK', async () => {
+    await cleanupTestData(TENANT);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
+       VALUES ($1,'Bank Recon Test',$2,'br@test.com','BR','active','service')
+       ON CONFLICT (id) DO NOTHING`,
+      [TENANT, `br-${TENANT.toLowerCase()}`],
+    );
+
+    const empty = await getBankReconciliation(pool, TENANT, '2025-07-31');
+    expect(empty.ledger).toBeNull();
+    expect(empty.lines).toEqual([]);
+    expect(empty.balanced).toBe(true);
+
+    const { bank } = await seed();
+    const withOpeningOnly = await getBankReconciliation(pool, TENANT, '2025-07-31');
+    expect(withOpeningOnly.ledger?.id).toBe(bank);
+    expect(withOpeningOnly.booksBalance).toBe(1000);
+    expect(withOpeningOnly.lines).toHaveLength(0);
   });
 });
