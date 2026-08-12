@@ -609,6 +609,12 @@ export async function initSchema() {
       ON vendors (tenant_id, external_ref)
       WHERE external_ref IS NOT NULL
     `);
+    await client.query('ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_suppliers_tenant_external_ref
+      ON suppliers (tenant_id, external_ref)
+      WHERE external_ref IS NOT NULL
+    `);
     await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS external_ref TEXT');
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_external_ref
