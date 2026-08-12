@@ -3,6 +3,7 @@ import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
 
 const router = Router();
 
@@ -67,17 +68,15 @@ router.post('/api/suppliers', blockVendors, async (req: AuthRequest, res) => {
       ],
     );
     const row = (await pool.query('SELECT * FROM suppliers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    res
-      .status(201)
-      .json({
-        id: row.id,
-        name: row.name,
-        contactPerson: row.contact_person,
-        phone: row.phone,
-        email: row.email,
-        address: row.address,
-        gstNumber: row.gst_number ?? null,
-      });
+    res.status(201).json({
+      id: row.id,
+      name: row.name,
+      contactPerson: row.contact_person,
+      phone: row.phone,
+      email: row.email,
+      address: row.address,
+      gstNumber: row.gst_number ?? null,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -320,6 +319,38 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
           'INSERT INTO supplier_payments (id, tenant_id, supplier_id, amount, payment_date, payment_method, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
           [payId, tenantId, supplierId, paidAmount, date, 'Cash', `Payment with purchase ${batchId}`, batchId],
         );
+        try {
+          await postPurchaseBatchToBooks(client, tenantId, {
+            batchId,
+            supplierId,
+            supplierName: supplier.name,
+            billValue: totalBilled,
+            purchaseDate: date,
+          });
+          await postSupplierPaymentToBooks(client, tenantId, {
+            id: payId,
+            amount: paidAmount,
+            paymentDate: date,
+            paymentMethod: 'Cash',
+            notes: `Payment with purchase ${batchId}`,
+            supplierId,
+            supplierName: supplier.name,
+          });
+        } catch {
+          /* Books dual-write must not block purchases */
+        }
+      } else {
+        try {
+          await postPurchaseBatchToBooks(client, tenantId, {
+            batchId,
+            supplierId,
+            supplierName: supplier.name,
+            billValue: totalBilled,
+            purchaseDate: date,
+          });
+        } catch {
+          /* Books dual-write must not block purchases */
+        }
       }
       await client.query('COMMIT');
     } catch (e) {
@@ -613,8 +644,11 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
 
     await client.query('BEGIN');
     const supplier = (
-      await client.query('SELECT id FROM suppliers WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [supplierId, tenantId])
-    ).rows[0];
+      await client.query('SELECT id, name FROM suppliers WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
+        supplierId,
+        tenantId,
+      ])
+    ).rows[0] as { id: string; name: string } | undefined;
     if (!supplier) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Supplier not found' });
@@ -679,17 +713,29 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
         batchId || null,
       ],
     );
+    try {
+      await postSupplierPaymentToBooks(client, tenantId, {
+        id,
+        amount: parsedAmount,
+        paymentDate: paymentDate || new Date().toISOString().slice(0, 10),
+        paymentMethod: paymentMethod || 'Cash',
+        referenceNumber: referenceNumber || null,
+        notes: notes || null,
+        supplierId,
+        supplierName: supplier.name,
+      });
+    } catch {
+      /* Books dual-write must not block supplier payments */
+    }
     await client.query('COMMIT');
     const row = (await pool.query('SELECT * FROM supplier_payments WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
       .rows[0] as Record<string, unknown>;
-    res
-      .status(201)
-      .json({
-        id: row.id,
-        amount: Number(row.amount),
-        paymentDate: row.payment_date,
-        paymentMethod: row.payment_method,
-      });
+    res.status(201).json({
+      id: row.id,
+      amount: Number(row.amount),
+      paymentDate: row.payment_date,
+      paymentMethod: row.payment_method,
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     return handleApiError(req, res, err);

@@ -16,6 +16,7 @@ export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string
   await ensureLedger(client, tenantId, 'ops:CASH', 'Cash Account', 'B', 'CS', 'ops:G-CASH', 'Cash-in-Hand');
   await ensureLedger(client, tenantId, 'ops:BANK', 'Bank Account', 'B', 'BK', 'ops:G-BANK', 'Bank Accounts');
   await ensureLedger(client, tenantId, 'ops:SALES_INCOME', 'Sales Income', 'I', 'IN', 'ops:G-INCOME', 'Income');
+  await ensureLedger(client, tenantId, 'ops:PURCHASE', 'Purchase Account', 'E', 'EX', 'ops:G-PURCHASE', 'Purchases');
   await ensureOutputGstLedgers(client, tenantId);
   const vendors = (
     await client.query(`SELECT id, name FROM vendors WHERE tenant_id = $1 ORDER BY name LIMIT 500`, [tenantId])
@@ -263,6 +264,85 @@ async function resolveSalesIncomeLedger(client: PoolClient, tenantId: string): P
   ).rows[0] as { id: string } | undefined;
   if (preferred) return preferred.id;
   return ensureLedger(client, tenantId, 'ops:SALES_INCOME', 'Sales Income', 'I', 'IN', 'ops:G-INCOME', 'Income');
+}
+
+async function resolvePurchaseAccountLedger(client: PoolClient, tenantId: string): Promise<string> {
+  const preferred = (
+    await client.query(
+      `SELECT id FROM book_ledgers
+       WHERE tenant_id = $1
+         AND (external_ref = 'ops:PURCHASE' OR LOWER(name) LIKE '%purchase%')
+       ORDER BY
+         CASE
+           WHEN external_ref = 'ops:PURCHASE' THEN 0
+           WHEN LOWER(name) = 'purchase account' THEN 1
+           WHEN LOWER(name) LIKE '%purchase%' THEN 2
+           ELSE 3
+         END,
+         name
+       LIMIT 1`,
+      [tenantId],
+    )
+  ).rows[0] as { id: string } | undefined;
+  if (preferred) return preferred.id;
+  return ensureLedger(client, tenantId, 'ops:PURCHASE', 'Purchase Account', 'E', 'EX', 'ops:G-PURCHASE', 'Purchases');
+}
+
+/** Supplier → Sundry Creditors party ledger (AP). */
+async function resolveSupplierLedgerId(
+  client: PoolClient,
+  tenantId: string,
+  supplierId: string | null | undefined,
+  supplierName: string,
+): Promise<string> {
+  if (supplierId) {
+    const byRef = (
+      await client.query(`SELECT id FROM book_ledgers WHERE tenant_id = $1 AND external_ref = $2`, [
+        tenantId,
+        `ops:supplier:${supplierId}`,
+      ])
+    ).rows[0] as { id: string } | undefined;
+    if (byRef) return byRef.id;
+    const supplier = (
+      await client.query(`SELECT id, name FROM suppliers WHERE tenant_id = $1 AND id = $2`, [tenantId, supplierId])
+    ).rows[0] as { id: string; name: string } | undefined;
+    if (supplier) {
+      const byName = (
+        await client.query(`SELECT id FROM book_ledgers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`, [
+          tenantId,
+          supplier.name,
+        ])
+      ).rows[0] as { id: string } | undefined;
+      if (byName) return byName.id;
+      return ensureLedger(
+        client,
+        tenantId,
+        `ops:supplier:${supplier.id}`,
+        supplier.name,
+        'L',
+        'PR',
+        'ops:G-CREDITORS',
+        'Sundry Creditors',
+      );
+    }
+  }
+  const byName = (
+    await client.query(`SELECT id FROM book_ledgers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`, [
+      tenantId,
+      supplierName,
+    ])
+  ).rows[0] as { id: string } | undefined;
+  if (byName) return byName.id;
+  return ensureLedger(
+    client,
+    tenantId,
+    `ops:supplier:name:${(supplierName || 'Supplier').slice(0, 80)}`,
+    supplierName || 'Supplier',
+    'L',
+    'PR',
+    'ops:G-CREDITORS',
+    'Sundry Creditors',
+  );
 }
 
 async function resolveCashBankLedger(client: PoolClient, tenantId: string, paymentMethod: string): Promise<string> {
@@ -649,8 +729,9 @@ export async function postExpenseToBooks(
 }
 
 /**
- * Distribution / dispatch batch → Dr Party (vendor), Cr Sales Income.
- * Manufacturer / dealer / retail / silver path (billable units to a party).
+ * Distribution / dispatch batch → Books.
+ * Manufacturer / dealer: Dr Party, Cr Sales Income.
+ * Retail (UI label “Purchase”): Dr Purchase Account, Cr Party (AP).
  */
 export async function postDistributionBatchToBooks(
   client: PoolClient,
@@ -662,12 +743,41 @@ export async function postDistributionBatchToBooks(
     billValue: number;
     distributionDate: string;
     notes?: string | null;
+    /** Force purchase posting; default = retail business type. */
+    asPurchase?: boolean;
   },
 ): Promise<string | null> {
   await ensureNativeBooksDesk(client, tenantId);
   const amt = round2(batch.billValue);
   if (!(amt > 0)) return null;
+
+  let asPurchase = batch.asPurchase;
+  if (asPurchase === undefined) {
+    const bt = (await client.query(`SELECT business_type FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
+      { business_type?: string } | undefined;
+    asPurchase = bt?.business_type === 'retail';
+  }
+
   const partyLedgerId = await resolvePartyLedgerId(client, tenantId, batch.vendorId, batch.vendorName);
+
+  if (asPurchase) {
+    const purchaseLedgerId = await resolvePurchaseAccountLedger(client, tenantId);
+    return insertVoucher(client, tenantId, {
+      voucherType: 'purchase',
+      voucherDate: batch.distributionDate,
+      voucherNumber: batch.batchId,
+      partyLedgerId,
+      contraLedgerId: purchaseLedgerId,
+      amount: amt,
+      narration: batch.notes || `Ops purchase (distribution) ${batch.batchId}`,
+      externalRef: `ops:dist:${batch.batchId}`,
+      entries: [
+        { ledgerId: purchaseLedgerId, debit: amt, credit: 0 },
+        { ledgerId: partyLedgerId, debit: 0, credit: amt },
+      ],
+    });
+  }
+
   const salesLedgerId = await resolveSalesIncomeLedger(client, tenantId);
   return insertVoucher(client, tenantId, {
     voucherType: 'sales',
@@ -685,7 +795,78 @@ export async function postDistributionBatchToBooks(
   });
 }
 
-/** Vendor / dealer payment → Dr Cash/Bank, Cr Party (receipt). */
+/** Supplier purchase batch → Dr Purchase Account, Cr Supplier (creditor). */
+export async function postPurchaseBatchToBooks(
+  client: PoolClient,
+  tenantId: string,
+  batch: {
+    batchId: string;
+    supplierId: string;
+    supplierName: string;
+    billValue: number;
+    purchaseDate: string;
+    notes?: string | null;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const amt = round2(batch.billValue);
+  if (!(amt > 0)) return null;
+  const supplierLedgerId = await resolveSupplierLedgerId(client, tenantId, batch.supplierId, batch.supplierName);
+  const purchaseLedgerId = await resolvePurchaseAccountLedger(client, tenantId);
+  return insertVoucher(client, tenantId, {
+    voucherType: 'purchase',
+    voucherDate: batch.purchaseDate,
+    voucherNumber: batch.batchId,
+    partyLedgerId: supplierLedgerId,
+    contraLedgerId: purchaseLedgerId,
+    amount: amt,
+    narration: batch.notes || `Ops purchase ${batch.batchId}`,
+    externalRef: `ops:pur:${batch.batchId}`,
+    entries: [
+      { ledgerId: purchaseLedgerId, debit: amt, credit: 0 },
+      { ledgerId: supplierLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}
+
+/** Supplier payment → Dr Supplier, Cr Cash/Bank. */
+export async function postSupplierPaymentToBooks(
+  client: PoolClient,
+  tenantId: string,
+  payment: {
+    id: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: string;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    supplierId?: string | null;
+    supplierName: string;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const amt = round2(payment.amount);
+  if (!(amt > 0)) return null;
+  const supplierLedgerId = await resolveSupplierLedgerId(client, tenantId, payment.supplierId, payment.supplierName);
+  const cashLedgerId = await resolveCashBankLedger(client, tenantId, payment.paymentMethod);
+  return insertVoucher(client, tenantId, {
+    voucherType: 'payment',
+    voucherDate: payment.paymentDate,
+    voucherNumber: payment.referenceNumber || null,
+    partyLedgerId: supplierLedgerId,
+    contraLedgerId: cashLedgerId,
+    amount: amt,
+    narration: payment.notes || `Ops supplier payment ${payment.id}`,
+    externalRef: `ops:sp:${payment.id}`,
+    entries: [
+      { ledgerId: supplierLedgerId, debit: amt, credit: 0 },
+      { ledgerId: cashLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}
+
+/** Vendor / dealer payment → Dr Cash/Bank, Cr Party (receipt).
+ * Retail purchase path → Dr Party, Cr Cash/Bank (payment against AP). */
 export async function postVendorPaymentToBooks(
   client: PoolClient,
   tenantId: string,
@@ -698,6 +879,8 @@ export async function postVendorPaymentToBooks(
     notes?: string | null;
     vendorId?: string | null;
     vendorName: string;
+    /** Force AP payment posting; default = retail business type. */
+    asPurchasePayment?: boolean;
   },
 ): Promise<string | null> {
   await ensureNativeBooksDesk(client, tenantId);
@@ -705,6 +888,31 @@ export async function postVendorPaymentToBooks(
   if (!(amt > 0)) return null;
   const partyLedgerId = await resolvePartyLedgerId(client, tenantId, payment.vendorId, payment.vendorName);
   const cashLedgerId = await resolveCashBankLedger(client, tenantId, payment.paymentMethod);
+
+  let asPurchasePayment = payment.asPurchasePayment;
+  if (asPurchasePayment === undefined) {
+    const bt = (await client.query(`SELECT business_type FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
+      { business_type?: string } | undefined;
+    asPurchasePayment = bt?.business_type === 'retail';
+  }
+
+  if (asPurchasePayment) {
+    return insertVoucher(client, tenantId, {
+      voucherType: 'payment',
+      voucherDate: payment.paymentDate,
+      voucherNumber: payment.referenceNumber || null,
+      partyLedgerId,
+      contraLedgerId: cashLedgerId,
+      amount: amt,
+      narration: payment.notes || `Ops purchase payment ${payment.id}`,
+      externalRef: `ops:vp:${payment.id}`,
+      entries: [
+        { ledgerId: partyLedgerId, debit: amt, credit: 0 },
+        { ledgerId: cashLedgerId, debit: 0, credit: amt },
+      ],
+    });
+  }
+
   return insertVoucher(client, tenantId, {
     voucherType: 'receipt',
     voucherDate: payment.paymentDate,
