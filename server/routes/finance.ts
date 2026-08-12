@@ -1,16 +1,10 @@
 import { Router } from 'express';
-import {
-  blockVendors,
-  requireAdmin,
-  AuthRequest,
-  vendorScopeId,
-  assertVendorAccess,
-  assertVendorLinked,
-} from '../middleware/auth';
+import { blockVendors, AuthRequest, vendorScopeId, assertVendorAccess, assertVendorLinked } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postVendorPaymentToBooks } from '../services/opsToBooks';
+import { listRemindersDue, markReminderSentDate, runAutoWhatsAppReminders } from '../services/paymentReminderOps';
 
 const router = Router();
 
@@ -81,74 +75,42 @@ router.get('/api/vendor-finance/reminders-due', blockVendors, async (req: AuthRe
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { due } = await listRemindersDue(tenantId);
+    res.json(due);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
 
-    const company = (
-      await pool.query(
-        `SELECT reminders_enabled, reminder_cadence_days, reminder_min_due_amount, business_type
-         FROM tenants WHERE id = $1`,
-        [tenantId],
-      )
-    ).rows[0] as
-      | {
-          reminders_enabled: boolean | null;
-          reminder_cadence_days: number | null;
-          reminder_min_due_amount: number | null;
-          business_type: string | null;
-        }
-      | undefined;
-    if (!company || company.business_type === 'service' || company.reminders_enabled === false) {
-      return res.json([]);
+/** Auto-send WhatsApp reminders for due parties (company WABA). Admin JWT or x-cron-secret. */
+router.post('/api/vendor-finance/reminders-run', async (req: AuthRequest, res) => {
+  try {
+    const cronSecret = process.env.CRON_SECRET?.trim();
+    const headerSecret = String(req.headers['x-cron-secret'] || '').trim();
+    const isCron = !!(cronSecret && headerSecret && headerSecret === cronSecret);
+
+    let tenantId: string | undefined;
+    if (isCron) {
+      tenantId =
+        (typeof req.body?.tenantId === 'string' && req.body.tenantId.trim()) ||
+        (typeof req.query.tenantId === 'string' && String(req.query.tenantId).trim()) ||
+        (req.headers['x-tenant-id'] as string | undefined);
+      if (!tenantId) return res.status(400).json({ error: 'tenantId required for cron run' });
+    } else {
+      // Inline admin + non-vendor gate (avoid awkward multi-middleware auth fork)
+      if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+      const role = req.user.role || '';
+      if (!['Admin', 'Super Admin'].includes(role)) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      if (role === 'Vendor') return res.status(403).json({ error: 'Vendors cannot run reminders' });
+      tenantId = req.headers['x-tenant-id'] as string | undefined;
+      if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     }
-    const companyCadence = Math.max(1, parseInt(String(company.reminder_cadence_days ?? 15), 10) || 15);
-    const minDue = Math.max(0, Number(company.reminder_min_due_amount) || 0);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const rows = (
-      await pool.query(
-        `
-      SELECT vrs.vendor_id, vrs.reminder_days, vrs.last_reminder_date, v.name, v.phone,
-        COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id AND pd.tenant_id = $1), 0) as total_value,
-        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id AND tenant_id = $1), 0) as total_paid
-      FROM vendor_reminder_settings vrs
-      JOIN vendors v ON vrs.vendor_id = v.id
-      WHERE vrs.enabled = true AND vrs.tenant_id = $1
-    `,
-        [tenantId],
-      )
-    ).rows as {
-      vendor_id: string;
-      reminder_days: number;
-      last_reminder_date: string | null;
-      name: string;
-      phone: string | null;
-      total_value: number;
-      total_paid: number;
-    }[];
-
-    const due = rows.filter(r => {
-      const balance = Number(r.total_value) - Number(r.total_paid);
-      if (balance <= 0 || balance < minDue) return false;
-      if (!r.last_reminder_date) return true;
-      // Prefer company cadence; fall back to per-vendor days if company cadence missing
-      const interval = companyCadence || r.reminder_days || 7;
-      const lastSent = new Date(r.last_reminder_date);
-      const nextDue = new Date(lastSent);
-      nextDue.setDate(nextDue.getDate() + interval);
-      return nextDue.toISOString().slice(0, 10) <= today;
-    });
-
-    res.json(
-      due.map(r => ({
-        vendorId: r.vendor_id,
-        vendorName: r.name,
-        vendorPhone: r.phone ?? '',
-        balance: Number(r.total_value) - Number(r.total_paid),
-        totalValue: Number(r.total_value),
-        totalPaid: Number(r.total_paid),
-        reminderDays: companyCadence || r.reminder_days,
-        lastSent: r.last_reminder_date,
-      })),
-    );
+    const limit = req.body?.limit != null ? Number(req.body.limit) : undefined;
+    const result = await runAutoWhatsAppReminders(tenantId, { limit });
+    res.json({ ok: true, ...result });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -575,16 +537,7 @@ router.post('/api/vendor-finance/:vendorId/reminder-sent', blockVendors, async (
 
     const { vendorId } = req.params;
     const today = new Date().toISOString().slice(0, 10);
-    const cadenceRow = (await pool.query('SELECT reminder_cadence_days FROM tenants WHERE id = $1', [tenantId]))
-      .rows[0] as { reminder_cadence_days?: number } | undefined;
-    const defaultDays = Math.max(1, parseInt(String(cadenceRow?.reminder_cadence_days ?? 15), 10) || 15);
-    // UPSERT so Distribution manual reminds advance cadence even without a prior settings row
-    await pool.query(
-      `INSERT INTO vendor_reminder_settings (vendor_id, tenant_id, enabled, reminder_days, last_reminder_date)
-       VALUES ($1, $2, false, $3, $4)
-       ON CONFLICT (vendor_id, tenant_id) DO UPDATE SET last_reminder_date = $4`,
-      [vendorId, tenantId, defaultDays, today],
-    );
+    await markReminderSentDate(tenantId, vendorId, today);
     res.json({ ok: true, lastSent: today });
   } catch (err) {
     return handleApiError(req, res, err);

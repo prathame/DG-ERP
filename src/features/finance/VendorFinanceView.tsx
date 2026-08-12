@@ -146,6 +146,7 @@ export function VendorFinanceView({
     { vendorId: string; vendorName: string; vendorPhone: string; balance: number; lastSent?: string | null }[]
   >([]);
   const [reminderSettings, setReminderSettings] = useState<CompanyReminderSettings>(DEFAULT_REMINDER_SETTINGS);
+  const [runningAutoReminders, setRunningAutoReminders] = useState(false);
 
   const loadSummary = () => {
     setLoading(true);
@@ -583,6 +584,40 @@ export function VendorFinanceView({
       'success',
     );
     loadSummary();
+  };
+
+  const handleRunAutoReminders = async () => {
+    if (!isAdmin || !remindersDue.length) return;
+    if (
+      !(await confirm({
+        title: 'Run auto reminders',
+        message: `Send WhatsApp Business reminders to ${remindersDue.length} opted-in vendor${
+          remindersDue.length > 1 ? 's' : ''
+        } due now? Requires company WhatsApp Business mode.`,
+        confirmLabel: 'Send via API',
+        variant: 'info',
+      }))
+    )
+      return;
+    setRunningAutoReminders(true);
+    try {
+      const result = await api.vendorFinance.remindersRun();
+      if (result.blockedReason) {
+        toast(result.blockedReason, 'error');
+      } else {
+        toast(
+          `Auto reminders: ${result.sent} sent${result.failed.length ? `, ${result.failed.length} failed` : ''}${
+            result.skipped ? `, ${result.skipped} skipped` : ''
+          }`,
+          result.sent > 0 ? 'success' : 'info',
+        );
+      }
+      loadSummary();
+    } catch (err) {
+      toast((err as Error).message || 'Auto reminders failed', 'error');
+    } finally {
+      setRunningAutoReminders(false);
+    }
   };
 
   const financeModals = (
@@ -1480,9 +1515,22 @@ export function VendorFinanceView({
 
       {remindersDue.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-          <h3 className="font-bold text-amber-800 flex items-center gap-2 mb-3">
-            <Clock size={18} /> Payment Reminders Due
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+            <h3 className="font-bold text-amber-800 flex items-center gap-2">
+              <Clock size={18} /> Payment Reminders Due
+            </h3>
+            {isAdmin && (
+              <button
+                type="button"
+                disabled={runningAutoReminders}
+                onClick={() => void handleRunAutoReminders()}
+                className="flex items-center gap-2 px-3 py-1.5 bg-amber-800 text-white rounded-xl text-sm font-bold hover:bg-amber-900 disabled:opacity-60"
+              >
+                <MessageCircle size={16} />
+                {runningAutoReminders ? 'Sending…' : 'Run auto reminders'}
+              </button>
+            )}
+          </div>
           <div className="space-y-2">
             {remindersDue.map(r => (
               <div

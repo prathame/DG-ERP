@@ -1128,6 +1128,17 @@ export const api = {
           lastSent: string | null;
         }[]
       >('/vendor-finance/reminders-due'),
+    remindersRun: (opts?: { limit?: number }) =>
+      fetchApi<{
+        ok: boolean;
+        sent: number;
+        skipped: number;
+        failed: { vendorId: string; reason: string }[];
+        blockedReason?: string;
+      }>('/vendor-finance/reminders-run', {
+        method: 'POST',
+        body: JSON.stringify(opts?.limit != null ? { limit: opts.limit } : {}),
+      }),
     markReminderSent: (vendorId: string) =>
       fetchApi<{ ok: boolean }>(`/vendor-finance/${vendorId}/reminder-sent`, { method: 'POST' }),
   },
