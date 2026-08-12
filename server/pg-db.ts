@@ -533,6 +533,7 @@ export async function initSchema() {
         purchase_date DATE NOT NULL,
         cost_price NUMERIC(12,2),
         gst_applied BOOLEAN DEFAULT false,
+        is_rcm BOOLEAN DEFAULT false,
         billed_price NUMERIC(12,2),
         discount_percent NUMERIC(5,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1088,6 +1089,8 @@ export async function initSchema() {
 
     // Purchase invoice number for GSTR-2B reconciliation
     await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT');
+    // Reverse charge (RCM) — liability + ITC on GSTR-3B; excluded from forward-charge PURCHASE_TAX_SQL
+    await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS is_rcm BOOLEAN DEFAULT false');
 
     // Business type
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'manufacturer'");

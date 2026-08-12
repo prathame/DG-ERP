@@ -165,12 +165,14 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       items,
       gstRate: reqGstRate,
       invoiceNumber,
+      isRcm: reqIsRcm,
     } = req.body as {
       supplierId?: string;
       purchaseDate?: string;
       amountPaid?: number;
       gstRate?: number;
       invoiceNumber?: string;
+      isRcm?: boolean;
       items?: {
         productId: string;
         quantity: number;
@@ -179,6 +181,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         withGst?: boolean;
       }[];
     };
+    const isRcm = !!reqIsRcm;
     if (!supplierId) return res.status(400).json({ error: 'Supplier is required' });
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Add at least one product' });
 
@@ -218,8 +221,11 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       const basePrice = item.costPrice ? Number(item.costPrice) : Number(product.price);
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const costPricePerUnit = Math.round(((basePrice * (100 - disc)) / 100) * 100) / 100;
-      const gstApplied = item.withGst !== false;
+      // RCM still needs gst_applied + billed>cost so tax SQL can derive liability/ITC;
+      // supplier payable stays at cost (tax remitted to govt, not supplier).
+      const gstApplied = isRcm ? true : item.withGst !== false;
       const billedPricePerUnit = gstApplied ? Math.round((costPricePerUnit * (100 + gstRate)) / 100) : costPricePerUnit;
+      const supplierUnit = isRcm ? costPricePerUnit : billedPricePerUnit;
 
       productNames.push(product.name);
       purchaseRows.push({
@@ -231,7 +237,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         billedPrice: billedPricePerUnit,
         disc,
       });
-      totalBilled += billedPricePerUnit * qty;
+      totalBilled += supplierUnit * qty;
       totalQty += qty;
     }
 
@@ -252,7 +258,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         for (let i = 0; i < u.qty; i++) {
           seq++;
           purchaseVals.push(
-            `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10})`,
+            `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10},$${pIdx + 11})`,
           );
           purchasePs.push(
             `${batchId}-${seq}`,
@@ -266,13 +272,14 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
             u.billedPrice,
             u.disc,
             invoiceNumber || null,
+            isRcm,
           );
-          pIdx += 11;
+          pIdx += 12;
         }
       }
       if (purchaseVals.length > 0) {
         await client.query(
-          `INSERT INTO product_purchases (id,tenant_id,batch_id,product_id,supplier_id,purchase_date,cost_price,gst_applied,billed_price,discount_percent,invoice_number) VALUES ${purchaseVals.join(',')}`,
+          `INSERT INTO product_purchases (id,tenant_id,batch_id,product_id,supplier_id,purchase_date,cost_price,gst_applied,billed_price,discount_percent,invoice_number,is_rcm) VALUES ${purchaseVals.join(',')}`,
           purchasePs,
         );
       }

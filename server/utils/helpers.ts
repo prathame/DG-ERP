@@ -33,8 +33,39 @@ export const DISTRIBUTION_TAX_SQL = `CASE WHEN COALESCE(pd.gst_applied, false) T
 /** Purchase taxable (excl. GST) = cost_price. */
 export const PURCHASE_TAXABLE_SQL = 'COALESCE(pp.cost_price, 0)';
 
-/** Purchase GST = billed - cost when gst applied. */
-export const PURCHASE_TAX_SQL = `CASE WHEN COALESCE(pp.gst_applied, false) THEN GREATEST(0, COALESCE(pp.billed_price, pp.cost_price, 0) - COALESCE(pp.cost_price, 0)) ELSE 0 END`;
+/** Forward-charge purchase GST (ITC). Reverse-charge rows use PURCHASE_RCM_TAX_SQL instead. */
+export const PURCHASE_TAX_SQL = `CASE WHEN COALESCE(pp.gst_applied, false) AND NOT COALESCE(pp.is_rcm, false) THEN GREATEST(0, COALESCE(pp.billed_price, pp.cost_price, 0) - COALESCE(pp.cost_price, 0)) ELSE 0 END`;
+
+/** Reverse-charge GST liability / claimable ITC (billed − cost when flagged RCM). */
+export const PURCHASE_RCM_TAX_SQL = `CASE WHEN COALESCE(pp.gst_applied, false) AND COALESCE(pp.is_rcm, false) THEN GREATEST(0, COALESCE(pp.billed_price, pp.cost_price, 0) - COALESCE(pp.cost_price, 0)) ELSE 0 END`;
+
+/** Reverse-charge taxable value (excl. GST). */
+export const PURCHASE_RCM_TAXABLE_SQL = `CASE WHEN COALESCE(pp.gst_applied, false) AND COALESCE(pp.is_rcm, false) THEN ${PURCHASE_TAXABLE_SQL} ELSE 0 END`;
+
+/** Fold RCM into GSTR-3B buckets: liability + matching ITC (net payable unchanged when fully claimable). */
+export function applyRcmToGstr3b(args: {
+  outputTax: number;
+  outputTaxable: number;
+  itcPurchases: number;
+  rcmTax: number;
+  rcmTaxable: number;
+}): {
+  outputTax: number;
+  outputTaxable: number;
+  itcPurchases: number;
+  reverseChargeTax: number;
+  reverseChargeTaxable: number;
+} {
+  const rcmTax = Math.max(0, Math.round(Number(args.rcmTax) * 100) / 100);
+  const rcmTaxable = Math.max(0, Math.round(Number(args.rcmTaxable) * 100) / 100);
+  return {
+    outputTax: Math.max(0, args.outputTax + rcmTax),
+    outputTaxable: Math.max(0, args.outputTaxable),
+    itcPurchases: Math.max(0, args.itcPurchases + rcmTax),
+    reverseChargeTax: rcmTax,
+    reverseChargeTaxable: rcmTaxable,
+  };
+}
 
 /**
  * Standalone invoice was created as a GST bill (frozen at create).

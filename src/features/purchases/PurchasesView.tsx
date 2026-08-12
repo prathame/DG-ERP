@@ -93,6 +93,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     date: new Date().toISOString().slice(0, 10),
     amountPaid: '',
     invoiceNumber: '',
+    isRcm: false,
   });
   const [purchaseRows, setPurchaseRows] = useState<
     { productId: string; quantity: number; packs: number; loosePieces: number; costPrice: string; withGst: boolean }[]
@@ -250,10 +251,11 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       const actualQty = ps > 1 ? r.packs * ps + r.loosePieces : r.quantity;
       const cost = r.costPrice ? parseFloat(r.costPrice) : (p?.price ?? 0);
       const gross = cost * (actualQty || 0);
-      const gst = r.withGst ? Math.round((gross * defaultGstRate) / 100) : 0;
+      const gst = r.withGst || purchaseForm.isRcm ? Math.round((gross * defaultGstRate) / 100) : 0;
       acc.gross += gross;
       acc.gst += gst;
-      acc.billed += gross + gst;
+      // RCM: pay supplier excl. GST; GST is remitted to govt separately
+      acc.billed += purchaseForm.isRcm ? gross : gross + gst;
       acc.items += actualQty || 0;
       return acc;
     },
@@ -382,6 +384,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           purchaseDate: purchaseForm.date,
           gstRate: defaultGstRate,
           invoiceNumber: purchaseForm.invoiceNumber || undefined,
+          isRcm: purchaseForm.isRcm || undefined,
           amountPaid: paid > 0 ? paid : undefined,
           items: validRows.map(r => {
             const rp = products.find(x => x.id === r.productId);
@@ -390,7 +393,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               productId: r.productId,
               quantity: ps > 1 ? r.packs * ps + r.loosePieces : r.quantity,
               costPrice: r.costPrice ? parseFloat(r.costPrice) : undefined,
-              withGst: r.withGst,
+              withGst: purchaseForm.isRcm ? true : r.withGst,
             };
           }),
         }),
@@ -402,6 +405,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
         date: new Date().toISOString().slice(0, 10),
         amountPaid: '',
         invoiceNumber: '',
+        isRcm: false,
       });
       load();
       toast(`Purchase recorded — ${validRows.length} product(s), ${purchaseTotals.items} items`, 'success');
@@ -1367,6 +1371,15 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   />
                 </FormField>
               </FormGrid>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={purchaseForm.isRcm}
+                  onChange={e => setPurchaseForm({ ...purchaseForm, isRcm: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                Reverse charge (RCM) — GST remitted by you, not the supplier
+              </label>
 
               {/* Mobile line cards */}
               <div className="sm:hidden space-y-3">
@@ -1690,9 +1703,15 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 <span className="text-xs sm:text-sm text-gray-600">
                   {purchaseTotals.items} items · Gross ₹{purchaseTotals.gross.toLocaleString('en-IN')} · GST ₹
                   {purchaseTotals.gst.toLocaleString('en-IN')}
+                  {purchaseForm.isRcm ? ' (RCM)' : ''}
                 </span>
                 <span className="text-lg font-bold text-brand tabular-nums">
                   ₹{purchaseTotals.billed.toLocaleString('en-IN')}
+                  {purchaseForm.isRcm ? (
+                    <span className="block text-xs font-medium text-gray-500 text-right">
+                      Supplier bill (excl. GST)
+                    </span>
+                  ) : null}
                 </span>
               </div>
               <FormField label="Amount Paid (₹)">

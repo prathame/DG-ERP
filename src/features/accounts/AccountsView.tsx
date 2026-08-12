@@ -2255,14 +2255,23 @@ function Gstr2bReconciliation() {
 function Gstr3bView({ data }: { data: Record<string, unknown> }) {
   const period = data.period as { month: number; year: number };
   const output = data.output as { taxableValue: number; cgst: number; sgst: number; igst: number; total: number };
+  const reverseCharge = (data.reverseCharge as {
+    taxableValue: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+    total: number;
+  } | null) || { taxableValue: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
   const itc = data.itc as {
     cgst: number;
     sgst: number;
     igst: number;
     total: number;
     fromPurchases: number;
+    fromReverseCharge?: number;
     fromExpenses: number;
   };
+  const fromRcm = Number(itc.fromReverseCharge) || 0;
   const net = data.netPayable as { cgst: number; sgst: number; igst: number; total: number };
   const monthName = new Date(period.year, period.month - 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
 
@@ -2309,7 +2318,7 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
         <button
           type="button"
           onClick={() => {
-            const text = `GSTR-3B ${monthName}\n\nOutput Tax: ₹${output.total.toLocaleString('en-IN')}\n  Taxable Value: ₹${output.taxableValue.toLocaleString('en-IN')}\n  CGST: ₹${output.cgst.toLocaleString('en-IN')}\n  SGST: ₹${output.sgst.toLocaleString('en-IN')}\n\nITC Claimed: ₹${itc.total.toLocaleString('en-IN')}\n  From Purchases: ₹${itc.fromPurchases.toLocaleString('en-IN')}\n  From Expenses: ₹${itc.fromExpenses.toLocaleString('en-IN')}\n\nNet Tax Payable: ₹${net.total.toLocaleString('en-IN')}\n  CGST: ₹${net.cgst.toLocaleString('en-IN')}\n  SGST: ₹${net.sgst.toLocaleString('en-IN')}`;
+            const text = `GSTR-3B ${monthName}\n\nOutput Tax: ₹${output.total.toLocaleString('en-IN')}\n  Taxable Value: ₹${output.taxableValue.toLocaleString('en-IN')}\n  CGST: ₹${output.cgst.toLocaleString('en-IN')}\n  SGST: ₹${output.sgst.toLocaleString('en-IN')}\n\nReverse Charge (3.1d): ₹${reverseCharge.total.toLocaleString('en-IN')}\n  Taxable: ₹${reverseCharge.taxableValue.toLocaleString('en-IN')}\n\nITC Claimed: ₹${itc.total.toLocaleString('en-IN')}\n  From Purchases: ₹${itc.fromPurchases.toLocaleString('en-IN')}\n  From RCM: ₹${fromRcm.toLocaleString('en-IN')}\n  From Expenses: ₹${itc.fromExpenses.toLocaleString('en-IN')}\n\nNet Tax Payable: ₹${net.total.toLocaleString('en-IN')}\n  CGST: ₹${net.cgst.toLocaleString('en-IN')}\n  SGST: ₹${net.sgst.toLocaleString('en-IN')}`;
             navigator.clipboard.writeText(text);
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white rounded-lg text-xs font-bold"
@@ -2343,6 +2352,31 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
         </div>
       </Section>
 
+      <Section title="3.1(d) — Inward Supplies Liable to Reverse Charge">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px]">
+            <thead>
+              <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+                <th className="py-2 px-3 text-left">Description</th>
+                <th className="py-2 px-3 text-right">CGST</th>
+                <th className="py-2 px-3 text-right">SGST</th>
+                <th className="py-2 px-3 text-right">IGST</th>
+                <th className="py-2 px-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Row
+                label={`Taxable Value: ₹${reverseCharge.taxableValue.toLocaleString('en-IN')}`}
+                cgst={reverseCharge.cgst}
+                sgst={reverseCharge.sgst}
+                igst={reverseCharge.igst}
+                total={reverseCharge.total}
+              />
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
       <Section title="4 — Input Tax Credit (ITC)">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[480px]">
@@ -2362,6 +2396,13 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
                 sgst={Math.round((itc.fromPurchases / 2) * 100) / 100}
                 igst={0}
                 total={itc.fromPurchases}
+              />
+              <Row
+                label="From Reverse Charge"
+                cgst={Math.round((fromRcm / 2) * 100) / 100}
+                sgst={Math.round((fromRcm / 2) * 100) / 100}
+                igst={0}
+                total={fromRcm}
               />
               <Row
                 label="From Expenses (eligible)"
@@ -2389,14 +2430,20 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
               </tr>
             </thead>
             <tbody>
-              <Row label="Output Tax" cgst={output.cgst} sgst={output.sgst} igst={0} total={output.total} />
-              <Row label="Less: ITC" cgst={itc.cgst} sgst={itc.sgst} igst={0} total={itc.total} />
+              <Row
+                label="Output Tax (outward + RCM)"
+                cgst={output.cgst + reverseCharge.cgst}
+                sgst={output.sgst + reverseCharge.sgst}
+                igst={output.igst + reverseCharge.igst}
+                total={output.total + reverseCharge.total}
+              />
+              <Row label="Less: ITC" cgst={itc.cgst} sgst={itc.sgst} igst={itc.igst} total={itc.total} />
               <Row label="Net Payable" cgst={net.cgst} sgst={net.sgst} igst={net.igst} total={net.total} bold />
             </tbody>
           </table>
         </div>
         <p className="text-xs text-gray-400 mt-3">
-          * IGST shown as 0 — inter-state transactions need manual adjustment. Verify with CA before filing.
+          * Reverse charge increases liability and ITC equally when claimable. Verify with CA before filing.
         </p>
       </Section>
     </div>

@@ -8,6 +8,9 @@ import {
   DISTRIBUTION_TAX_SQL,
   PURCHASE_TAXABLE_SQL,
   PURCHASE_TAX_SQL,
+  PURCHASE_RCM_TAX_SQL,
+  PURCHASE_RCM_TAXABLE_SQL,
+  applyRcmToGstr3b,
   INVOICE_IS_GST_SQL,
   INVOICE_TAXABLE_GST_SQL,
   INVOICE_TAX_GST_SQL,
@@ -1192,27 +1195,74 @@ router.get('/api/gstr3b/compute', async (req, res) => {
         ).rows[0]?.t ?? 0,
       ) || 0;
 
-    // ITC — purchases only (no fictional expense ITC)
+    // ITC — forward-charge purchases only (RCM excluded from PURCHASE_TAX_SQL)
     const purchaseRows = (
       await pool.query(
         `SELECT COALESCE(SUM(${PURCHASE_TAX_SQL}),0) as total_itc,
-              COALESCE(SUM(CASE WHEN COALESCE(pp.gst_applied,false) THEN ${PURCHASE_TAXABLE_SQL} ELSE 0 END),0) as taxable_value
+              COALESCE(SUM(CASE WHEN COALESCE(pp.gst_applied,false) AND NOT COALESCE(pp.is_rcm,false) THEN ${PURCHASE_TAXABLE_SQL} ELSE 0 END),0) as taxable_value
        FROM product_purchases pp WHERE pp.tenant_id = $1 AND pp.purchase_date >= $2 AND pp.purchase_date < $3`,
         [tenantId, startDate, endDate],
       )
     ).rows[0] as { total_itc: string; taxable_value: string };
 
-    const outputTax = Math.max(0, distTax + invTax + saleTax - cnTax);
-    const outputTaxable = Math.max(0, distTaxable + invTaxable + saleTaxable);
-    const itcPurchases = Number(purchaseRows.total_itc || 0) + dnTax;
+    // Reverse charge (3.1d) — liability + matching ITC when claimable
+    const rcmRows = (
+      await pool.query(
+        `SELECT
+           COALESCE(SUM(${PURCHASE_RCM_TAX_SQL}),0) as tax,
+           COALESCE(SUM(${PURCHASE_RCM_TAXABLE_SQL}),0) as taxable,
+           s.gst_number as supplier_gstin
+         FROM product_purchases pp
+         LEFT JOIN suppliers s ON pp.supplier_id = s.id AND s.tenant_id = $1
+         WHERE pp.tenant_id = $1 AND pp.purchase_date >= $2 AND pp.purchase_date < $3
+           AND COALESCE(pp.is_rcm, false) = true
+         GROUP BY s.gst_number`,
+        [tenantId, startDate, endDate],
+      )
+    ).rows as { tax: string; taxable: string; supplier_gstin: string | null }[];
+
+    let rcmTax = 0,
+      rcmTaxable = 0,
+      rcmCgst = 0,
+      rcmSgst = 0,
+      rcmIgst = 0;
+    for (const r of rcmRows) {
+      const tax = Number(r.tax) || 0;
+      const taxable = Number(r.taxable) || 0;
+      rcmTax += tax;
+      rcmTaxable += taxable;
+      const split = splitGst(tax, sellerGstin, r.supplier_gstin);
+      rcmCgst += split.cgst;
+      rcmSgst += split.sgst;
+      rcmIgst += split.igst;
+    }
+
+    const baseOutputTax = Math.max(0, distTax + invTax + saleTax - cnTax);
+    const baseOutputTaxable = Math.max(0, distTaxable + invTaxable + saleTaxable);
+    const baseItcPurchases = Number(purchaseRows.total_itc || 0);
+    const folded = applyRcmToGstr3b({
+      outputTax: baseOutputTax,
+      outputTaxable: baseOutputTaxable,
+      itcPurchases: baseItcPurchases,
+      rcmTax,
+      rcmTaxable,
+    });
+    const itcPurchases = folded.itcPurchases + dnTax;
     const totalItc = itcPurchases;
-    const netPayable = Math.max(0, outputTax - totalItc);
+    // Liability for net = outward + reverse charge; keep output.* as outward-only for the 3.1 table
+    const liabilityTax = folded.outputTax;
+    const outputTax = baseOutputTax;
+    const outputTaxable = baseOutputTaxable;
+    const netPayable = Math.max(0, liabilityTax - totalItc);
 
     const outCgst = Math.max(0, distCgst + invCgst + saleSplit.cgst - cnTax / 2);
     const outSgst = Math.max(0, distSgst + invSgst + saleSplit.sgst - cnTax / 2);
     const outIgst = Math.max(0, distIgst + invIgst + saleSplit.igst);
     const itcCgst = Math.round((totalItc / 2) * 100) / 100;
     const itcSgst = Math.round((totalItc - itcCgst) * 100) / 100;
+    const liabilityCgst = outCgst + rcmCgst;
+    const liabilitySgst = outSgst + rcmSgst;
+    const liabilityIgst = outIgst + rcmIgst;
 
     res.json({
       period: { month: m, year: y },
@@ -1226,19 +1276,27 @@ router.get('/api/gstr3b/compute', async (req, res) => {
         total: Math.round(outputTax * 100) / 100,
         creditNotesAdjusted: Math.round(cnTax * 100) / 100,
       },
+      reverseCharge: {
+        taxableValue: Math.round(folded.reverseChargeTaxable * 100) / 100,
+        cgst: Math.round(rcmCgst * 100) / 100,
+        sgst: Math.round(rcmSgst * 100) / 100,
+        igst: Math.round(rcmIgst * 100) / 100,
+        total: Math.round(folded.reverseChargeTax * 100) / 100,
+      },
       itc: {
         cgst: itcCgst,
         sgst: itcSgst,
         igst: 0,
         total: Math.round(totalItc * 100) / 100,
-        fromPurchases: Math.round(Number(purchaseRows.total_itc || 0) * 100) / 100,
+        fromPurchases: Math.round(baseItcPurchases * 100) / 100,
+        fromReverseCharge: Math.round(folded.reverseChargeTax * 100) / 100,
         fromExpenses: 0,
         debitNotesAdjusted: Math.round(dnTax * 100) / 100,
       },
       netPayable: {
-        cgst: Math.round(Math.max(0, outCgst - itcCgst) * 100) / 100,
-        sgst: Math.round(Math.max(0, outSgst - itcSgst) * 100) / 100,
-        igst: Math.round(outIgst * 100) / 100,
+        cgst: Math.round(Math.max(0, liabilityCgst - itcCgst) * 100) / 100,
+        sgst: Math.round(Math.max(0, liabilitySgst - itcSgst) * 100) / 100,
+        igst: Math.round(liabilityIgst * 100) / 100,
         total: Math.round(netPayable * 100) / 100,
       },
     });
