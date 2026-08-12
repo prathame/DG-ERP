@@ -4,7 +4,7 @@ import { fetchApi } from '../../api';
 import { AppModal } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
-type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra';
+type VoucherKind = 'receipt' | 'payment' | 'journal' | 'contra' | 'sales';
 
 interface LedgerOption {
   id: string;
@@ -23,6 +23,7 @@ interface JournalLine {
 const TYPE_OPTIONS: { id: VoucherKind; label: string; hint: string }[] = [
   { id: 'receipt', label: 'Receipt', hint: 'Cash/Bank ← Party' },
   { id: 'payment', label: 'Payment', hint: 'Party ← Cash/Bank' },
+  { id: 'sales', label: 'Sales', hint: 'Party ← Sales income' },
   { id: 'contra', label: 'Contra', hint: 'Cash ↔ Bank transfer' },
   { id: 'journal', label: 'Journal', hint: 'Multi-ledger adjustment' },
 ];
@@ -97,6 +98,20 @@ export function CreateVoucherModal({
     }));
   }, [ledgers]);
 
+  const salesIncomeOptions = useMemo(() => {
+    const salesish = ledgers.filter(l => {
+      const t = (l.ledgerType || '').toUpperCase();
+      const g = `${l.groupName || ''} ${l.name}`.toLowerCase();
+      return t === 'IN' || t === 'TS' || t === 'JP' || /sales|income|revenue/.test(g);
+    });
+    const list = salesish.length ? salesish : ledgers;
+    return list.map(l => ({
+      value: l.id,
+      label: l.name,
+      sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [ledgers]);
+
   async function handleSave() {
     setError(null);
     setSaving(true);
@@ -132,18 +147,26 @@ export function CreateVoucherModal({
   }
 
   const partyLabel =
-    voucherType === 'contra' ? 'To (deposit / destination)' : voucherType === 'payment' ? 'Party (paid to)' : 'Party';
+    voucherType === 'contra'
+      ? 'To (deposit / destination)'
+      : voucherType === 'payment'
+        ? 'Party (paid to)'
+        : voucherType === 'sales'
+          ? 'Party (customer)'
+          : 'Party';
   const contraLabel =
     voucherType === 'contra'
       ? 'From (withdraw / source)'
       : voucherType === 'receipt'
         ? 'Cash / Bank (received in)'
-        : 'Cash / Bank (paid from)';
+        : voucherType === 'sales'
+          ? 'Sales income'
+          : 'Cash / Bank (paid from)';
 
   return (
     <AppModal
       title="New voucher"
-      subtitle="Receipt, payment, contra, or journal"
+      subtitle="Receipt, payment, sales, contra, or journal"
       onClose={onClose}
       size="lg"
       footer={
@@ -171,7 +194,7 @@ export function CreateVoucherModal({
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         )}
 
-        <div className="grid gap-2 sm:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {TYPE_OPTIONS.map(opt => (
             <button
               key={opt.id}
@@ -283,10 +306,16 @@ export function CreateVoucherModal({
             <label className="block text-sm sm:col-span-1">
               <span className="mb-1 block text-slate-600">{contraLabel}</span>
               <SearchSelect
-                options={cashBankOptions}
+                options={
+                  voucherType === 'sales'
+                    ? salesIncomeOptions
+                    : voucherType === 'contra'
+                      ? cashBankOptions
+                      : cashBankOptions
+                }
                 value={contraLedgerId}
                 onChange={setContraLedgerId}
-                placeholder="Select cash/bank"
+                placeholder={voucherType === 'sales' ? 'Select sales income' : 'Select cash/bank'}
               />
             </label>
             <label className="block text-sm sm:col-span-2">

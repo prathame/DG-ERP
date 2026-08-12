@@ -8,7 +8,7 @@ import { uid } from '../utils/helpers';
 import { resolveMiraclePaymentMethod } from './miracleImport';
 import { allocatePartyReceipt, resolveVendorForBookLedger, upsertVendorPayment } from './partyCashOps';
 
-export const BOOK_VOUCHER_TYPES = ['receipt', 'payment', 'journal', 'contra'] as const;
+export const BOOK_VOUCHER_TYPES = ['receipt', 'payment', 'journal', 'contra', 'sales'] as const;
 export type BookVoucherType = (typeof BOOK_VOUCHER_TYPES)[number];
 
 export interface BookVoucherEntryInput {
@@ -95,7 +95,7 @@ async function assertLedgersExist(client: PoolClient, tenantId: string, ledgerId
 }
 
 function buildSimpleEntries(
-  voucherType: 'receipt' | 'payment' | 'contra',
+  voucherType: 'receipt' | 'payment' | 'contra' | 'sales',
   partyLedgerId: string,
   contraLedgerId: string,
   amount: number,
@@ -114,6 +114,13 @@ function buildSimpleEntries(
   }
   if (voucherType === 'payment') {
     // Debit party, Credit cash/bank
+    return [
+      { ledgerId: partyLedgerId, debit: amt, credit: 0 },
+      { ledgerId: contraLedgerId, debit: 0, credit: amt },
+    ];
+  }
+  if (voucherType === 'sales') {
+    // Debit party (AR), Credit sales income
     return [
       { ledgerId: partyLedgerId, debit: amt, credit: 0 },
       { ledgerId: contraLedgerId, debit: 0, credit: amt },
@@ -284,7 +291,9 @@ export async function createBookVoucher(
       throw new BookVoucherValidationError(
         input.voucherType === 'contra'
           ? 'Contra requires from (contra) and to (party) ledgers'
-          : 'Party and cash/bank ledgers are required',
+          : input.voucherType === 'sales'
+            ? 'Party and sales income ledgers are required'
+            : 'Party and cash/bank ledgers are required',
       );
     }
     if (input.entries?.length) {

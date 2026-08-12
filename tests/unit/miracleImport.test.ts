@@ -380,6 +380,7 @@ function buildMiracleCompany(root: string): string {
     [
       { FIELD01: 'SSVOUCHER01', FIELD03: 'AGPARTY1', FIELD04: 'AGO5S34X', FIELD05: 560000, FIELD06: 'D' },
       { FIELD01: 'SSVOUCHER01', FIELD03: 'AGO5S34X', FIELD04: 'AGPARTY1', FIELD05: 560000, FIELD06: 'C' },
+      // SE intentionally has no ledger rows — importer must synthesize
     ],
   );
 
@@ -392,7 +393,10 @@ function buildMiracleCompany(root: string): string {
       { name: 'FIELD07', type: 'N', length: 12, decimals: 2 },
       { name: 'FIELD08', type: 'N', length: 17, decimals: 2 },
     ],
-    [{ FIELD01: 'SSVOUCHER01', FIELD03: 'PGITEM01', FIELD06: 1, FIELD07: 560000, FIELD08: 560000 }],
+    [
+      { FIELD01: 'SSVOUCHER01', FIELD03: 'PGITEM01', FIELD06: 1, FIELD07: 560000, FIELD08: 560000 },
+      { FIELD01: 'SEVOUCHER05', FIELD03: 'PGITEM01', FIELD06: 1, FIELD07: 50, FIELD08: 50 },
+    ],
   );
 
   return company;
@@ -614,8 +618,8 @@ describe('miracleImport', () => {
       expect(summary.ledgers).toBe(6);
       expect(summary.products).toBe(1);
       expect(summary.vouchers).toBe(5);
-      expect(summary.voucherEntries).toBe(2);
-      expect(summary.voucherItems).toBe(1);
+      expect(summary.voucherEntries).toBe(4); // SP 2 lines + SE synthesized 2
+      expect(summary.voucherItems).toBe(2); // SP + SE items
       expect(summary.groups).toBe(2);
       // Ops dual-write — PR trading + LI liability person
       expect(summary.vendors).toBe(2);
@@ -628,6 +632,7 @@ describe('miracleImport', () => {
       expect(summary.coverage.journalsBooksOnly).toBe(1);
       expect(errors).toEqual([]);
       expect(warnings.some(w => w.stage === 'journals' && /Books only/i.test(w.message))).toBe(true);
+      expect(warnings.some(w => /synthesized/i.test(w.message))).toBe(true);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -680,6 +685,20 @@ describe('miracleImport', () => {
     expect(sale?.customer_name).toBe('MITULBHAI');
     expect(sale?.grand_total).toBe(560000);
     expect(sale?.party_type).toBe('vendor');
+
+    // SE with items but no RKACCT01 rows → synthesized ledger entries
+    const seEntries = await pool.query(
+      `SELECT e.debit::float AS debit, e.credit::float AS credit, e.narration
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id
+       WHERE e.tenant_id = $1 AND v.external_ref = 'SEVOUCHER05'
+       ORDER BY e.line_no`,
+      [TENANT],
+    );
+    expect(seEntries.rows).toHaveLength(2);
+    expect(seEntries.rows.reduce((s, r) => s + Number(r.debit), 0)).toBe(50);
+    expect(seEntries.rows.reduce((s, r) => s + Number(r.credit), 0)).toBe(50);
+    expect(seEntries.rows.some(r => /synthesized/i.test(String(r.narration || '')))).toBe(true);
 
     // Cash book involving party → payments
     const vp = await pool.query(
