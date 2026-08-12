@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchApi } from '../../api';
 import { AppModal } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { isCashBankLedger } from './bookLedgerUtils';
 
 type FundKind = 'cash' | 'bank';
 type EntrySide = 'receipt' | 'payment';
@@ -15,12 +16,6 @@ interface LedgerOption {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function isCashBank(l: LedgerOption) {
-  const t = (l.ledgerType || '').toUpperCase();
-  const g = `${l.groupName || ''} ${l.name}`.toLowerCase();
-  return t === 'CS' || t === 'BK' || t === 'BN' || /cash|bank/.test(g);
 }
 
 /**
@@ -78,7 +73,7 @@ export function QuickFundEntryModal({
   const partyOptions = useMemo(() => {
     const parties = ledgers.filter(l => {
       if (l.id === fundLedgerId) return false;
-      if (isCashBank(l)) return false;
+      if (isCashBankLedger(l)) return false;
       return true;
     });
     const list = parties.length ? parties : ledgers.filter(l => l.id !== fundLedgerId);
