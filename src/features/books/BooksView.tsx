@@ -9,6 +9,7 @@ import { LedgerStatementPanel } from './LedgerStatementPanel';
 import { ProductLedgerPanel } from './ProductLedgerPanel';
 import { VoucherDetailModal } from './VoucherDetailModal';
 import { BooksReportsPanel } from './BooksReportsPanel';
+import { VoucherDeskForm } from './VoucherDeskForm';
 
 type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports';
 
@@ -406,14 +407,20 @@ export function BooksView({
         </div>
       ) : (
         <div className="space-y-3">
+          <VoucherDeskForm
+            onSaved={async () => {
+              setVouchersTick(t => t + 1);
+              await loadSummary();
+            }}
+          />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-500">
-              Enter receipt, payment, contra, or journal — click a row for debit/credit lines.
+              Desk posts receipt/payment. Use New voucher for journal, contra, sales, purchase, notes.
             </p>
             <button
               type="button"
               onClick={() => setShowCreateVoucher(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-600"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               <Plus size={16} />
               New voucher
@@ -435,7 +442,7 @@ export function BooksView({
                 {vouchers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
-                      No vouchers yet — import from Miracle or create one with New voucher.
+                      No vouchers yet — use the desk above or New voucher.
                     </td>
                   </tr>
                 ) : (
