@@ -19,7 +19,8 @@ type DeskMode =
   | 'credit_note'
   | 'debit_note'
   | 'contra'
-  | 'journal';
+  | 'journal'
+  | 'memorandum';
 
 interface LedgerOption {
   id: string;
@@ -53,10 +54,11 @@ const MODE_TABS: { id: DeskMode; label: string }[] = [
   { id: 'debit_note', label: 'DN' },
   { id: 'contra', label: 'Contra' },
   { id: 'journal', label: 'Journal' },
+  { id: 'memorandum', label: 'Memo' },
 ];
 
 /**
- * Miracle-style voucher desk: cash/bank, sales/purchase/return, CN/DN, contra, multi-line journal.
+ * Miracle-style voucher desk: cash/bank, sales/purchase/return, CN/DN, contra, journal, memorandum.
  * Purchase / PR / sales / CN optional product lines dual-write ops stock when products resolve.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
@@ -120,7 +122,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   }, []);
 
   useEffect(() => {
-    if (!loadingLedgers && mode !== 'journal') amountRef.current?.focus();
+    if (!loadingLedgers && mode !== 'journal' && mode !== 'memorandum') amountRef.current?.focus();
   }, [loadingLedgers, mode, lastSaved]);
 
   const allLedgerOptions = useMemo(
@@ -202,27 +204,31 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
     let body: Record<string, unknown>;
     let savedLabel: string;
 
-    if (mode === 'journal') {
+    if (mode === 'journal' || mode === 'memorandum') {
       const entries = journalEntriesFromDeskLines(journalLines);
       if (entries.length < 2) {
-        setError('Add at least two journal lines with amounts');
+        setError(
+          mode === 'memorandum'
+            ? 'Add at least two memorandum lines with amounts'
+            : 'Add at least two journal lines with amounts',
+        );
         return;
       }
       const totals = journalDeskTotals(entries);
       if (!totals.balanced) {
         setError(
-          `Journal must balance (Dr ₹${totals.debit.toLocaleString('en-IN')} / Cr ₹${totals.credit.toLocaleString('en-IN')})`,
+          `${mode === 'memorandum' ? 'Memorandum' : 'Journal'} must balance (Dr ₹${totals.debit.toLocaleString('en-IN')} / Cr ₹${totals.credit.toLocaleString('en-IN')})`,
         );
         return;
       }
       body = {
-        voucherType: 'journal',
+        voucherType: mode,
         voucherDate,
         voucherNumber: voucherNumber.trim() || null,
         narration: narration.trim() || null,
         entries,
       };
-      savedLabel = `Journal ₹${totals.debit.toLocaleString('en-IN')} (${entries.length} lines)`;
+      savedLabel = `${mode === 'memorandum' ? 'Memorandum' : 'Journal'} ₹${totals.debit.toLocaleString('en-IN')} (${entries.length} lines)`;
     } else {
       const amt = Number(amount);
       if (!(amt > 0)) {
@@ -346,7 +352,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       setAmount('');
       setNarration('');
       setVoucherNumber('');
-      if (mode === 'journal') {
+      if (mode === 'journal' || mode === 'memorandum') {
         setJournalLines([newJournalLine(), newJournalLine()]);
       } else {
         if (usesStockLines) setStockLines([newStockLine()]);
@@ -364,17 +370,19 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       ? 'Cash ↔ bank transfer — Save & next for rapid posting'
       : mode === 'journal'
         ? 'Multi-line journal — lines must balance'
-        : mode === 'sales'
-          ? 'Party sale on account — optional product lines for stock-out'
-          : mode === 'purchase'
-            ? 'Party purchase on account — optional product lines for stock-in'
-            : mode === 'purchase_return'
-              ? 'Purchase return — optional product lines for stock-out'
-              : mode === 'credit_note'
-                ? 'Credit note / sales return — optional product lines for stock-in'
-                : mode === 'debit_note'
-                  ? 'Debit note — customer ← sales income'
-                  : 'Cash / bank receipt & payment — Save & next for rapid posting';
+        : mode === 'memorandum'
+          ? 'Non-posting memorandum — stored for reference, off TB / day book'
+          : mode === 'sales'
+            ? 'Party sale on account — optional product lines for stock-out'
+            : mode === 'purchase'
+              ? 'Party purchase on account — optional product lines for stock-in'
+              : mode === 'purchase_return'
+                ? 'Purchase return — optional product lines for stock-out'
+                : mode === 'credit_note'
+                  ? 'Credit note / sales return — optional product lines for stock-in'
+                  : mode === 'debit_note'
+                    ? 'Debit note — customer ← sales income'
+                    : 'Cash / bank receipt & payment — Save & next for rapid posting';
 
   return (
     <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
@@ -395,7 +403,9 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                     ? 'Debit note'
                     : t.id === 'purchase_return'
                       ? 'Purchase return'
-                      : undefined
+                      : t.id === 'memorandum'
+                        ? 'Memorandum (non-posting)'
+                        : undefined
               }
               onClick={() => {
                 setMode(t.id);
@@ -415,6 +425,11 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {lastSaved && !error && (
         <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{lastSaved}</div>
+      )}
+      {mode === 'memorandum' && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Memorandum lines are stored for reference and stay off trial balance, day book, and cash/bank books.
+        </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -534,7 +549,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           </>
         )}
 
-        {mode !== 'journal' && (
+        {mode !== 'journal' && mode !== 'memorandum' && (
           <label className="block text-sm">
             <span className="text-xs text-slate-500">Amount</span>
             <input
@@ -555,7 +570,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
             />
           </label>
         )}
-        <label className={`block text-sm ${mode === 'journal' ? 'sm:col-span-2' : ''}`}>
+        <label className={`block text-sm ${mode === 'journal' || mode === 'memorandum' ? 'sm:col-span-2' : ''}`}>
           <span className="text-xs text-slate-500">Narration</span>
           <input
             type="text"
@@ -635,10 +650,12 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
         </div>
       )}
 
-      {mode === 'journal' && (
+      {(mode === 'journal' || mode === 'memorandum') && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-600">Journal lines</span>
+            <span className="text-xs font-medium text-slate-600">
+              {mode === 'memorandum' ? 'Memorandum lines' : 'Journal lines'}
+            </span>
             <button
               type="button"
               onClick={() => setJournalLines(prev => [...prev, newJournalLine()])}
