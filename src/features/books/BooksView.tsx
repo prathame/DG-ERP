@@ -430,7 +430,16 @@ export function BooksView({
         </div>
       )}
 
-      {voucherDetailId && <VoucherDetailModal voucherId={voucherDetailId} onClose={() => setVoucherDetailId(null)} />}
+      {voucherDetailId && (
+        <VoucherDetailModal
+          voucherId={voucherDetailId}
+          onClose={() => setVoucherDetailId(null)}
+          onChanged={async () => {
+            setVouchersTick(t => t + 1);
+            await loadSummary();
+          }}
+        />
+      )}
     </div>
   );
 }
