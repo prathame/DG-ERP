@@ -382,7 +382,11 @@ export async function getFundBook(
        FROM book_ledgers
        WHERE tenant_id = $1 AND ledger_type = $2
        ORDER BY
-         CASE WHEN external_ref IN ('ops:CASH','ops:BANK','ACASHACT') THEN 0 ELSE 1 END,
+         CASE
+           WHEN external_ref = 'ACASHACT' THEN 0
+           WHEN external_ref IN ('ops:CASH','ops:BANK') THEN 1
+           ELSE 2
+         END,
          name`,
       [tenantId, ledgerType],
     )
@@ -441,8 +445,8 @@ export async function getFundBook(
 
   const selected =
     (ledgerId && accounts.find(a => a.id === ledgerId)) ||
-    accounts.find(a => a.external_ref === (kind === 'cash' ? 'ops:CASH' : 'ops:BANK')) ||
     accounts.find(a => a.external_ref === 'ACASHACT') ||
+    accounts.find(a => a.external_ref === (kind === 'cash' ? 'ops:CASH' : 'ops:BANK')) ||
     accounts[0];
 
   const bookOpening = signedOpeningBalance(selected.opening_balance, selected.opening_side);

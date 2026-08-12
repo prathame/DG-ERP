@@ -9,6 +9,7 @@ import {
   postVendorPaymentToBooks,
   postPurchaseBatchToBooks,
   postSupplierPaymentToBooks,
+  ensureNativeBooksDesk,
 } from '../../server/services/opsToBooks';
 import {
   describeBalance,
@@ -622,5 +623,70 @@ describe('opsToBooks + CA statements', () => {
     );
     expect(lines.rows.some(r => r.ledger_id === purchase.id && Number(r.debit) === 2500)).toBe(true);
     await pool.query(`UPDATE tenants SET business_type = 'service' WHERE id = $1`, [TENANT]);
+  });
+
+  it('does not create a second Cash Account when Miracle ACASHACT already exists', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const before = await pool.query(
+      `SELECT id, external_ref, name FROM book_ledgers WHERE tenant_id=$1 AND ledger_type='CS'`,
+      [TENANT],
+    );
+    expect(before.rows).toHaveLength(1);
+    expect(before.rows[0].external_ref).toBe('ACASHACT');
+
+    // Simulate legacy dual seed: empty ops:CASH twin
+    const g = (
+      await pool.query(`SELECT group_id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ACASHACT'`, [TENANT])
+    ).rows[0] as { group_id: string };
+    const twin = uid('BL');
+    await pool.query(
+      `INSERT INTO book_ledgers
+         (id, tenant_id, name, group_id, nature, ledger_type, opening_balance, opening_side, is_system, external_ref)
+       VALUES ($1,$2,'Cash Account',$3,'B','CS',0,'D',true,'ops:CASH')`,
+      [twin, TENANT, g.group_id],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await ensureNativeBooksDesk(client, TENANT);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+
+    const after = await pool.query(
+      `SELECT id, external_ref FROM book_ledgers WHERE tenant_id=$1 AND ledger_type='CS' ORDER BY external_ref`,
+      [TENANT],
+    );
+    expect(after.rows).toHaveLength(1);
+    expect(after.rows[0].external_ref).toBe('ACASHACT');
+    expect(after.rows.some(r => r.external_ref === 'ops:CASH')).toBe(false);
+  });
+
+  it('seeds ops:CASH only when no cash ledger exists', async () => {
+    await cleanupTestData(TENANT);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
+       VALUES ($1,'Ops Books',$2,'ob@test.com','OB','active','service')
+       ON CONFLICT (id) DO NOTHING`,
+      [TENANT, `ob-${TENANT.toLowerCase()}`],
+    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await ensureNativeBooksDesk(client, TENANT);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const cash = await pool.query(
+      `SELECT external_ref, name FROM book_ledgers WHERE tenant_id=$1 AND ledger_type='CS'`,
+      [TENANT],
+    );
+    expect(cash.rows).toHaveLength(1);
+    expect(cash.rows[0].external_ref).toBe('ops:CASH');
+    expect(cash.rows[0].name).toBe('Cash Account');
   });
 });
