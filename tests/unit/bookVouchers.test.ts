@@ -528,4 +528,71 @@ describe('bookVouchers', () => {
       client.release();
     }
   });
+
+  it('dual-writes purchase items to ops stock when supplier and product resolve', async () => {
+    await cleanupTestData(TENANT);
+    await pool.query('ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    const { party } = await seedLedgers();
+    const purchase = uid('BL');
+    const g = (
+      await pool.query(`SELECT group_id AS id FROM book_ledgers WHERE tenant_id=$1 AND id=$2`, [TENANT, party])
+    ).rows[0] as { id: string };
+    await pool.query(
+      `INSERT INTO book_ledgers (id, tenant_id, name, group_id, nature, ledger_type, opening_balance, external_ref)
+       VALUES ($1,$2,'Purchase A/c',$3,'E','PU',0,'L-PUR')`,
+      [purchase, TENANT, g.id],
+    );
+    const supplierId = uid('SU');
+    await pool.query(`INSERT INTO suppliers (id, tenant_id, name, external_ref) VALUES ($1,$2,'MITULBHAI','L-PARTY')`, [
+      supplierId,
+      TENANT,
+    ]);
+    const productId = uid('PR');
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, stock, external_ref) VALUES ($1,$2,'Bolt',10,0,'X-BOLT')`,
+      [productId, TENANT],
+    );
+    const bookProductId = uid('BP');
+    await pool.query(
+      `INSERT INTO book_products (id, tenant_id, name, unit, external_ref) VALUES ($1,$2,'Bolt','Piece','X-BOLT')`,
+      [bookProductId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await createBookVoucher(client, TENANT, {
+        voucherType: 'purchase',
+        voucherDate: '2025-06-03',
+        voucherNumber: 'PU/1',
+        partyLedgerId: party,
+        contraLedgerId: purchase,
+        amount: 100,
+        items: [{ productId: bookProductId, qty: 2, rate: 50, amount: 100 }],
+      });
+      await client.query('COMMIT');
+
+      expect(created.ops.dualWrite).toBe('purchase');
+      expect(created.ops.stockUnits).toBe(2);
+      expect(created.ops.supplierId).toBe(supplierId);
+
+      const stock = await pool.query(`SELECT stock::int AS s FROM products WHERE tenant_id=$1 AND id=$2`, [
+        TENANT,
+        productId,
+      ]);
+      expect(stock.rows[0].s).toBe(2);
+
+      const items = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM book_voucher_items WHERE tenant_id=$1 AND voucher_id=$2`,
+        [TENANT, created.id],
+      );
+      expect(items.rows[0].n).toBe(1);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
 });
