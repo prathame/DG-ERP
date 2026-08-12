@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
+import { QuickFundEntryModal } from './QuickFundEntryModal';
 
 function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -48,6 +49,8 @@ export function FundBookPanel({ kind, onOpenVoucher }: { kind: FundKind; onOpenV
   const [data, setData] = useState<FundBookResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [showQuick, setShowQuick] = useState(false);
 
   const title = kind === 'cash' ? 'Cash book' : 'Bank book';
   const endpoint = kind === 'cash' ? '/books/cash-book' : '/books/bank-book';
@@ -76,7 +79,10 @@ export function FundBookPanel({ kind, onOpenVoucher }: { kind: FundKind; onOpenV
     return () => {
       cancelled = true;
     };
-  }, [endpoint, from, to, ledgerId, title]);
+  }, [endpoint, from, to, ledgerId, title, reloadTick]);
+
+  const activeLedgerId = ledgerId || data?.ledger?.id || '';
+  const activeLedgerName = data?.ledger?.name;
 
   return (
     <div className="space-y-3">
@@ -121,6 +127,15 @@ export function FundBookPanel({ kind, onOpenVoucher }: { kind: FundKind; onOpenV
               className="mt-0.5 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
             />
           </label>
+          {activeLedgerId && (
+            <button
+              type="button"
+              onClick={() => setShowQuick(true)}
+              className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-white"
+            >
+              Quick entry
+            </button>
+          )}
         </div>
       </div>
 
@@ -205,6 +220,18 @@ export function FundBookPanel({ kind, onOpenVoucher }: { kind: FundKind; onOpenV
             </tfoot>
           </table>
         </div>
+      )}
+
+      {showQuick && activeLedgerId && (
+        <QuickFundEntryModal
+          kind={kind}
+          fundLedgerId={activeLedgerId}
+          fundLedgerName={activeLedgerName}
+          onClose={() => setShowQuick(false)}
+          onSaved={async () => {
+            setReloadTick(t => t + 1);
+          }}
+        />
       )}
     </div>
   );
