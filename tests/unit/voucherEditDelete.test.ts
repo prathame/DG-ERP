@@ -156,4 +156,136 @@ describe('book voucher edit / delete / renumber', () => {
     expect(v.narration).toBe('Header only');
     expect(Number(v.amount)).toBe(500);
   });
+
+  it('updates journal lines, accepts explicit entries, and rejects bad body edits', async () => {
+    await cleanupTestData(TENANT);
+    const { cash, party, sales } = await seed();
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const journal = await createBookVoucher(client, TENANT, {
+        voucherType: 'journal',
+        voucherDate: '2025-09-12',
+        voucherNumber: 'JV/1',
+        entries: [
+          { ledgerId: party, debit: 200, credit: 0 },
+          { ledgerId: sales, debit: 0, credit: 200 },
+        ],
+      });
+
+      await expect(updateBookVoucher(client, TENANT, journal.id, { entries: [] })).rejects.toBeInstanceOf(
+        BookVoucherValidationError,
+      );
+
+      const j2 = await updateBookVoucher(client, TENANT, journal.id, {
+        voucherDate: '2025-09-13',
+        entries: [
+          { ledgerId: party, debit: 300, credit: 0 },
+          { ledgerId: cash, debit: 0, credit: 300 },
+        ],
+      });
+      expect(j2.amount).toBe(300);
+
+      const receipt = await createBookVoucher(client, TENANT, {
+        voucherType: 'receipt',
+        voucherDate: '2025-09-14',
+        partyLedgerId: party,
+        contraLedgerId: cash,
+        amount: 50,
+      });
+      const withEntries = await updateBookVoucher(client, TENANT, receipt.id, {
+        entries: [
+          { ledgerId: cash, debit: 75, credit: 0 },
+          { ledgerId: party, debit: 0, credit: 75 },
+        ],
+      });
+      expect(withEntries.amount).toBe(75);
+
+      await expect(updateBookVoucher(client, TENANT, receipt.id, { voucherDate: 'not-a-date' })).rejects.toBeInstanceOf(
+        BookVoucherValidationError,
+      );
+
+      await expect(
+        updateBookVoucher(client, TENANT, receipt.id, {
+          partyLedgerId: party,
+          contraLedgerId: null,
+          amount: 10,
+        }),
+      ).rejects.toBeInstanceOf(BookVoucherValidationError);
+
+      // purchase-type body rebuild is unsupported
+      const pid = uid('BV');
+      await client.query(
+        `INSERT INTO book_vouchers
+           (id, tenant_id, voucher_type, voucher_date, voucher_number, party_ledger_id, contra_ledger_id, amount, narration, external_ref)
+         VALUES ($1,$2,'purchase','2025-09-15','PI/1',$3,$4,80,'Buy', $5)`,
+        [pid, TENANT, party, sales, `manual:${pid}`],
+      );
+      await client.query(
+        `INSERT INTO book_voucher_entries (id, tenant_id, voucher_id, line_no, ledger_id, debit, credit)
+         VALUES ($1,$2,$3,1,$4,80,0), ($5,$2,$3,2,$6,0,80)`,
+        [uid('BE'), TENANT, pid, sales, uid('BE'), party],
+      );
+      await expect(
+        updateBookVoucher(client, TENANT, pid, { amount: 90, partyLedgerId: party, contraLedgerId: sales }),
+      ).rejects.toBeInstanceOf(BookVoucherValidationError);
+
+      // header date change still ok
+      await updateBookVoucher(client, TENANT, pid, { voucherDate: '2025-09-16' });
+
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+  });
+
+  it('clears dual-write invoice payments when deleting a manual receipt', async () => {
+    await cleanupTestData(TENANT);
+    const { cash, party } = await seed();
+    const vendorId = uid('V');
+    await pool.query(`INSERT INTO vendors (id, tenant_id, name, external_ref) VALUES ($1,$2,'PARTY ONE','L-PARTY')`, [
+      vendorId,
+      TENANT,
+    ]);
+    const invId = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, party_type, party_id, grand_total, subtotal, status, invoice_date)
+       VALUES ($1,$2,'INV-VE-1','PARTY ONE','vendor',$3,1000,1000,'sent','2025-09-01')`,
+      [invId, TENANT, vendorId],
+    );
+
+    const client = await pool.connect();
+    let voucherId = '';
+    try {
+      await client.query('BEGIN');
+      const created = await createBookVoucher(client, TENANT, {
+        voucherType: 'receipt',
+        voucherDate: '2025-09-20',
+        voucherNumber: 'CR/DW',
+        partyLedgerId: party,
+        contraLedgerId: cash,
+        amount: 400,
+      });
+      voucherId = created.id;
+      expect(created.ops.dualWrite).toBe('receipt');
+      const before = await client.query(
+        `SELECT id FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key LIKE $2`,
+        [TENANT, `books:${voucherId}:%`],
+      );
+      expect(before.rows.length).toBeGreaterThan(0);
+
+      await deleteBookVoucher(client, TENANT, voucherId);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+
+    const ips = await pool.query(`SELECT id FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key LIKE $2`, [
+      TENANT,
+      `books:${voucherId}:%`,
+    ]);
+    expect(ips.rows).toHaveLength(0);
+  });
 });
