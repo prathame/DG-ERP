@@ -27,6 +27,11 @@ import {
   getTrialBalance,
   getFundBook,
 } from '../services/bookFinancialStatements';
+import {
+  getBankReconciliation,
+  markBankReconEntries,
+  saveBankReconStatement,
+} from '../services/bookBankReconciliation';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 
 const router = Router();
@@ -617,6 +622,87 @@ router.get('/api/books/bank-book', blockVendors, async (req: AuthRequest, res) =
     res.json(await getFundBook(pool, tenantId, 'bank', from, to, ledgerId));
   } catch (err) {
     return handleApiError(req, res, err);
+  }
+});
+
+/** Miracle-style BRS: bank book lines + cleared ticks vs statement balance. */
+router.get('/api/books/bank-reconciliation', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const asOf =
+      (typeof req.query.asOf === 'string' && req.query.asOf.trim() ? req.query.asOf.trim() : null) ||
+      (typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null) ||
+      new Date().toISOString().slice(0, 10);
+    const ledgerId =
+      typeof req.query.ledgerId === 'string' && req.query.ledgerId.trim() ? req.query.ledgerId.trim() : null;
+    const rawStmt = typeof req.query.statementBalance === 'string' ? Number(req.query.statementBalance) : NaN;
+    const statementBalance = Number.isFinite(rawStmt) ? rawStmt : null;
+    res.json(await getBankReconciliation(pool, tenantId, asOf, ledgerId, statementBalance));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.post('/api/books/bank-reconciliation/mark', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const body = req.body || {};
+  const ledgerId = typeof body.ledgerId === 'string' ? body.ledgerId.trim() : '';
+  const asOf =
+    (typeof body.asOf === 'string' && body.asOf.trim() ? body.asOf.trim() : null) ||
+    new Date().toISOString().slice(0, 10);
+  const entryIds = Array.isArray(body.entryIds) ? body.entryIds.map((x: unknown) => String(x)) : [];
+  const reconciled = body.reconciled !== false && body.reconciled !== 'false';
+  if (!ledgerId) return res.status(400).json({ error: 'ledgerId is required' });
+  if (!entryIds.length) return res.status(400).json({ error: 'entryIds is required' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const updated = await markBankReconEntries(client, tenantId, ledgerId, entryIds, reconciled, asOf);
+    await client.query('COMMIT');
+    res.json({ updated, reconciled });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/api/books/bank-reconciliation/statement', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const body = req.body || {};
+  const ledgerId = typeof body.ledgerId === 'string' ? body.ledgerId.trim() : '';
+  const asOf =
+    (typeof body.asOf === 'string' && body.asOf.trim() ? body.asOf.trim() : null) ||
+    new Date().toISOString().slice(0, 10);
+  const statementBalance = Number(body.statementBalance);
+  if (!ledgerId) return res.status(400).json({ error: 'ledgerId is required' });
+  if (!Number.isFinite(statementBalance)) {
+    return res.status(400).json({ error: 'statementBalance must be a number' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await saveBankReconStatement(
+      client,
+      tenantId,
+      ledgerId,
+      asOf,
+      statementBalance,
+      typeof body.notes === 'string' ? body.notes : null,
+    );
+    await client.query('COMMIT');
+    res.json(await getBankReconciliation(pool, tenantId, asOf, ledgerId, null));
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 
