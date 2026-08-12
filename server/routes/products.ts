@@ -77,14 +77,17 @@ router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res)
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('UPDATE products SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2', [
-        id,
-        tenantId,
-      ]);
-      await client.query('UPDATE reward_rules SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2', [
-        id,
-        tenantId,
-      ]);
+      // Older schemas may lack products.category_id / reward_rules.category_id
+      for (const sql of [
+        'UPDATE products SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2',
+        'UPDATE reward_rules SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2',
+      ]) {
+        try {
+          await client.query(sql, [id, tenantId]);
+        } catch {
+          /* column may not exist */
+        }
+      }
       await client.query('DELETE FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('COMMIT');
     } catch (e) {

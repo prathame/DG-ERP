@@ -133,10 +133,15 @@ router.delete('/api/customers/:id', blockVendors, async (req: AuthRequest, res) 
       await pool.query('SELECT 1 FROM product_sales WHERE customer_id = $1 AND tenant_id = $2 LIMIT 1', [id, tenantId])
     ).rows[0];
     if (hasSales) return res.status(400).json({ error: 'Cannot delete customer with existing sales records.' });
-    await pool.query('UPDATE warranties SET customer_id = NULL WHERE customer_id = $1 AND tenant_id = $2', [
-      id,
-      tenantId,
-    ]);
+    // warranties.customer_id is optional (older schemas may not have the column)
+    try {
+      await pool.query('UPDATE warranties SET customer_id = NULL WHERE customer_id = $1 AND tenant_id = $2', [
+        id,
+        tenantId,
+      ]);
+    } catch {
+      /* column may not exist */
+    }
     const result = await pool.query('DELETE FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
     res.status(204).send();
