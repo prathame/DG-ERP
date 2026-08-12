@@ -7,6 +7,7 @@
  *   products → products
  *   SP/SE/SS/QS sales → standalone_invoices
  *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
+ *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
  *   CN / sales return → credit_debit_notes (credit)
  *   DN → credit_debit_notes (debit)
  *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments (advances reported)
@@ -24,6 +25,8 @@ import { uid } from '../utils/helpers';
 import { dateStr, findDbf, num, readDbf, str, type DbfRecord } from '../utils/dbf';
 import { logger } from '../utils/logger';
 import { allocatePartyReceipt, normalizeDocNumber, upsertVendorPayment } from './partyCashOps';
+import { classifyGst } from './bookTradeRegister';
+import { round2 } from './bookReports';
 
 const execFileAsync = promisify(execFile);
 
@@ -614,6 +617,113 @@ async function upsertOpsSupplier(
 }
 
 /**
+ * Sum purchase input GST (CGST/SGST/IGST debit lines) from Miracle voucher entries.
+ */
+export function sumPurchaseInputGst(ents: DbfRecord[], ledgerMeta: Map<string, { name: string }>): number {
+  let tax = 0;
+  for (const e of ents) {
+    const ledgerExt = str(e.FIELD03);
+    if (!ledgerExt) continue;
+    const meta = ledgerMeta.get(ledgerExt);
+    if (!meta) continue;
+    if (!classifyGst(ledgerExt, meta.name)) continue;
+    const amt = num(e.FIELD05);
+    const side = str(e.FIELD06).toUpperCase();
+    if (side === 'D' && amt > 0) tax += amt;
+  }
+  return round2(tax);
+}
+
+export type OpsPurchaseUnit = {
+  productId: string;
+  costPrice: number;
+  billedPrice: number;
+  gstApplied: boolean;
+};
+
+/**
+ * Expand purchase item lines into per-unit cost/billed for product_purchases.
+ * When voucherTax > 0, set gst_applied and make billed − cost = allocated GST (ITC via PURCHASE_TAX_SQL).
+ */
+export function expandPurchaseStockUnits(
+  lines: Array<{ productId: string; qty: number; rate: number; amount: number }>,
+  voucherTax: number,
+  voucherAmount: number,
+): OpsPurchaseUnit[] {
+  const prepared = lines
+    .map(line => {
+      const qty = Math.max(1, Math.round(Number(line.qty) || 0));
+      const rate = Number(line.rate) || 0;
+      const amount = Number(line.amount) || rate * qty;
+      return { productId: String(line.productId), qty, rate, amount };
+    })
+    .filter(l => l.productId && l.qty > 0);
+
+  if (!prepared.length) return [];
+
+  if (!(voucherTax > 0)) {
+    return prepared.flatMap(l => {
+      const billed = round2(l.amount / l.qty);
+      const cost = round2(l.rate || billed);
+      return Array.from({ length: l.qty }, () => ({
+        productId: l.productId,
+        costPrice: cost,
+        billedPrice: billed,
+        gstApplied: false,
+      }));
+    });
+  }
+
+  const sumLines = prepared.reduce((s, l) => s + l.amount, 0);
+  const taxableGuess = round2(Math.max(0, Number(voucherAmount) || 0) - voucherTax);
+  const exclusive =
+    sumLines <= 0 || Math.abs(sumLines - taxableGuess) <= Math.abs(sumLines - (Number(voucherAmount) || 0));
+
+  const units: OpsPurchaseUnit[] = [];
+  let allocatedTax = 0;
+  for (let li = 0; li < prepared.length; li++) {
+    const l = prepared[li]!;
+    const weight = sumLines > 0 ? l.amount / sumLines : 1 / prepared.length;
+    const lineTaxRaw = round2(voucherTax * weight);
+    const lineTax = li === prepared.length - 1 ? round2(voucherTax - allocatedTax) : lineTaxRaw;
+    if (li < prepared.length - 1) allocatedTax = round2(allocatedTax + lineTax);
+
+    let lineTaxLeft = lineTax;
+    for (let i = 0; i < l.qty; i++) {
+      const isLastUnit = i === l.qty - 1;
+      const taxUnit = isLastUnit ? round2(lineTaxLeft) : round2(lineTax / l.qty);
+      if (!isLastUnit) lineTaxLeft = round2(lineTaxLeft - taxUnit);
+
+      if (exclusive) {
+        const cost = round2(l.amount / l.qty);
+        units.push({
+          productId: l.productId,
+          costPrice: cost,
+          billedPrice: round2(cost + taxUnit),
+          gstApplied: true,
+        });
+      } else {
+        const billed = round2(l.amount / l.qty);
+        units.push({
+          productId: l.productId,
+          costPrice: round2(Math.max(0, billed - taxUnit)),
+          billedPrice: billed,
+          gstApplied: true,
+        });
+      }
+    }
+  }
+
+  const taxSum = units.reduce((s, u) => s + round2(u.billedPrice - u.costPrice), 0);
+  const drift = round2(voucherTax - taxSum);
+  if (units.length && Math.abs(drift) >= 0.01) {
+    const last = units[units.length - 1]!;
+    last.billedPrice = round2(last.billedPrice + drift);
+  }
+  return units;
+}
+
+/**
  * Idempotent Miracle purchase → ops stock (product_purchases + product_inventory + products.stock).
  * batch_id = miracle:pur:{voucherExt}. Re-import replaces InStock units for that batch only.
  */
@@ -625,6 +735,8 @@ async function upsertOpsPurchaseStock(
   purchaseDate: string,
   supplierId: string,
   lines: Array<{ productId: string; qty: number; rate: number; amount: number }>,
+  voucherTax: number,
+  voucherAmount: number,
 ): Promise<{ units: number }> {
   const batchId = `miracle:pur:${voucherExt}`;
   const existing = (
@@ -649,37 +761,47 @@ async function upsertOpsPurchaseStock(
   ]);
   await client.query(`DELETE FROM product_purchases WHERE tenant_id = $1 AND batch_id = $2`, [tenantId, batchId]);
 
-  let units = 0;
+  const units = expandPurchaseStockUnits(lines, voucherTax, voucherAmount);
   let seq = 0;
-  for (const line of lines) {
-    const qty = Math.max(1, Math.round(Number(line.qty) || 0));
-    const rate = Number(line.rate) || 0;
-    const billed = qty > 0 ? (Number(line.amount) || rate * qty) / qty : rate;
-    for (let i = 0; i < qty; i++) {
-      seq++;
-      units++;
-      const purchaseId = `${batchId}-${seq}`;
-      const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
-      const invId = `PI-${batchId}-${seq}`;
-      await client.query(
-        `INSERT INTO product_purchases
-           (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,false,$8,0,$9,$10)`,
-        [purchaseId, tenantId, batchId, line.productId, supplierId, purchaseDate, rate, billed, invoiceNumber, barcode],
-      );
-      await client.query(
-        `INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type)
-         VALUES ($1,$2,$3,$4,'InStock',$5,'piece')`,
-        [invId, line.productId, barcode, batchId, tenantId],
-      );
-    }
+  const stockByProduct = new Map<string, number>();
+  for (const u of units) {
+    seq++;
+    const purchaseId = `${batchId}-${seq}`;
+    const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
+    const invId = `PI-${batchId}-${seq}`;
+    await client.query(
+      `INSERT INTO product_purchases
+         (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11)`,
+      [
+        purchaseId,
+        tenantId,
+        batchId,
+        u.productId,
+        supplierId,
+        purchaseDate,
+        u.costPrice,
+        u.gstApplied,
+        u.billedPrice,
+        invoiceNumber,
+        barcode,
+      ],
+    );
+    await client.query(
+      `INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type)
+       VALUES ($1,$2,$3,$4,'InStock',$5,'piece')`,
+      [invId, u.productId, barcode, batchId, tenantId],
+    );
+    stockByProduct.set(u.productId, (stockByProduct.get(u.productId) || 0) + 1);
+  }
+  for (const [productId, qty] of stockByProduct) {
     await client.query(`UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3`, [
       qty,
-      line.productId,
+      productId,
       tenantId,
     ]);
   }
-  return { units };
+  return { units: units.length };
 }
 
 async function upsertOpsInvoice(
@@ -1693,6 +1815,7 @@ export async function importMiracleCompany(
           meta.gstin || null,
           supplierIds,
         );
+        const voucherTax = sumPurchaseInputGst(ents, ledgerMeta);
         const { units } = await upsertOpsPurchaseStock(
           client,
           tenantId,
@@ -1701,6 +1824,8 @@ export async function importMiracleCompany(
           vDate,
           supplierId,
           stockLines,
+          voucherTax,
+          amount,
         );
         summary.purchaseBatches++;
         summary.purchaseStockUnits += units;

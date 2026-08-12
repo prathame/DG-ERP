@@ -11,6 +11,7 @@ import { uid } from '../../server/utils/helpers';
 import { findDbf, num, readDbf, str, dateStr } from '../../server/utils/dbf';
 import {
   extractArchive,
+  expandPurchaseStockUnits,
   importMiracleCompany,
   isCashIncomeLedgerType,
   isOpsPartyLedgerType,
@@ -19,6 +20,7 @@ import {
   normalizeMiracleDocNumber,
   pickMiraclePaymentReference,
   resolveMiraclePaymentMethod,
+  sumPurchaseInputGst,
 } from '../../server/services/miracleImport';
 
 const TENANT = 'T-TEST-MIRACLE';
@@ -1196,6 +1198,37 @@ describe('miracleImport', () => {
     expect(mapVoucherType('XX', '', '')).toBe('other');
   });
 
+  it('allocates purchase GST into per-unit cost and billed', () => {
+    expect(sumPurchaseInputGst([], new Map())).toBe(0);
+    const tax = sumPurchaseInputGst(
+      [
+        { FIELD03: 'ACGST01', FIELD05: 9, FIELD06: 'D' },
+        { FIELD03: 'ASGST01', FIELD05: 9, FIELD06: 'D' },
+        { FIELD03: 'APURCH01', FIELD05: 100, FIELD06: 'D' },
+      ] as never,
+      new Map([
+        ['ACGST01', { name: 'Input CGST' }],
+        ['ASGST01', { name: 'Input SGST' }],
+        ['APURCH01', { name: 'Purchase Account' }],
+      ]),
+    );
+    expect(tax).toBe(18);
+
+    const noTax = expandPurchaseStockUnits([{ productId: 'P1', qty: 2, rate: 50, amount: 100 }], 0, 100);
+    expect(noTax).toHaveLength(2);
+    expect(noTax.every(u => !u.gstApplied && u.costPrice === 50 && u.billedPrice === 50)).toBe(true);
+
+    const withTax = expandPurchaseStockUnits([{ productId: 'P1', qty: 2, rate: 50, amount: 100 }], 18, 118);
+    expect(withTax).toHaveLength(2);
+    expect(withTax.every(u => u.gstApplied && u.costPrice === 50 && u.billedPrice === 59)).toBe(true);
+    expect(withTax.reduce((s, u) => s + (u.billedPrice - u.costPrice), 0)).toBeCloseTo(18, 5);
+
+    const inclusive = expandPurchaseStockUnits([{ productId: 'P1', qty: 1, rate: 118, amount: 118 }], 18, 118);
+    expect(inclusive[0]?.gstApplied).toBe(true);
+    expect(inclusive[0]?.billedPrice).toBe(118);
+    expect(inclusive[0]?.costPrice).toBe(100);
+  });
+
   it('imports credit notes and bill-matched receipts', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-cn-'));
     tmpDirs.push(root);
@@ -1717,5 +1750,216 @@ describe('miracleImport', () => {
       [TENANT, 'miracle:pur:PUSTOCK001'],
     );
     expect(inv2.rows[0]?.n).toBe(3);
+
+    const pur = await pool.query(
+      `SELECT gst_applied, cost_price::float AS cost, billed_price::float AS billed
+       FROM product_purchases WHERE tenant_id=$1 AND batch_id=$2`,
+      [TENANT, 'miracle:pur:PUSTOCK001'],
+    );
+    expect(pur.rows.length).toBe(3);
+    expect(pur.rows.every((r: { gst_applied: boolean }) => r.gst_applied === false)).toBe(true);
+  });
+
+  it('sets gst_applied and billed−cost from Books purchase tax ledgers', async () => {
+    await pool.query('ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'miracle-pu-gst-'));
+    tmpDirs.push(root);
+    const company = path.join(root, 'CMP0001');
+    fs.mkdirSync(company, { recursive: true });
+    fs.writeFileSync(path.join(company, 'version.txt'), 'Company Name : PU GST\nMiracle Version : 12.0\n');
+    const yr = path.join(company, 'YR25');
+    fs.mkdirSync(yr, { recursive: true });
+
+    writeDbf(
+      path.join(yr, 'rkaccm11.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+      ],
+      [
+        { FIELD01: 'GRPPARTY', FIELD02: 'Creditors', FIELD07: 'L' },
+        { FIELD01: 'GRPPUR', FIELD02: 'Purchases', FIELD07: 'E' },
+        { FIELD01: 'GRPDUTY', FIELD02: 'Duties', FIELD07: 'A' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCM01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD04', type: 'C', length: 1 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'C', length: 8 },
+        { name: 'FIELD07', type: 'C', length: 2 },
+        { name: 'FIELD10', type: 'N', length: 17, decimals: 2 },
+      ],
+      [
+        {
+          FIELD01: 'ASUPPLY1',
+          FIELD02: 'SUPPLIER GST',
+          FIELD04: 'A',
+          FIELD05: 'GRPPARTY',
+          FIELD06: 'GRPPARTY',
+          FIELD07: 'PR',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'APURCH01',
+          FIELD02: 'Purchase Account',
+          FIELD04: 'A',
+          FIELD05: 'GRPPUR',
+          FIELD06: 'GRPPUR',
+          FIELD07: 'EX',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ACGST01',
+          FIELD02: 'Input CGST',
+          FIELD04: 'A',
+          FIELD05: 'GRPDUTY',
+          FIELD06: 'GRPDUTY',
+          FIELD07: 'GL',
+          FIELD10: 0,
+        },
+        {
+          FIELD01: 'ASGST01',
+          FIELD02: 'Input SGST',
+          FIELD04: 'A',
+          FIELD05: 'GRPDUTY',
+          FIELD06: 'GRPDUTY',
+          FIELD07: 'GL',
+          FIELD10: 0,
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm21.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'FIELD02', type: 'C', length: 40 },
+        { name: 'FIELD08', type: 'C', length: 10 },
+      ],
+      [{ FIELD01: 'PRODPU02', FIELD02: 'Nut', FIELD08: 'Nos' }],
+    );
+    writeDbf(
+      path.join(yr, 'rkaccm29.dbf'),
+      [
+        { name: 'FIELD01', type: 'C', length: 8 },
+        { name: 'M29F03', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'PRODPU02', M29F03: 50 }],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT41.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD02', type: 'D', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD12', type: 'C', length: 25 },
+        { name: 'FIELD16', type: 'C', length: 1 },
+        { name: 'FIELD74', type: 'C', length: 2 },
+        { name: 'FIELD98', type: 'C', length: 2 },
+        { name: 'T41FVNO', type: 'C', length: 25 },
+      ],
+      [
+        {
+          FIELD01: 'PUGST0001',
+          FIELD02: '20250615',
+          FIELD04: 'ASUPPLY1',
+          FIELD05: 'APURCH01',
+          FIELD06: 118,
+          FIELD07: 118,
+          FIELD12: 'PU/GST1',
+          FIELD16: '',
+          FIELD74: 'PU',
+          FIELD98: 'PU',
+          T41FVNO: 'PU/GST1',
+        },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT01.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD04', type: 'C', length: 8 },
+        { name: 'FIELD05', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD06', type: 'C', length: 1 },
+      ],
+      [
+        { FIELD01: 'PUGST0001', FIELD03: 'APURCH01', FIELD04: 'ASUPPLY1', FIELD05: 100, FIELD06: 'D' },
+        { FIELD01: 'PUGST0001', FIELD03: 'ACGST01', FIELD04: 'ASUPPLY1', FIELD05: 9, FIELD06: 'D' },
+        { FIELD01: 'PUGST0001', FIELD03: 'ASGST01', FIELD04: 'ASUPPLY1', FIELD05: 9, FIELD06: 'D' },
+        { FIELD01: 'PUGST0001', FIELD03: 'ASUPPLY1', FIELD04: 'APURCH01', FIELD05: 118, FIELD06: 'C' },
+      ],
+    );
+    writeDbf(
+      path.join(yr, 'RKACCT02.DBF'),
+      [
+        { name: 'FIELD01', type: 'C', length: 12 },
+        { name: 'FIELD03', type: 'C', length: 8 },
+        { name: 'FIELD06', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD07', type: 'N', length: 17, decimals: 2 },
+        { name: 'FIELD08', type: 'N', length: 17, decimals: 2 },
+      ],
+      [{ FIELD01: 'PUGST0001', FIELD03: 'PRODPU02', FIELD06: 2, FIELD07: 50, FIELD08: 100 }],
+    );
+
+    for (const t of [
+      'product_inventory',
+      'product_purchases',
+      'suppliers',
+      'products',
+      'vendors',
+      'book_voucher_items',
+      'book_voucher_entries',
+      'book_vouchers',
+      'book_products',
+      'book_ledgers',
+      'book_account_groups',
+      'book_financial_years',
+      'book_import_jobs',
+    ]) {
+      await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [TENANT]).catch(() => undefined);
+    }
+
+    const jobId = uid('BJ');
+    await pool.query(
+      `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
+      [jobId, TENANT],
+    );
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await importMiracleCompany(client, TENANT, company, jobId);
+      await client.query('COMMIT');
+      expect(result.errors).toEqual([]);
+      expect(result.summary.coverage.purchases.imported).toBe(1);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const rows = await pool.query(
+      `SELECT gst_applied, cost_price::float AS cost, billed_price::float AS billed
+       FROM product_purchases WHERE tenant_id=$1 AND batch_id=$2 ORDER BY id`,
+      [TENANT, 'miracle:pur:PUGST0001'],
+    );
+    expect(rows.rows.length).toBe(2);
+    expect(rows.rows.every((r: { gst_applied: boolean }) => r.gst_applied === true)).toBe(true);
+    expect(rows.rows[0]?.cost).toBe(50);
+    expect(rows.rows[0]?.billed).toBe(59);
+    const taxSum = rows.rows.reduce(
+      (s: number, r: { billed: number; cost: number }) => s + (Number(r.billed) - Number(r.cost)),
+      0,
+    );
+    expect(taxSum).toBeCloseTo(18, 5);
   });
 });
