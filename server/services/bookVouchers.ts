@@ -2,7 +2,7 @@
  * Manual Books voucher create — Miracle-shaped desk (receipt / payment / journal / contra).
  * Persists to book_vouchers + book_voucher_entries.
  * Receipt/payment dual-write to Invoice Finance when party ledger maps to a vendor.
- * Purchase / purchase_return with product lines dual-write ops stock when supplier + products resolve.
+ * Purchase / purchase_return / sales / credit_note / debit_note with product lines dual-write ops stock when products resolve.
  */
 import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
@@ -17,6 +17,7 @@ import {
 } from './purchaseStockOps';
 import {
   clearBooksCreditNoteStockIn,
+  clearBooksDebitNoteStockOut,
   clearBooksSaleStockOut,
   upsertCreditNoteStockIn,
   upsertSaleStockOut,
@@ -99,7 +100,8 @@ export class BookVoucherNotFoundError extends Error {
 }
 
 export interface BookVoucherOpsResult {
-  dualWrite: 'receipt' | 'payment' | 'purchase' | 'purchase_return' | 'sales' | 'credit_note' | 'skipped';
+  dualWrite:
+    'receipt' | 'payment' | 'purchase' | 'purchase_return' | 'sales' | 'credit_note' | 'debit_note' | 'skipped';
   reason?: string;
   vendorId?: string;
   vendorName?: string;
@@ -451,7 +453,7 @@ async function dualWriteSalesStock(
   client: PoolClient,
   tenantId: string,
   voucherId: string,
-  voucherType: 'sales' | 'credit_note',
+  voucherType: 'sales' | 'credit_note' | 'debit_note',
   items: BookVoucherItemInput[] | undefined,
 ): Promise<BookVoucherOpsResult> {
   if (!items?.length) {
@@ -473,6 +475,11 @@ async function dualWriteSalesStock(
   if (voucherType === 'sales') {
     const { units, shortfall } = await upsertSaleStockOut(client, tenantId, `books:sal:${voucherId}`, resolved);
     return { dualWrite: 'sales', stockUnits: units, stockShortfall: shortfall };
+  }
+
+  if (voucherType === 'debit_note') {
+    const { units, shortfall } = await upsertSaleStockOut(client, tenantId, `books:dn:${voucherId}`, resolved);
+    return { dualWrite: 'debit_note', stockUnits: units, stockShortfall: shortfall };
   }
 
   const { units } = await upsertCreditNoteStockIn(client, tenantId, `books:cn:${voucherId}`, resolved);
@@ -643,7 +650,11 @@ export async function createBookVoucher(
       input.voucherNumber?.trim() || null,
       input.items,
     );
-  } else if (input.voucherType === 'sales' || input.voucherType === 'credit_note') {
+  } else if (
+    input.voucherType === 'sales' ||
+    input.voucherType === 'credit_note' ||
+    input.voucherType === 'debit_note'
+  ) {
     await persistVoucherItems(client, tenantId, voucherId, input.items);
     ops = await dualWriteSalesStock(client, tenantId, voucherId, input.voucherType, input.items);
   }
@@ -737,6 +748,9 @@ export async function deleteBookVoucher(
   }
   if (isManualVoucher(row.external_ref) && row.voucher_type === 'sales') {
     await clearBooksSaleStockOut(client, tenantId, voucherId);
+  }
+  if (isManualVoucher(row.external_ref) && row.voucher_type === 'debit_note') {
+    await clearBooksDebitNoteStockOut(client, tenantId, voucherId);
   }
   if (isManualVoucher(row.external_ref) && row.voucher_type === 'credit_note') {
     await clearBooksCreditNoteStockIn(client, tenantId, voucherId);

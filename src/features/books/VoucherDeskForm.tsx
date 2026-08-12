@@ -59,7 +59,7 @@ const MODE_TABS: { id: DeskMode; label: string }[] = [
 
 /**
  * Miracle-style voucher desk: cash/bank, sales/purchase/return, CN/DN, contra, journal, memorandum.
- * Purchase / PR / sales / CN optional product lines dual-write ops stock when products resolve.
+ * Purchase / PR / sales / CN / DN optional product lines dual-write ops stock when products resolve.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
 export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
@@ -168,7 +168,11 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   const usesSalesContra = mode === 'sales' || mode === 'credit_note' || mode === 'debit_note';
   const usesPurchaseContra = mode === 'purchase' || mode === 'purchase_return';
   const usesStockLines =
-    mode === 'purchase' || mode === 'purchase_return' || mode === 'sales' || mode === 'credit_note';
+    mode === 'purchase' ||
+    mode === 'purchase_return' ||
+    mode === 'sales' ||
+    mode === 'credit_note' ||
+    mode === 'debit_note';
 
   const partyOptions = useMemo(() => {
     const excludeId = usesSalesContra ? salesIncomeId : usesPurchaseContra ? purchaseAccountId : fundLedgerId;
@@ -381,7 +385,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                 : mode === 'credit_note'
                   ? 'Credit note / sales return — optional product lines for stock-in'
                   : mode === 'debit_note'
-                    ? 'Debit note — customer ← sales income'
+                    ? 'Debit note — optional product lines for stock-out'
                     : 'Cash / bank receipt & payment — Save & next for rapid posting';
 
   return (
