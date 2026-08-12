@@ -34,7 +34,9 @@ export interface MiracleImportCoverage {
   purchases: MiracleImportCoverageBucket;
   /** @deprecated prefer purchases.skipped — kept for older import payloads */
   purchasesBooksOnly?: number;
-  purchaseReturnsSkipped: number;
+  purchaseReturns: MiracleImportCoverageBucket;
+  /** @deprecated prefer purchaseReturns.skipped — kept for older import payloads */
+  purchaseReturnsSkipped?: number;
   contraBooksOnly: number;
   unsupportedVouchersBooksOnly: number;
   unallocatedAdvances: number;
@@ -76,7 +78,10 @@ export function parseCoverage(s: Record<string, unknown> | undefined): MiracleIm
     purchases: c.purchases
       ? bucket(c.purchases)
       : { source: 0, imported: 0, skipped: Number(c.purchasesBooksOnly) || 0 },
-    purchaseReturnsSkipped: Number(c.purchaseReturnsSkipped) || 0,
+    purchaseReturns: c.purchaseReturns
+      ? bucket(c.purchaseReturns)
+      : { source: 0, imported: 0, skipped: Number(c.purchaseReturnsSkipped) || 0 },
+    purchaseReturnsSkipped: Number((c.purchaseReturns ? c.purchaseReturns.skipped : c.purchaseReturnsSkipped) || 0),
     contraBooksOnly: Number(c.contraBooksOnly) || 0,
     unsupportedVouchersBooksOnly: Number(c.unsupportedVouchersBooksOnly) || 0,
     unallocatedAdvances: Number(c.unallocatedAdvances) || 0,
@@ -233,6 +238,12 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
       ...coverage.purchases,
       note: coverage.purchases.skipReason,
     },
+    {
+      key: 'purchaseReturns',
+      label: t('masters.importCoveragePurchaseReturnsStock'),
+      ...coverage.purchaseReturns,
+      note: coverage.purchaseReturns.skipReason,
+    },
   ];
 
   return (
@@ -272,15 +283,15 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
       {(coverage.nonPartyCashSkipped > 0 ||
         coverage.journalsBooksOnly > 0 ||
         coverage.purchases.skipped > 0 ||
-        coverage.purchaseReturnsSkipped > 0 ||
+        coverage.purchaseReturns.skipped > 0 ||
         coverage.contraBooksOnly > 0 ||
         coverage.unsupportedVouchersBooksOnly > 0 ||
         coverage.unallocatedAdvances > 0 ||
         coverage.billMatchedPayments > 0) && (
         <ul className="mt-2 space-y-1 text-xs text-amber-800">
-          {coverage.purchaseReturnsSkipped > 0 && (
+          {coverage.purchaseReturns.skipped > 0 && (
             <li>
-              {coverage.purchaseReturnsSkipped} {t('masters.importCoveragePurchaseReturns')}
+              {coverage.purchaseReturns.skipped} {t('masters.importCoveragePurchaseReturns')}
             </li>
           )}
           {coverage.purchases.skipped > 0 && (
@@ -337,7 +348,7 @@ function formatPaymentsByMethod(s: Record<string, unknown>): string {
 function buildSuccessMessage(s: Record<string, unknown>, warnings: MiracleImportIssue[]): string {
   const cov = parseCoverage(s);
   const booksOnly =
-    (cov?.purchaseReturnsSkipped || 0) +
+    (cov?.purchaseReturns.skipped || 0) +
     (cov?.purchases.skipped || 0) +
     (cov?.journalsBooksOnly || 0) +
     (cov?.contraBooksOnly || 0) +

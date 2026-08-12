@@ -9,12 +9,13 @@
  *     (gst_enabled + tax_* from Books CGST/SGST/IGST credit lines when present)
  *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
  *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
+ *   QR purchase returns (with ops product lines) → InStock → PurchaseReturned (miracle:pr:)
  *   CN / sales return → credit_debit_notes (credit); with ops product lines → inventory InStock (miracle:cn:)
  *   DN → credit_debit_notes (debit) — no ops stock
  *   CB party R/P → invoice_payments (bill-ref then FIFO) and/or vendor_payments (advances reported)
  *   CB → income (JP/IN) → cash_income invoices (native Collections)
  * Unsupported ops shapes stay Books-only with explicit skip reasons (no fake ops rows):
- *   purchase returns, purchases without items/products, journals, contra, unknown vouchers, non-party expense cash
+ *   purchase returns without products, journals, contra, unknown vouchers, non-party expense cash
  */
 import fs from 'fs';
 import os from 'os';
@@ -56,8 +57,8 @@ export interface MiracleImportCoverage {
   journalsBooksOnly: number;
   /** Purchases → ops stock when items + products resolve; else skipped Books-only */
   purchases: MiracleImportCoverageBucket;
-  /** Purchase returns — Books only (no ops return screen) */
-  purchaseReturnsSkipped: number;
+  /** Purchase returns → ops stock-out when ops product lines resolve; else skipped Books-only */
+  purchaseReturns: MiracleImportCoverageBucket;
   contraBooksOnly: number;
   /** Unknown Miracle voucher types — Books as `other`, not ops */
   unsupportedVouchersBooksOnly: number;
@@ -90,6 +91,8 @@ export interface MiracleImportSummary {
   purchaseStockUnits: number;
   /** Units added to product_inventory from Miracle credit notes / sales returns */
   creditNoteStockUnits: number;
+  /** Units marked PurchaseReturned from Miracle purchase returns */
+  purchaseReturnStockUnits: number;
   /** Count of ops payments by inferred method (Cash / Bank Transfer / …) */
   paymentsByMethod: Record<string, number>;
   /** Post-import breakdown for UI */
@@ -184,7 +187,7 @@ function emptyCoverage(): MiracleImportCoverage {
     nonPartyCashSkipped: 0,
     journalsBooksOnly: 0,
     purchases: { source: 0, imported: 0, skipped: 0 },
-    purchaseReturnsSkipped: 0,
+    purchaseReturns: { source: 0, imported: 0, skipped: 0 },
     contraBooksOnly: 0,
     unsupportedVouchersBooksOnly: 0,
     unallocatedAdvances: 0,
@@ -199,9 +202,9 @@ function warnBooksOnlySkips(
 ): void {
   const rows: Array<[number, string, string]> = [
     [
-      coverage.purchaseReturnsSkipped,
+      coverage.purchaseReturns.skipped,
       'purchase_returns',
-      'purchase return(s) kept in Books only — Dhandho has no purchase-return screen yet (not imported as debit notes)',
+      'purchase return(s) kept in Books only — missing ops product lines for stock-out',
     ],
     [
       coverage.purchases.skipped,
@@ -852,9 +855,9 @@ async function upsertOpsPurchaseStock(
   const stockByProduct = new Map<string, number>();
   for (const u of units) {
     seq++;
-    const purchaseId = `${batchId}-${seq}`;
-    const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
-    const invId = `PI-${batchId}-${seq}`;
+    const purchaseId = uid('PP');
+    const barcode = `${batchId}-${String(seq).padStart(4, '0')}-${purchaseId.slice(-6)}`;
+    const invId = uid('PI');
     await client.query(
       `INSERT INTO product_purchases
          (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
@@ -950,6 +953,74 @@ async function upsertOpsCreditNoteStock(
     ]);
   }
   return { units };
+}
+
+/**
+ * Idempotent Miracle purchase return → ops stock-out.
+ * batch_id = miracle:pr:{voucherExt}. Re-import deletes prior PurchaseReturned marks for this
+ * batch, then FIFO flips InStock → PurchaseReturned (rewriting id/barcode into the pr namespace).
+ * Shortfall warns; does not invent units or touch Sold.
+ */
+async function upsertOpsPurchaseReturnStock(
+  client: PoolClient,
+  tenantId: string,
+  voucherExt: string,
+  lines: Array<{ productId: string; qty: number }>,
+  issues: { warn: (issue: { stage: string; message: string; externalRef?: string }) => void },
+): Promise<{ units: number; shortfall: number }> {
+  const batchId = `miracle:pr:${voucherExt}`;
+  // Drop prior return marks for this voucher (units already out of stock). PU re-import
+  // recreates InStock separately — restoring here would double-count available stock.
+  await client.query(
+    `DELETE FROM product_inventory
+     WHERE tenant_id = $1 AND batch_id = $2 AND status = 'PurchaseReturned'`,
+    [tenantId, batchId],
+  );
+
+  let units = 0;
+  let shortfall = 0;
+  let seq = 0;
+  for (const line of lines) {
+    const want = Math.max(1, Math.round(Number(line.qty) || 0));
+    if (!line.productId || !(want > 0)) continue;
+    const available = (
+      await client.query(
+        `SELECT id FROM product_inventory
+         WHERE tenant_id = $1 AND product_id = $2 AND status = 'InStock'
+         ORDER BY id
+         LIMIT $3`,
+        [tenantId, line.productId, want],
+      )
+    ).rows as Array<{ id: string }>;
+    const taken = available.length;
+    if (taken < want) {
+      shortfall += want - taken;
+      issues.warn({
+        stage: 'purchase_returns',
+        message: `Purchase return short ${want - taken} unit(s) for product (wanted ${want}, had ${taken} InStock)`,
+        externalRef: voucherExt,
+      });
+    }
+    if (!taken) continue;
+    for (const row of available) {
+      seq++;
+      const newId = `PI-${batchId}-${seq}`;
+      const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
+      await client.query(
+        `UPDATE product_inventory
+         SET id = $1, barcode = $2, status = 'PurchaseReturned', batch_id = $3
+         WHERE tenant_id = $4 AND id = $5`,
+        [newId, barcode, batchId, tenantId, row.id],
+      );
+    }
+    await client.query(`UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND tenant_id = $3`, [
+      taken,
+      line.productId,
+      tenantId,
+    ]);
+    units += taken;
+  }
+  return { units, shortfall };
 }
 
 async function upsertOpsInvoice(
@@ -1183,6 +1254,7 @@ export async function importMiracleCompany(
     purchaseBatches: 0,
     purchaseStockUnits: 0,
     creditNoteStockUnits: 0,
+    purchaseReturnStockUnits: 0,
     paymentsByMethod: {},
     coverage,
   };
@@ -1843,8 +1915,23 @@ export async function importMiracleCompany(
         coverage.salesInvoices.imported++;
       }
     } else if (voucherType === 'purchase_return') {
-      // Books voucher already typed purchase_return — do not fake as debit note.
-      coverage.purchaseReturnsSkipped++;
+      coverage.purchaseReturns.source++;
+      const stockLines = opsLineItems
+        .filter(it => it.productId && Number(it.qty) > 0)
+        .map(it => ({ productId: String(it.productId), qty: Number(it.qty) || 0 }));
+      if (!stockLines.length) {
+        coverage.purchaseReturns.skipped++;
+        coverage.purchaseReturns.skipReason = 'Purchase return has no ops product lines';
+        issues.warn({
+          stage: 'purchase_returns',
+          message: 'Purchase return has no matching ops products — Books only (no stock-out)',
+          externalRef: ext,
+        });
+      } else {
+        const { units } = await upsertOpsPurchaseReturnStock(client, tenantId, ext, stockLines, issues);
+        summary.purchaseReturnStockUnits += units;
+        coverage.purchaseReturns.imported++;
+      }
     } else if (voucherType === 'credit_note' || voucherType === 'debit_note') {
       const noteType: 'credit' | 'debit' = voucherType === 'debit_note' ? 'debit' : 'credit';
       const bucket = noteType === 'credit' ? coverage.creditNotes : coverage.debitNotes;
