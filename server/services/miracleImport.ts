@@ -7,6 +7,7 @@
  *   products → products
  *   SP/SE/SS/QS sales → standalone_invoices
  *     (gst_enabled + tax_* from Books CGST/SGST/IGST credit lines when present)
+ *     with ops product lines → InStock → Sold (miracle:sal:)
  *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
  *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
  *   QR purchase returns (with ops product lines) → InStock → PurchaseReturned (miracle:pr:)
@@ -95,6 +96,8 @@ export interface MiracleImportSummary {
   creditNoteStockUnits: number;
   /** Units marked PurchaseReturned from Miracle purchase returns */
   purchaseReturnStockUnits: number;
+  /** Units marked Sold from Miracle sales (ops product lines) */
+  saleStockUnits: number;
   /** Count of ops payments by inferred method (Cash / Bank Transfer / …) */
   paymentsByMethod: Record<string, number>;
   /** Post-import breakdown for UI */
@@ -1076,6 +1079,73 @@ async function upsertOpsPurchaseReturnStock(
   return { units, shortfall };
 }
 
+/**
+ * Idempotent Miracle sales → ops stock-out.
+ * batch_id = miracle:sal:{voucherExt}. Re-import deletes prior Sold marks for this batch,
+ * then FIFO flips InStock → Sold (rewriting id/barcode into the sal namespace).
+ * Shortfall warns; does not invent units. Does not write product_sales.
+ */
+async function upsertOpsSaleStock(
+  client: PoolClient,
+  tenantId: string,
+  voucherExt: string,
+  lines: Array<{ productId: string; qty: number }>,
+  issues: { warn: (issue: { stage: string; message: string; externalRef?: string }) => void },
+): Promise<{ units: number; shortfall: number }> {
+  const batchId = `miracle:sal:${voucherExt}`;
+  // Drop prior sale marks for this voucher (units already out of stock). PU re-import
+  // recreates InStock separately — restoring here would double-count available stock.
+  await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'Sold'`, [
+    tenantId,
+    batchId,
+  ]);
+
+  let units = 0;
+  let shortfall = 0;
+  let seq = 0;
+  for (const line of lines) {
+    const want = Math.max(1, Math.round(Number(line.qty) || 0));
+    if (!line.productId || !(want > 0)) continue;
+    const available = (
+      await client.query(
+        `SELECT id FROM product_inventory
+         WHERE tenant_id = $1 AND product_id = $2 AND status = 'InStock'
+         ORDER BY id
+         LIMIT $3`,
+        [tenantId, line.productId, want],
+      )
+    ).rows as Array<{ id: string }>;
+    const taken = available.length;
+    if (taken < want) {
+      shortfall += want - taken;
+      issues.warn({
+        stage: 'sales',
+        message: `Sale short ${want - taken} unit(s) for product (wanted ${want}, had ${taken} InStock)`,
+        externalRef: voucherExt,
+      });
+    }
+    if (!taken) continue;
+    for (const row of available) {
+      seq++;
+      const newId = `PI-${batchId}-${seq}`;
+      const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
+      await client.query(
+        `UPDATE product_inventory
+         SET id = $1, barcode = $2, status = 'Sold', batch_id = $3
+         WHERE tenant_id = $4 AND id = $5`,
+        [newId, barcode, batchId, tenantId, row.id],
+      );
+    }
+    await client.query(`UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND tenant_id = $3`, [
+      taken,
+      line.productId,
+      tenantId,
+    ]);
+    units += taken;
+  }
+  return { units, shortfall };
+}
+
 async function upsertOpsInvoice(
   client: PoolClient,
   tenantId: string,
@@ -1323,6 +1393,7 @@ export async function importMiracleCompany(
     purchaseStockUnits: 0,
     creditNoteStockUnits: 0,
     purchaseReturnStockUnits: 0,
+    saleStockUnits: 0,
     paymentsByMethod: {},
     coverage,
   };
@@ -1981,6 +2052,13 @@ export async function importMiracleCompany(
         );
         summary.invoices++;
         coverage.salesInvoices.imported++;
+        const stockLines = lineItems
+          .filter(it => it.productId && Number(it.qty) > 0)
+          .map(it => ({ productId: String(it.productId), qty: Number(it.qty) || 0 }));
+        if (stockLines.length) {
+          const { units } = await upsertOpsSaleStock(client, tenantId, ext, stockLines, issues);
+          summary.saleStockUnits += units;
+        }
       }
     } else if (voucherType === 'purchase_return') {
       coverage.purchaseReturns.source++;
