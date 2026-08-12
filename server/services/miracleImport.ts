@@ -32,6 +32,9 @@ import { logger } from '../utils/logger';
 import { allocatePartyReceipt, normalizeDocNumber, upsertVendorPayment } from './partyCashOps';
 import { classifyGst } from './bookTradeRegister';
 import { round2 } from './bookReports';
+import { upsertPurchaseStockIn, upsertPurchaseStockReturn } from './purchaseStockOps';
+
+export { expandPurchaseStockUnits, type OpsPurchaseUnit } from './purchaseStockOps';
 
 const execFileAsync = promisify(execFile);
 
@@ -779,176 +782,6 @@ export function applyNoteGstToItems(lines: NoteLineItem[], voucherTax: number, v
   });
 }
 
-export type OpsPurchaseUnit = {
-  productId: string;
-  costPrice: number;
-  billedPrice: number;
-  gstApplied: boolean;
-};
-
-/**
- * Expand purchase item lines into per-unit cost/billed for product_purchases.
- * When voucherTax > 0, set gst_applied and make billed − cost = allocated GST (ITC via PURCHASE_TAX_SQL).
- */
-export function expandPurchaseStockUnits(
-  lines: Array<{ productId: string; qty: number; rate: number; amount: number }>,
-  voucherTax: number,
-  voucherAmount: number,
-): OpsPurchaseUnit[] {
-  const prepared = lines
-    .map(line => {
-      const qty = Math.max(1, Math.round(Number(line.qty) || 0));
-      const rate = Number(line.rate) || 0;
-      const amount = Number(line.amount) || rate * qty;
-      return { productId: String(line.productId), qty, rate, amount };
-    })
-    .filter(l => l.productId && l.qty > 0);
-
-  if (!prepared.length) return [];
-
-  if (!(voucherTax > 0)) {
-    return prepared.flatMap(l => {
-      const billed = round2(l.amount / l.qty);
-      const cost = round2(l.rate || billed);
-      return Array.from({ length: l.qty }, () => ({
-        productId: l.productId,
-        costPrice: cost,
-        billedPrice: billed,
-        gstApplied: false,
-      }));
-    });
-  }
-
-  const sumLines = prepared.reduce((s, l) => s + l.amount, 0);
-  const taxableGuess = round2(Math.max(0, Number(voucherAmount) || 0) - voucherTax);
-  const exclusive =
-    sumLines <= 0 || Math.abs(sumLines - taxableGuess) <= Math.abs(sumLines - (Number(voucherAmount) || 0));
-
-  const units: OpsPurchaseUnit[] = [];
-  let allocatedTax = 0;
-  for (let li = 0; li < prepared.length; li++) {
-    const l = prepared[li]!;
-    const weight = sumLines > 0 ? l.amount / sumLines : 1 / prepared.length;
-    const lineTaxRaw = round2(voucherTax * weight);
-    const lineTax = li === prepared.length - 1 ? round2(voucherTax - allocatedTax) : lineTaxRaw;
-    if (li < prepared.length - 1) allocatedTax = round2(allocatedTax + lineTax);
-
-    let lineTaxLeft = lineTax;
-    for (let i = 0; i < l.qty; i++) {
-      const isLastUnit = i === l.qty - 1;
-      const taxUnit = isLastUnit ? round2(lineTaxLeft) : round2(lineTax / l.qty);
-      if (!isLastUnit) lineTaxLeft = round2(lineTaxLeft - taxUnit);
-
-      if (exclusive) {
-        const cost = round2(l.amount / l.qty);
-        units.push({
-          productId: l.productId,
-          costPrice: cost,
-          billedPrice: round2(cost + taxUnit),
-          gstApplied: true,
-        });
-      } else {
-        const billed = round2(l.amount / l.qty);
-        units.push({
-          productId: l.productId,
-          costPrice: round2(Math.max(0, billed - taxUnit)),
-          billedPrice: billed,
-          gstApplied: true,
-        });
-      }
-    }
-  }
-
-  const taxSum = units.reduce((s, u) => s + round2(u.billedPrice - u.costPrice), 0);
-  const drift = round2(voucherTax - taxSum);
-  if (units.length && Math.abs(drift) >= 0.01) {
-    const last = units[units.length - 1]!;
-    last.billedPrice = round2(last.billedPrice + drift);
-  }
-  return units;
-}
-
-/**
- * Idempotent Miracle purchase → ops stock (product_purchases + product_inventory + products.stock).
- * batch_id = miracle:pur:{voucherExt}. Re-import replaces InStock units for that batch only.
- */
-async function upsertOpsPurchaseStock(
-  client: PoolClient,
-  tenantId: string,
-  voucherExt: string,
-  invoiceNumber: string | null,
-  purchaseDate: string,
-  supplierId: string,
-  lines: Array<{ productId: string; qty: number; rate: number; amount: number }>,
-  voucherTax: number,
-  voucherAmount: number,
-): Promise<{ units: number }> {
-  const batchId = `miracle:pur:${voucherExt}`;
-  const existing = (
-    await client.query(
-      `SELECT product_id, COUNT(*)::int AS n
-       FROM product_inventory
-       WHERE tenant_id = $1 AND batch_id = $2 AND status = 'InStock'
-       GROUP BY product_id`,
-      [tenantId, batchId],
-    )
-  ).rows as Array<{ product_id: string; n: number }>;
-  for (const row of existing) {
-    await client.query(`UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND tenant_id = $3`, [
-      row.n,
-      row.product_id,
-      tenantId,
-    ]);
-  }
-  await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'InStock'`, [
-    tenantId,
-    batchId,
-  ]);
-  await client.query(`DELETE FROM product_purchases WHERE tenant_id = $1 AND batch_id = $2`, [tenantId, batchId]);
-
-  const units = expandPurchaseStockUnits(lines, voucherTax, voucherAmount);
-  let seq = 0;
-  const stockByProduct = new Map<string, number>();
-  for (const u of units) {
-    seq++;
-    const purchaseId = uid('PP');
-    const barcode = `${batchId}-${String(seq).padStart(4, '0')}-${purchaseId.slice(-6)}`;
-    const invId = uid('PI');
-    await client.query(
-      `INSERT INTO product_purchases
-         (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number, barcode)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11)`,
-      [
-        purchaseId,
-        tenantId,
-        batchId,
-        u.productId,
-        supplierId,
-        purchaseDate,
-        u.costPrice,
-        u.gstApplied,
-        u.billedPrice,
-        invoiceNumber,
-        barcode,
-      ],
-    );
-    await client.query(
-      `INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type)
-       VALUES ($1,$2,$3,$4,'InStock',$5,'piece')`,
-      [invId, u.productId, barcode, batchId, tenantId],
-    );
-    stockByProduct.set(u.productId, (stockByProduct.get(u.productId) || 0) + 1);
-  }
-  for (const [productId, qty] of stockByProduct) {
-    await client.query(`UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3`, [
-      qty,
-      productId,
-      tenantId,
-    ]);
-  }
-  return { units: units.length };
-}
-
 /**
  * Idempotent Miracle credit note / sales return → ops stock intake (inventory + products.stock only).
  * batch_id = miracle:cn:{voucherExt}. Re-import replaces InStock units for that batch only.
@@ -1009,74 +842,6 @@ async function upsertOpsCreditNoteStock(
     ]);
   }
   return { units };
-}
-
-/**
- * Idempotent Miracle purchase return → ops stock-out.
- * batch_id = miracle:pr:{voucherExt}. Re-import deletes prior PurchaseReturned marks for this
- * batch, then FIFO flips InStock → PurchaseReturned (rewriting id/barcode into the pr namespace).
- * Shortfall warns; does not invent units or touch Sold.
- */
-async function upsertOpsPurchaseReturnStock(
-  client: PoolClient,
-  tenantId: string,
-  voucherExt: string,
-  lines: Array<{ productId: string; qty: number }>,
-  issues: { warn: (issue: { stage: string; message: string; externalRef?: string }) => void },
-): Promise<{ units: number; shortfall: number }> {
-  const batchId = `miracle:pr:${voucherExt}`;
-  // Drop prior return marks for this voucher (units already out of stock). PU re-import
-  // recreates InStock separately — restoring here would double-count available stock.
-  await client.query(
-    `DELETE FROM product_inventory
-     WHERE tenant_id = $1 AND batch_id = $2 AND status = 'PurchaseReturned'`,
-    [tenantId, batchId],
-  );
-
-  let units = 0;
-  let shortfall = 0;
-  let seq = 0;
-  for (const line of lines) {
-    const want = Math.max(1, Math.round(Number(line.qty) || 0));
-    if (!line.productId || !(want > 0)) continue;
-    const available = (
-      await client.query(
-        `SELECT id FROM product_inventory
-         WHERE tenant_id = $1 AND product_id = $2 AND status = 'InStock'
-         ORDER BY id
-         LIMIT $3`,
-        [tenantId, line.productId, want],
-      )
-    ).rows as Array<{ id: string }>;
-    const taken = available.length;
-    if (taken < want) {
-      shortfall += want - taken;
-      issues.warn({
-        stage: 'purchase_returns',
-        message: `Purchase return short ${want - taken} unit(s) for product (wanted ${want}, had ${taken} InStock)`,
-        externalRef: voucherExt,
-      });
-    }
-    if (!taken) continue;
-    for (const row of available) {
-      seq++;
-      const newId = `PI-${batchId}-${seq}`;
-      const barcode = `${batchId}-${String(seq).padStart(4, '0')}`;
-      await client.query(
-        `UPDATE product_inventory
-         SET id = $1, barcode = $2, status = 'PurchaseReturned', batch_id = $3
-         WHERE tenant_id = $4 AND id = $5`,
-        [newId, barcode, batchId, tenantId, row.id],
-      );
-    }
-    await client.query(`UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND tenant_id = $3`, [
-      taken,
-      line.productId,
-      tenantId,
-    ]);
-    units += taken;
-  }
-  return { units, shortfall };
 }
 
 /**
@@ -2074,7 +1839,9 @@ export async function importMiracleCompany(
           externalRef: ext,
         });
       } else {
-        const { units } = await upsertOpsPurchaseReturnStock(client, tenantId, ext, stockLines, issues);
+        const { units } = await upsertPurchaseStockReturn(client, tenantId, `miracle:pr:${ext}`, stockLines, msg =>
+          issues.warn({ stage: 'purchase_returns', message: msg, externalRef: ext }),
+        );
         summary.purchaseReturnStockUnits += units;
         coverage.purchaseReturns.imported++;
       }
@@ -2231,10 +1998,10 @@ export async function importMiracleCompany(
           supplierIds,
         );
         const voucherTax = sumPurchaseInputGst(ents, ledgerMeta);
-        const { units } = await upsertOpsPurchaseStock(
+        const { units } = await upsertPurchaseStockIn(
           client,
           tenantId,
-          ext,
+          `miracle:pur:${ext}`,
           vNumber || `PU-${ext}`,
           vDate,
           supplierId,
