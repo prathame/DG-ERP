@@ -20,6 +20,8 @@ import {
   createBookVoucher,
   deleteBookVoucher,
   updateBookVoucher,
+  realisePdcVoucher,
+  cancelMemoVoucher,
   type BookVoucherType,
 } from '../services/bookVouchers';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
@@ -285,7 +287,8 @@ router.get('/api/books/ledgers/:id/statement', blockVendors, async (req: AuthReq
         `SELECT COALESCE(SUM(e.debit),0)::float AS debit, COALESCE(SUM(e.credit),0)::float AS credit
          FROM book_voucher_entries e
          JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
-         WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date < $3`,
+         WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND v.voucher_date < $3
+           AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`,
         [tenantId, id, from],
       );
       priorSigned = Number(prior.rows[0]?.debit || 0) - Number(prior.rows[0]?.credit || 0);
@@ -299,7 +302,8 @@ router.get('/api/books/ledgers/:id/statement', blockVendors, async (req: AuthReq
              e.debit::float AS debit, e.credit::float AS credit
       FROM book_voucher_entries e
       JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
-      WHERE e.tenant_id = $1 AND e.ledger_id = $2`;
+      WHERE e.tenant_id = $1 AND e.ledger_id = $2
+        AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`;
     if (from) {
       params.push(from);
       sql += ` AND v.voucher_date >= $${params.length}`;
@@ -409,6 +413,14 @@ router.get('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =>
     const tenantId = tenantOf(req);
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
+    const types =
+      typeof req.query.types === 'string'
+        ? req.query.types
+            .split(',')
+            .map(t => t.trim())
+            .filter(Boolean)
+        : [];
+    const memoStatus = typeof req.query.memoStatus === 'string' ? req.query.memoStatus.trim() : '';
     const params: unknown[] = [tenantId];
     let sql = `
       SELECT v.*, pl.name AS party_name, cl.name AS contra_name
@@ -416,9 +428,16 @@ router.get('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =>
       LEFT JOIN book_ledgers pl ON pl.id = v.party_ledger_id AND pl.tenant_id = v.tenant_id
       LEFT JOIN book_ledgers cl ON cl.id = v.contra_ledger_id AND cl.tenant_id = v.tenant_id
       WHERE v.tenant_id = $1`;
-    if (type) {
+    if (types.length) {
+      params.push(types);
+      sql += ` AND v.voucher_type = ANY($${params.length}::text[])`;
+    } else if (type) {
       params.push(type);
       sql += ` AND v.voucher_type = $${params.length}`;
+    }
+    if (memoStatus) {
+      params.push(memoStatus);
+      sql += ` AND v.memo_status = $${params.length}`;
     }
     sql += ` ORDER BY v.voucher_date DESC, v.voucher_number DESC NULLS LAST LIMIT 2000`;
     const { rows } = await pool.query(sql, params);
@@ -432,6 +451,10 @@ router.get('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =>
         contraName: r.contra_name,
         amount: Number(r.amount || 0),
         narration: r.narration,
+        instrumentRef: r.instrument_ref,
+        maturityDate: r.maturity_date,
+        memoStatus: r.memo_status,
+        realisedVoucherId: r.realised_voucher_id,
         miracleType: r.miracle_type,
         miracleSubtype: r.miracle_subtype,
         externalRef: r.external_ref,
@@ -491,11 +514,17 @@ router.get('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res
       contraName: v.contra_name,
       amount: Number(v.amount || 0),
       narration: v.narration,
+      instrumentRef: v.instrument_ref,
+      maturityDate: v.maturity_date,
+      memoStatus: v.memo_status,
+      realisedVoucherId: v.realised_voucher_id,
       miracleType: v.miracle_type,
       externalRef: v.external_ref,
       editableBody:
         String(v.external_ref || '').startsWith('manual:') &&
-        (BOOK_VOUCHER_TYPES as readonly string[]).includes(String(v.voucher_type)),
+        (BOOK_VOUCHER_TYPES as readonly string[]).includes(String(v.voucher_type)) &&
+        v.memo_status !== 'realised' &&
+        v.memo_status !== 'cancelled',
       entries: entries.map(e => ({
         id: e.id,
         lineNo: e.line_no,
@@ -580,7 +609,8 @@ router.get('/api/books/day-book', blockVendors, async (req: AuthRequest, res) =>
       FROM book_voucher_entries e
       JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
       JOIN book_ledgers l ON l.id = e.ledger_id AND l.tenant_id = e.tenant_id
-      WHERE e.tenant_id = $1`;
+      WHERE e.tenant_id = $1
+        AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`;
     if (from) {
       params.push(from);
       sql += ` AND v.voucher_date >= $${params.length}`;
@@ -767,6 +797,8 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
       contraLedgerId: body.contraLedgerId ?? null,
       amount: body.amount != null ? Number(body.amount) : undefined,
       entries: Array.isArray(body.entries) ? body.entries : undefined,
+      instrumentRef: body.instrumentRef ?? null,
+      maturityDate: body.maturityDate ?? null,
     });
     await client.query('COMMIT');
     await logAudit(
@@ -849,6 +881,71 @@ router.put('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res
       /* ignore */
     }
     if (err instanceof BookVoucherNotFoundError || err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+/** Realise an open PDC into a posting receipt/payment. */
+router.post('/api/books/vouchers/:id/realise', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const { id } = req.params;
+  const body = req.body || {};
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await realisePdcVoucher(client, tenantId, id, {
+      voucherDate: body.voucherDate ?? null,
+      voucherNumber: body.voucherNumber ?? null,
+    });
+    await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Books PDC Realised',
+      'book_voucher',
+      result.pdcId,
+      `${result.voucherType} ₹${result.amount} → ${result.realisedId}`,
+    );
+    res.json(result);
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+/** Cancel an open PDC / memorandum (does not delete; stays off the books). */
+router.post('/api/books/vouchers/:id/cancel-memo', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await cancelMemoVoucher(client, tenantId, id);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Memo Cancelled', 'book_voucher', result.id, result.voucherType);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookVoucherValidationError) {
       return res.status(err.status).json({ error: err.message });
     }
     return handleApiError(req, res, err);

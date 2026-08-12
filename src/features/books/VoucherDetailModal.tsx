@@ -84,7 +84,7 @@ export function VoucherDetailModal({
     setPartyLedgerId(row.partyLedgerId || '');
     setContraLedgerId(row.contraLedgerId || '');
     setAmount(String(row.amount || ''));
-    if (row.voucherType === 'journal') {
+    if (row.voucherType === 'journal' || row.voucherType === 'memorandum') {
       setJournalLines(
         row.entries.map(e => ({
           key: e.id,
@@ -148,7 +148,7 @@ export function VoucherDetailModal({
         narration: narration || null,
       };
       if (data.editableBody) {
-        if (data.voucherType === 'journal') {
+        if (data.voucherType === 'journal' || data.voucherType === 'memorandum') {
           body.entries = journalLines.map(l => ({
             ledgerId: l.ledgerId,
             debit: Number(l.debit) || 0,
@@ -355,7 +355,7 @@ export function VoucherDetailModal({
                 </p>
               )}
 
-              {data.editableBody && data.voucherType !== 'journal' && (
+              {data.editableBody && data.voucherType !== 'journal' && data.voucherType !== 'memorandum' && (
                 <div className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
                     <span className="text-xs text-slate-500">Party / To</span>
@@ -388,7 +388,7 @@ export function VoucherDetailModal({
                 </div>
               )}
 
-              {data.editableBody && data.voucherType === 'journal' && (
+              {data.editableBody && (data.voucherType === 'journal' || data.voucherType === 'memorandum') && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-slate-800">Journal lines</h3>
                   {journalLines.map((line, idx) => (

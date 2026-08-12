@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool, cleanupTestData } from '../helpers';
 import { uid } from '../../server/utils/helpers';
-import { BookVoucherValidationError, createBookVoucher } from '../../server/services/bookVouchers';
+import { BookVoucherValidationError, createBookVoucher, realisePdcVoucher } from '../../server/services/bookVouchers';
 
 const TENANT = 'T-TEST-BOOK-VOUCHERS';
 
@@ -162,6 +162,104 @@ describe('bookVouchers', () => {
       throw e;
     } finally {
       client.release();
+    }
+  });
+
+  it('creates PDC receipt, keeps it off posting sums, and realises to receipt', async () => {
+    await cleanupTestData(TENANT);
+    const { cash, party } = await seedLedgers();
+    let pdcId = '';
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Ensure memo columns exist (idempotent) for older test DBs
+      await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS instrument_ref TEXT`);
+      await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS maturity_date DATE`);
+      await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS memo_status TEXT`);
+      await client.query(`ALTER TABLE book_vouchers ADD COLUMN IF NOT EXISTS realised_voucher_id TEXT`);
+      const pdc = await createBookVoucher(client, TENANT, {
+        voucherType: 'pdc_receipt',
+        voucherDate: '2025-08-01',
+        maturityDate: '2025-09-15',
+        instrumentRef: '998877',
+        partyLedgerId: party,
+        contraLedgerId: cash,
+        amount: 5000,
+        narration: 'PDC from party',
+      });
+      expect(pdc.voucherType).toBe('pdc_receipt');
+      expect(pdc.amount).toBe(5000);
+      pdcId = pdc.id;
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const memoRow = (
+      await pool.query(
+        `SELECT memo_status, instrument_ref, maturity_date::text AS maturity_date
+         FROM book_vouchers WHERE tenant_id = $1 AND id = $2`,
+        [TENANT, pdcId],
+      )
+    ).rows[0];
+    expect(memoRow).toMatchObject({
+      memo_status: 'open',
+      instrument_ref: '998877',
+    });
+    expect(String(memoRow.maturity_date).startsWith('2025-09-15')).toBe(true);
+
+    const ignored = await pool.query(
+      `SELECT COALESCE(SUM(e.debit),0)::float AS debit
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+       WHERE e.tenant_id = $1 AND e.ledger_id = $2
+         AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`,
+      [TENANT, cash],
+    );
+    expect(Number(ignored.rows[0].debit)).toBe(0);
+
+    const raw = await pool.query(
+      `SELECT COALESCE(SUM(e.debit),0)::float AS debit
+       FROM book_voucher_entries e
+       WHERE e.tenant_id = $1 AND e.ledger_id = $2 AND e.voucher_id = $3`,
+      [TENANT, cash, pdcId],
+    );
+    expect(Number(raw.rows[0].debit)).toBe(5000);
+
+    const client2 = await pool.connect();
+    try {
+      await client2.query('BEGIN');
+      const realised = await realisePdcVoucher(client2, TENANT, pdcId);
+      expect(realised.voucherType).toBe('receipt');
+      expect(realised.amount).toBe(5000);
+      await client2.query('COMMIT');
+
+      const after = await pool.query(
+        `SELECT memo_status, realised_voucher_id FROM book_vouchers WHERE tenant_id = $1 AND id = $2`,
+        [TENANT, pdcId],
+      );
+      expect(after.rows[0]).toMatchObject({
+        memo_status: 'realised',
+        realised_voucher_id: realised.realisedId,
+      });
+
+      const posted = await pool.query(
+        `SELECT COALESCE(SUM(e.debit),0)::float AS debit
+         FROM book_voucher_entries e
+         JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = e.tenant_id
+         WHERE e.tenant_id = $1 AND e.ledger_id = $2
+           AND v.voucher_type NOT IN ('pdc_receipt','pdc_payment','memorandum')`,
+        [TENANT, cash],
+      );
+      expect(Number(posted.rows[0].debit)).toBe(5000);
+    } catch (e) {
+      await client2.query('ROLLBACK');
+      throw e;
+    } finally {
+      client2.release();
     }
   });
 
