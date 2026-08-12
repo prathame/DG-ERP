@@ -118,4 +118,109 @@ describe('standaloneInvoiceGst', () => {
     );
     await expect(generateStandaloneInvoiceIrn(pool, TENANT, invId)).rejects.toThrow(/no GST/i);
   });
+
+  it('covers validation and edge paths for IRN/EWB', async () => {
+    await expect(generateStandaloneInvoiceIrn(pool, TENANT, 'missing-inv')).rejects.toMatchObject({
+      status: 404,
+      message: expect.stringMatching(/not found/i),
+    });
+
+    const cancelledId = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total,
+          gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0101','X',$3::jsonb,1000,180,true,1180,'cancelled','2025-08-12')`,
+      [
+        cancelledId,
+        TENANT,
+        JSON.stringify([
+          { description: 'A', qty: 1, rate: 1000, gstPercent: 18, taxable: 1000, tax: 180, total: 1180 },
+        ]),
+      ],
+    );
+    await expect(generateStandaloneInvoiceIrn(pool, TENANT, cancelledId)).rejects.toThrow(/cancelled/i);
+
+    const emptyItemsId = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total,
+          gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0102','Y','[]'::jsonb,1000,180,true,1180,'sent','2025-08-12')`,
+      [emptyItemsId, TENANT],
+    );
+    await expect(generateStandaloneInvoiceIrn(pool, TENANT, emptyItemsId)).rejects.toThrow(/no line items/i);
+
+    const b2cId = uid('SI');
+    // gst_enabled null + tax_total > 0; items without tax (compute from rate); qty 0; no HSN
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address,
+          items, subtotal, tax_total, gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0103','Walk-in',NULL,NULL,
+          $3::jsonb,1000,180,NULL,1180,'sent','2025-08-12')`,
+      [
+        b2cId,
+        TENANT,
+        JSON.stringify([
+          { qty: 0, rate: 1000, gstPercent: 18, taxable: 1000, total: 1180 },
+          { description: 'Spare', hsnSac: null, qty: 1, rate: 0, gstPercent: 18, taxable: 0, tax: 0, total: 0 },
+        ]),
+      ],
+    );
+    const irn = await generateStandaloneInvoiceIrn(pool, TENANT, b2cId, {
+      sellerPin: 'bad',
+      buyerPin: 'also-bad',
+    });
+    expect(irn.irn).toBeTruthy();
+
+    await expect(
+      generateStandaloneInvoiceEwb(pool, TENANT, { invoiceId: b2cId, vehicleNo: '  ', distance: 10 }),
+    ).rejects.toThrow(/vehicleNo/i);
+    await expect(
+      generateStandaloneInvoiceEwb(pool, TENANT, { invoiceId: b2cId, vehicleNo: 'GJ01XX9999', distance: 0 }),
+    ).rejects.toThrow(/distance/i);
+
+    const ewb = await generateStandaloneInvoiceEwb(pool, TENANT, {
+      invoiceId: b2cId,
+      vehicleNo: 'gj01cd5678',
+      distance: 40,
+      transportMode: '2',
+      transporterName: 'Self',
+      transporterId: 'T1',
+      sellerPin: '380015',
+      buyerPin: '380015',
+    });
+    expect(ewb.ewbNo).toBeTruthy();
+    await expect(
+      generateStandaloneInvoiceEwb(pool, TENANT, {
+        invoiceId: b2cId,
+        vehicleNo: 'GJ01CD5678',
+        distance: 10,
+      }),
+    ).rejects.toThrow(/already has an E-way/i);
+
+    // sandbox credentials missing → loadGstCredentials fails
+    await pool.query(`UPDATE bill_settings SET gst_api_mode='sandbox', gst_api_client_id=NULL WHERE tenant_id=$1`, [
+      TENANT,
+    ]);
+    const needCreds = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total,
+          gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0104','Z',$3::jsonb,100,18,true,118,'sent','2025-08-12')`,
+      [
+        needCreds,
+        TENANT,
+        JSON.stringify([{ description: 'X', qty: 1, rate: 100, gstPercent: 18, taxable: 100, tax: 18, total: 118 }]),
+      ],
+    );
+    await expect(generateStandaloneInvoiceIrn(pool, TENANT, needCreds)).rejects.toThrow(/GST API/i);
+    await pool.query(`UPDATE bill_settings SET gst_api_mode='mock' WHERE tenant_id=$1`, [TENANT]);
+  });
 });
