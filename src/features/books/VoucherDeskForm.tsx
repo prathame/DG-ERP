@@ -10,7 +10,16 @@ import {
   journalEntriesFromDeskLines,
 } from './bookLedgerUtils';
 
-type DeskMode = 'receipt' | 'payment' | 'sales' | 'purchase' | 'credit_note' | 'debit_note' | 'contra' | 'journal';
+type DeskMode =
+  | 'receipt'
+  | 'payment'
+  | 'sales'
+  | 'purchase'
+  | 'purchase_return'
+  | 'credit_note'
+  | 'debit_note'
+  | 'contra'
+  | 'journal';
 
 interface LedgerOption {
   id: string;
@@ -34,6 +43,7 @@ const MODE_TABS: { id: DeskMode; label: string }[] = [
   { id: 'payment', label: 'Payment' },
   { id: 'sales', label: 'Sales' },
   { id: 'purchase', label: 'Purchase' },
+  { id: 'purchase_return', label: 'PR' },
   { id: 'credit_note', label: 'CN' },
   { id: 'debit_note', label: 'DN' },
   { id: 'contra', label: 'Contra' },
@@ -41,7 +51,7 @@ const MODE_TABS: { id: DeskMode; label: string }[] = [
 ];
 
 /**
- * Miracle-style voucher desk: cash/bank, sales/purchase, CN/DN, contra, multi-line journal.
+ * Miracle-style voucher desk: cash/bank, sales/purchase/return, CN/DN, contra, multi-line journal.
  * Posts via existing POST /books/vouchers; Save & next keeps the form open.
  */
 export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
@@ -142,9 +152,10 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   }, [ledgers]);
 
   const usesSalesContra = mode === 'sales' || mode === 'credit_note' || mode === 'debit_note';
+  const usesPurchaseContra = mode === 'purchase' || mode === 'purchase_return';
 
   const partyOptions = useMemo(() => {
-    const excludeId = usesSalesContra ? salesIncomeId : mode === 'purchase' ? purchaseAccountId : fundLedgerId;
+    const excludeId = usesSalesContra ? salesIncomeId : usesPurchaseContra ? purchaseAccountId : fundLedgerId;
     const parties = ledgers.filter(l => {
       if (l.id === excludeId) return false;
       if (mode === 'receipt' || mode === 'payment') {
@@ -158,7 +169,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       label: l.name,
       sublabel: [l.ledgerType, l.groupName].filter(Boolean).join(' · ') || undefined,
     }));
-  }, [ledgers, fundLedgerId, salesIncomeId, purchaseAccountId, mode, usesSalesContra]);
+  }, [ledgers, fundLedgerId, salesIncomeId, purchaseAccountId, mode, usesSalesContra, usesPurchaseContra]);
 
   async function handleSave() {
     setError(null);
@@ -219,14 +230,14 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
         };
         const fundName = ledgers.find(l => l.id === fundLedgerId)?.name || 'fund';
         savedLabel = `${mode === 'receipt' ? 'Receipt' : 'Payment'} ₹${amt.toLocaleString('en-IN')} via ${fundName}`;
-      } else if (usesSalesContra || mode === 'purchase') {
+      } else if (usesSalesContra || usesPurchaseContra) {
         if (!partyLedgerId) {
-          setError(mode === 'purchase' ? 'Select a supplier / party' : 'Select a customer / party');
+          setError(usesPurchaseContra ? 'Select a supplier / party' : 'Select a customer / party');
           return;
         }
-        const contraId = mode === 'purchase' ? purchaseAccountId : salesIncomeId;
+        const contraId = usesPurchaseContra ? purchaseAccountId : salesIncomeId;
         if (!contraId) {
-          setError(mode === 'purchase' ? 'Select a purchase account' : 'Select a sales / income account');
+          setError(usesPurchaseContra ? 'Select a purchase account' : 'Select a sales / income account');
           return;
         }
         if (partyLedgerId === contraId) {
@@ -248,9 +259,11 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
             ? 'Sales'
             : mode === 'purchase'
               ? 'Purchase'
-              : mode === 'credit_note'
-                ? 'Credit note'
-                : 'Debit note';
+              : mode === 'purchase_return'
+                ? 'Purchase return'
+                : mode === 'credit_note'
+                  ? 'Credit note'
+                  : 'Debit note';
         savedLabel = `${label} ₹${amt.toLocaleString('en-IN')} — ${partyName}`;
       } else if (mode === 'contra') {
         if (!fromFundId || !toFundId) {
@@ -311,11 +324,13 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           ? 'Party sale on account — customer + sales income'
           : mode === 'purchase'
             ? 'Party purchase on account — supplier + purchase account'
-            : mode === 'credit_note'
-              ? 'Credit note — sales/return ← customer'
-              : mode === 'debit_note'
-                ? 'Debit note — customer ← sales income'
-                : 'Cash / bank receipt & payment — Save & next for rapid posting';
+            : mode === 'purchase_return'
+              ? 'Purchase return — supplier ← purchase account'
+              : mode === 'credit_note'
+                ? 'Credit note / sales return — sales/return ← customer'
+                : mode === 'debit_note'
+                  ? 'Debit note — customer ← sales income'
+                  : 'Cash / bank receipt & payment — Save & next for rapid posting';
 
   return (
     <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
@@ -329,7 +344,15 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
             <button
               key={t.id}
               type="button"
-              title={t.id === 'credit_note' ? 'Credit note' : t.id === 'debit_note' ? 'Debit note' : undefined}
+              title={
+                t.id === 'credit_note'
+                  ? 'Credit note / sales return'
+                  : t.id === 'debit_note'
+                    ? 'Debit note'
+                    : t.id === 'purchase_return'
+                      ? 'Purchase return'
+                      : undefined
+              }
               onClick={() => {
                 setMode(t.id);
                 setError(null);
@@ -419,7 +442,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           </>
         )}
 
-        {mode === 'purchase' && (
+        {(mode === 'purchase' || mode === 'purchase_return') && (
           <>
             <div className="text-sm sm:col-span-2">
               <span className="text-xs text-slate-500">Supplier / party</span>
@@ -431,7 +454,9 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
               />
             </div>
             <div className="text-sm sm:col-span-2">
-              <span className="text-xs text-slate-500">Purchase account</span>
+              <span className="text-xs text-slate-500">
+                {mode === 'purchase_return' ? 'Purchase / return (credited)' : 'Purchase account'}
+              </span>
               <SearchSelect
                 options={purchaseAccountOptions}
                 value={purchaseAccountId}
