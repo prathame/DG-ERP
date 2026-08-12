@@ -5,6 +5,7 @@
 import React from 'react';
 import { BarChart3, Download, Search, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { AccountsHelpButton } from './AccountsGuideModal';
 
 export type DesktopAccountTile = {
   key: string;
@@ -40,6 +41,7 @@ type Props = {
   showEmpty: boolean;
   /** Self-contained panels (ledgers/vouchers/day book) — no Generate bar. */
   hideToolbar?: boolean;
+  onHelp?: () => void;
 };
 
 export function DesktopAccountsPanel({
@@ -68,6 +70,7 @@ export function DesktopAccountsPanel({
   children,
   showEmpty,
   hideToolbar = false,
+  onHelp,
 }: Props) {
   const fieldLabel = 'text-[10px] font-bold dg-muted uppercase tracking-wider block mb-1.5';
   const fieldInput =
@@ -89,20 +92,23 @@ export function DesktopAccountsPanel({
             <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">{subtitle}</p>
           </div>
         </div>
-        {onExport && (
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={!canExport}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition-all',
-              'border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)]',
-              'disabled:opacity-40 disabled:cursor-not-allowed',
-            )}
-          >
-            <Download size={16} /> Export Data
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {onHelp && <AccountsHelpButton onClick={onHelp} />}
+          {onExport && (
+            <button
+              type="button"
+              onClick={onExport}
+              disabled={!canExport}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition-all',
+                'border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)]',
+                'disabled:opacity-40 disabled:cursor-not-allowed',
+              )}
+            >
+              <Download size={16} /> Export Data
+            </button>
+          )}
+        </div>
       </div>
 
       <section className="dg-glass-card rounded-2xl p-4 sm:p-5">

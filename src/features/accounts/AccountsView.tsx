@@ -43,6 +43,7 @@ import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 import { MobileAccountsPanel } from './MobileAccountsPanel';
+import { AccountsGuideModal, AccountsHelpButton } from './AccountsGuideModal';
 import { BooksView } from '../books/BooksView';
 import { BooksReportsPanel } from '../books/BooksReportsPanel';
 import { DayBookPanel } from '../books/DayBookPanel';
@@ -123,6 +124,7 @@ export function AccountsView({
   /** Prefer double-entry panels when COA exists — same tab labels, no ops+books duplicates. */
   const [booksDeskReady, setBooksDeskReady] = useState(false);
   const [voucherDetailId, setVoucherDetailId] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     if (!initialTab) return;
@@ -537,6 +539,7 @@ export function AccountsView({
   if (capMobileGlass) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <AccountsGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} activeTab={tab} />
         <MobileAccountsPanel
           accountTabs={accountTabs}
           reportTabs={reportTabs}
@@ -563,6 +566,7 @@ export function AccountsView({
           )}
           showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b'}
           hideToolbar={booksSelfContained}
+          onHelp={() => setGuideOpen(true)}
         >
           {reportBody}
         </MobileAccountsPanel>
@@ -589,6 +593,7 @@ export function AccountsView({
 
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <AccountsGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} activeTab={tab} />
         <DesktopAccountsPanel
           title={getTabLabel('accounts', 'Accounts')}
           subtitle={
@@ -620,6 +625,7 @@ export function AccountsView({
           )}
           showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b'}
           hideToolbar={booksSelfContained}
+          onHelp={() => setGuideOpen(true)}
         >
           {!booksSelfContained && data && (
             <div className="flex justify-end gap-2 -mt-2">
@@ -649,6 +655,7 @@ export function AccountsView({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6">
+      <AccountsGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} activeTab={tab} />
       <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
         <div className="hidden sm:block">
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -660,26 +667,29 @@ export function AccountsView({
               : 'Financial statements, GST reports, registers — all in one place'}
           </p>
         </div>
-        {!booksSelfContained && data && (
-          <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
-            {canExport && (
+        <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+          <AccountsHelpButton onClick={() => setGuideOpen(true)} className="text-[11px] sm:text-sm py-1.5 sm:py-2" />
+          {!booksSelfContained && data && (
+            <>
+              {canExport && (
+                <button
+                  type="button"
+                  onClick={exportRows}
+                  className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold"
+                >
+                  <Download size={14} /> CSV
+                </button>
+              )}
               <button
                 type="button"
-                onClick={exportRows}
-                className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold"
+                onClick={handlePrint}
+                className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold hover:bg-gray-200"
               >
-                <Download size={14} /> CSV
+                <Printer size={14} /> Print
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold hover:bg-gray-200"
-            >
-              <Printer size={14} /> Print
-            </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Phone: scrollable pill groups */}

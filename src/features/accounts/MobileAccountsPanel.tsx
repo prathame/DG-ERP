@@ -6,6 +6,7 @@
 import React from 'react';
 import { BarChart3, Download, Search, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { AccountsHelpButton } from './AccountsGuideModal';
 
 export type MobileAccountChip = {
   key: string;
@@ -39,6 +40,7 @@ type Props = {
   children: React.ReactNode;
   showEmpty: boolean;
   hideToolbar?: boolean;
+  onHelp?: () => void;
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -105,6 +107,7 @@ export function MobileAccountsPanel({
   children,
   showEmpty,
   hideToolbar = false,
+  onHelp,
 }: Props) {
   const fieldLabel = 'text-[10px] font-bold dg-m-faint uppercase tracking-wider block mb-1';
   const fieldInput =
@@ -117,29 +120,28 @@ export function MobileAccountsPanel({
           <p className="text-[10px] font-bold uppercase tracking-widest dg-m-faint">Statements</p>
           <h2 className="text-xl font-bold dg-m-ink tracking-tight">Accounts</h2>
         </div>
-        {(onExport || onPrint) && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onExport && (
-              <button
-                type="button"
-                onClick={onExport}
-                disabled={!canExport}
-                className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] dg-m-surface text-[11px] font-bold dg-m-ink inline-flex items-center gap-1 disabled:opacity-40"
-              >
-                <Download size={14} /> CSV
-              </button>
-            )}
-            {onPrint && (
-              <button
-                type="button"
-                onClick={onPrint}
-                className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] dg-m-surface text-[11px] font-bold dg-m-muted"
-              >
-                Print
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onHelp && <AccountsHelpButton onClick={onHelp} className="h-9 px-2.5 text-[11px] rounded-full" />}
+          {onExport && (
+            <button
+              type="button"
+              onClick={onExport}
+              disabled={!canExport}
+              className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] dg-m-surface text-[11px] font-bold dg-m-ink inline-flex items-center gap-1 disabled:opacity-40"
+            >
+              <Download size={14} /> CSV
+            </button>
+          )}
+          {onPrint && (
+            <button
+              type="button"
+              onClick={onPrint}
+              className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] dg-m-surface text-[11px] font-bold dg-m-muted"
+            >
+              Print
+            </button>
+          )}
+        </div>
       </div>
 
       <section>

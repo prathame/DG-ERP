@@ -2,6 +2,7 @@
 
 | Doc | Description |
 |-----|-------------|
+| [accounts-statements.md](accounts-statements.md) | Accounts tab — which statement does what, how to use |
 | [architecture.md](architecture.md) | Living architecture + Mermaid diagrams |
 | [ARCHITECTURE_REPORT.md](ARCHITECTURE_REPORT.md) | Stack, routing, auth, DB, deploy topology |
 | [CLEANUP_AUDIT_REPORT.md](CLEANUP_AUDIT_REPORT.md) | Repo hygiene audit + cleanup log (2026-07-21) |
