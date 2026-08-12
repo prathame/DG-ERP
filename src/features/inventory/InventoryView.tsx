@@ -937,7 +937,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     <input
                       type="number"
                       min={0}
-                      max={28}
+                      max={40}
                       value={addForm.gstRate ?? 18}
                       onChange={e =>
                         setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })

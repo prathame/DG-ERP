@@ -1020,7 +1020,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                               <input
                                 type="number"
                                 min={0}
-                                max={28}
+                                max={40}
                                 disabled={!row.withGst}
                                 value={row.withGst ? row.gstPercent : 0}
                                 onChange={e =>

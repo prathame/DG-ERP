@@ -1,5 +1,6 @@
 // ponytail: curated ~100 HSN + ~30 SAC codes covering >95% of Indian SME invoicing
-// Source: CBIC HSN/SAC master, Notification 01/2017 (Central Tax Rate), FY 2025-26 rates
+// Source: CBIC HSN/SAC master; high-traffic rates aligned to GST 2.0 (w.e.f. Sep 2025) common slabs 0/5/18/40
+// Not a full rate master — only clearly outdated common goods updated; verify edge HSNs against CBIC when needed.
 
 const HSN_RATES: Record<string, { rate: number; label: string }> = {
   // Food & Grocery
@@ -18,7 +19,7 @@ const HSN_RATES: Record<string, { rate: number; label: string }> = {
   '1806': { rate: 18, label: 'Chocolate & cocoa products' },
   '1905': { rate: 18, label: 'Bread, pastry, cakes, biscuits' },
   '2201': { rate: 18, label: 'Waters (mineral / aerated)' },
-  '2202': { rate: 28, label: 'Aerated drinks with added sugar' },
+  '2202': { rate: 40, label: 'Aerated drinks with added sugar' },
   // Textiles & Apparel
   '5205': { rate: 5, label: 'Cotton yarn' },
   '5208': { rate: 5, label: 'Cotton fabric' },
@@ -34,7 +35,7 @@ const HSN_RATES: Record<string, { rate: number; label: string }> = {
   // Electronics
   '8471': { rate: 18, label: 'Computers, laptops, tablets' },
   '8517': { rate: 18, label: 'Mobile phones' },
-  '8528': { rate: 28, label: 'TVs, monitors, projectors' },
+  '8528': { rate: 18, label: 'TVs, monitors, projectors' },
   '8536': { rate: 18, label: 'Switches, plugs, sockets' },
   '8544': { rate: 18, label: 'Insulated wires & cables' },
   // Furniture, Hardware
@@ -44,16 +45,16 @@ const HSN_RATES: Record<string, { rate: number; label: string }> = {
   '9403': { rate: 18, label: 'Tables, cabinets, furniture' },
   '9405': { rate: 12, label: 'Lamps, lighting fittings' },
   '6907': { rate: 18, label: 'Ceramic tiles' },
-  '2523': { rate: 28, label: 'Portland cement' },
+  '2523': { rate: 18, label: 'Portland cement' },
   // Health, Cosmetics
-  '3004': { rate: 12, label: 'Medicaments, packed' },
+  '3004': { rate: 5, label: 'Medicaments, packed' },
   '3305': { rate: 18, label: 'Hair care (shampoo, oils)' },
-  '3401': { rate: 18, label: 'Soap, toilet preparations' },
+  '3401': { rate: 5, label: 'Soap, toilet preparations' },
   '3402': { rate: 18, label: 'Detergents, cleaning' },
-  // Automotive
-  '8703': { rate: 28, label: 'Motor cars (+ Cess)' },
-  '8711': { rate: 28, label: 'Motorcycles, scooters' },
-  '4011': { rate: 28, label: 'New pneumatic tyres' },
+  // Automotive (common / SME default; luxury / >350cc may be 40 — set manually)
+  '8703': { rate: 18, label: 'Motor cars (common; luxury may be 40%)' },
+  '8711': { rate: 18, label: 'Motorcycles, scooters (≤350cc common)' },
+  '4011': { rate: 18, label: 'New pneumatic tyres' },
   // Packaging
   '3923': { rate: 18, label: 'Plastic packaging articles' },
   '4819': { rate: 12, label: 'Cartons, boxes of paper' },
@@ -71,7 +72,7 @@ const HSN_RATES: Record<string, { rate: number; label: string }> = {
   '12092100': { rate: 5, label: 'Cotton seeds' },
   '12024200': { rate: 5, label: 'Groundnut seeds' },
   '12060099': { rate: 5, label: 'Sunflower seeds' },
-  '84248990': { rate: 12, label: 'Drip irrigation equipment' },
+  '84248990': { rate: 5, label: 'Drip irrigation equipment' },
   '84242000': { rate: 18, label: 'Sprayers (manual)' },
   '84248100': { rate: 18, label: 'Sprayers (power)' },
   '82015000': { rate: 18, label: 'Pruning tools, secateurs' },

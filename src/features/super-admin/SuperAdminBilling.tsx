@@ -395,7 +395,7 @@ function CreateInvoiceModal({
               <input
                 type="number"
                 min={0}
-                max={28}
+                max={40}
                 value={form.gstRate}
                 onChange={e => setForm({ ...form, gstRate: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
