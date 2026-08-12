@@ -9,6 +9,34 @@ const router = Router();
 // Reports are staff-only — Vendors must not see full-tenant registers
 router.use(blockVendors);
 
+type OutstandingAgeBucket = '0-30' | '31-60' | '61-90' | '90+';
+
+type OutstandingBillRow = {
+  partyId: string;
+  partyName: string;
+  billId: string;
+  billNumber: string;
+  billDate: string;
+  billed: number;
+  paid: number;
+  balance: number;
+  days: number;
+  ageBucket: OutstandingAgeBucket;
+};
+
+function outstandingAge(days: number): OutstandingAgeBucket {
+  if (days <= 30) return '0-30';
+  if (days <= 60) return '31-60';
+  if (days <= 90) return '61-90';
+  return '90+';
+}
+
+function daysSince(dateStr: string, now: Date): number {
+  const t = new Date(dateStr).getTime();
+  if (!Number.isFinite(t)) return 0;
+  return Math.max(0, Math.floor((now.getTime() - t) / 86400000));
+}
+
 router.get('/api/reports/sales-register', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -231,8 +259,11 @@ router.get('/api/reports/outstanding', async (req, res) => {
         d90plus: number;
       };
       const byParty = new Map<string, Agg>();
+      const bills: OutstandingBillRow[] = [];
       for (const inv of open) {
-        const due = Math.round((Number(inv.grand_total) - Number(inv.paid)) * 100) / 100;
+        const billed = Number(inv.grand_total) || 0;
+        const paid = Number(inv.paid) || 0;
+        const due = Math.round((billed - paid) * 100) / 100;
         if (due <= 0) continue;
         let row = byParty.get(inv.party_key);
         if (!row) {
@@ -249,16 +280,30 @@ router.get('/api/reports/outstanding', async (req, res) => {
           };
           byParty.set(inv.party_key, row);
         }
-        row.totalBilled += Number(inv.grand_total) || 0;
-        row.totalPaid += Number(inv.paid) || 0;
+        row.totalBilled += billed;
+        row.totalPaid += paid;
         row.balance += due;
-        const days = Math.floor((now.getTime() - new Date(inv.invoice_date).getTime()) / 86400000);
-        if (days <= 30) row.d0_30 += due;
-        else if (days <= 60) row.d31_60 += due;
-        else if (days <= 90) row.d61_90 += due;
+        const days = daysSince(String(inv.invoice_date), now);
+        const ageBucket = outstandingAge(days);
+        if (ageBucket === '0-30') row.d0_30 += due;
+        else if (ageBucket === '31-60') row.d31_60 += due;
+        else if (ageBucket === '61-90') row.d61_90 += due;
         else row.d90plus += due;
+        bills.push({
+          partyId: inv.party_key,
+          partyName: inv.party_name || 'Unknown',
+          billId: inv.invoice_id,
+          billNumber: inv.invoice_number || inv.invoice_id,
+          billDate: String(inv.invoice_date).slice(0, 10),
+          billed,
+          paid,
+          balance: due,
+          days,
+          ageBucket,
+        });
       }
       const rows = [...byParty.values()].sort((a, b) => b.balance - a.balance);
+      bills.sort((a, b) => b.days - a.days || b.balance - a.balance);
       const totals = rows.reduce(
         (acc, r) => {
           acc.totalBilled += r.totalBilled;
@@ -272,7 +317,14 @@ router.get('/api/reports/outstanding', async (req, res) => {
         },
         { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
       );
-      return res.json({ rows, totals, count: rows.length, source: 'invoice_finance' });
+      return res.json({
+        rows,
+        bills,
+        totals,
+        count: rows.length,
+        billCount: bills.length,
+        source: 'invoice_finance',
+      });
     }
 
     const vendors = (
@@ -299,6 +351,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
       d61_90: number;
       d90plus: number;
     }[] = [];
+    const bills: OutstandingBillRow[] = [];
     for (const v of vendors) {
       const billed = Number(v.total_billed);
       const paid = Number(v.total_paid);
@@ -337,18 +390,34 @@ router.get('/api/reports/outstanding', async (req, res) => {
         d61_90 = 0,
         d90plus = 0;
       for (const b of batches) {
-        let batchBal = Number(b.batch_billed) - (batchPayments[b.batch_id] ?? 0);
+        const batchBilled = Number(b.batch_billed) || 0;
+        const batchPaidLinked = batchPayments[b.batch_id] ?? 0;
+        let batchBal = batchBilled - batchPaidLinked;
+        let appliedUnlinked = 0;
         if (remainingUnlinked > 0 && batchBal > 0) {
-          const apply = Math.min(remainingUnlinked, batchBal);
-          batchBal -= apply;
-          remainingUnlinked -= apply;
+          appliedUnlinked = Math.min(remainingUnlinked, batchBal);
+          batchBal -= appliedUnlinked;
+          remainingUnlinked -= appliedUnlinked;
         }
         if (batchBal <= 0) continue;
-        const days = Math.floor((now.getTime() - new Date(b.dist_date).getTime()) / 86400000);
-        if (days <= 30) d0_30 += batchBal;
-        else if (days <= 60) d31_60 += batchBal;
-        else if (days <= 90) d61_90 += batchBal;
+        const days = daysSince(String(b.dist_date), now);
+        const ageBucket = outstandingAge(days);
+        if (ageBucket === '0-30') d0_30 += batchBal;
+        else if (ageBucket === '31-60') d31_60 += batchBal;
+        else if (ageBucket === '61-90') d61_90 += batchBal;
         else d90plus += batchBal;
+        bills.push({
+          partyId: String(v.id),
+          partyName: String(v.name || 'Unknown'),
+          billId: b.batch_id,
+          billNumber: b.batch_id,
+          billDate: String(b.dist_date).slice(0, 10),
+          billed: batchBilled,
+          paid: batchPaidLinked + appliedUnlinked,
+          balance: Math.round(batchBal * 100) / 100,
+          days,
+          ageBucket,
+        });
       }
       const agingTotal = d0_30 + d31_60 + d61_90 + d90plus;
       if (agingTotal > 0 && Math.abs(agingTotal - balance) > 1) {
@@ -370,6 +439,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
         d90plus,
       });
     }
+    bills.sort((a, b) => b.days - a.days || b.balance - a.balance);
     const totals = rows.reduce(
       (acc, r) => {
         acc.totalBilled += r.totalBilled;
@@ -383,7 +453,14 @@ router.get('/api/reports/outstanding', async (req, res) => {
       },
       { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
     );
-    res.json({ rows, totals, count: rows.length });
+    res.json({
+      rows,
+      bills,
+      totals,
+      count: rows.length,
+      billCount: bills.length,
+      source: 'distribution',
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }

@@ -156,7 +156,7 @@ export function AccountsView({
     if (tab === 'pnl' || tab === 'balance' || tab === 'daybook') {
       return 'From operations — set the period, then Generate.';
     }
-    if (tab === 'outstanding') return 'Aging report only. Record payments in Collections.';
+    if (tab === 'outstanding') return 'Party aging + bill-to-bill open bills. Record payments in Collections.';
     if (tab === 'payments') return 'Payment history report. Record new receipts in Collections.';
     return null;
   })();
@@ -1663,9 +1663,13 @@ function ReportTable({
   ds: boolean;
   partySingular: string;
 }) {
-  const rows = (data.rows as Record<string, unknown>[]) || [];
+  const [outstandingView, setOutstandingView] = useState<'party' | 'bills'>('party');
+  const partyRows = (data.rows as Record<string, unknown>[]) || [];
+  const billRows = (data.bills as Record<string, unknown>[]) || [];
+  const billWise = tab === 'outstanding' && outstandingView === 'bills';
+  const rows = billWise ? billRows : partyRows;
   const totals = (data.totals as Record<string, number>) || {};
-  const count = (data.count as number) || rows.length;
+  const count = billWise ? (data.billCount as number) || billRows.length : (data.count as number) || partyRows.length;
 
   if (tab === 'gst') {
     const b2b = (data.b2b as Record<string, unknown>[]) || [];
@@ -1777,62 +1781,106 @@ function ReportTable({
   }
 
   const cols =
-    tab === 'outstanding'
+    tab === 'outstanding' && billWise
       ? [
-          { k: 'vendorName', l: partySingular },
-          { k: 'totalBilled', l: 'Billed', r: true },
-          { k: 'totalPaid', l: 'Paid', r: true },
+          { k: 'partyName', l: partySingular },
+          { k: 'billNumber', l: 'Bill No' },
+          { k: 'billDate', l: 'Date' },
+          { k: 'billed', l: 'Billed', r: true },
+          { k: 'paid', l: 'Paid', r: true },
           { k: 'balance', l: 'Balance', r: true },
-          { k: 'd0_30', l: '0-30d', r: true },
-          { k: 'd31_60', l: '31-60d', r: true },
-          { k: 'd61_90', l: '61-90d', r: true },
-          { k: 'd90plus', l: '90+d', r: true },
+          { k: 'days', l: 'Days', r: true },
+          { k: 'ageBucket', l: 'Age' },
         ]
-      : tab === 'stock'
+      : tab === 'outstanding'
         ? [
-            { k: 'name', l: 'Product' },
-            { k: 'hsnCode', l: 'HSN' },
-            { k: 'unitPrice', l: 'Price', r: true },
-            { k: 'inStock', l: 'InStock', r: true },
-            ...(!ds ? [{ k: 'withVendors', l: `${partySingular}s`, r: true }] : []),
-            { k: 'sold', l: 'Sold', r: true },
-            { k: 'closingStock', l: 'Closing', r: true },
-            { k: 'stockValue', l: 'Value', r: true },
+            { k: 'vendorName', l: partySingular },
+            { k: 'totalBilled', l: 'Billed', r: true },
+            { k: 'totalPaid', l: 'Paid', r: true },
+            { k: 'balance', l: 'Balance', r: true },
+            { k: 'd0_30', l: '0-30d', r: true },
+            { k: 'd31_60', l: '31-60d', r: true },
+            { k: 'd61_90', l: '61-90d', r: true },
+            { k: 'd90plus', l: '90+d', r: true },
           ]
-        : tab === 'payments'
+        : tab === 'stock'
           ? [
-              { k: 'date', l: 'Date' },
-              { k: 'vendorName', l: partySingular },
-              { k: 'amount', l: 'Amount', r: true },
-              { k: 'method', l: 'Method' },
-              { k: 'reference', l: 'Ref' },
+              { k: 'name', l: 'Product' },
+              { k: 'hsnCode', l: 'HSN' },
+              { k: 'unitPrice', l: 'Price', r: true },
+              { k: 'inStock', l: 'InStock', r: true },
+              ...(!ds ? [{ k: 'withVendors', l: `${partySingular}s`, r: true }] : []),
+              { k: 'sold', l: 'Sold', r: true },
+              { k: 'closingStock', l: 'Closing', r: true },
+              { k: 'stockValue', l: 'Value', r: true },
             ]
-          : tab === 'sales'
+          : tab === 'payments'
             ? [
                 { k: 'date', l: 'Date' },
-                { k: 'customerName', l: 'Customer' },
-                { k: 'productName', l: 'Product' },
-                { k: 'hsnCode', l: 'HSN' },
-                { k: 'taxableValue', l: 'Taxable', r: true },
-                { k: 'cgst', l: 'CGST', r: true },
-                { k: 'sgst', l: 'SGST', r: true },
-                { k: 'total', l: 'Total', r: true },
-              ]
-            : [
-                { k: 'date', l: 'Date' },
                 { k: 'vendorName', l: partySingular },
-                { k: 'productName', l: 'Product' },
-                { k: 'hsnCode', l: 'HSN' },
-                { k: 'taxableValue', l: 'Taxable', r: true },
-                { k: 'cgst', l: 'CGST', r: true },
-                { k: 'sgst', l: 'SGST', r: true },
-                { k: 'total', l: 'Total', r: true },
-              ];
+                { k: 'amount', l: 'Amount', r: true },
+                { k: 'method', l: 'Method' },
+                { k: 'reference', l: 'Ref' },
+              ]
+            : tab === 'sales'
+              ? [
+                  { k: 'date', l: 'Date' },
+                  { k: 'customerName', l: 'Customer' },
+                  { k: 'productName', l: 'Product' },
+                  { k: 'hsnCode', l: 'HSN' },
+                  { k: 'taxableValue', l: 'Taxable', r: true },
+                  { k: 'cgst', l: 'CGST', r: true },
+                  { k: 'sgst', l: 'SGST', r: true },
+                  { k: 'total', l: 'Total', r: true },
+                ]
+              : [
+                  { k: 'date', l: 'Date' },
+                  { k: 'vendorName', l: partySingular },
+                  { k: 'productName', l: 'Product' },
+                  { k: 'hsnCode', l: 'HSN' },
+                  { k: 'taxableValue', l: 'Taxable', r: true },
+                  { k: 'cgst', l: 'CGST', r: true },
+                  { k: 'sgst', l: 'SGST', r: true },
+                  { k: 'total', l: 'Total', r: true },
+                ];
+
+  const billTotals = billWise
+    ? {
+        billed: billRows.reduce((s, r) => s + (Number(r.billed) || 0), 0),
+        paid: billRows.reduce((s, r) => s + (Number(r.paid) || 0), 0),
+        balance: billRows.reduce((s, r) => s + (Number(r.balance) || 0), 0),
+      }
+    : null;
+  const footTotals = billWise ? billTotals! : totals;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-bold text-gray-600">{count} records</span>
+        {tab === 'outstanding' && (
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setOutstandingView('party')}
+              className={cn(
+                'rounded-md px-2.5 py-1',
+                outstandingView === 'party' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50',
+              )}
+            >
+              Party-wise
+            </button>
+            <button
+              type="button"
+              onClick={() => setOutstandingView('bills')}
+              className={cn(
+                'rounded-md px-2.5 py-1',
+                outstandingView === 'bills' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50',
+              )}
+            >
+              Bill-to-bill
+            </button>
+          </div>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1852,28 +1900,38 @@ function ReportTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.map((r, i) => (
-              <tr key={i} className="hover:bg-gray-50/50">
-                {cols.map(c => (
-                  <td key={c.k} className={cn('px-3 py-2 whitespace-nowrap', c.r ? 'text-right' : '')}>
-                    {c.k === 'date'
-                      ? formatDate(r[c.k] as string)
-                      : typeof r[c.k] === 'number'
-                        ? c.r
-                          ? fmtCurrency(r[c.k] as number)
-                          : r[c.k]
-                        : (r[c.k] as string) || '—'}
-                  </td>
-                ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={cols.length} className="px-3 py-8 text-center text-gray-400">
+                  No outstanding balances
+                </td>
               </tr>
-            ))}
+            ) : (
+              rows.map((r, i) => (
+                <tr key={i} className="hover:bg-gray-50/50">
+                  {cols.map(c => (
+                    <td key={c.k} className={cn('px-3 py-2 whitespace-nowrap', c.r ? 'text-right' : '')}>
+                      {c.k === 'date' || c.k === 'billDate'
+                        ? formatDate(r[c.k] as string)
+                        : c.k === 'days' || c.k === 'ageBucket'
+                          ? ((r[c.k] as string | number) ?? '—')
+                          : typeof r[c.k] === 'number'
+                            ? c.r
+                              ? fmtCurrency(r[c.k] as number)
+                              : r[c.k]
+                            : (r[c.k] as string) || '—'}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
-          {Object.keys(totals).length > 0 && (
+          {Object.keys(footTotals).length > 0 && rows.length > 0 && (
             <tfoot>
               <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
                 {cols.map((c, ci) => (
                   <td key={c.k} className={cn('px-3 py-2', c.r ? 'text-right' : '')}>
-                    {ci === 0 ? 'Total' : totals[c.k] !== undefined ? fmtCurrency(totals[c.k]) : ''}
+                    {ci === 0 ? 'Total' : footTotals[c.k] !== undefined ? fmtCurrency(footTotals[c.k]) : ''}
                   </td>
                 ))}
               </tr>

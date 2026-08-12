@@ -313,6 +313,15 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
       expect(due.status).toBe(200);
       expect(due.body.source).toBe('invoice_finance');
       expect(Array.isArray(due.body.rows)).toBe(true);
+      expect(Array.isArray(due.body.bills)).toBe(true);
+      expect(due.body.bills.length).toBeGreaterThanOrEqual(1);
+      expect(due.body.bills[0]).toMatchObject({
+        billId: expect.any(String),
+        billNumber: expect.any(String),
+        balance: expect.any(Number),
+        days: expect.any(Number),
+        ageBucket: expect.stringMatching(/^(0-30|31-60|61-90|90\+)$/),
+      });
       // Cash-income heads must not appear as outstanding parties
       expect(
         (due.body.rows as { vendorName: string }[]).some(r => (r.vendorName || '').toLowerCase() === 'rent income'),
