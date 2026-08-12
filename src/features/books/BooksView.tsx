@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
-import { BookOpen, CalendarDays, FileUp, Landmark, Package, Plus, Receipt, Scale } from 'lucide-react';
+import { BookOpen, CalendarDays, FileUp, IndianRupee, Landmark, Package, Plus, Receipt, Scale } from 'lucide-react';
 import { MiracleImportPanel, summaryCount } from './MiracleImportPanel';
 import { CreateVoucherModal } from './CreateVoucherModal';
 import { DayBookPanel } from './DayBookPanel';
@@ -10,8 +10,9 @@ import { ProductLedgerPanel } from './ProductLedgerPanel';
 import { VoucherDetailModal } from './VoucherDetailModal';
 import { BooksReportsPanel } from './BooksReportsPanel';
 import { VoucherDeskForm } from './VoucherDeskForm';
+import { BooksOutstandingPanel } from './BooksOutstandingPanel';
 
-type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports';
+type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports' | 'outstanding';
 
 interface BooksSummary {
   ledgers: number;
@@ -110,7 +111,14 @@ export function BooksView({
   }, []);
 
   useEffect(() => {
-    if (panel === 'import' || panel === 'daybook' || panel === 'reports' || selectedLedger || selectedProduct) {
+    if (
+      panel === 'import' ||
+      panel === 'daybook' ||
+      panel === 'reports' ||
+      panel === 'outstanding' ||
+      selectedLedger ||
+      selectedProduct
+    ) {
       setLoading(false);
       return;
     }
@@ -154,6 +162,7 @@ export function BooksView({
     { id: 'overview', label: 'Overview', icon: <BookOpen size={16} /> },
     { id: 'ledgers', label: 'Ledgers', icon: <Landmark size={16} /> },
     { id: 'vouchers', label: 'Vouchers', icon: <Receipt size={16} /> },
+    { id: 'outstanding', label: 'Outstanding', icon: <IndianRupee size={16} /> },
     { id: 'daybook', label: 'Day book', icon: <CalendarDays size={16} /> },
     { id: 'reports', label: 'Reports', icon: <Scale size={16} /> },
     { id: 'products', label: 'Products', icon: <Package size={16} /> },
@@ -200,6 +209,8 @@ export function BooksView({
 
       {panel === 'import' ? (
         <MiracleImportPanel onComplete={() => loadSummary()} />
+      ) : panel === 'outstanding' ? (
+        <BooksOutstandingPanel />
       ) : panel === 'daybook' ? (
         <DayBookPanel onOpenVoucher={setVoucherDetailId} />
       ) : panel === 'reports' ? (

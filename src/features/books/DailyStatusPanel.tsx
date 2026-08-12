@@ -39,7 +39,7 @@ const SHORTCUTS: { tab: string; label: string; hint: string }[] = [
   { tab: 'balance', label: 'Balance sheet', hint: 'Position' },
   { tab: 'products', label: 'Product ledger', hint: 'Item stock' },
   { tab: 'vouchers', label: 'Vouchers', hint: 'All vouchers' },
-  { tab: 'outstanding', label: 'Outstanding', hint: 'Party aging' },
+  { tab: 'outstanding', label: 'Outstanding', hint: 'Bill-wise collect' },
   { tab: 'ledger', label: 'Ledger', hint: 'Party / ledger books' },
 ];
 
