@@ -122,6 +122,49 @@ describe('bookVouchers', () => {
     }
   });
 
+  it('creates a sales voucher (Dr party / Cr sales income)', async () => {
+    await cleanupTestData(TENANT);
+    const { party } = await seedLedgers();
+    const sales = uid('BL');
+    const g = (await pool.query(`SELECT id FROM book_account_groups WHERE tenant_id = $1 LIMIT 1`, [TENANT]))
+      .rows[0] as { id: string };
+    await pool.query(
+      `INSERT INTO book_ledgers (id, tenant_id, name, group_id, nature, ledger_type, opening_balance, external_ref)
+       VALUES ($1,$2,'Sales Income',$3,'I','IN',0,'L-SALES')`,
+      [sales, TENANT, g.id],
+    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await createBookVoucher(client, TENANT, {
+        voucherType: 'sales',
+        voucherDate: '2025-06-10',
+        voucherNumber: 'SE/9',
+        partyLedgerId: party,
+        contraLedgerId: sales,
+        amount: 999,
+        narration: 'Desk sales',
+      });
+      await client.query('COMMIT');
+      expect(created.voucherType).toBe('sales');
+      expect(created.amount).toBe(999);
+      const entries = await pool.query(
+        `SELECT ledger_id, debit::float AS debit, credit::float AS credit
+         FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2 ORDER BY line_no`,
+        [TENANT, created.id],
+      );
+      expect(entries.rows).toEqual([
+        expect.objectContaining({ ledger_id: party, debit: 999, credit: 0 }),
+        expect.objectContaining({ ledger_id: sales, debit: 0, credit: 999 }),
+      ]);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
   it('rejects unbalanced journals and same-ledger cash vouchers', async () => {
     await cleanupTestData(TENANT);
     const { cash, party } = await seedLedgers();

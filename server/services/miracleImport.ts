@@ -1143,7 +1143,7 @@ export async function importMiracleCompany(
     const vNumber = normalizeMiracleDocNumber(vNumberRaw) || null;
     const partyExt = str(h.FIELD04);
     const contraExt = str(h.FIELD05);
-    const amount = num(h.FIELD06) || num(h.FIELD07);
+    let amount = num(h.FIELD06) || num(h.FIELD07);
     const narration = narrations.get(ext) || null;
     const voucherId = uid('BV');
 
@@ -1221,6 +1221,86 @@ export async function importMiracleCompany(
     }
 
     const items = itemsByVoucher.get(ext) || [];
+    if (!(amount > 0) && items.length) {
+      amount = items.reduce((s, it) => {
+        const qty = num(it.FIELD06) || 1;
+        const rate = num(it.FIELD07);
+        return s + (num(it.FIELD08) || qty * rate || 0);
+      }, 0);
+      if (amount > 0) {
+        await client.query(`UPDATE book_vouchers SET amount = $1 WHERE id = $2 AND tenant_id = $3`, [
+          amount,
+          ourVoucherId,
+          tenantId,
+        ]);
+      }
+    }
+
+    // SE/SP (and purchases) sometimes ship item lines with no RKACCT01 ledger rows —
+    // synthesize classic Dr Party / Cr Sales (or Dr Purchase / Cr Party) from the header.
+    if (lineNo === 0 && amount > 0 && (voucherType === 'sales' || voucherType === 'purchase')) {
+      const partyLedgerId = partyExt ? ledgerIds.get(partyExt) || null : null;
+      let incomeExpenseId = contraExt ? ledgerIds.get(contraExt) || null : null;
+      if (!incomeExpenseId) {
+        for (const [lext, meta] of ledgerMeta) {
+          const t = (meta.ledgerType || '').toUpperCase();
+          const n = meta.name.toLowerCase();
+          if (voucherType === 'sales') {
+            if (t === 'IN' || t === 'TS' || t === 'JP' || /\bsales\b|\bincome\b/.test(n)) {
+              incomeExpenseId = ledgerIds.get(lext) || null;
+              if (incomeExpenseId) break;
+            }
+          } else if (t === 'EX' || /\bpurchase/.test(n)) {
+            incomeExpenseId = ledgerIds.get(lext) || null;
+            if (incomeExpenseId) break;
+          }
+        }
+      }
+      if (partyLedgerId && incomeExpenseId && partyLedgerId !== incomeExpenseId) {
+        const synth =
+          voucherType === 'sales'
+            ? [
+                { ledgerId: partyLedgerId, debit: amount, credit: 0 },
+                { ledgerId: incomeExpenseId, debit: 0, credit: amount },
+              ]
+            : [
+                { ledgerId: incomeExpenseId, debit: amount, credit: 0 },
+                { ledgerId: partyLedgerId, debit: 0, credit: amount },
+              ];
+        for (const line of synth) {
+          lineNo++;
+          await client.query(
+            `INSERT INTO book_voucher_entries
+              (id, tenant_id, voucher_id, line_no, ledger_id, debit, credit, narration, external_ref)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [
+              uid('BE'),
+              tenantId,
+              ourVoucherId,
+              lineNo,
+              line.ledgerId,
+              line.debit,
+              line.credit,
+              'Synthesized — Miracle entry lines missing',
+              `${ext}:synth:${lineNo}`,
+            ],
+          );
+          summary.voucherEntries++;
+        }
+        issues.warn({
+          stage: 'vouchers',
+          message: `${voucherType} voucher had no ledger entries — synthesized Dr/Cr from header`,
+          externalRef: ext,
+        });
+      } else {
+        issues.warn({
+          stage: 'vouchers',
+          message: `${voucherType} voucher has no ledger entries and could not synthesize (missing party/sales ledgers)`,
+          externalRef: ext,
+        });
+      }
+    }
+
     let itemNo = 0;
     const opsLineItems: Array<{
       description: string;
