@@ -51,6 +51,7 @@ import { VoucherDetailModal } from '../books/VoucherDetailModal';
 
 type AccountTab =
   | 'pnl'
+  | 'trading'
   | 'balance'
   | 'cashflow'
   | 'ledger'
@@ -138,6 +139,7 @@ export function AccountsView({
   const booksFor = (key: AccountTab) =>
     booksDeskReady &&
     (key === 'pnl' ||
+      key === 'trading' ||
       key === 'balance' ||
       key === 'ledger' ||
       key === 'daybook' ||
@@ -193,6 +195,7 @@ export function AccountsView({
     if (!el) return;
     const titles: Record<string, string> = {
       pnl: 'Profit & Loss Statement',
+      trading: 'Trading Account',
       balance: 'Balance Sheet',
       cashflow: 'Cash Flow Statement',
       ledger: 'General Ledger',
@@ -245,6 +248,14 @@ export function AccountsView({
     hide?: boolean;
   }[] = [
     { key: 'pnl', label: 'Profit & Loss', shortLabel: 'P&L', icon: TrendingUp, group: 'accounts' },
+    {
+      key: 'trading',
+      label: 'Trading A/c',
+      shortLabel: 'Trading',
+      icon: BarChart3,
+      group: 'accounts',
+      hide: !booksModuleOn,
+    },
     { key: 'balance', label: 'Balance Sheet', shortLabel: 'Balance', icon: Scale, group: 'accounts' },
     { key: 'cashflow', label: 'Cash Flow', shortLabel: 'Cash', icon: Banknote, group: 'accounts' },
     { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: Landmark, group: 'accounts' },
@@ -372,6 +383,7 @@ export function AccountsView({
   const booksBody = booksSelfContained ? (
     <div id="accounts-content" className="space-y-3">
       {tab === 'pnl' && <BooksReportsPanel lockedKind="pnl" />}
+      {tab === 'trading' && <BooksReportsPanel lockedKind="trading" />}
       {tab === 'balance' && <BooksReportsPanel lockedKind="bs" />}
       {tab === 'trial' && <BooksReportsPanel lockedKind="tb" />}
       {tab === 'ledger' && <BooksView initialPanel="ledgers" embedded />}
@@ -386,7 +398,8 @@ export function AccountsView({
   ) : null;
 
   /** P&L / Balance / Trial already print the same line inside BooksReportsPanel. */
-  const panelShowsOwnSourceNote = booksSelfContained && (tab === 'pnl' || tab === 'balance' || tab === 'trial');
+  const panelShowsOwnSourceNote =
+    booksSelfContained && (tab === 'pnl' || tab === 'trading' || tab === 'balance' || tab === 'trial');
   const sourceBanner =
     statementSourceNote && !panelShowsOwnSourceNote ? (
       <p className="text-sm text-slate-500 px-0.5">{statementSourceNote}</p>
