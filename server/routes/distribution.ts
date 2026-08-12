@@ -8,7 +8,7 @@ import {
   assertVendorLinked,
 } from '../middleware/auth';
 import { pool } from '../pg-db';
-import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
+import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL, resolveShipToGstin } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import {
   hasExplicitUnitPrice,
@@ -2234,7 +2234,7 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
     const daysSinceDoc = Math.floor((Date.now() - docDate.getTime()) / (1000 * 60 * 60 * 24));
 
     // Ship-To GSTIN (mandatory from Aug 2026)
-    const shipTo = (shipToGstin as string) || buyerGstin || 'URP';
+    const shipTo = resolveShipToGstin(typeof shipToGstin === 'string' ? shipToGstin : null, buyerGstin);
 
     const eWayBill = {
       Version: '1.01',
@@ -2286,8 +2286,11 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
     if (buyerGstin && !gstinRegex.test(buyerGstin)) errors.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
 
     // Ship-To GSTIN (mandatory from Aug 2026)
-    if (shipTo === 'URP' && buyerGstin)
+    const shipToOverride = typeof shipToGstin === 'string' ? shipToGstin.trim() : '';
+    if (!shipToOverride && buyerGstin)
       warnings.push('Ship-To GSTIN defaults to buyer GSTIN — pass shipToGstin if different');
+    if (shipToOverride && !gstinRegex.test(shipToOverride.toUpperCase()) && shipToOverride.toUpperCase() !== 'URP')
+      errors.push(`Ship-To GSTIN "${shipToOverride}" format is invalid`);
 
     // 180-day document date limit (Jan 2025 rule)
     if (daysSinceDoc > 180)

@@ -7,6 +7,26 @@ import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
+type ShipToRow = Record<string, unknown>;
+
+function mapShipTo(r: ShipToRow) {
+  return {
+    id: r.id as string,
+    vendorId: r.vendor_id as string,
+    label: (r.label as string) || null,
+    name: r.name as string,
+    gstin: (r.gstin as string) || null,
+    address: (r.address as string) || null,
+    isDefault: !!r.is_default,
+  };
+}
+
+async function assertVendorExists(tenantId: string, vendorId: string): Promise<boolean> {
+  const row = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId]))
+    .rows[0];
+  return !!row;
+}
+
 router.get('/api/vendors', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -348,6 +368,142 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
+// ── Ship-to addresses (alternate delivery GSTIN/address for e-way) ───────────
+
+router.get('/api/vendors/:id/ship-to', async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
+    const vendorId = req.params.id;
+    const jwtVendorId = vendorScopeId(req);
+    if (jwtVendorId && jwtVendorId !== vendorId) return res.status(403).json({ error: 'Access denied to this vendor' });
+    if (!(await assertVendorExists(tenantId, vendorId))) return res.status(404).json({ error: 'Vendor not found' });
+    const { rows } = await pool.query(
+      `SELECT * FROM vendor_ship_to WHERE tenant_id = $1 AND vendor_id = $2
+       ORDER BY is_default DESC, name ASC`,
+      [tenantId, vendorId],
+    );
+    res.json(rows.map(mapShipTo));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.post('/api/vendors/:id/ship-to', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const vendorId = req.params.id;
+    if (!(await assertVendorExists(tenantId, vendorId))) return res.status(404).json({ error: 'Vendor not found' });
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+    const gstin =
+      typeof req.body.gstin === 'string' && req.body.gstin.trim() ? req.body.gstin.trim().toUpperCase() : null;
+    if (gstin && !isValidGstin(gstin))
+      return res.status(400).json({ error: 'Invalid GSTIN — must be 15 characters (e.g. 24AABCT1332L1ZS)' });
+    const label = typeof req.body.label === 'string' ? req.body.label.trim() || null : null;
+    const address = typeof req.body.address === 'string' ? req.body.address.trim() || null : null;
+    const isDefault = !!req.body.isDefault;
+    const id = uid('ST');
+    if (isDefault) {
+      await pool.query('UPDATE vendor_ship_to SET is_default = false WHERE tenant_id = $1 AND vendor_id = $2', [
+        tenantId,
+        vendorId,
+      ]);
+    }
+    await pool.query(
+      `INSERT INTO vendor_ship_to (id, tenant_id, vendor_id, label, name, gstin, address, is_default)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, tenantId, vendorId, label, name, gstin, address, isDefault],
+    );
+    const row = (await pool.query('SELECT * FROM vendor_ship_to WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0];
+    res.status(201).json(mapShipTo(row));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.put('/api/vendors/:id/ship-to/:shipToId', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { id: vendorId, shipToId } = req.params;
+    const existing = (
+      await pool.query('SELECT * FROM vendor_ship_to WHERE id = $1 AND vendor_id = $2 AND tenant_id = $3', [
+        shipToId,
+        vendorId,
+        tenantId,
+      ])
+    ).rows[0];
+    if (!existing) return res.status(404).json({ error: 'Ship-to address not found' });
+
+    const name =
+      req.body.name !== undefined
+        ? typeof req.body.name === 'string'
+          ? req.body.name.trim()
+          : ''
+        : (existing.name as string);
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+    let gstin = existing.gstin as string | null;
+    if (req.body.gstin !== undefined) {
+      gstin = typeof req.body.gstin === 'string' && req.body.gstin.trim() ? req.body.gstin.trim().toUpperCase() : null;
+      if (gstin && !isValidGstin(gstin))
+        return res.status(400).json({ error: 'Invalid GSTIN — must be 15 characters (e.g. 24AABCT1332L1ZS)' });
+    }
+    const label =
+      req.body.label !== undefined
+        ? typeof req.body.label === 'string'
+          ? req.body.label.trim() || null
+          : null
+        : (existing.label as string | null);
+    const address =
+      req.body.address !== undefined
+        ? typeof req.body.address === 'string'
+          ? req.body.address.trim() || null
+          : null
+        : (existing.address as string | null);
+    const isDefault = req.body.isDefault !== undefined ? !!req.body.isDefault : !!existing.is_default;
+
+    if (isDefault) {
+      await pool.query(
+        'UPDATE vendor_ship_to SET is_default = false WHERE tenant_id = $1 AND vendor_id = $2 AND id != $3',
+        [tenantId, vendorId, shipToId],
+      );
+    }
+    await pool.query(
+      `UPDATE vendor_ship_to SET label=$1, name=$2, gstin=$3, address=$4, is_default=$5
+       WHERE id=$6 AND vendor_id=$7 AND tenant_id=$8`,
+      [label, name, gstin, address, isDefault, shipToId, vendorId, tenantId],
+    );
+    const row = (
+      await pool.query('SELECT * FROM vendor_ship_to WHERE id = $1 AND tenant_id = $2', [shipToId, tenantId])
+    ).rows[0];
+    res.json(mapShipTo(row));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.delete('/api/vendors/:id/ship-to/:shipToId', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { id: vendorId, shipToId } = req.params;
+    const result = await pool.query('DELETE FROM vendor_ship_to WHERE id = $1 AND vendor_id = $2 AND tenant_id = $3', [
+      shipToId,
+      vendorId,
+      tenantId,
+    ]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Ship-to address not found' });
+    res.status(204).send();
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 // Delete all vendors for tenant
 router.delete('/api/vendors/all', requireAdmin, async (req: AuthRequest, res) => {
   const client = await pool.connect();
@@ -356,6 +512,7 @@ router.delete('/api/vendors/all', requireAdmin, async (req: AuthRequest, res) =>
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     await client.query('BEGIN');
     const tables = [
+      'vendor_ship_to',
       'price_lists',
       'vendor_reminder_settings',
       'vendor_payments',
@@ -396,6 +553,7 @@ router.delete('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) =>
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('DELETE FROM vendor_ship_to WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM price_lists WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [
         id,

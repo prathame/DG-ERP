@@ -501,7 +501,11 @@ export function DistributionView({
     distance: '',
     transporterName: '',
     transporterId: '',
+    shipToGstin: '',
   });
+  const [eWayShipTos, setEWayShipTos] = useState<
+    { id: string; label: string | null; name: string; gstin: string | null; isDefault: boolean }[]
+  >([]);
   const [batchPaymentForm, setBatchPaymentForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -549,6 +553,30 @@ export function DistributionView({
     }
     return false;
   });
+
+  useEffect(() => {
+    if (!eWayBillModal || !selectedVendorId) {
+      setEWayShipTos([]);
+      return;
+    }
+    let cancelled = false;
+    api.vendors
+      .listShipTo(selectedVendorId)
+      .then(list => {
+        if (cancelled) return;
+        setEWayShipTos(list);
+        const def = list.find(s => s.isDefault && s.gstin) || list.find(s => s.gstin);
+        if (def?.gstin) {
+          setEWayForm(f => (f.shipToGstin ? f : { ...f, shipToGstin: def.gstin! }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEWayShipTos([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eWayBillModal, selectedVendorId]);
 
   // Cap Online / glass: portal ⋮ menu, clamp to viewport; glass prefers above so it never covers totals.
   useEffect(() => {
@@ -1391,6 +1419,7 @@ export function DistributionView({
                                     distance: '',
                                     transporterName: '',
                                     transporterId: '',
+                                    shipToGstin: '',
                                   });
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
@@ -2051,6 +2080,7 @@ export function DistributionView({
                                             distance: '',
                                             transporterName: '',
                                             transporterId: '',
+                                            shipToGstin: '',
                                           });
                                         }}
                                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600"
@@ -3788,6 +3818,26 @@ export function DistributionView({
                   placeholder="Optional"
                 />
               </div>
+              {eWayShipTos.some(s => s.gstin) && (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Ship-To GSTIN</label>
+                  <select
+                    value={eWayForm.shipToGstin}
+                    onChange={e => setEWayForm({ ...eWayForm, shipToGstin: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                  >
+                    <option value="">Buyer (bill-to GSTIN)</option>
+                    {eWayShipTos
+                      .filter(s => s.gstin)
+                      .map(s => (
+                        <option key={s.id} value={s.gstin!}>
+                          {(s.label || s.name) + ` — ${s.gstin}`}
+                          {s.isDefault ? ' (default)' : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -3800,8 +3850,11 @@ export function DistributionView({
                   type="button"
                   disabled={!eWayForm.vehicleNo || !eWayForm.distance}
                   onClick={() => {
+                    const shipQ = eWayForm.shipToGstin
+                      ? `&shipToGstin=${encodeURIComponent(eWayForm.shipToGstin)}`
+                      : '';
                     fetch(
-                      `/api/distribution/ewaybill?batchId=${eWayBillModal}&vehicleNo=${encodeURIComponent(eWayForm.vehicleNo)}&transportMode=${eWayForm.transportMode}&distance=${eWayForm.distance}&transporterName=${encodeURIComponent(eWayForm.transporterName)}&transporterId=${encodeURIComponent(eWayForm.transporterId)}`,
+                      `/api/distribution/ewaybill?batchId=${eWayBillModal}&vehicleNo=${encodeURIComponent(eWayForm.vehicleNo)}&transportMode=${eWayForm.transportMode}&distance=${eWayForm.distance}&transporterName=${encodeURIComponent(eWayForm.transporterName)}&transporterId=${encodeURIComponent(eWayForm.transporterId)}${shipQ}`,
                       {
                         headers: {
                           Authorization: `Bearer ${session.getToken()}`,

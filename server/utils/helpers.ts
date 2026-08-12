@@ -21,6 +21,14 @@ export function isValidGstin(gstin: string): boolean {
   return /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z\d]$/.test(gstin.trim().toUpperCase());
 }
 
+/** E-way Ship-To GSTIN: override, else buyer, else URP. */
+export function resolveShipToGstin(shipToGstin?: string | null, buyerGstin?: string | null): string {
+  const override = typeof shipToGstin === 'string' ? shipToGstin.trim() : '';
+  if (override) return override.toUpperCase();
+  const buyer = typeof buyerGstin === 'string' ? buyerGstin.trim() : '';
+  return buyer || 'URP';
+}
+
 /** Billable amount per distributed unit (GST-inclusive when billed_price is set). */
 export const DISTRIBUTION_BILL_UNIT_SQL = 'COALESCE(pd.billed_price, pd.net_price, p.price)';
 

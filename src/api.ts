@@ -866,6 +866,47 @@ export const api = {
         errors: string[];
         credentials: { name: string; email: string; password: string; url: string }[];
       }>('/vendors/bulk', { method: 'POST', body: JSON.stringify({ vendors }) }),
+    listShipTo: (vendorId: string) =>
+      fetchApi<
+        {
+          id: string;
+          vendorId: string;
+          label: string | null;
+          name: string;
+          gstin: string | null;
+          address: string | null;
+          isDefault: boolean;
+        }[]
+      >(`/vendors/${vendorId}/ship-to`),
+    createShipTo: (
+      vendorId: string,
+      data: { label?: string; name: string; gstin?: string; address?: string; isDefault?: boolean },
+    ) =>
+      fetchApi<{
+        id: string;
+        vendorId: string;
+        label: string | null;
+        name: string;
+        gstin: string | null;
+        address: string | null;
+        isDefault: boolean;
+      }>(`/vendors/${vendorId}/ship-to`, { method: 'POST', body: JSON.stringify(data) }),
+    updateShipTo: (
+      vendorId: string,
+      shipToId: string,
+      data: Partial<{ label: string; name: string; gstin: string; address: string; isDefault: boolean }>,
+    ) =>
+      fetchApi<{
+        id: string;
+        vendorId: string;
+        label: string | null;
+        name: string;
+        gstin: string | null;
+        address: string | null;
+        isDefault: boolean;
+      }>(`/vendors/${vendorId}/ship-to/${shipToId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteShipTo: (vendorId: string, shipToId: string) =>
+      fetchApi<void>(`/vendors/${vendorId}/ship-to/${shipToId}`, { method: 'DELETE' }),
   },
   banks: {
     list: (search?: string) =>
