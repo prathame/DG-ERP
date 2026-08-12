@@ -23,7 +23,7 @@ export type TradeRegisterRow = {
   externalRef: string | null;
 };
 
-function classifyGst(externalRef: string | null, name: string): 'cgst' | 'sgst' | 'igst' | null {
+export function classifyGst(externalRef: string | null, name: string): 'cgst' | 'sgst' | 'igst' | null {
   const ref = String(externalRef || '').toUpperCase();
   const n = String(name || '').toLowerCase();
   if (ref.includes('CGST') || /\bcgst\b/.test(n)) return 'cgst';
