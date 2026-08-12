@@ -12,6 +12,7 @@ interface TradeRow {
   voucherId: string;
   date: string;
   voucherNumber?: string | null;
+  voucherType?: string;
   partyName?: string | null;
   contraName?: string | null;
   amount: number;
@@ -73,10 +74,10 @@ export function TradeRegisterPanel({
 
   const showGst = Boolean(
     data &&
-    (data.totals.cgst > 0 ||
-      data.totals.sgst > 0 ||
-      data.totals.igst > 0 ||
-      data.totals.taxable !== data.totals.amount),
+    (Math.abs(data.totals.cgst) > 0 ||
+      Math.abs(data.totals.sgst) > 0 ||
+      Math.abs(data.totals.igst) > 0 ||
+      Math.abs(data.totals.taxable) !== Math.abs(data.totals.amount)),
   );
 
   return (
@@ -85,7 +86,7 @@ export function TradeRegisterPanel({
         <p className="text-sm text-slate-500">
           {kind === 'sales'
             ? 'Books sales vouchers for the period (ops invoices + manual sales). Separate from the product Sales Register under Reports.'
-            : 'Books purchase vouchers for the period (supplier bills + dual-written purchases).'}
+            : 'Books purchase vouchers for the period (supplier bills + purchase returns).'}
         </p>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-slate-500">
@@ -158,6 +159,9 @@ export function TradeRegisterPanel({
                       >
                         {row.voucherNumber || '—'}
                       </button>
+                      {row.voucherType === 'purchase_return' && (
+                        <span className="ml-1 text-[10px] uppercase text-amber-700">Return</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 max-w-[12rem] truncate" title={row.partyName || ''}>
                       {row.partyName || '—'}

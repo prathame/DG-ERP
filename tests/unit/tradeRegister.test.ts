@@ -116,9 +116,34 @@ describe('getTradeRegister (sales / purchase)', () => {
     const purchReg = await getTradeRegister(pool, TENANT, 'purchase', '2025-08-01', '2025-08-31');
     expect(purchReg.rows).toHaveLength(1);
     expect(purchReg.rows[0].voucherNumber).toBe('PI/1');
+    expect(purchReg.rows[0].voucherType).toBe('purchase');
     expect(purchReg.rows[0].amount).toBe(500);
     expect(purchReg.rows[0].taxable).toBe(500);
     expect(purchReg.totals.count).toBe(1);
+
+    // Purchase return nets into the same register
+    const client2 = await pool.connect();
+    try {
+      await client2.query('BEGIN');
+      const retId = uid('BV');
+      await client2.query(
+        `INSERT INTO book_vouchers
+           (id, tenant_id, voucher_type, voucher_date, voucher_number, party_ledger_id, contra_ledger_id, amount, narration, external_ref)
+         VALUES ($1,$2,'purchase_return','2025-08-06','QR/1',$3,$4,100,'Return',$5)`,
+        [retId, TENANT, party, purchase, `manual:${retId}`],
+      );
+      await client2.query(
+        `INSERT INTO book_voucher_entries (id, tenant_id, voucher_id, line_no, ledger_id, debit, credit)
+         VALUES ($1,$2,$3,1,$4,100,0), ($5,$2,$3,2,$6,0,100)`,
+        [uid('BE'), TENANT, retId, party, uid('BE'), purchase],
+      );
+      await client2.query('COMMIT');
+    } finally {
+      client2.release();
+    }
+    const purchWithReturn = await getTradeRegister(pool, TENANT, 'purchase', '2025-08-01', '2025-08-31');
+    expect(purchWithReturn.rows).toHaveLength(2);
+    expect(purchWithReturn.totals.amount).toBe(400);
   });
 
   it('returns empty totals when no vouchers match', async () => {

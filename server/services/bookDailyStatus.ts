@@ -106,7 +106,7 @@ export async function getBooksDailyStatus(pool: Pool, tenantId: string, date: st
     receipts: amountOf('receipt'),
     payments: amountOf('payment'),
     sales: amountOf('sales'),
-    purchases: amountOf('purchase'),
+    purchases: round2(amountOf('purchase') - amountOf('purchase_return')),
     dayBookLines,
     openPdcCount,
     cashBalance,

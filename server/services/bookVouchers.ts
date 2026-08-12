@@ -14,6 +14,8 @@ export const BOOK_VOUCHER_TYPES = [
   'journal',
   'contra',
   'sales',
+  'purchase',
+  'purchase_return',
   'credit_note',
   'debit_note',
   'pdc_receipt',
@@ -128,7 +130,16 @@ async function assertLedgersExist(client: PoolClient, tenantId: string, ledgerId
 
 function buildSimpleEntries(
   voucherType:
-    'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note' | 'pdc_receipt' | 'pdc_payment',
+    | 'receipt'
+    | 'payment'
+    | 'contra'
+    | 'sales'
+    | 'purchase'
+    | 'purchase_return'
+    | 'credit_note'
+    | 'debit_note'
+    | 'pdc_receipt'
+    | 'pdc_payment',
   partyLedgerId: string,
   contraLedgerId: string,
   amount: number,
@@ -154,6 +165,20 @@ function buildSimpleEntries(
   }
   if (voucherType === 'sales' || voucherType === 'debit_note') {
     // Debit party (AR), Credit sales / income (DN = additional charge)
+    return [
+      { ledgerId: partyLedgerId, debit: amt, credit: 0 },
+      { ledgerId: contraLedgerId, debit: 0, credit: amt },
+    ];
+  }
+  if (voucherType === 'purchase') {
+    // Debit purchase, Credit supplier
+    return [
+      { ledgerId: contraLedgerId, debit: amt, credit: 0 },
+      { ledgerId: partyLedgerId, debit: 0, credit: amt },
+    ];
+  }
+  if (voucherType === 'purchase_return') {
+    // Debit supplier, Credit purchase (return)
     return [
       { ledgerId: partyLedgerId, debit: amt, credit: 0 },
       { ledgerId: contraLedgerId, debit: 0, credit: amt },
@@ -337,16 +362,35 @@ export async function createBookVoucher(
           ? 'Contra requires from (contra) and to (party) ledgers'
           : input.voucherType === 'sales' || input.voucherType === 'credit_note' || input.voucherType === 'debit_note'
             ? 'Party and sales/return ledgers are required'
-            : input.voucherType === 'pdc_receipt' || input.voucherType === 'pdc_payment'
-              ? 'Party and bank ledgers are required for PDC'
-              : 'Party and cash/bank ledgers are required',
+            : input.voucherType === 'purchase' || input.voucherType === 'purchase_return'
+              ? 'Party and purchase ledgers are required'
+              : input.voucherType === 'pdc_receipt' || input.voucherType === 'pdc_payment'
+                ? 'Party and bank ledgers are required for PDC'
+                : 'Party and cash/bank ledgers are required',
       );
     }
     if (input.entries?.length) {
       lines = normalizeEntries(input.entries);
       amount = round2(lines.reduce((s, e) => s + e.debit, 0));
     } else {
-      lines = normalizeEntries(buildSimpleEntries(input.voucherType, partyLedgerId, contraLedgerId, amount));
+      lines = normalizeEntries(
+        buildSimpleEntries(
+          input.voucherType as
+            | 'receipt'
+            | 'payment'
+            | 'contra'
+            | 'sales'
+            | 'purchase'
+            | 'purchase_return'
+            | 'credit_note'
+            | 'debit_note'
+            | 'pdc_receipt'
+            | 'pdc_payment',
+          partyLedgerId,
+          contraLedgerId,
+          amount,
+        ),
+      );
     }
   }
 
@@ -623,7 +667,16 @@ export async function updateBookVoucher(
       lines = normalizeEntries(
         buildSimpleEntries(
           voucherType as
-            'receipt' | 'payment' | 'contra' | 'sales' | 'credit_note' | 'debit_note' | 'pdc_receipt' | 'pdc_payment',
+            | 'receipt'
+            | 'payment'
+            | 'contra'
+            | 'sales'
+            | 'purchase'
+            | 'purchase_return'
+            | 'credit_note'
+            | 'debit_note'
+            | 'pdc_receipt'
+            | 'pdc_payment',
           partyLedgerId,
           contraLedgerId,
           amount,

@@ -214,7 +214,7 @@ describe('book voucher edit / delete / renumber', () => {
         }),
       ).rejects.toBeInstanceOf(BookVoucherValidationError);
 
-      // purchase-type body rebuild is unsupported
+      // purchase-type body rebuild is now supported (manual purchase vouchers)
       const pid = uid('BV');
       await client.query(
         `INSERT INTO book_vouchers
@@ -227,9 +227,13 @@ describe('book voucher edit / delete / renumber', () => {
          VALUES ($1,$2,$3,1,$4,80,0), ($5,$2,$3,2,$6,0,80)`,
         [uid('BE'), TENANT, pid, sales, uid('BE'), party],
       );
-      await expect(
-        updateBookVoucher(client, TENANT, pid, { amount: 90, partyLedgerId: party, contraLedgerId: sales }),
-      ).rejects.toBeInstanceOf(BookVoucherValidationError);
+      const puUpdated = await updateBookVoucher(client, TENANT, pid, {
+        amount: 90,
+        partyLedgerId: party,
+        contraLedgerId: sales,
+      });
+      expect(puUpdated.amount).toBe(90);
+      expect(puUpdated.voucherType).toBe('purchase');
 
       // header date change still ok
       await updateBookVoucher(client, TENANT, pid, { voucherDate: '2025-09-16' });
