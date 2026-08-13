@@ -2039,6 +2039,10 @@ export async function importMiracleCompany(
   const { errors, warnings } = issues.finalize();
   const persisted = { ...summary, errors, warnings };
 
+  // Salary/wages Books payments → Staff Salary (placeholder names when Miracle has none)
+  const { syncBooksSalaryToStaff } = await import('./booksSalaryToStaff');
+  await syncBooksSalaryToStaff(client, tenantId);
+
   await client.query(
     `UPDATE book_import_jobs
      SET status = 'completed', summary = $1::jsonb, finished_at = NOW(), error_message = NULL
