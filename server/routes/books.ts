@@ -83,6 +83,9 @@ router.delete('/api/ops/wipe', requireAdmin, async (req: AuthRequest, res) => {
       ['staff_payments', `DELETE FROM staff_payments WHERE tenant_id = $1`],
       ['staff_members', `DELETE FROM staff_members WHERE tenant_id = $1`],
       ['banks', `DELETE FROM banks WHERE tenant_id = $1`],
+      ['customers', `DELETE FROM customers WHERE tenant_id = $1`],
+      ['categories', `DELETE FROM categories WHERE tenant_id = $1`],
+      ['reward_rules', `DELETE FROM reward_rules WHERE tenant_id = $1`],
     ] as const) {
       try {
         await del(label, sql);
