@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../pg-db';
 import { handleApiError } from '../utils/http-error';
 import { AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
+import { sumTenantExpenses } from '../services/booksExpenses';
 
 const router = Router();
 
@@ -401,7 +402,6 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
     if (businessType === 'service') {
       const invFilter = dateFilter('invoice_date');
       const partyPayFilter = dateFilter('ip.payment_date');
-      const expFilter = dateFilter('expense_date');
       const [collections, invoiceRev, cashIncome, expenses, invoiceOutstanding, activityRows, counts, topClients] =
         await Promise.all([
           pool
@@ -429,9 +429,7 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
               rangeParams,
             )
             .then(r => Number(r.rows[0].v) || 0),
-          pool
-            .query(`SELECT COALESCE(SUM(amount),0) as v FROM expenses WHERE tenant_id=$1 ${expFilter}`, rangeParams)
-            .then(r => Number(r.rows[0].v) || 0),
+          sumTenantExpenses(pool, tenantId, from, to),
           pool
             .query(
               `SELECT COALESCE(SUM(GREATEST(0,
@@ -577,12 +575,7 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
           params([]),
         )
         .then(r => Number(r.rows[0].v) || 0),
-      pool
-        .query(
-          `SELECT COALESCE(SUM(amount),0) as v FROM expenses WHERE tenant_id=$1 ${dateFilter('expense_date')}`,
-          params([]),
-        )
-        .then(r => Number(r.rows[0].v) || 0),
+      sumTenantExpenses(pool, tenantId, from, to),
       pool
         .query(
           `SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)-COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1`,
