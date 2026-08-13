@@ -527,21 +527,38 @@ describe('dbf helpers', () => {
   });
 
   it('parses DBF numbers without inventing an extra zero', () => {
-    // Miracle-style ASCII already has a decimal point
+    // Miracle-style ASCII already has a decimal point — never rescale by field decimals
     expect(parseDbfNumeric('10.0000', 4)).toBe(10);
     expect(parseDbfNumeric('100.00', 2)).toBe(100);
+    expect(parseDbfNumeric('100.00', 2)).not.toBe(10000);
+    expect(parseDbfNumeric('100.00', 4)).toBe(100);
+    expect(parseDbfNumeric('  100.00  ', 2)).toBe(100);
     expect(parseDbfNumeric('     1012000.0000', 4)).toBe(1012000);
     // Implied decimal (no point): "100" + decimals=1 → 10 (not 100)
     expect(parseDbfNumeric('100', 1)).toBe(10);
     expect(parseDbfNumeric('100', 2)).toBe(1);
     expect(parseDbfNumeric('10', 0)).toBe(10);
     expect(parseDbfNumeric('100', 0)).toBe(100);
+    // Implied "10000" + decimals=2 → 100.00 (not leave as 10000)
+    expect(parseDbfNumeric('10000', 2)).toBe(100);
     expect(money(10.005)).toBe(10.01);
     expect(roundMoney(1.005)).toBe(1.01);
     // qty×rate off by 10× → trust explicit Miracle line amount
     expect(pickLineAmount(1, 100, 10)).toBe(10);
     expect(pickLineAmount(1, 10, 100)).toBe(100);
     expect(pickLineAmount(2, 50, 0)).toBe(100);
+  });
+
+  it('reads 100.00 from disk as 100 (not 10000)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dbf-dot-'));
+    tmpDirs.push(dir);
+    const file = path.join(dir, 'dot.dbf');
+    writeDbf(file, [{ name: 'AMT', type: 'N', length: 12, decimals: 2 }], [{ AMT: 100 }, { AMT: 100.0 }, { AMT: 10 }]);
+    const { records } = readDbf(file);
+    expect(records[0].AMT).toBe(100);
+    expect(records[1].AMT).toBe(100);
+    expect(records[2].AMT).toBe(10);
+    expect(money(records[0].AMT)).toBe(100);
   });
 
   it('reads implied-decimal N fields from disk', () => {

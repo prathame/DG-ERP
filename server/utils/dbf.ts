@@ -156,23 +156,29 @@ export function str(v: DbfValue | undefined): string {
 
 /**
  * Parse a DBF N/F field cell.
- * - If the ASCII already has a decimal point (or exponent), use Number(text).
+ * - If the ASCII already has a decimal point (or exponent), use Number(text) as-is.
+ *   Never multiply/divide by field decimals — `100.00` stays 100, not 10000.
  * - If there is no decimal point and `decimals > 0`, treat digits as implied-decimal
  *   (Clipper/dBase): "100" with decimals=1 → 10.0 — avoids the classic “extra zero”.
  */
 export function parseDbfNumeric(text: string, decimals: number): number | null {
   const t = text.replace(/\0/g, '').trim();
   if (!t || t === '+' || t === '-' || t === '.') return null;
+
+  // Explicit decimal (Miracle usual form: "100.00", "3557000.0000") — never rescale.
   if (/[eE.]/.test(t)) {
     const n = Number(t);
     return Number.isFinite(n) ? n : null;
   }
+
   if (!/^[+-]?\d+$/.test(t)) {
     const n = Number(t);
     return Number.isFinite(n) ? n : null;
   }
+
   const n = Number(t);
   if (!Number.isFinite(n)) return null;
+  // Implied decimal only when the cell has no '.' — divide, never multiply.
   const d = Math.max(0, Math.min(8, Math.floor(Number(decimals) || 0)));
   return d > 0 ? n / 10 ** d : n;
 }
