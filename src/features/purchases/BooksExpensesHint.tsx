@@ -1,5 +1,5 @@
 /**
- * Explains why Miracle/Books expenses don't appear in the Ops Expenses list.
+ * Explains Expenses ↔ Accounts when Books is active.
  */
 import React from 'react';
 import { BookOpen, ExternalLink } from 'lucide-react';
@@ -36,13 +36,10 @@ export function BooksExpensesHint({ onOpenProfitLoss, onOpenCashBook, compact, c
           <BookOpen size={compact ? 15 : 17} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
-          <p className={cn('font-bold dg-ink', compact ? 'text-[13px]' : 'text-sm')}>
-            Imported expenses are in Accounts
-          </p>
+          <p className={cn('font-bold dg-ink', compact ? 'text-[13px]' : 'text-sm')}>Same expenses as Accounts</p>
           <p className={cn('dg-muted mt-1 leading-relaxed', compact ? 'text-[11px]' : 'text-xs')}>
-            This list is only for expenses you add here (rent, electricity, etc.). Miracle / Books expenses (salary,
-            tools, material, …) stay in Accounts — Profit &amp; Loss, Cash Book, and ledgers — so they are not counted
-            twice.
+            This list shows Books expense payments (including Miracle import). Add here and it posts to Accounts. Delete
+            here and it is removed from Accounts too.
           </p>
           {hasLinks && (
             <div className={cn('flex flex-wrap gap-2', compact ? 'mt-2.5' : 'mt-3')}>

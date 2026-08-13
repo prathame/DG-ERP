@@ -1,12 +1,100 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
 import { postExpenseToBooks } from '../services/opsToBooks';
+import { deleteBookVoucher, BookVoucherNotFoundError, BookVoucherValidationError } from '../services/bookVouchers';
 
 const router = Router();
+
+type ExpenseRowOut = {
+  id: string;
+  category: string;
+  description: string | null;
+  amount: number;
+  expenseDate: string | Date;
+  paymentMethod: string;
+  referenceNumber: string | null;
+  notes: string | null;
+  source: 'ops' | 'books';
+  booksVoucherId: string | null;
+};
+
+/** Payment vouchers that debit an expense-like ledger (Miracle PT/EX + Ops expense dual-write). */
+const BOOKS_EXPENSE_SQL = `
+  SELECT
+    v.id AS voucher_id,
+    v.external_ref,
+    v.voucher_date,
+    v.voucher_number,
+    v.amount::float AS amount,
+    v.narration,
+    COALESCE(exp_l.name, 'Expense') AS category,
+    CASE
+      WHEN UPPER(COALESCE(cash_l.ledger_type, '')) IN ('BK', 'BN')
+        OR LOWER(COALESCE(cash_l.name, '')) LIKE '%bank%'
+        OR LOWER(COALESCE(cash_l.name, '')) LIKE '%upi%'
+      THEN 'Bank Transfer'
+      ELSE 'Cash'
+    END AS payment_method
+  FROM book_vouchers v
+  LEFT JOIN book_ledgers cash_l
+    ON cash_l.id = v.contra_ledger_id AND cash_l.tenant_id = v.tenant_id
+  LEFT JOIN LATERAL (
+    SELECT l.name
+    FROM book_voucher_entries e
+    JOIN book_ledgers l ON l.id = e.ledger_id AND l.tenant_id = e.tenant_id
+    WHERE e.tenant_id = v.tenant_id
+      AND e.voucher_id = v.id
+      AND e.debit > 0
+      AND (
+        l.nature = 'E'
+        OR UPPER(COALESCE(l.ledger_type, '')) IN ('EX', 'PT', 'ET')
+        OR COALESCE(l.external_ref, '') LIKE 'ops:EXP:%'
+        OR EXISTS (
+          SELECT 1 FROM book_account_groups g
+          WHERE g.id = l.group_id AND g.tenant_id = l.tenant_id
+            AND LOWER(COALESCE(g.name, '')) LIKE '%expense%'
+        )
+      )
+    ORDER BY e.debit DESC
+    LIMIT 1
+  ) exp_l ON TRUE
+  WHERE v.tenant_id = $1
+    AND v.voucher_type = 'payment'
+    AND exp_l.name IS NOT NULL
+`;
+
+async function booksDeskHasData(tenantId: string): Promise<boolean> {
+  const row = (
+    await pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM book_ledgers WHERE tenant_id = $1) AS ledgers,
+         (SELECT COUNT(*)::int FROM book_vouchers WHERE tenant_id = $1) AS vouchers`,
+      [tenantId],
+    )
+  ).rows[0] as { ledgers: number; vouchers: number };
+  return (row?.ledgers || 0) + (row?.vouchers || 0) > 0;
+}
+
+function mapBooksExpense(r: Record<string, unknown>): ExpenseRowOut {
+  const ext = String(r.external_ref || '');
+  const opsId = ext.startsWith('ops:ex:') ? ext.slice('ops:ex:'.length) : null;
+  return {
+    id: opsId || String(r.voucher_id),
+    category: String(r.category || 'Expense'),
+    description: (r.narration as string) || null,
+    amount: Number(r.amount) || 0,
+    expenseDate: r.voucher_date as string | Date,
+    paymentMethod: String(r.payment_method || 'Cash'),
+    referenceNumber: (r.voucher_number as string) || null,
+    notes: opsId ? null : ext.startsWith('miracle:') ? 'Imported from Miracle' : null,
+    source: 'books',
+    booksVoucherId: String(r.voucher_id),
+  };
+}
 
 router.get('/api/expenses', async (req, res) => {
   try {
@@ -14,6 +102,81 @@ router.get('/api/expenses', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { category, from, to } = req.query;
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
+    const useBooks = await booksDeskHasData(tenantId);
+
+    if (useBooks) {
+      const cteParams: unknown[] = [tenantId];
+      let cteIdx = 2;
+      let cteWhere = '';
+      if (typeof category === 'string' && category) {
+        cteWhere += ` AND category = $${cteIdx++}`;
+        cteParams.push(category);
+      }
+      if (typeof from === 'string' && from) {
+        cteWhere += ` AND voucher_date >= $${cteIdx++}`;
+        cteParams.push(from);
+      }
+      if (typeof to === 'string' && to) {
+        cteWhere += ` AND voucher_date <= $${cteIdx++}`;
+        cteParams.push(to);
+      }
+
+      const countRow = (
+        await pool.query(
+          `WITH books_exp AS (${BOOKS_EXPENSE_SQL}) SELECT COUNT(*)::int AS c FROM books_exp WHERE 1=1 ${cteWhere}`,
+          cteParams,
+        )
+      ).rows[0] as { c: number };
+
+      const listLimit = offset === 0 ? Math.max(limit, 500) : limit;
+      const { rows } = await pool.query(
+        `WITH books_exp AS (${BOOKS_EXPENSE_SQL})
+         SELECT * FROM books_exp WHERE 1=1 ${cteWhere}
+         ORDER BY voucher_date DESC
+         LIMIT $${cteIdx++} OFFSET $${cteIdx}`,
+        [...cteParams, listLimit, offset],
+      );
+
+      // Ops expenses that never dual-wrote to Books (rare)
+      const orphanOps = (
+        await pool.query(
+          `SELECT e.* FROM expenses e
+           WHERE e.tenant_id = $1
+             AND NOT EXISTS (
+               SELECT 1 FROM book_vouchers v
+               WHERE v.tenant_id = e.tenant_id AND v.external_ref = 'ops:ex:' || e.id
+             )
+           ORDER BY e.expense_date DESC
+           LIMIT 200`,
+          [tenantId],
+        )
+      ).rows as Record<string, unknown>[];
+
+      const booksMapped = rows.map((r: Record<string, unknown>) => mapBooksExpense(r));
+      const orphanMapped: ExpenseRowOut[] = orphanOps.map(r => ({
+        id: String(r.id),
+        category: String(r.category),
+        description: (r.description as string) || null,
+        amount: Number(r.amount),
+        expenseDate: r.expense_date as string | Date,
+        paymentMethod: String(r.payment_method || 'Cash'),
+        referenceNumber: (r.reference_number as string) || null,
+        notes: (r.notes as string) || null,
+        source: 'ops' as const,
+        booksVoucherId: null,
+      }));
+
+      const seen = new Set(booksMapped.map(b => b.id));
+      const merged = [...booksMapped, ...orphanMapped.filter(o => !seen.has(o.id))];
+      const out = merged;
+
+      res.setHeader('X-Total-Count', String(Number(countRow?.c || 0) + orphanMapped.length));
+      res.setHeader('X-Page', String(page));
+      res.setHeader('X-Limit', String(listLimit));
+      res.setHeader('X-Expenses-Source', 'books');
+      return res.json(out);
+    }
+
     let where = 'WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
     let idx = 2;
@@ -37,6 +200,7 @@ router.get('/api/expenses', async (req, res) => {
     res.setHeader('X-Total-Count', String(total));
     res.setHeader('X-Page', String(page));
     res.setHeader('X-Limit', String(limit));
+    res.setHeader('X-Expenses-Source', 'ops');
     res.json(
       rows.map((r: Record<string, unknown>) => ({
         id: r.id,
@@ -47,6 +211,8 @@ router.get('/api/expenses', async (req, res) => {
         paymentMethod: r.payment_method,
         referenceNumber: r.reference_number,
         notes: r.notes,
+        source: 'ops' as const,
+        booksVoucherId: null,
       })),
     );
   } catch (err) {
@@ -59,6 +225,41 @@ router.get('/api/expenses/summary', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const year = parseInt(String(req.query.year), 10) || new Date().getFullYear();
+    const useBooks = await booksDeskHasData(tenantId);
+
+    if (useBooks) {
+      const byCategory = (
+        await pool.query(
+          `WITH books_exp AS (${BOOKS_EXPENSE_SQL})
+           SELECT category, SUM(amount) AS total, COUNT(*)::int AS count
+           FROM books_exp
+           WHERE EXTRACT(YEAR FROM voucher_date) = $2
+           GROUP BY category
+           ORDER BY total DESC`,
+          [tenantId, year],
+        )
+      ).rows as { category: string; total: number; count: number }[];
+      const byMonth = (
+        await pool.query(
+          `WITH books_exp AS (${BOOKS_EXPENSE_SQL})
+           SELECT to_char(voucher_date, 'YYYY-MM') AS month, SUM(amount) AS total
+           FROM books_exp
+           WHERE EXTRACT(YEAR FROM voucher_date) = $2
+           GROUP BY to_char(voucher_date, 'YYYY-MM')
+           ORDER BY month`,
+          [tenantId, year],
+        )
+      ).rows as { month: string; total: number }[];
+      const grand = byCategory.reduce((s, r) => s + Number(r.total), 0);
+      return res.json({
+        year,
+        grandTotal: grand,
+        byCategory: byCategory.map(r => ({ category: r.category, total: Number(r.total), count: Number(r.count) })),
+        byMonth: byMonth.map(r => ({ month: r.month, total: Number(r.total) })),
+        source: 'books',
+      });
+    }
+
     const byCategory = (
       await pool.query(
         'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY category ORDER BY total DESC',
@@ -77,6 +278,7 @@ router.get('/api/expenses/summary', async (req, res) => {
       grandTotal: grand,
       byCategory: byCategory.map(r => ({ category: r.category, total: Number(r.total), count: Number(r.count) })),
       byMonth: byMonth.map(r => ({ month: r.month, total: Number(r.total) })),
+      source: 'ops',
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -95,6 +297,7 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     if (parsedAmount > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
     const id = uid('EXP');
     const date = expenseDate || new Date().toISOString().slice(0, 10);
+    let booksVoucherId: string | null = null;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -113,7 +316,7 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
         ],
       );
       try {
-        await postExpenseToBooks(client, tenantId, {
+        booksVoucherId = await postExpenseToBooks(client, tenantId, {
           id,
           amount: parsedAmount,
           expenseDate: date,
@@ -152,6 +355,8 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
       paymentMethod: paymentMethod || 'Cash',
       referenceNumber,
       notes,
+      source: booksVoucherId ? 'books' : 'ops',
+      booksVoucherId,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -162,9 +367,61 @@ router.delete('/api/expenses/:id', blockVendors, async (req: AuthRequest, res) =
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query('DELETE FROM expenses WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Expense not found' });
-    res.json({ ok: true });
+    const { id } = req.params;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Ops row (id = EXP…) and/or Books voucher (id = BV… or linked via ops:ex:)
+      const ops = (await client.query(`SELECT id FROM expenses WHERE id = $1 AND tenant_id = $2`, [id, tenantId]))
+        .rows[0] as { id: string } | undefined;
+
+      let voucherId: string | null = null;
+      const byId = (await client.query(`SELECT id FROM book_vouchers WHERE id = $1 AND tenant_id = $2`, [id, tenantId]))
+        .rows[0] as { id: string } | undefined;
+      if (byId) voucherId = byId.id;
+      if (!voucherId) {
+        const byExt = (
+          await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2`, [
+            tenantId,
+            `ops:ex:${id}`,
+          ])
+        ).rows[0] as { id: string } | undefined;
+        if (byExt) voucherId = byExt.id;
+      }
+
+      if (!ops && !voucherId) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Expense not found' });
+      }
+
+      if (voucherId) {
+        await deleteBookVoucher(client, tenantId, voucherId);
+      }
+      if (ops) {
+        await client.query(`DELETE FROM expenses WHERE id = $1 AND tenant_id = $2`, [ops.id, tenantId]);
+      } else if (voucherId) {
+        // Books-only (Miracle): clear any ops twin that pointed at this voucher
+        await client.query(`DELETE FROM expenses WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
+      }
+
+      await client.query('COMMIT');
+      await logAudit(pool, tenantId, 'Expense Deleted', 'expense', id, voucherId ? `books:${voucherId}` : 'ops');
+      res.json({ ok: true });
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      if (err instanceof BookVoucherNotFoundError || err instanceof BookVoucherValidationError) {
+        return res.status(err.status).json({ error: err.message });
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     return handleApiError(req, res, err);
   }

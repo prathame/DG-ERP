@@ -123,6 +123,7 @@ export function PurchasesView({
       expenseDate: string;
       paymentMethod: string;
       notes?: string;
+      source?: 'ops' | 'books';
     }[]
   >([]);
   const [expenseModal, setExpenseModal] = useState(false);
@@ -995,8 +996,8 @@ export function PurchasesView({
               {booksExpensesHint}
               <MobileEmptyState
                 icon={<Receipt />}
-                title="No expenses recorded here yet"
-                subtitle="Add rent, electricity, and other costs here. Imported Books expenses are under Accounts."
+                title="No expenses yet"
+                subtitle="Add rent, electricity, and other costs — they also post to Accounts."
                 actionLabel={canEdit ? 'Add Expense' : undefined}
                 onAction={canEdit ? openExpenseModal : undefined}
               />
@@ -1014,7 +1015,14 @@ export function PurchasesView({
                       <Receipt size={16} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-bold text-gray-900 truncate">{e.category}</div>
+                      <div className="text-[13px] font-bold text-gray-900 truncate flex items-center gap-1.5">
+                        <span className="truncate">{e.category}</span>
+                        {e.source === 'books' && (
+                          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-gray-400 border border-gray-200 rounded px-1">
+                            Accts
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-gray-500 truncate mt-0.5">
                         {formatDate(e.expenseDate)} · {e.paymentMethod}
                         {e.description ? ` · ${e.description}` : ''}
@@ -1119,9 +1127,9 @@ export function PurchasesView({
                 {expenses.length === 0 ? (
                   <div className="py-16 text-center text-gray-400">
                     <Receipt size={40} className="mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">No expenses recorded here yet</p>
+                    <p className="font-medium">No expenses yet</p>
                     <p className="text-sm mt-1.5 max-w-sm mx-auto">
-                      Add day-to-day costs here. Imported Books expenses are under Accounts.
+                      Add day-to-day costs here — they also post to Accounts.
                     </p>
                   </div>
                 ) : (
