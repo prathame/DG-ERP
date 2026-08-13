@@ -74,6 +74,7 @@ describe('salesStockOps db', () => {
       );
       expect(sold.units).toBe(2);
       expect(sold.shortfall).toBe(1);
+      expect(sold.seeded).toBe(0);
 
       const stock = await client.query(`SELECT stock::int AS s FROM products WHERE tenant_id=$1 AND id=$2`, [
         TENANT,
@@ -104,6 +105,67 @@ describe('salesStockOps db', () => {
       ]);
       expect(afterClear.rows[0].s).toBe(0);
 
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  it('Miracle-style seedMissing fills shortfall then sells full qty', async () => {
+    await cleanupTestData(TENANT);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
+       VALUES ($1,'Sales Stock Ops',$2,'sso@test.com','SSO','active','dealer')
+       ON CONFLICT (id) DO NOTHING`,
+      [TENANT, `sso-${TENANT.toLowerCase()}`],
+    );
+    const productId = uid('PR');
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, stock, external_ref)
+       VALUES ($1,$2,'Die',100,0,'X-DIE')`,
+      [productId, TENANT],
+    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const warnings: string[] = [];
+      const sold = await upsertSaleStockOut(
+        client,
+        TENANT,
+        'miracle:sal:ABC',
+        [{ productId, qty: 3 }],
+        msg => warnings.push(msg),
+        { seedMissing: true },
+      );
+      expect(sold.units).toBe(3);
+      expect(sold.shortfall).toBe(0);
+      expect(sold.seeded).toBe(3);
+      expect(warnings).toHaveLength(0);
+      const stock = await client.query(`SELECT stock::int AS s FROM products WHERE tenant_id=$1 AND id=$2`, [
+        TENANT,
+        productId,
+      ]);
+      expect(stock.rows[0].s).toBe(0);
+      const soldRows = await client.query(
+        `SELECT COUNT(*)::int AS n FROM product_inventory WHERE tenant_id=$1 AND batch_id=$2 AND status='Sold'`,
+        [TENANT, 'miracle:sal:ABC'],
+      );
+      expect(soldRows.rows[0].n).toBe(3);
+      // Re-run is idempotent (no double stock)
+      const again = await upsertSaleStockOut(
+        client,
+        TENANT,
+        'miracle:sal:ABC',
+        [{ productId, qty: 3 }],
+        msg => warnings.push(msg),
+        { seedMissing: true },
+      );
+      expect(again.units).toBe(3);
+      expect(again.seeded).toBe(3);
+      expect(warnings).toHaveLength(0);
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');

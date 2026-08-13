@@ -8,7 +8,17 @@ import os from 'os';
 import path from 'path';
 import { pool, cleanupTestData } from '../helpers';
 import { uid } from '../../server/utils/helpers';
-import { findDbf, num, readDbf, str, dateStr } from '../../server/utils/dbf';
+import {
+  dateStr,
+  findDbf,
+  money,
+  num,
+  parseDbfNumeric,
+  pickLineAmount,
+  readDbf,
+  roundMoney,
+  str,
+} from '../../server/utils/dbf';
 import {
   applyNoteGstToItems,
   applySalesGstToLineItems,
@@ -59,8 +69,14 @@ function writeDbf(filePath: string, fields: FieldDef[], rows: Record<string, str
           .padEnd(f.length)
           .slice(0, f.length);
       else if (f.type === 'N' || f.type === 'F') {
-        const n = raw == null || raw === '' ? '' : String(raw);
-        cell = n.padStart(f.length).slice(-f.length);
+        if (raw == null || raw === '') cell = '';
+        else {
+          const d = f.decimals || 0;
+          const numVal = typeof raw === 'number' ? raw : Number(raw);
+          // Match Miracle: store ASCII with an explicit decimal point when decimals > 0
+          const formatted = Number.isFinite(numVal) ? numVal.toFixed(d) : String(raw);
+          cell = formatted.padStart(f.length).slice(-f.length);
+        }
       } else if (f.type === 'D') {
         const s = String(raw ?? '').replace(/-/g, '');
         cell = (s || '').padEnd(8).slice(0, 8);
@@ -508,6 +524,71 @@ describe('dbf helpers', () => {
     expect(dateStr('2025-07-01T12:00:00Z')).toBe('2025-07-01');
     expect(dateStr(new Date('2025-03-04T00:00:00Z'))).toBe('2025-03-04');
     expect(dateStr('not-a-date')).toBeNull();
+  });
+
+  it('parses DBF numbers without inventing an extra zero', () => {
+    // Miracle-style ASCII already has a decimal point — never rescale by field decimals
+    expect(parseDbfNumeric('10.0000', 4)).toBe(10);
+    expect(parseDbfNumeric('100.00', 2)).toBe(100);
+    expect(parseDbfNumeric('100.00', 2)).not.toBe(10000);
+    expect(parseDbfNumeric('100.00', 4)).toBe(100);
+    expect(parseDbfNumeric('  100.00  ', 2)).toBe(100);
+    expect(parseDbfNumeric('     1012000.0000', 4)).toBe(1012000);
+    // Implied decimal (no point): "100" + decimals=1 → 10 (not 100)
+    expect(parseDbfNumeric('100', 1)).toBe(10);
+    expect(parseDbfNumeric('100', 2)).toBe(1);
+    expect(parseDbfNumeric('10', 0)).toBe(10);
+    expect(parseDbfNumeric('100', 0)).toBe(100);
+    // Implied "10000" + decimals=2 → 100.00 (not leave as 10000)
+    expect(parseDbfNumeric('10000', 2)).toBe(100);
+    expect(money(10.005)).toBe(10.01);
+    expect(roundMoney(1.005)).toBe(1.01);
+    // qty×rate off by 10× → trust explicit Miracle line amount
+    expect(pickLineAmount(1, 100, 10)).toBe(10);
+    expect(pickLineAmount(1, 10, 100)).toBe(100);
+    expect(pickLineAmount(2, 50, 0)).toBe(100);
+  });
+
+  it('reads 100.00 from disk as 100 (not 10000)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dbf-dot-'));
+    tmpDirs.push(dir);
+    const file = path.join(dir, 'dot.dbf');
+    writeDbf(file, [{ name: 'AMT', type: 'N', length: 12, decimals: 2 }], [{ AMT: 100 }, { AMT: 100.0 }, { AMT: 10 }]);
+    const { records } = readDbf(file);
+    expect(records[0].AMT).toBe(100);
+    expect(records[1].AMT).toBe(100);
+    expect(records[2].AMT).toBe(10);
+    expect(money(records[0].AMT)).toBe(100);
+  });
+
+  it('reads implied-decimal N fields from disk', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dbf-implied-'));
+    tmpDirs.push(dir);
+    const file = path.join(dir, 'implied.dbf');
+    // Manual write: no decimal point in cell, decimals=1 in header → 100 means 10.0
+    const length = 8;
+    const headerLen = 32 + 32 + 1;
+    const recordLen = 1 + length;
+    const buf = Buffer.alloc(headerLen + 2 * recordLen + 1, 0);
+    buf[0] = 0x03;
+    buf.writeUInt32LE(2, 4);
+    buf.writeUInt16LE(headerLen, 8);
+    buf.writeUInt16LE(recordLen, 10);
+    buf.write('AMT', 32, 'ascii');
+    buf[32 + 11] = 0x4e;
+    buf[32 + 16] = length;
+    buf[32 + 17] = 1;
+    buf[headerLen - 1] = 0x0d;
+    buf[headerLen] = 0x20;
+    buf.write('     100', headerLen + 1, 'ascii');
+    buf[headerLen + recordLen] = 0x20;
+    buf.write('      10', headerLen + recordLen + 1, 'ascii');
+    buf[headerLen + 2 * recordLen] = 0x1a;
+    fs.writeFileSync(file, buf);
+
+    const { records } = readDbf(file);
+    expect(records[0].AMT).toBe(10);
+    expect(records[1].AMT).toBe(1);
   });
 
   it('reads float and memo fields and rejects tiny files', () => {
@@ -3465,8 +3546,9 @@ describe('miracleImport', () => {
       await client.query('COMMIT');
       expect(result.errors).toEqual([]);
       expect(result.summary.coverage.salesInvoices.imported).toBe(1);
-      expect(result.summary.saleStockUnits).toBe(0);
-      expect(result.warnings.some(w => /Sale short/.test(w.message))).toBe(true);
+      // No purchase/opening stock in dump — seedMissing still posts Sold units
+      expect(result.summary.saleStockUnits).toBe(2);
+      expect(result.warnings.some(w => /Sale short/.test(w.message))).toBe(false);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
