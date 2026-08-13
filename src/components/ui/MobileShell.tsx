@@ -55,7 +55,7 @@ export function MobileKpiCard({
   className,
   onClick,
 }: {
-  label: string;
+  label: ReactNode;
   value: ReactNode;
   hint?: ReactNode;
   accent?: 'brand' | 'blue' | 'green' | 'rose' | 'amber' | 'indigo' | 'gray';

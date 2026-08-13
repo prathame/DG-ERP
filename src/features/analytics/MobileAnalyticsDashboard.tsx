@@ -20,6 +20,7 @@ import { cn } from '../../lib/utils';
 import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
 import type { GlobalSearchNavigate } from '../../lib/globalSearch';
+import { MetricInfoTip } from './MetricInfoTip';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
@@ -28,6 +29,7 @@ type MoneyTile = {
   label: string;
   value: number;
   accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber';
+  info?: string;
 };
 
 type Activity = { type: string; id: string; label: string; amount: number; date: string };
@@ -144,7 +146,10 @@ export function MobileAnalyticsDashboard({
                 key={tile.id}
                 className={cn('dg-m-glass-card rounded-2xl p-3 border-l-[3px]', ACCENT_BORDER[tile.accent])}
               >
-                <p className="text-[10px] font-bold uppercase tracking-wider dg-m-faint">{tile.label}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider dg-m-faint flex items-center gap-1">
+                  <span className="min-w-0 truncate">{tile.label}</span>
+                  {tile.info ? <MetricInfoTip text={tile.info} className="dg-m-faint" /> : null}
+                </p>
                 <p className={cn('text-lg font-bold tabular-nums mt-1', ACCENT_VALUE[tile.accent])}>
                   {fmt(tile.value)}
                 </p>
