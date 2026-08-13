@@ -112,7 +112,7 @@ export function readDbf(filePath: string): { fields: DbfField[]; records: DbfRec
         case 'N':
         case 'F': {
           const n = text.trim();
-          row[field.name] = n === '' ? null : Number(n);
+          row[field.name] = n === '' ? null : parseDbfNumeric(n, field.decimals);
           break;
         }
         case 'D': {
@@ -154,10 +154,59 @@ export function str(v: DbfValue | undefined): string {
   return String(v).trim();
 }
 
+/**
+ * Parse a DBF N/F field cell.
+ * - If the ASCII already has a decimal point (or exponent), use Number(text).
+ * - If there is no decimal point and `decimals > 0`, treat digits as implied-decimal
+ *   (Clipper/dBase): "100" with decimals=1 → 10.0 — avoids the classic “extra zero”.
+ */
+export function parseDbfNumeric(text: string, decimals: number): number | null {
+  const t = text.replace(/\0/g, '').trim();
+  if (!t || t === '+' || t === '-' || t === '.') return null;
+  if (/[eE.]/.test(t)) {
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (!/^[+-]?\d+$/.test(t)) {
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  const n = Number(t);
+  if (!Number.isFinite(n)) return null;
+  const d = Math.max(0, Math.min(8, Math.floor(Number(decimals) || 0)));
+  return d > 0 ? n / 10 ** d : n;
+}
+
+/** INR money to paise precision (avoids float drift on import). */
+export function roundMoney(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 export function num(v: DbfValue | undefined): number {
   if (v == null || v === '') return 0;
   const n = typeof v === 'number' ? v : Number(String(v).trim());
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Like num(), then round to 2 decimals — use for voucher/invoice/payment amounts. */
+export function money(v: DbfValue | undefined): number {
+  return roundMoney(num(v));
+}
+
+/**
+ * Line amount from qty × rate vs explicit amount.
+ * When they disagree by exactly 10× (classic extra/missing zero), trust explicit.
+ */
+export function pickLineAmount(qty: number, rate: number, explicit: number): number {
+  const product = roundMoney((Number(qty) || 0) * (Number(rate) || 0));
+  const e = roundMoney(Number(explicit) || 0);
+  if (e > 0 && product > 0) {
+    const ratio = product / e;
+    if (Math.abs(ratio - 10) < 0.001 || Math.abs(ratio - 0.1) < 0.001) return e;
+  }
+  if (e > 0) return e;
+  return product;
 }
 
 export function dateStr(v: DbfValue | undefined): string | null {

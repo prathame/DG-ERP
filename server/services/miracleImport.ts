@@ -27,7 +27,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
-import { dateStr, findDbf, num, readDbf, str, type DbfRecord } from '../utils/dbf';
+import { dateStr, findDbf, money, num, pickLineAmount, readDbf, roundMoney, str, type DbfRecord } from '../utils/dbf';
 import { logger } from '../utils/logger';
 import { allocatePartyReceipt, normalizeDocNumber, upsertVendorPayment } from './partyCashOps';
 import { classifyGst } from './bookTradeRegister';
@@ -652,7 +652,7 @@ export function collectVoucherGst(
     if (!meta) continue;
     const kind = classifyGst(ledgerExt, meta.name);
     if (!kind) continue;
-    const amt = num(e.FIELD05);
+    const amt = money(e.FIELD05);
     const entrySide = str(e.FIELD06).toUpperCase();
     if (entrySide !== side || !(amt > 0)) continue;
     if (kind === 'cgst') cgst += amt;
@@ -1142,7 +1142,7 @@ export async function importMiracleCompany(
         groupId = await upsertGroup(client, tenantId, groupExt, groupExt, null, null, null, groupIds);
       }
     }
-    const opening = num(r.FIELD10);
+    const opening = money(r.FIELD10);
     const gstin = str(r.FIELD40) || null;
     const id = uid('BL');
     await client.query(
@@ -1413,7 +1413,7 @@ export async function importMiracleCompany(
     const vNumber = normalizeMiracleDocNumber(vNumberRaw) || null;
     const partyExt = str(h.FIELD04);
     const contraExt = str(h.FIELD05);
-    let amount = num(h.FIELD06) || num(h.FIELD07);
+    let amount = money(h.FIELD06) || money(h.FIELD07);
     const narration = narrations.get(ext) || null;
     const voucherId = uid('BV');
 
@@ -1466,7 +1466,7 @@ export async function importMiracleCompany(
       const contraExtLine = str(e.FIELD04);
       const ledgerId = ledgerExt ? ledgerIds.get(ledgerExt) : null;
       if (!ledgerId) continue;
-      const amt = num(e.FIELD05);
+      const amt = money(e.FIELD05);
       const side = str(e.FIELD06).toUpperCase();
       const debit = side === 'D' ? amt : 0;
       const credit = side === 'C' ? amt : 0;
@@ -1492,11 +1492,13 @@ export async function importMiracleCompany(
 
     const items = itemsByVoucher.get(ext) || [];
     if (!(amount > 0) && items.length) {
-      amount = items.reduce((s, it) => {
-        const qty = num(it.FIELD06) || 1;
-        const rate = num(it.FIELD07);
-        return s + (num(it.FIELD08) || qty * rate || 0);
-      }, 0);
+      amount = roundMoney(
+        items.reduce((s, it) => {
+          const qty = num(it.FIELD06) || 1;
+          const rate = num(it.FIELD07);
+          return s + pickLineAmount(qty, rate, money(it.FIELD08));
+        }, 0),
+      );
       if (amount > 0) {
         await client.query(`UPDATE book_vouchers SET amount = $1 WHERE id = $2 AND tenant_id = $3`, [
           amount,
@@ -1590,7 +1592,7 @@ export async function importMiracleCompany(
       const opsProductId = prodExt ? opsProductIds.get(prodExt) || null : null;
       const qty = num(it.FIELD06) || 1;
       const rate = num(it.FIELD07);
-      const lineAmt = num(it.FIELD08) || qty * rate;
+      const lineAmt = pickLineAmount(qty, rate, money(it.FIELD08));
       itemNo++;
       await client.query(
         `INSERT INTO book_voucher_items
