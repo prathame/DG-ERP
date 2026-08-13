@@ -324,6 +324,7 @@ function buildMiracleCompany(root: string): string {
       { name: 'FIELD12', type: 'C', length: 25 },
       { name: 'FIELD16', type: 'C', length: 1 },
       { name: 'FIELD74', type: 'C', length: 2 },
+      { name: 'FIELD98', type: 'C', length: 2 },
       { name: 'T41FVNO', type: 'C', length: 25 },
     ],
     [
@@ -337,6 +338,7 @@ function buildMiracleCompany(root: string): string {
         FIELD12: 'GT/1',
         FIELD16: 'D',
         FIELD74: 'SP',
+        FIELD98: 'SS',
         T41FVNO: 'GT/1',
       },
       {
@@ -349,6 +351,7 @@ function buildMiracleCompany(root: string): string {
         FIELD12: '',
         FIELD16: 'R',
         FIELD74: 'CB',
+        FIELD98: 'CR',
         T41FVNO: '',
       },
       {
@@ -361,6 +364,7 @@ function buildMiracleCompany(root: string): string {
         FIELD12: '',
         FIELD16: 'P',
         FIELD74: 'CB',
+        FIELD98: 'CP',
         T41FVNO: '',
       },
       {
@@ -373,6 +377,7 @@ function buildMiracleCompany(root: string): string {
         FIELD12: 'JV/1',
         FIELD16: 'J',
         FIELD74: 'JR',
+        FIELD98: 'JR',
         T41FVNO: 'JV/1',
       },
       {
@@ -387,6 +392,19 @@ function buildMiracleCompany(root: string): string {
         FIELD74: 'SP',
         FIELD98: 'SS',
         T41FVNO: 'SE/1',
+      },
+      {
+        FIELD01: 'QSVOUCHER06',
+        FIELD02: '20250506',
+        FIELD04: 'AGPARTY1',
+        FIELD05: '',
+        FIELD06: 690300,
+        FIELD07: 585000,
+        FIELD12: '01',
+        FIELD16: 'D',
+        FIELD74: 'SE',
+        FIELD98: 'QS',
+        T41FVNO: '01',
       },
     ],
   );
@@ -419,6 +437,7 @@ function buildMiracleCompany(root: string): string {
     [
       { FIELD01: 'SSVOUCHER01', FIELD03: 'PGITEM01', FIELD06: 1, FIELD07: 560000, FIELD08: 560000 },
       { FIELD01: 'SEVOUCHER05', FIELD03: 'PGITEM01', FIELD06: 1, FIELD07: 50, FIELD08: 50 },
+      { FIELD01: 'QSVOUCHER06', FIELD03: 'PGITEM01', FIELD06: 1, FIELD07: 690300, FIELD08: 690300 },
     ],
   );
 
@@ -432,6 +451,7 @@ beforeAll(async () => {
     'invoice_payments',
     'vendor_payments',
     'standalone_invoices',
+    'quotations',
     'products',
     'vendors',
     'book_voucher_items',
@@ -459,6 +479,7 @@ afterAll(async () => {
     'invoice_payments',
     'vendor_payments',
     'standalone_invoices',
+    'quotations',
     'products',
     'vendors',
     'book_voucher_items',
@@ -705,14 +726,16 @@ describe('miracleImport', () => {
       expect(summary.companyName).toContain('FIXTURE');
       expect(summary.ledgers).toBe(6);
       expect(summary.products).toBe(1);
-      expect(summary.vouchers).toBe(5);
+      expect(summary.vouchers).toBe(6);
       expect(summary.voucherEntries).toBe(4); // SP 2 lines + SP-without-entries synthesized 2
-      expect(summary.voucherItems).toBe(2); // two sales items
+      expect(summary.voucherItems).toBe(3); // two sales + one quote items
       expect(summary.groups).toBe(2);
       // Ops dual-write — PR trading + LI liability person
       expect(summary.vendors).toBe(2);
       expect(summary.opsProducts).toBe(1);
       expect(summary.invoices).toBeGreaterThanOrEqual(2); // two SP sales
+      expect(summary.quotations).toBe(1); // QS → Quotes tab
+      expect(summary.coverage.quotations).toEqual({ source: 1, imported: 1, skipped: 0 });
       expect(summary.vendorPayments + summary.invoicePayments).toBeGreaterThanOrEqual(1);
       expect(summary.coverage.parties).toEqual({ source: 2, imported: 2, skipped: 0 });
       expect(summary.coverage.products).toEqual({ source: 1, imported: 1, skipped: 0 });
@@ -788,6 +811,18 @@ describe('miracleImport', () => {
     expect(seEntries.rows.reduce((s, r) => s + Number(r.debit), 0)).toBe(50);
     expect(seEntries.rows.reduce((s, r) => s + Number(r.credit), 0)).toBe(50);
     expect(seEntries.rows.some(r => /synthesized/i.test(String(r.narration || '')))).toBe(true);
+
+    // QS / SE quotation → Quotes tab (not a sales invoice)
+    const quotes = await pool.query(
+      `SELECT quotation_number, customer_name, total::float AS total, status, external_ref
+       FROM quotations WHERE tenant_id = $1 AND external_ref = 'QSVOUCHER06'`,
+      [TENANT],
+    );
+    expect(quotes.rows).toHaveLength(1);
+    expect(quotes.rows[0].customer_name).toBe('MITULBHAI');
+    expect(quotes.rows[0].total).toBe(690300);
+    expect(quotes.rows[0].status).toBe('Sent');
+    expect(quotes.rows[0].quotation_number).toMatch(/01/);
 
     // Cash book involving party → payments
     const vp = await pool.query(

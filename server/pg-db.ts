@@ -586,6 +586,12 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_tenant ON quotations(tenant_id)');
     await client.query('ALTER TABLE quotations ADD COLUMN IF NOT EXISTS converted_invoice_id TEXT');
+    await client.query('ALTER TABLE quotations ADD COLUMN IF NOT EXISTS external_ref TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_quotations_tenant_external_ref
+      ON quotations (tenant_id, external_ref)
+      WHERE external_ref IS NOT NULL
+    `);
 
     // Add accounts + quotations tabs to existing tenants
     await client.query(
