@@ -384,7 +384,8 @@ function buildMiracleCompany(root: string): string {
         FIELD07: 50,
         FIELD12: 'SE/1',
         FIELD16: 'D',
-        FIELD74: 'SE',
+        FIELD74: 'SP',
+        FIELD98: 'SS',
         T41FVNO: 'SE/1',
       },
     ],
@@ -402,7 +403,7 @@ function buildMiracleCompany(root: string): string {
     [
       { FIELD01: 'SSVOUCHER01', FIELD03: 'AGPARTY1', FIELD04: 'AGO5S34X', FIELD05: 560000, FIELD06: 'D' },
       { FIELD01: 'SSVOUCHER01', FIELD03: 'AGO5S34X', FIELD04: 'AGPARTY1', FIELD05: 560000, FIELD06: 'C' },
-      // SE intentionally has no ledger rows — importer must synthesize
+      // SP with items but no ledger rows — importer must synthesize
     ],
   );
 
@@ -705,20 +706,21 @@ describe('miracleImport', () => {
       expect(summary.ledgers).toBe(6);
       expect(summary.products).toBe(1);
       expect(summary.vouchers).toBe(5);
-      expect(summary.voucherEntries).toBe(4); // SP 2 lines + SE synthesized 2
-      expect(summary.voucherItems).toBe(2); // SP + SE items
+      expect(summary.voucherEntries).toBe(4); // SP 2 lines + SP-without-entries synthesized 2
+      expect(summary.voucherItems).toBe(2); // two sales items
       expect(summary.groups).toBe(2);
       // Ops dual-write — PR trading + LI liability person
       expect(summary.vendors).toBe(2);
       expect(summary.opsProducts).toBe(1);
-      expect(summary.invoices).toBeGreaterThanOrEqual(2); // SP + SE sales
+      expect(summary.invoices).toBeGreaterThanOrEqual(2); // two SP sales
       expect(summary.vendorPayments + summary.invoicePayments).toBeGreaterThanOrEqual(1);
       expect(summary.coverage.parties).toEqual({ source: 2, imported: 2, skipped: 0 });
       expect(summary.coverage.products).toEqual({ source: 1, imported: 1, skipped: 0 });
       expect(summary.coverage.salesInvoices.imported).toBe(summary.coverage.salesInvoices.source);
       expect(summary.coverage.journalsBooksOnly).toBe(1);
       expect(errors).toEqual([]);
-      expect(warnings.some(w => w.stage === 'journals' && /Books only/i.test(w.message))).toBe(true);
+      // Expected Books-only shapes (journals) live in coverage — not warnings
+      expect(warnings.some(w => w.stage === 'journals')).toBe(false);
       expect(warnings.some(w => /synthesized/i.test(w.message))).toBe(true);
     } catch (e) {
       await client.query('ROLLBACK');
@@ -773,7 +775,7 @@ describe('miracleImport', () => {
     expect(sale?.grand_total).toBe(560000);
     expect(sale?.party_type).toBe('vendor');
 
-    // SE with items but no RKACCT01 rows → synthesized ledger entries
+    // SP with items but no RKACCT01 rows → synthesized ledger entries
     const seEntries = await pool.query(
       `SELECT e.debit::float AS debit, e.credit::float AS credit, e.narration
        FROM book_voucher_entries e
@@ -1098,9 +1100,9 @@ describe('miracleImport', () => {
       await client.query('BEGIN');
       const { summary, errors, warnings } = await importMiracleCompany(client, TENANT, company, jobId);
       await client.query('COMMIT');
-      // Non-party cash (sales A/c) is intentional Books-only — warned, not an error
+      // Non-party cash (sales A/c) is intentional Books-only — coverage note, not a warning
       expect(summary.coverage.nonPartyCashSkipped).toBeGreaterThanOrEqual(1);
-      expect(warnings.some(w => w.stage === 'non_party_cash')).toBe(true);
+      expect(warnings.some(w => w.stage === 'non_party_cash')).toBe(false);
       expect(errors.some(e => e.externalRef === 'CRNOPARTY')).toBe(false);
       expect(errors.some(e => e.externalRef === 'CRZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
       expect(errors.some(e => e.externalRef === 'SSNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);
@@ -1270,7 +1272,9 @@ describe('miracleImport', () => {
   it('maps Miracle voucher codes including FIELD98 shortcuts', () => {
     expect(normalizeMiracleDocNumber('GT/     1')).toBe('GT/1');
     expect(mapVoucherType('SP', 'D', 'SS')).toBe('sales');
-    expect(mapVoucherType('SE', 'D', 'QS')).toBe('sales');
+    expect(mapVoucherType('SE', 'D', 'QS')).toBe('estimate');
+    expect(mapVoucherType('SE', '', '')).toBe('estimate');
+    expect(mapVoucherType('', '', 'QS')).toBe('estimate');
     expect(mapVoucherType('CB', 'R', 'CR')).toBe('receipt');
     expect(mapVoucherType('CB', 'P', 'CP')).toBe('payment');
     expect(mapVoucherType('CN', '', 'CN')).toBe('credit_note');

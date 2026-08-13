@@ -5,9 +5,10 @@
  * Ops dual-write (idempotent via external_ref / idempotency_key):
  *   PR/LI ledgers → vendors
  *   products → products
- *   SP/SE/SS/QS sales → standalone_invoices
+ *   SP/SS sales → standalone_invoices
  *     (gst_enabled + tax_* from Books CGST/SGST/IGST credit lines when present)
  *     with ops product lines → InStock → Sold (miracle:sal:)
+ *   SE/QS quotations/estimates → Books only (not invoices)
  *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
  *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
  *   QR purchase returns (with ops product lines) → InStock → PurchaseReturned (miracle:pr:)
@@ -62,6 +63,8 @@ export interface MiracleImportCoverage {
   nonPartyCashSkipped: number;
   /** Journals — Books only */
   journalsBooksOnly: number;
+  /** SE/QS quotations / estimates — Books only (not sales invoices) */
+  estimatesBooksOnly: number;
   /** Purchases → ops stock when items + products resolve; else skipped Books-only */
   purchases: MiracleImportCoverageBucket;
   /** Purchase returns → ops stock-out when ops product lines resolve; else skipped Books-only */
@@ -195,6 +198,7 @@ function emptyCoverage(): MiracleImportCoverage {
     debitNotes: { source: 0, imported: 0, skipped: 0 },
     nonPartyCashSkipped: 0,
     journalsBooksOnly: 0,
+    estimatesBooksOnly: 0,
     purchases: { source: 0, imported: 0, skipped: 0 },
     purchaseReturns: { source: 0, imported: 0, skipped: 0 },
     contraBooksOnly: 0,
@@ -204,7 +208,10 @@ function emptyCoverage(): MiracleImportCoverage {
   };
 }
 
-/** Category-level warnings so unsupported shapes are never silent. */
+/**
+ * Warn only for unexpected Books-only skips (missing party/products).
+ * Expected shapes (journals, estimates, expense cash, advances, contra) stay in coverage — not warnings.
+ */
 function warnBooksOnlySkips(
   issues: { warn: (issue: MiracleImportIssue) => void },
   coverage: MiracleImportCoverage,
@@ -220,22 +227,10 @@ function warnBooksOnlySkips(
       'purchases',
       'purchase voucher(s) kept in Books only — missing supplier party or ops product lines',
     ],
-    [coverage.journalsBooksOnly, 'journals', 'journal voucher(s) kept in Books only — not dual-written to ops'],
-    [coverage.contraBooksOnly, 'contra', 'contra voucher(s) kept in Books only — not dual-written to ops'],
     [
       coverage.unsupportedVouchersBooksOnly,
       'unsupported',
       'unsupported Miracle voucher type(s) kept in Books only — no matching Dhandho feature',
-    ],
-    [
-      coverage.nonPartyCashSkipped,
-      'non_party_cash',
-      'cash entry(ies) to expense/capital/other ledgers live in Books (and Purchases → Expenses / Analytics) — not as party bills',
-    ],
-    [
-      coverage.unallocatedAdvances,
-      'advances',
-      'receipt remainder(s) stored as party advance (no open bill to match) — review under Collections / payments',
     ],
   ];
   for (const [n, stage, msg] of rows) {
@@ -251,6 +246,7 @@ export const normalizeMiracleDocNumber = normalizeDocNumber;
 /**
  * Map Miracle header type/subtype (+ FIELD98 shortcut) → Books voucher_type.
  * FIELD98 mirrors UI voucher shortcuts: SS sales, CR/CP cash, PU purchase, CN/DN notes, QS estimate.
+ * SE/QS must be checked before subtype `D` (estimates also use D and are not invoices).
  */
 export function mapVoucherType(miracleType: string, subtype: string, field98 = ''): string {
   const t = miracleType.toUpperCase();
@@ -265,8 +261,9 @@ export function mapVoucherType(miracleType: string, subtype: string, field98 = '
   if (t === 'DN' || f === 'DN') return 'debit_note';
   if (t === 'PU' || f === 'PU' || t === 'PH') return 'purchase';
   if (t === 'QR' || f === 'QR') return 'purchase_return';
-  if (t === 'SP' || s === 'D' || f === 'SS') return 'sales';
-  if (t === 'SE' || f === 'QS') return 'sales';
+  // Quotation / estimate — Books only (Miracle SE/QS often has item lines but no ledger posting)
+  if (t === 'SE' || f === 'QS') return 'estimate';
+  if (t === 'SP' || f === 'SS' || s === 'D') return 'sales';
   return 'other';
 }
 
@@ -1840,6 +1837,8 @@ export async function importMiracleCompany(
       });
     } else if (voucherType === 'journal') {
       coverage.journalsBooksOnly++;
+    } else if (voucherType === 'estimate') {
+      coverage.estimatesBooksOnly++;
     } else if (voucherType === 'purchase') {
       coverage.purchases.source++;
       const partyKey = resolvePartyKey();
