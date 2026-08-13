@@ -59,6 +59,10 @@ const BOOKS_EXPENSE_SQL = `
             AND LOWER(COALESCE(g.name, '')) LIKE '%expense%'
         )
       )
+      -- Salary lives under Staff / Staff Salary, not Purchases → Expenses
+      AND LOWER(COALESCE(l.name, '')) NOT LIKE '%salary%'
+      AND LOWER(COALESCE(l.name, '')) NOT LIKE '%wages%'
+      AND LOWER(COALESCE(l.name, '')) NOT LIKE '%wage %'
     ORDER BY e.debit DESC
     LIMIT 1
   ) exp_l ON TRUE
