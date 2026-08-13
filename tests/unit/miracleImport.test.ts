@@ -697,6 +697,7 @@ describe('miracleImport', () => {
       'invoice_payments',
       'vendor_payments',
       'standalone_invoices',
+      'quotations',
       'products',
       'vendors',
       'book_voucher_items',
@@ -716,6 +717,12 @@ describe('miracleImport', () => {
     await pool.query(
       `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
       [jobId, TENANT],
+    );
+    await pool.query(
+      `INSERT INTO quotations
+         (id, tenant_id, quotation_number, vendor_name, customer_name, quotation_date, status, items, subtotal, gst_rate, gst_amount, total, external_ref)
+       VALUES ($1,$2,'Q-01','Other','Other','2025-01-01','Draft','[]',0,0,0,0,'OTHER-QUOTE')`,
+      [uid('Q'), TENANT],
     );
 
     const client = await pool.connect();
@@ -812,7 +819,7 @@ describe('miracleImport', () => {
     expect(seEntries.rows.reduce((s, r) => s + Number(r.credit), 0)).toBe(50);
     expect(seEntries.rows.some(r => /synthesized/i.test(String(r.narration || '')))).toBe(true);
 
-    // QS / SE quotation → Quotes tab (not a sales invoice)
+    // QS / SE quotation → Quotes tab (not a sales invoice); number clash → suffix
     const quotes = await pool.query(
       `SELECT quotation_number, customer_name, total::float AS total, status, external_ref
        FROM quotations WHERE tenant_id = $1 AND external_ref = 'QSVOUCHER06'`,
@@ -822,7 +829,7 @@ describe('miracleImport', () => {
     expect(quotes.rows[0].customer_name).toBe('MITULBHAI');
     expect(quotes.rows[0].total).toBe(690300);
     expect(quotes.rows[0].status).toBe('Sent');
-    expect(quotes.rows[0].quotation_number).toMatch(/01/);
+    expect(String(quotes.rows[0].quotation_number)).toBe('Q-01-CHER06');
 
     // Cash book involving party → payments
     const vp = await pool.query(
@@ -1102,6 +1109,18 @@ describe('miracleImport', () => {
           FIELD74: 'SP',
           T41FVNO: 'GT/Z',
         },
+        {
+          FIELD01: 'QSZEROAMT',
+          FIELD02: '20250510',
+          FIELD04: 'AGPARTY1',
+          FIELD05: '',
+          FIELD06: 0,
+          FIELD07: 0,
+          FIELD12: '',
+          FIELD16: 'D',
+          FIELD74: 'SE',
+          T41FVNO: '',
+        },
       ],
     );
 
@@ -1109,6 +1128,7 @@ describe('miracleImport', () => {
       'invoice_payments',
       'vendor_payments',
       'standalone_invoices',
+      'quotations',
       'products',
       'vendors',
       'book_voucher_items',
@@ -1138,6 +1158,8 @@ describe('miracleImport', () => {
       // Non-party cash (sales A/c) is intentional Books-only — coverage note, not a warning
       expect(summary.coverage.nonPartyCashSkipped).toBeGreaterThanOrEqual(1);
       expect(warnings.some(w => w.stage === 'non_party_cash')).toBe(false);
+      expect(summary.coverage.quotations.skipped).toBeGreaterThanOrEqual(1);
+      expect(warnings.some(w => w.stage === 'quotations' && /invalid amount/i.test(w.message))).toBe(true);
       expect(errors.some(e => e.externalRef === 'CRNOPARTY')).toBe(false);
       expect(errors.some(e => e.externalRef === 'CRZEROAMT' && /invalid amount/i.test(e.message))).toBe(true);
       expect(errors.some(e => e.externalRef === 'SSNOPARTY' && /missing trading party/i.test(e.message))).toBe(true);

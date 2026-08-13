@@ -920,27 +920,30 @@ async function upsertOpsQuotation(
   notes: string | null,
   gstAmount = 0,
 ): Promise<string> {
-  const subtotal = roundMoney(items.reduce((s, it) => s + (Number(it.taxable) || 0), 0));
-  const tax = roundMoney(gstAmount > 0 ? gstAmount : items.reduce((s, it) => s + (Number(it.tax) || 0), 0));
-  const total = roundMoney(items.reduce((s, it) => s + (Number(it.total) || 0), 0) || subtotal + tax);
+  const resolvedItems = items.map(it => {
+    const lineNet = roundMoney(Number(it.taxable) || 0);
+    const lineGst = roundMoney(Number(it.tax) || 0);
+    return {
+      productId: it.productId || '',
+      productName: it.description || 'Item',
+      quantity: Number(it.qty) || 1,
+      price: Number(it.rate) || 0,
+      discountPercent: 0,
+      withGst: lineGst > 0 || gstAmount > 0,
+      lineNet,
+      lineGst,
+      lineTotal: roundMoney(Number(it.total) || lineNet + lineGst),
+    };
+  });
+  const subtotal = roundMoney(resolvedItems.reduce((s, it) => s + it.lineNet, 0));
+  const taxFromLines = roundMoney(resolvedItems.reduce((s, it) => s + it.lineGst, 0));
+  const tax = gstAmount > 0 ? roundMoney(gstAmount) : taxFromLines;
+  const total = roundMoney(resolvedItems.reduce((s, it) => s + it.lineTotal, 0) || subtotal + tax);
   const gstRate = subtotal > 0 && tax > 0 ? round2((100 * tax) / subtotal) : 0;
-  const resolvedItems = items.map(it => ({
-    productId: it.productId || '',
-    productName: it.description || 'Item',
-    quantity: Number(it.qty) || 1,
-    price: Number(it.rate) || 0,
-    discountPercent: 0,
-    withGst: tax > 0,
-    lineNet: roundMoney(Number(it.taxable) || 0),
-    lineGst: roundMoney(Number(it.tax) || 0),
-    lineTotal: roundMoney(Number(it.total) || Number(it.taxable) || 0),
-  }));
+
   const id = uid('Q');
-  let number = quotationNumber.trim() || `MIR-Q-${externalRef.slice(-6)}`;
-  if (!/^QT-/i.test(number) && !/^Q[/-]/i.test(number)) {
-    // Keep Miracle doc no readable; prefix so it sits with Quotes
-    number = `Q-${number}`;
-  }
+  let number = (quotationNumber || '').trim() || `MIR-Q-${externalRef.slice(-6)}`;
+  if (!/^(QT-|Q[/-])/i.test(number)) number = `Q-${number}`;
   const clash = (
     await client.query(
       `SELECT id FROM quotations
