@@ -8,7 +8,8 @@
  *   SP/SS sales → standalone_invoices
  *     (gst_enabled + tax_* from Books CGST/SGST/IGST credit lines when present)
  *     with ops product lines → InStock → Sold (miracle:sal:)
- *   SE/QS quotations/estimates → Books only (not invoices)
+ *   SE/QS quotations/estimates → quotations (Quotes tab) + Books estimate voucher
+ *     (not sales invoices)
  *   PU purchases (with item lines + ops products) → product_purchases + product_inventory + stock
  *     (gst_applied + billed/cost from Books CGST/SGST/IGST debit lines when present)
  *   QR purchase returns (with ops product lines) → InStock → PurchaseReturned (miracle:pr:)
@@ -63,8 +64,8 @@ export interface MiracleImportCoverage {
   nonPartyCashSkipped: number;
   /** Journals — Books only */
   journalsBooksOnly: number;
-  /** SE/QS quotations / estimates — Books only (not sales invoices) */
-  estimatesBooksOnly: number;
+  /** SE/QS → Quotes tab (quotations); skipped stay Books-only */
+  quotations: MiracleImportCoverageBucket;
   /** Purchases → ops stock when items + products resolve; else skipped Books-only */
   purchases: MiracleImportCoverageBucket;
   /** Purchase returns → ops stock-out when ops product lines resolve; else skipped Books-only */
@@ -92,6 +93,8 @@ export interface MiracleImportSummary {
   vendors: number;
   opsProducts: number;
   invoices: number;
+  /** Miracle QS/SE dual-written to quotations */
+  quotations: number;
   vendorPayments: number;
   invoicePayments: number;
   creditDebitNotes: number;
@@ -198,7 +201,7 @@ function emptyCoverage(): MiracleImportCoverage {
     debitNotes: { source: 0, imported: 0, skipped: 0 },
     nonPartyCashSkipped: 0,
     journalsBooksOnly: 0,
-    estimatesBooksOnly: 0,
+    quotations: { source: 0, imported: 0, skipped: 0 },
     purchases: { source: 0, imported: 0, skipped: 0 },
     purchaseReturns: { source: 0, imported: 0, skipped: 0 },
     contraBooksOnly: 0,
@@ -210,7 +213,7 @@ function emptyCoverage(): MiracleImportCoverage {
 
 /**
  * Warn only for unexpected Books-only skips (missing party/products).
- * Expected shapes (journals, estimates, expense cash, advances, contra) stay in coverage — not warnings.
+ * Expected shapes (journals, expense cash, advances, contra) stay in coverage — not warnings.
  */
 function warnBooksOnlySkips(
   issues: { warn: (issue: MiracleImportIssue) => void },
@@ -261,7 +264,7 @@ export function mapVoucherType(miracleType: string, subtype: string, field98 = '
   if (t === 'DN' || f === 'DN') return 'debit_note';
   if (t === 'PU' || f === 'PU' || t === 'PH') return 'purchase';
   if (t === 'QR' || f === 'QR') return 'purchase_return';
-  // Quotation / estimate — Books only (Miracle SE/QS often has item lines but no ledger posting)
+  // Quotation / estimate — Quotes tab + Books estimate (not a sales invoice)
   if (t === 'SE' || f === 'QS') return 'estimate';
   if (t === 'SP' || f === 'SS' || s === 'D') return 'sales';
   return 'other';
@@ -895,6 +898,107 @@ async function upsertOpsInvoice(
   return row.id;
 }
 
+async function upsertOpsQuotation(
+  client: PoolClient,
+  tenantId: string,
+  externalRef: string,
+  quotationNumber: string,
+  vendorId: string | null,
+  vendorName: string,
+  customerPhone: string | null,
+  customerEmail: string | null,
+  items: Array<{
+    description: string;
+    qty: number;
+    rate: number;
+    productId?: string | null;
+    taxable: number;
+    tax: number;
+    total: number;
+  }>,
+  quotationDate: string,
+  notes: string | null,
+  gstAmount = 0,
+): Promise<string> {
+  const resolvedItems = items.map(it => {
+    const lineNet = roundMoney(Number(it.taxable) || 0);
+    const lineGst = roundMoney(Number(it.tax) || 0);
+    return {
+      productId: it.productId || '',
+      productName: it.description || 'Item',
+      quantity: Number(it.qty) || 1,
+      price: Number(it.rate) || 0,
+      discountPercent: 0,
+      withGst: lineGst > 0 || gstAmount > 0,
+      lineNet,
+      lineGst,
+      lineTotal: roundMoney(Number(it.total) || lineNet + lineGst),
+    };
+  });
+  const subtotal = roundMoney(resolvedItems.reduce((s, it) => s + it.lineNet, 0));
+  const taxFromLines = roundMoney(resolvedItems.reduce((s, it) => s + it.lineGst, 0));
+  const tax = gstAmount > 0 ? roundMoney(gstAmount) : taxFromLines;
+  const total = roundMoney(resolvedItems.reduce((s, it) => s + it.lineTotal, 0) || subtotal + tax);
+  const gstRate = subtotal > 0 && tax > 0 ? round2((100 * tax) / subtotal) : 0;
+
+  const id = uid('Q');
+  let number = (quotationNumber || '').trim() || `MIR-Q-${externalRef.slice(-6)}`;
+  if (!/^(QT-|Q[/-])/i.test(number)) number = `Q-${number}`;
+  const clash = (
+    await client.query(
+      `SELECT id FROM quotations
+       WHERE tenant_id = $1 AND quotation_number = $2
+         AND (external_ref IS NULL OR external_ref <> $3)
+       LIMIT 1`,
+      [tenantId, number, externalRef],
+    )
+  ).rows[0];
+  if (clash) number = `${number}-${externalRef.slice(-6)}`;
+
+  await client.query(
+    `INSERT INTO quotations
+       (id, tenant_id, quotation_number, vendor_id, vendor_name, customer_name, customer_phone, customer_email,
+        quotation_date, status, items, subtotal, gst_rate, gst_amount, total, notes, external_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Sent',$10,$11,$12,$13,$14,$15,$16)
+     ON CONFLICT (tenant_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE SET
+       quotation_number = EXCLUDED.quotation_number,
+       vendor_id = EXCLUDED.vendor_id,
+       vendor_name = EXCLUDED.vendor_name,
+       customer_name = EXCLUDED.customer_name,
+       customer_phone = EXCLUDED.customer_phone,
+       customer_email = EXCLUDED.customer_email,
+       quotation_date = EXCLUDED.quotation_date,
+       items = EXCLUDED.items,
+       subtotal = EXCLUDED.subtotal,
+       gst_rate = EXCLUDED.gst_rate,
+       gst_amount = EXCLUDED.gst_amount,
+       total = EXCLUDED.total,
+       notes = EXCLUDED.notes`,
+    [
+      id,
+      tenantId,
+      number,
+      vendorId,
+      vendorName,
+      vendorName,
+      customerPhone,
+      customerEmail,
+      quotationDate,
+      JSON.stringify(resolvedItems),
+      subtotal,
+      gstRate,
+      tax,
+      total,
+      notes,
+      externalRef,
+    ],
+  );
+  const row = (
+    await client.query(`SELECT id FROM quotations WHERE tenant_id = $1 AND external_ref = $2`, [tenantId, externalRef])
+  ).rows[0] as { id: string };
+  return row.id;
+}
+
 async function upsertOpsNote(
   client: PoolClient,
   tenantId: string,
@@ -1020,6 +1124,7 @@ export async function importMiracleCompany(
     vendors: 0,
     opsProducts: 0,
     invoices: 0,
+    quotations: 0,
     vendorPayments: 0,
     invoicePayments: 0,
     creditDebitNotes: 0,
@@ -1838,7 +1943,50 @@ export async function importMiracleCompany(
     } else if (voucherType === 'journal') {
       coverage.journalsBooksOnly++;
     } else if (voucherType === 'estimate') {
-      coverage.estimatesBooksOnly++;
+      coverage.quotations.source++;
+      const partyKey = resolvePartyKey();
+      const meta = partyKey ? ledgerMeta.get(partyKey) : null;
+      const vendorId = partyKey ? vendorIds.get(partyKey) || null : null;
+      if (!(amount > 0) && opsLineItems.length === 0) {
+        coverage.quotations.skipped++;
+        coverage.quotations.skipReason = 'Quotation has invalid amount';
+        issues.warn({
+          stage: 'quotations',
+          message: 'Miracle quotation has invalid amount — Books only',
+          externalRef: ext,
+        });
+      } else {
+        const quoteLines =
+          opsLineItems.length > 0
+            ? opsLineItems
+            : [
+                {
+                  description: narration || 'Miracle quotation',
+                  qty: 1,
+                  rate: amount,
+                  productId: null as string | null,
+                  taxable: amount,
+                  tax: 0,
+                  total: amount,
+                },
+              ];
+        await upsertOpsQuotation(
+          client,
+          tenantId,
+          ext,
+          vNumber || `Q-${ext.slice(-6)}`,
+          vendorId,
+          meta?.name || partyKey || 'Customer',
+          meta?.phone || null,
+          null,
+          quoteLines,
+          vDate,
+          narration,
+          0,
+        );
+        summary.quotations++;
+        coverage.quotations.imported++;
+      }
     } else if (voucherType === 'purchase') {
       coverage.purchases.source++;
       const partyKey = resolvePartyKey();
