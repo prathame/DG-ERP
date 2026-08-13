@@ -30,6 +30,7 @@ export type DesktopExpenseRow = {
   expenseDate: string;
   paymentMethod: string;
   notes?: string;
+  source?: 'ops' | 'books';
 };
 
 export type DesktopSupplierCard = {
@@ -344,9 +345,9 @@ export function DesktopPurchasesModule({
             {expenses.length === 0 ? (
               <div className="py-16 text-center">
                 <Receipt size={40} className="mx-auto mb-3 dg-faint" />
-                <p className="font-medium dg-muted">No expenses recorded here yet</p>
+                <p className="font-medium dg-muted">No expenses yet</p>
                 <p className="text-sm dg-muted mt-1.5 max-w-sm mx-auto leading-relaxed">
-                  Add day-to-day costs on this screen. Imported Books expenses are under Accounts.
+                  Add a cost here — it also posts to Accounts (P&amp;L / Cash Book).
                 </p>
                 {canEdit && (
                   <button
@@ -379,9 +380,16 @@ export function DesktopPurchasesModule({
                             {formatDate(e.expenseDate)}
                           </td>
                           <td className="px-6 py-5">
-                            <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)]">
-                              {e.category}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)]">
+                                {e.category}
+                              </span>
+                              {e.source === 'books' && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold dg-muted border border-[var(--dg-card-border)]">
+                                  Accounts
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-5 min-w-[160px]">
                             <p className="text-sm font-medium dg-ink">{e.description || '—'}</p>
