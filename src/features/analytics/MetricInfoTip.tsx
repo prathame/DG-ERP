@@ -17,14 +17,13 @@ export function MetricInfoTip({ text, className }: { text: string; className?: s
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dg-primary)]',
         )}
         aria-label={text}
-        title={text}
       >
         <Info size={12} strokeWidth={2.25} aria-hidden />
       </button>
       <span
         role="tooltip"
         className={cn(
-          'pointer-events-none absolute z-30 w-52 sm:w-56 p-2 rounded-lg text-[11px] leading-snug font-medium',
+          'pointer-events-none absolute z-50 w-52 sm:w-56 p-2 rounded-lg text-[11px] leading-snug font-medium normal-case tracking-normal',
           'bg-[var(--dg-ink,#111)] text-white shadow-lg',
           'left-1/2 -translate-x-1/2 top-full mt-1.5',
           'opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible',
