@@ -31,6 +31,7 @@ export interface MiracleImportCoverage {
   debitNotes: MiracleImportCoverageBucket;
   nonPartyCashSkipped: number;
   journalsBooksOnly: number;
+  estimatesBooksOnly: number;
   purchases: MiracleImportCoverageBucket;
   /** @deprecated prefer purchases.skipped — kept for older import payloads */
   purchasesBooksOnly?: number;
@@ -75,6 +76,7 @@ export function parseCoverage(s: Record<string, unknown> | undefined): MiracleIm
     debitNotes: bucket(c.debitNotes),
     nonPartyCashSkipped: Number(c.nonPartyCashSkipped) || 0,
     journalsBooksOnly: Number(c.journalsBooksOnly) || 0,
+    estimatesBooksOnly: Number(c.estimatesBooksOnly) || 0,
     purchases: c.purchases
       ? bucket(c.purchases)
       : { source: 0, imported: 0, skipped: Number(c.purchasesBooksOnly) || 0 },
@@ -282,21 +284,27 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
       </div>
       {(coverage.nonPartyCashSkipped > 0 ||
         coverage.journalsBooksOnly > 0 ||
+        coverage.estimatesBooksOnly > 0 ||
         coverage.purchases.skipped > 0 ||
         coverage.purchaseReturns.skipped > 0 ||
         coverage.contraBooksOnly > 0 ||
         coverage.unsupportedVouchersBooksOnly > 0 ||
         coverage.unallocatedAdvances > 0 ||
         coverage.billMatchedPayments > 0) && (
-        <ul className="mt-2 space-y-1 text-xs text-amber-800">
+        <ul className="mt-2 space-y-1 text-xs text-slate-600">
           {coverage.purchaseReturns.skipped > 0 && (
-            <li>
+            <li className="text-amber-800">
               {coverage.purchaseReturns.skipped} {t('masters.importCoveragePurchaseReturns')}
             </li>
           )}
           {coverage.purchases.skipped > 0 && (
-            <li>
+            <li className="text-amber-800">
               {coverage.purchases.skipped} {t('masters.importCoveragePurchasesBooks')}
+            </li>
+          )}
+          {coverage.estimatesBooksOnly > 0 && (
+            <li>
+              {coverage.estimatesBooksOnly} {t('masters.importCoverageEstimates')}
             </li>
           )}
           {coverage.journalsBooksOnly > 0 && (
@@ -310,7 +318,7 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
             </li>
           )}
           {coverage.unsupportedVouchersBooksOnly > 0 && (
-            <li>
+            <li className="text-amber-800">
               {coverage.unsupportedVouchersBooksOnly} {t('masters.importCoverageUnsupported')}
             </li>
           )}
@@ -325,7 +333,7 @@ export function MiracleImportCoverageTable({ coverage }: { coverage: MiracleImpo
             </li>
           )}
           {coverage.billMatchedPayments > 0 && (
-            <li className="text-slate-600">
+            <li>
               {coverage.billMatchedPayments} {t('masters.importCoverageBillMatched')}
             </li>
           )}
@@ -347,21 +355,25 @@ function formatPaymentsByMethod(s: Record<string, unknown>): string {
 
 function buildSuccessMessage(s: Record<string, unknown>, warnings: MiracleImportIssue[]): string {
   const cov = parseCoverage(s);
-  const booksOnly =
-    (cov?.purchaseReturns.skipped || 0) +
-    (cov?.purchases.skipped || 0) +
+  const expectedBooksOnly =
     (cov?.journalsBooksOnly || 0) +
+    (cov?.estimatesBooksOnly || 0) +
     (cov?.contraBooksOnly || 0) +
-    (cov?.unsupportedVouchersBooksOnly || 0) +
-    (cov?.nonPartyCashSkipped || 0);
+    (cov?.nonPartyCashSkipped || 0) +
+    (cov?.unallocatedAdvances || 0);
+  const problemBooksOnly =
+    (cov?.purchaseReturns.skipped || 0) + (cov?.purchases.skipped || 0) + (cov?.unsupportedVouchersBooksOnly || 0);
   const base =
     `Imported ${String(s.companyName || 'company')} into Dhandho: ` +
     `${summaryCount(s, 'vendors')} parties, ${summaryCount(s, 'opsProducts')} products, ` +
     `${summaryCount(s, 'invoices')} invoices, ${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments` +
     formatPaymentsByMethod(s) +
     ` (Books: ${summaryCount(s, 'ledgers')} ledgers, ${summaryCount(s, 'vouchers')} vouchers).`;
-  if (booksOnly > 0 || warnings.length > 0) {
-    return `${base} Some Miracle rows were not dual-written to ops — see coverage and warnings (Books-only / unsupported).`;
+  if (warnings.length > 0 || problemBooksOnly > 0) {
+    return `${base} Some Miracle rows need attention — see coverage and warnings.`;
+  }
+  if (expectedBooksOnly > 0) {
+    return `${base} See coverage for Books-only rows (expenses, journals, advances, estimates). Paid / remaining is on each invoice under Collections.`;
   }
   return `${base} Paid / remaining is on each invoice under Collections.`;
 }
