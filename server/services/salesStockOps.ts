@@ -4,6 +4,72 @@
  */
 import type { PoolClient } from 'pg';
 
+export type SaleStockOutOptions = {
+  /**
+   * Miracle import: create missing InStock units before selling.
+   * Many dumps have sales without purchase/opening stock — avoids noisy shortfalls for every tenant.
+   * Books desk live sales keep default warn-only behavior.
+   */
+  seedMissing?: boolean;
+};
+
+function seedBatchId(saleBatchId: string): string {
+  return `${saleBatchId}:seed`;
+}
+
+async function clearSeedUnits(client: PoolClient, tenantId: string, saleBatchId: string): Promise<void> {
+  const seedId = seedBatchId(saleBatchId);
+  const existing = (
+    await client.query(
+      `SELECT product_id, COUNT(*)::int AS n
+       FROM product_inventory
+       WHERE tenant_id = $1 AND batch_id = $2 AND status = 'InStock'
+       GROUP BY product_id`,
+      [tenantId, seedId],
+    )
+  ).rows as Array<{ product_id: string; n: number }>;
+  await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'InStock'`, [
+    tenantId,
+    seedId,
+  ]);
+  for (const row of existing) {
+    await client.query(`UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2 AND tenant_id = $3`, [
+      row.n,
+      row.product_id,
+      tenantId,
+    ]);
+  }
+}
+
+async function seedInStockUnits(
+  client: PoolClient,
+  tenantId: string,
+  saleBatchId: string,
+  productId: string,
+  qty: number,
+  seqStart: number,
+): Promise<number> {
+  if (!(qty > 0)) return seqStart;
+  const seedId = seedBatchId(saleBatchId);
+  let seq = seqStart;
+  for (let i = 0; i < qty; i++) {
+    seq++;
+    const id = `PI-${seedId}-${seq}`;
+    const barcode = `${seedId}-${String(seq).padStart(4, '0')}`;
+    await client.query(
+      `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status, batch_id, unit_type)
+       VALUES ($1,$2,$3,$4,'InStock',$5,'piece')`,
+      [id, tenantId, productId, barcode, seedId],
+    );
+  }
+  await client.query(`UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3`, [
+    qty,
+    productId,
+    tenantId,
+  ]);
+  return seq;
+}
+
 /** Idempotent sale stock-out. FIFO InStock → Sold for this batch_id. */
 export async function upsertSaleStockOut(
   client: PoolClient,
@@ -11,19 +77,25 @@ export async function upsertSaleStockOut(
   batchId: string,
   lines: Array<{ productId: string; qty: number }>,
   warn?: (message: string) => void,
-): Promise<{ units: number; shortfall: number }> {
+  options?: SaleStockOutOptions,
+): Promise<{ units: number; shortfall: number; seeded: number }> {
   await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = $2 AND status = 'Sold'`, [
     tenantId,
     batchId,
   ]);
+  if (options?.seedMissing) {
+    await clearSeedUnits(client, tenantId, batchId);
+  }
 
   let units = 0;
   let shortfall = 0;
+  let seeded = 0;
   let seq = 0;
+  let seedSeq = 0;
   for (const line of lines) {
     const want = Math.max(1, Math.round(Number(line.qty) || 0));
     if (!line.productId || !(want > 0)) continue;
-    const available = (
+    let available = (
       await client.query(
         `SELECT id FROM product_inventory
          WHERE tenant_id = $1 AND product_id = $2 AND status = 'InStock'
@@ -32,7 +104,22 @@ export async function upsertSaleStockOut(
         [tenantId, line.productId, want],
       )
     ).rows as Array<{ id: string }>;
-    const taken = available.length;
+    let taken = available.length;
+    if (taken < want && options?.seedMissing) {
+      const need = want - taken;
+      seedSeq = await seedInStockUnits(client, tenantId, batchId, line.productId, need, seedSeq);
+      seeded += need;
+      available = (
+        await client.query(
+          `SELECT id FROM product_inventory
+           WHERE tenant_id = $1 AND product_id = $2 AND status = 'InStock'
+           ORDER BY id
+           LIMIT $3`,
+          [tenantId, line.productId, want],
+        )
+      ).rows as Array<{ id: string }>;
+      taken = available.length;
+    }
     if (taken < want) {
       shortfall += want - taken;
       warn?.(`Sale short ${want - taken} unit(s) for product (wanted ${want}, had ${taken} InStock)`);
@@ -56,7 +143,7 @@ export async function upsertSaleStockOut(
     ]);
     units += taken;
   }
-  return { units, shortfall };
+  return { units, shortfall, seeded };
 }
 
 /**
@@ -126,6 +213,7 @@ export async function clearBooksSaleStockOut(client: PoolClient, tenantId: strin
     tenantId,
     batchId,
   ]);
+  await clearSeedUnits(client, tenantId, batchId);
 }
 
 /** Clear Books desk debit-note Sold marks for a voucher (does not restore InStock). */

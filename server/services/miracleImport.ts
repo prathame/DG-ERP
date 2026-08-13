@@ -230,7 +230,7 @@ function warnBooksOnlySkips(
     [
       coverage.nonPartyCashSkipped,
       'non_party_cash',
-      'cash entry(ies) to expense/capital/other ledgers kept in Books only — not party bills or cash income',
+      'cash entry(ies) to expense/capital/other ledgers live in Books (and Purchases → Expenses / Analytics) — not as party bills',
     ],
     [
       coverage.unallocatedAdvances,
@@ -1693,8 +1693,15 @@ export async function importMiracleCompany(
           .filter(it => it.productId && Number(it.qty) > 0)
           .map(it => ({ productId: String(it.productId), qty: Number(it.qty) || 0 }));
         if (stockLines.length) {
-          const { units } = await upsertSaleStockOut(client, tenantId, `miracle:sal:${ext}`, stockLines, msg =>
-            issues.warn({ stage: 'sales', message: msg, externalRef: ext }),
+          // Seed missing InStock when Miracle has sales but no purchase/opening stock in the dump
+          // (common for job-work / service tenants). Applies to every Miracle import, not one company.
+          const { units } = await upsertSaleStockOut(
+            client,
+            tenantId,
+            `miracle:sal:${ext}`,
+            stockLines,
+            msg => issues.warn({ stage: 'sales', message: msg, externalRef: ext }),
+            { seedMissing: true },
           );
           summary.saleStockUnits += units;
         }

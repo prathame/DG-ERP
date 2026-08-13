@@ -3465,8 +3465,9 @@ describe('miracleImport', () => {
       await client.query('COMMIT');
       expect(result.errors).toEqual([]);
       expect(result.summary.coverage.salesInvoices.imported).toBe(1);
-      expect(result.summary.saleStockUnits).toBe(0);
-      expect(result.warnings.some(w => /Sale short/.test(w.message))).toBe(true);
+      // No purchase/opening stock in dump — seedMissing still posts Sold units
+      expect(result.summary.saleStockUnits).toBe(2);
+      expect(result.warnings.some(w => /Sale short/.test(w.message))).toBe(false);
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
