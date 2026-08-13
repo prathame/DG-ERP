@@ -3,14 +3,25 @@ import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, isValidPhone } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { syncBooksSalaryToStaff } from '../services/booksSalaryToStaff';
 
 const router = Router();
+
+/** Backfill Staff Salary from Books salary vouchers (Miracle import / empty staff). */
+async function ensureBooksSalaryMirrored(tenantId: string): Promise<void> {
+  try {
+    await syncBooksSalaryToStaff(pool, tenantId);
+  } catch {
+    // Non-fatal — Staff UI still loads ops rows
+  }
+}
 
 // ============ STAFF DIRECTORY ============
 router.get('/api/staff', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await ensureBooksSalaryMirrored(tenantId);
     const { search } = req.query;
     // M7 fix: replace 4 correlated subqueries with a single LEFT JOIN aggregate
     let sql = `SELECT s.*,
@@ -223,6 +234,7 @@ router.get('/api/payroll/staff', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await ensureBooksSalaryMirrored(tenantId);
     const { search } = req.query;
     let sql = `SELECT staff_name, SUM(amount) as total_paid, COUNT(*) as payment_count,
       MAX(payment_date) as last_payment, MIN(payment_date) as first_payment
@@ -252,6 +264,7 @@ router.get('/api/payroll', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await ensureBooksSalaryMirrored(tenantId);
     const { month, year, staffName } = req.query;
     const { parsePagination } = await import('../utils/pagination');
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
@@ -299,6 +312,7 @@ router.get('/api/payroll/summary', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await ensureBooksSalaryMirrored(tenantId);
     const { year } = req.query;
     const y = parseInt(String(year), 10) || new Date().getFullYear();
     const byStaff = (
