@@ -40,6 +40,7 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { DesktopPurchasesModule } from './DesktopPurchasesModule';
+import { BooksExpensesHint } from './BooksExpensesHint';
 
 interface Supplier {
   id: string;
@@ -64,7 +65,14 @@ interface PurchaseBatch {
   invoiceNumber?: string | null;
 }
 
-export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
+export function PurchasesView({
+  accessLevel = 'full',
+  onOpenAccountsStatement,
+}: {
+  accessLevel?: 'hidden' | 'view' | 'print' | 'full';
+  /** Deep-link into Accounts (e.g. pnl, cashbook) when Books expenses live there. */
+  onOpenAccountsStatement?: (tab: string) => void;
+} = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
   const cfg = useBusinessConfig();
@@ -82,6 +90,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [modalOpen, setModalOpen] = useState(false);
   const [supplierModal, setSupplierModal] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
+  const [booksDeskReady, setBooksDeskReady] = useState(false);
   const emptySupplierForm = () => ({
     name: '',
     contactPerson: '',
@@ -239,12 +248,34 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     load();
   }, []);
   useEffect(() => {
+    let cancelled = false;
+    fetchApi<{ ledgers?: number; vouchers?: number }>('/books/summary')
+      .then(s => {
+        if (!cancelled) setBooksDeskReady((Number(s?.ledgers) || 0) + (Number(s?.vouchers) || 0) > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setBooksDeskReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
     if (section === 'expenses')
       api.expenses
         .list()
         .then(setExpenses)
         .catch(() => {});
   }, [section]);
+
+  const booksExpensesHint =
+    booksDeskReady && section === 'expenses' ? (
+      <BooksExpensesHint
+        compact={servicePhoneUx || !desktopGlass}
+        onOpenProfitLoss={onOpenAccountsStatement ? () => onOpenAccountsStatement('pnl') : undefined}
+        onOpenCashBook={onOpenAccountsStatement ? () => onOpenAccountsStatement('cashbook') : undefined}
+      />
+    ) : null;
 
   const defaultGstRate = 18;
   const purchaseTotals = purchaseRows.reduce(
@@ -836,6 +867,9 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             if (full) openEditSupplier(full);
           }}
           onNewPurchase={() => setModalOpen(true)}
+          showBooksExpensesHint={booksDeskReady}
+          onOpenProfitLoss={onOpenAccountsStatement ? () => onOpenAccountsStatement('pnl') : undefined}
+          onOpenCashBook={onOpenAccountsStatement ? () => onOpenAccountsStatement('cashbook') : undefined}
         />
       ) : servicePhoneUx ? (
         <div className="space-y-3">
@@ -957,15 +991,19 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               )}
             </>
           ) : expenses.length === 0 ? (
-            <MobileEmptyState
-              icon={<Receipt />}
-              title="No expenses recorded"
-              subtitle="Track rent, electricity, and other business costs"
-              actionLabel={canEdit ? 'Add Expense' : undefined}
-              onAction={canEdit ? openExpenseModal : undefined}
-            />
+            <div className="space-y-3">
+              {booksExpensesHint}
+              <MobileEmptyState
+                icon={<Receipt />}
+                title="No expenses recorded here yet"
+                subtitle="Add rent, electricity, and other costs here. Imported Books expenses are under Accounts."
+                actionLabel={canEdit ? 'Add Expense' : undefined}
+                onAction={canEdit ? openExpenseModal : undefined}
+              />
+            </div>
           ) : (
             <>
+              {booksExpensesHint}
               <div className="space-y-1.5">
                 {expenses.map(e => (
                   <div
@@ -1075,63 +1113,69 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           </div>
 
           {section === 'expenses' && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              {expenses.length === 0 ? (
-                <div className="py-16 text-center text-gray-400">
-                  <Receipt size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No expenses recorded</p>
-                </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead>
-                        <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b">
-                          <th className="px-4 py-3">Category</th>
-                          <th className="px-4 py-3">Description</th>
-                          <th className="px-4 py-3 text-right">Amount</th>
-                          <th className="px-4 py-3">Date</th>
-                          <th className="px-4 py-3">Method</th>
-                          <th className="px-4 py-3">Notes</th>
-                          {canEdit && <th className="px-4 py-3 w-10"></th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {expenses.map(e => (
-                          <tr key={e.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
-                                {e.category}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
-                            <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString('en-IN')}</td>
-                            <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
-                            <td className="px-4 py-3">
-                              <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-400 text-xs">{e.notes || '—'}</td>
-                            {canEdit && (
-                              <td className="px-4 py-3">
-                                <button
-                                  type="button"
-                                  onClick={() => deleteExpense(e.id)}
-                                  className="p-1 text-rose-400 hover:text-rose-600"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </td>
-                            )}
+            <div className="space-y-4">
+              {booksExpensesHint}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {expenses.length === 0 ? (
+                  <div className="py-16 text-center text-gray-400">
+                    <Receipt size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No expenses recorded here yet</p>
+                    <p className="text-sm mt-1.5 max-w-sm mx-auto">
+                      Add day-to-day costs here. Imported Books expenses are under Accounts.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b">
+                            <th className="px-4 py-3">Category</th>
+                            <th className="px-4 py-3">Description</th>
+                            <th className="px-4 py-3 text-right">Amount</th>
+                            <th className="px-4 py-3">Date</th>
+                            <th className="px-4 py-3">Method</th>
+                            <th className="px-4 py-3">Notes</th>
+                            {canEdit && <th className="px-4 py-3 w-10"></th>}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">
-                    Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}
-                  </div>
-                </>
-              )}
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {expenses.map(e => (
+                            <tr key={e.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
+                                  {e.category}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
+                              <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
+                              <td className="px-4 py-3">
+                                <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-400 text-xs">{e.notes || '—'}</td>
+                              {canEdit && (
+                                <td className="px-4 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteExpense(e.id)}
+                                    className="p-1 text-rose-400 hover:text-rose-600"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">
+                      Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString('en-IN')}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
