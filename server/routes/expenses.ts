@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
 import { postExpenseToBooks } from '../services/opsToBooks';
 import { deleteBookVoucher, BookVoucherNotFoundError, BookVoucherValidationError } from '../services/bookVouchers';
+import { BOOKS_EXPENSE_SQL, booksDeskHasData } from '../services/booksExpenses';
 
 const router = Router();
 
@@ -21,67 +22,6 @@ type ExpenseRowOut = {
   source: 'ops' | 'books';
   booksVoucherId: string | null;
 };
-
-/** Payment vouchers that debit an expense-like ledger (Miracle PT/EX + Ops expense dual-write). */
-const BOOKS_EXPENSE_SQL = `
-  SELECT
-    v.id AS voucher_id,
-    v.external_ref,
-    v.voucher_date,
-    v.voucher_number,
-    v.amount::float AS amount,
-    v.narration,
-    COALESCE(exp_l.name, 'Expense') AS category,
-    CASE
-      WHEN UPPER(COALESCE(cash_l.ledger_type, '')) IN ('BK', 'BN')
-        OR LOWER(COALESCE(cash_l.name, '')) LIKE '%bank%'
-        OR LOWER(COALESCE(cash_l.name, '')) LIKE '%upi%'
-      THEN 'Bank Transfer'
-      ELSE 'Cash'
-    END AS payment_method
-  FROM book_vouchers v
-  LEFT JOIN book_ledgers cash_l
-    ON cash_l.id = v.contra_ledger_id AND cash_l.tenant_id = v.tenant_id
-  LEFT JOIN LATERAL (
-    SELECT l.name
-    FROM book_voucher_entries e
-    JOIN book_ledgers l ON l.id = e.ledger_id AND l.tenant_id = e.tenant_id
-    WHERE e.tenant_id = v.tenant_id
-      AND e.voucher_id = v.id
-      AND e.debit > 0
-      AND (
-        l.nature = 'E'
-        OR UPPER(COALESCE(l.ledger_type, '')) IN ('EX', 'PT', 'ET')
-        OR COALESCE(l.external_ref, '') LIKE 'ops:EXP:%'
-        OR EXISTS (
-          SELECT 1 FROM book_account_groups g
-          WHERE g.id = l.group_id AND g.tenant_id = l.tenant_id
-            AND LOWER(COALESCE(g.name, '')) LIKE '%expense%'
-        )
-      )
-      -- Salary lives under Staff / Staff Salary, not Purchases → Expenses
-      AND LOWER(COALESCE(l.name, '')) NOT LIKE '%salary%'
-      AND LOWER(COALESCE(l.name, '')) NOT LIKE '%wages%'
-      AND LOWER(COALESCE(l.name, '')) NOT LIKE '%wage %'
-    ORDER BY e.debit DESC
-    LIMIT 1
-  ) exp_l ON TRUE
-  WHERE v.tenant_id = $1
-    AND v.voucher_type = 'payment'
-    AND exp_l.name IS NOT NULL
-`;
-
-async function booksDeskHasData(tenantId: string): Promise<boolean> {
-  const row = (
-    await pool.query(
-      `SELECT
-         (SELECT COUNT(*)::int FROM book_ledgers WHERE tenant_id = $1) AS ledgers,
-         (SELECT COUNT(*)::int FROM book_vouchers WHERE tenant_id = $1) AS vouchers`,
-      [tenantId],
-    )
-  ).rows[0] as { ledgers: number; vouchers: number };
-  return (row?.ledgers || 0) + (row?.vouchers || 0) > 0;
-}
 
 function mapBooksExpense(r: Record<string, unknown>): ExpenseRowOut {
   const ext = String(r.external_ref || '');
@@ -106,7 +46,7 @@ router.get('/api/expenses', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { category, from, to } = req.query;
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
-    const useBooks = await booksDeskHasData(tenantId);
+    const useBooks = await booksDeskHasData(pool, tenantId);
 
     if (useBooks) {
       const cteParams: unknown[] = [tenantId];
@@ -229,7 +169,7 @@ router.get('/api/expenses/summary', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const year = parseInt(String(req.query.year), 10) || new Date().getFullYear();
-    const useBooks = await booksDeskHasData(tenantId);
+    const useBooks = await booksDeskHasData(pool, tenantId);
 
     if (useBooks) {
       const byCategory = (
