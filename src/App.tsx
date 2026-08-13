@@ -625,6 +625,18 @@ export default function App() {
       window.history.pushState({ tab: histTab }, '', path);
     }
   };
+
+  const openAccountsStatement = (seed: string) => {
+    setAccountsInitialTab(seed);
+    setActiveTabRaw('accounts');
+    setTabKey(k => k + 1);
+    const path = window.location.pathname;
+    if (isNativeCapacitorShell()) {
+      window.history.replaceState({ tab: 'accounts' }, '', path);
+    } else {
+      window.history.pushState({ tab: 'accounts' }, '', path);
+    }
+  };
   const navigateFromGlobalSearch = (nav: GlobalSearchNavigate) => {
     if (nav.tab === 'masters' && nav.master) {
       setMastersLaunch({
@@ -1843,7 +1855,10 @@ export default function App() {
                       ))}
                     {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}
                     {canAccess(activeTab) && activeTab === 'purchases' && (
-                      <PurchasesView accessLevel={getAccess('purchases')} />
+                      <PurchasesView
+                        accessLevel={getAccess('purchases')}
+                        onOpenAccountsStatement={openAccountsStatement}
+                      />
                     )}
                     {canAccess(activeTab) && activeTab === 'distribution' && (
                       <DistributionView

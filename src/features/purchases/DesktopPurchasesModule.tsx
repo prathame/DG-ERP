@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { PaidBadge, isBillFullyPaid } from '../../components/ui';
+import { BooksExpensesHint } from './BooksExpensesHint';
 
 export type DesktopExpenseRow = {
   id: string;
@@ -61,6 +62,10 @@ type Props = {
   onAddSupplier: () => void;
   onEditSupplier: (s: DesktopSupplierCard) => void;
   onNewPurchase: () => void;
+  /** When Books desk has imported/voucher data — explain Expenses vs Accounts. */
+  showBooksExpensesHint?: boolean;
+  onOpenProfitLoss?: () => void;
+  onOpenCashBook?: () => void;
 };
 
 function initials(name: string): string {
@@ -98,6 +103,9 @@ export function DesktopPurchasesModule({
   onAddSupplier,
   onEditSupplier,
   onNewPurchase,
+  showBooksExpensesHint = false,
+  onOpenProfitLoss,
+  onOpenCashBook,
 }: Props) {
   const expenseTotal = expenses.reduce((s, e) => s + e.amount, 0);
   const fieldInput =
@@ -328,86 +336,94 @@ export function DesktopPurchasesModule({
       )}
 
       {section === 'expenses' && (
-        <div className="dg-glass-card rounded-2xl overflow-hidden">
-          {expenses.length === 0 ? (
-            <div className="py-16 text-center">
-              <Receipt size={40} className="mx-auto mb-3 dg-faint" />
-              <p className="font-medium dg-muted">No expenses recorded</p>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={onAddExpense}
-                  className="mt-4 px-4 py-2 dg-bg-primary rounded-lg text-sm font-bold"
-                >
-                  + Add Expense
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-[10px] font-bold dg-faint uppercase tracking-wider border-b border-[var(--dg-card-border)] bg-[var(--dg-input)]">
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4">Category</th>
-                      <th className="px-6 py-4">Description</th>
-                      <th className="px-6 py-4">Method</th>
-                      <th className="px-6 py-4 text-right">Amount</th>
-                      {canEdit && <th className="px-6 py-4 text-center">Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--dg-card-border)]">
-                    {expenses.map(e => (
-                      <tr key={e.id} className="group hover:bg-[var(--dg-input)] transition-colors">
-                        <td className="px-6 py-5 text-sm dg-ink tabular-nums whitespace-nowrap">
-                          {formatDate(e.expenseDate)}
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)]">
-                            {e.category}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5 min-w-[160px]">
-                          <p className="text-sm font-medium dg-ink">{e.description || '—'}</p>
-                          {e.notes ? <p className="text-xs dg-muted mt-1">Note: {e.notes}</p> : null}
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-2">
-                            <MethodIcon method={e.paymentMethod} />
-                            <span className="text-sm dg-muted">{e.paymentMethod}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          <p className="text-lg font-bold dg-primary tabular-nums">{fmt(e.amount)}</p>
-                        </td>
-                        {canEdit && (
+        <div className="space-y-4">
+          {showBooksExpensesHint && (
+            <BooksExpensesHint onOpenProfitLoss={onOpenProfitLoss} onOpenCashBook={onOpenCashBook} />
+          )}
+          <div className="dg-glass-card rounded-2xl overflow-hidden">
+            {expenses.length === 0 ? (
+              <div className="py-16 text-center">
+                <Receipt size={40} className="mx-auto mb-3 dg-faint" />
+                <p className="font-medium dg-muted">No expenses recorded here yet</p>
+                <p className="text-sm dg-muted mt-1.5 max-w-sm mx-auto leading-relaxed">
+                  Add day-to-day costs on this screen. Imported Books expenses are under Accounts.
+                </p>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={onAddExpense}
+                    className="mt-4 px-4 py-2 dg-bg-primary rounded-lg text-sm font-bold"
+                  >
+                    + Add Expense
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-[10px] font-bold dg-faint uppercase tracking-wider border-b border-[var(--dg-card-border)] bg-[var(--dg-input)]">
+                        <th className="px-6 py-4">Date</th>
+                        <th className="px-6 py-4">Category</th>
+                        <th className="px-6 py-4">Description</th>
+                        <th className="px-6 py-4">Method</th>
+                        <th className="px-6 py-4 text-right">Amount</th>
+                        {canEdit && <th className="px-6 py-4 text-center">Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--dg-card-border)]">
+                      {expenses.map(e => (
+                        <tr key={e.id} className="group hover:bg-[var(--dg-input)] transition-colors">
+                          <td className="px-6 py-5 text-sm dg-ink tabular-nums whitespace-nowrap">
+                            {formatDate(e.expenseDate)}
+                          </td>
                           <td className="px-6 py-5">
-                            <div className="flex justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                onClick={() => onDeleteExpense(e.id)}
-                                className="p-2 rounded-lg dg-error hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)]"
-                                aria-label="Delete expense"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                            <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)]">
+                              {e.category}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5 min-w-[160px]">
+                            <p className="text-sm font-medium dg-ink">{e.description || '—'}</p>
+                            {e.notes ? <p className="text-xs dg-muted mt-1">Note: {e.notes}</p> : null}
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex items-center gap-2">
+                              <MethodIcon method={e.paymentMethod} />
+                              <span className="text-sm dg-muted">{e.paymentMethod}</span>
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="px-6 py-5 border-t border-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] bg-[color-mix(in_srgb,var(--dg-primary)_5%,transparent)] flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[var(--dg-card)] border border-[var(--dg-card-border)] shadow-sm">
-                  <p className="text-[10px] font-bold dg-faint uppercase tracking-wider mb-1">Total Expenses</p>
-                  <p className="text-2xl font-bold dg-ink tabular-nums">{fmt(expenseTotal)}</p>
+                          <td className="px-6 py-5 text-right">
+                            <p className="text-lg font-bold dg-primary tabular-nums">{fmt(e.amount)}</p>
+                          </td>
+                          {canEdit && (
+                            <td className="px-6 py-5">
+                              <div className="flex justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteExpense(e.id)}
+                                  className="p-2 rounded-lg dg-error hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)]"
+                                  aria-label="Delete expense"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </>
-          )}
+                <div className="px-6 py-5 border-t border-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] bg-[color-mix(in_srgb,var(--dg-primary)_5%,transparent)] flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-[var(--dg-card)] border border-[var(--dg-card-border)] shadow-sm">
+                    <p className="text-[10px] font-bold dg-faint uppercase tracking-wider mb-1">Total Expenses</p>
+                    <p className="text-2xl font-bold dg-ink tabular-nums">{fmt(expenseTotal)}</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
