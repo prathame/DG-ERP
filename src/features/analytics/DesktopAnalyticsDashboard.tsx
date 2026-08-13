@@ -19,6 +19,7 @@ import { cn, getTabLabel } from '../../lib/utils';
 import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
 import type { GlobalSearchNavigate } from '../../lib/globalSearch';
+import { MetricInfoTip } from './MetricInfoTip';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
@@ -28,6 +29,7 @@ type MoneyTile = {
   value: number;
   accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber';
   hint?: string;
+  info?: string;
 };
 
 type Activity = { type: string; id: string; label: string; amount: number; date: string };
@@ -143,7 +145,10 @@ export function DesktopAnalyticsDashboard({
                 key={tile.id}
                 className={cn('dg-glass-card p-5 rounded-2xl border-l-4 metric-card', ACCENT_BORDER[tile.accent])}
               >
-                <p className="text-[10px] dg-muted uppercase tracking-widest font-black mb-3">{tile.label}</p>
+                <p className="text-[10px] dg-muted uppercase tracking-widest font-black mb-3 flex items-center gap-1">
+                  <span className="min-w-0 truncate">{tile.label}</span>
+                  {tile.info ? <MetricInfoTip text={tile.info} className="dg-muted" /> : null}
+                </p>
                 <h4 className={cn('text-2xl font-bold tabular-nums', ACCENT_VALUE[tile.accent])}>{fmt(tile.value)}</h4>
                 {tile.hint ? <p className="text-[10px] dg-faint mt-1">{tile.hint}</p> : null}
               </div>

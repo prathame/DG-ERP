@@ -32,6 +32,7 @@ import {
 } from '../../components/ui';
 import { DesktopAnalyticsDashboard } from './DesktopAnalyticsDashboard';
 import { MobileAnalyticsDashboard } from './MobileAnalyticsDashboard';
+import { MetricInfoTip } from './MetricInfoTip';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
@@ -45,6 +46,32 @@ const ACTIVITY_META: Record<string, { icon: typeof IndianRupee; color: string; l
   distribution: { icon: Package, color: 'text-orange-600', labelKey: 'dashboard.dispatch' },
   expense: { icon: CreditCard, color: 'text-rose-600', labelKey: 'dashboard.expense' },
 };
+
+/** Plain-language meaning for Analytics money tiles (hover “i”). */
+function moneyTileInfo(id: string, serviceProductUx: boolean): string {
+  switch (id) {
+    case 'collections':
+      return 'Money received from customers in this period — invoice payments collected.';
+    case 'revenue':
+      return serviceProductUx
+        ? 'Party sales invoiced in this period (billed amount — not always paid yet).'
+        : 'Sales / revenue booked in this period.';
+    case 'cashIncome':
+      return 'Non-party cash income (rent, scrap, misc) recorded or imported in this period.';
+    case 'dispatched':
+      return 'Value of goods dispatched / distributed to vendors in this period.';
+    case 'expenses':
+      return 'Operating expenses paid in this period (same as Purchases → Expenses). Salary is under Staff Salary.';
+    case 'outstanding':
+      return 'Unpaid invoice balance still due from customers (open / unpaid invoices).';
+    case 'netIn':
+      return serviceProductUx
+        ? 'Collections + cash income − expenses for this period (cash-in position).'
+        : 'Collections + revenue − expenses for this period.';
+    default:
+      return '';
+  }
+}
 
 function relativeTime(dateStr: string, t: (key: string) => string) {
   const d = new Date(dateStr);
@@ -226,8 +253,11 @@ export function AnalyticsView({
           value: number;
           accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber';
           show: boolean;
+          info?: string;
         }[]
-      ).filter(tile => tile.show)
+      )
+        .filter(tile => tile.show)
+        .map(tile => ({ ...tile, info: moneyTileInfo(tile.id, serviceProductUx) }))
     : [];
 
   const customSlot =
@@ -403,10 +433,15 @@ export function AnalyticsView({
           <>
             {/* Phone KPI cards */}
             <div className="sm:hidden grid grid-cols-2 gap-2">
-              {moneyTiles.map(({ id, label, value, accent }) => (
+              {moneyTiles.map(({ id, label, value, accent, info }) => (
                 <Fragment key={id}>
                   <MobileKpiCard
-                    label={label}
+                    label={
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        {info ? <MetricInfoTip text={info} className="text-gray-400" /> : null}
+                      </span>
+                    }
                     value={fmt(value)}
                     accent={accent}
                     hint={id === 'outstanding' && value < 0 ? t('common.credit') : undefined}
@@ -416,7 +451,7 @@ export function AnalyticsView({
             </div>
             {/* Desktop tiles */}
             <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {moneyTiles.map(({ id, label, value, accent }) => {
+              {moneyTiles.map(({ id, label, value, accent, info }) => {
                 const bgMap: Record<string, string> = {
                   green: 'bg-emerald-50',
                   blue: 'bg-blue-50',
@@ -433,7 +468,10 @@ export function AnalyticsView({
                 };
                 return (
                   <div key={id} className={cn('rounded-xl p-3', bgMap[accent] || 'bg-gray-50')}>
-                    <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
+                    <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1">
+                      <span className="min-w-0 truncate">{label}</span>
+                      {info ? <MetricInfoTip text={info} className="text-gray-400" /> : null}
+                    </p>
                     <p className={cn('text-base font-bold', colorMap[accent])}>{fmt(value)}</p>
                     {id === 'outstanding' && value < 0 && (
                       <p className="text-[10px] text-emerald-600 font-medium">{t('common.credit')}</p>
