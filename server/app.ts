@@ -82,6 +82,7 @@ const PUBLIC_PATHS = [
   '/api/live',
   '/api/ready',
   '/manifest.json',
+  '/api/sentry-test',
   '/api/onprem/activate',
   '/api/onprem/heartbeat',
   '/api/onprem/deactivate',
