@@ -70,6 +70,17 @@ export const migrations: Migration[] = [
   {
     id: '0002_book_voucher_entries_fk',
     up: `
+      -- Clean up orphaned entries before adding FK — production Neon DB had orphaned
+      -- book_voucher_entries rows (voucher_id references non-existent book_vouchers).
+      -- This caused the original migration to fail at boot with FK violation.
+      DELETE FROM book_voucher_entries
+      WHERE voucher_id IS NOT NULL
+        AND voucher_id NOT IN (SELECT id FROM book_vouchers);
+
+      DELETE FROM book_voucher_items
+      WHERE voucher_id IS NOT NULL
+        AND voucher_id NOT IN (SELECT id FROM book_vouchers);
+
       -- book_voucher_entries → book_vouchers cascade
       DO $$ BEGIN
         ALTER TABLE book_voucher_entries
