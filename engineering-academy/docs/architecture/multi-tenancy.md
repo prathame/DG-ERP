@@ -145,9 +145,24 @@ flowchart TB
     R1 -->|"policy violated"| Empty["Row excluded — even if the<br/>application query forgot the predicate"]
 ```
 
-:::info Why RLS is *enabled*, not *forced*
-`server/pg-db.ts` deliberately does **not** run `ALTER TABLE ... FORCE ROW LEVEL SECURITY`. The connection pool's owner role bypasses RLS by default in Postgres — `FORCE` would make RLS apply even to the table owner. This was tried and reverted, because most of this application's queries use `pool.query()` directly (not `withTenantClient()`), meaning they run on a pooled connection where `app.tenant_id` is very often **unset**. Under `FORCE RLS`, an unset session variable means the policy's `USING` clause evaluates to false for every row — silently returning **zero rows** instead of erroring. That is a worse failure mode than the vulnerability RLS is meant to catch: a query that used to (correctly) return data would start silently returning nothing, which can look like "the feature works, there's just no data" rather than an obvious crash.
-:::
+:::tip FORCE RLS is enabled — and safe (Phase 2 update)
+`server/pg-db.ts` runs `ALTER TABLE ... FORCE ROW LEVEL SECURITY` on all 31 tenant-scoped tables. The earlier concern about `pool.query()` not setting `app.tenant_id` was solved by overriding `pool.query` itself via AsyncLocalStorage:
+
+```typescript
+// Every authenticated pool.query() auto-wraps in BEGIN / SET LOCAL app.tenant_id / COMMIT
+(pool as any).query = async function(textOrConfig, values?) {
+  const tenantId = requestContext.getStore()?.tenantId;
+  if (!tenantId) return _rawPoolQuery(textOrConfig, values);
+  const client = await pool.connect();
+  await client.query('BEGIN');
+  await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+  const result = await client.query(textOrConfig, values);
+  await client.query('COMMIT');
+  return result;
+};
+```
+
+Routes using `pool.connect()` also call `setTenantContext(client, tenantId)` after BEGIN.
 
 This is exactly why RLS here is described as a **safety net**, not the primary defense: it protects against direct database access, SQL injection that manages to inject a query without a hardcoded tenant filter, and reviewer-missed omissions in code that *does* use `withTenantClient()` — but it is not a substitute for Layer 2's explicit predicates in the common `pool.query()` path.
 
@@ -172,21 +187,21 @@ Tenants are addressed by a human-readable `slug` (`/:slug/*` in the URL, e.g. `d
 - **Shared schema, not database-per-tenant** — cheaper to operate, safe only because of the three-lock model.
 - **Composite primary keys `(id, tenant_id)`** — the same entity ID can exist per-tenant without collision.
 - **Server-authoritative tenant ID** — the JWT decides `tenantId`; a client-supplied header is never trusted for authenticated requests.
-- **RLS is enabled, not forced** — a deliberate choice to avoid silent zero-row failures on connections without `app.tenant_id` set.
+- **FORCE RLS is enabled** — `pool.query()` override sets `app.tenant_id` from AsyncLocalStorage on every authenticated request; `setTenantContext(client, tenantId)` covers `pool.connect()` transactions. Both layers together make FORCE RLS safe.
 - **Slug-scoped `localStorage`** is a UX nicety, not a security control.
 
 ## Common mistakes
 
 1. Writing a new query against a tenant-scoped table without `WHERE tenant_id = $1` — the most severe and most common mistake class in this codebase's history (see the `P0`-class fixes referenced in [AI Origin Assumptions](/overview/ai-origin-assumptions)).
 2. Trusting a client-supplied `tenant_id` in a request body or query string for anything other than input to a query that will *still* be filtered by the JWT-derived tenant ID.
-3. Assuming RLS alone is sufficient protection and skipping the explicit SQL predicate "because the database will catch it" — it won't, reliably, for the reasons above.
+3. Adding a new `pool.connect()` transaction without calling `setTenantContext(client, tenantId)` after BEGIN — FORCE RLS will block all queries in that transaction, making the feature silently broken (this exact bug was found in `warranties.ts` during the Phase 3 audit).
 4. Forgetting the composite primary key means `id` alone is not unique — a lookup by `id` without `tenant_id` can silently match the wrong tenant's row if IDs ever collide (they're generated with time-based prefixes like `T${Date.now()}`, which reduces but does not eliminate this risk).
 
 ## Interview question
 
-> **Q: Why does this codebase enable Row Level Security but explicitly avoid `FORCE ROW LEVEL SECURITY`? Isn't forcing it "more secure"?**
+> **Q: How does FORCE ROW LEVEL SECURITY work safely when most queries use `pool.query()` without explicit transactions?**
 >
-> Expected answer: `FORCE RLS` would apply the tenant-isolation policy even to the database pool's owner role, which normally bypasses RLS. Since most route handlers query via a shared `pool.query()` connection (not the transaction-scoped `withTenantClient()` helper that sets `app.tenant_id`), a `FORCE`d policy would evaluate against an *unset* session variable on most queries — and an unset variable means the `USING` clause is false for every row, so the query would silently return **zero rows** instead of erroring or (correctly) filtering by tenant. That's a worse outcome than the omission RLS is meant to catch, because it looks like "no data" instead of a bug. The team judged the explicit `WHERE tenant_id` predicate plus non-forced RLS as a safety net to be the safer combination, and documented that reasoning directly in the schema code.
+> Expected answer: `pool.query` is overridden in `server/pg-db.ts` to wrap every authenticated request in `BEGIN / SET LOCAL app.tenant_id / COMMIT` using AsyncLocalStorage (`requestContext`). This transparently injects the JWT tenant context into every `pool.query()` call without changing any route file. Routes using `pool.connect()` directly also call `setTenantContext(client, tenantId)` after BEGIN. Together these make FORCE RLS safe: every tenant query has `app.tenant_id` set, so the RLS policy `tenant_id = current_setting('app.tenant_id', true)` evaluates correctly.
 
 ## Related
 

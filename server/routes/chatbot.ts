@@ -17,15 +17,6 @@ function tabLabel(config: TabConfig | null, key: string, fallback: string): stri
   return config?.[key]?.label || fallback;
 }
 
-function resolveFeature(config: TabConfig | null, term: string): string | null {
-  if (!config) return null;
-  const lower = term.toLowerCase();
-  for (const [key, val] of Object.entries(config)) {
-    if (val.visible && val.label.toLowerCase().includes(lower)) return key;
-  }
-  return null;
-}
-
 /** Escape SQL LIKE wildcards to prevent wildcard abuse in fuzzy searches. */
 function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&');
