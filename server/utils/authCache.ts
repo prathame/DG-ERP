@@ -2,6 +2,13 @@
  * Short-TTL cache for per-request auth revalidation (users JOIN tenants).
  * Keyed by userId:tenantId:iat so password-change (new iat) and demotions
  * refresh within TTL without weakening password_changed_at checks.
+ *
+ * ⚠ SINGLE-INSTANCE ONLY — this is an in-process Map. On multi-instance
+ * deployments (horizontal scale-out), each process has its own cache: a role
+ * demotion or logout on instance A is invisible to instance B for up to TTL_MS.
+ * Fix before scaling: replace this module with a Redis-backed cache using the
+ * same key schema (userId:tenantId:iat) and TTL. The call sites (app.ts
+ * getCachedAuth / setCachedAuth) need no other changes.
  */
 
 export type CachedAuthRow = {

@@ -1,6 +1,18 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Sentry must be imported and initialized before any other instrumented modules.
+// No-ops when SENTRY_DSN is unset — safe to deploy without a DSN.
+import * as Sentry from '@sentry/node';
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    release: process.env.APP_VERSION || process.env.npm_package_version,
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1),
+  });
+}
+
 import type { Server } from 'http';
 import { assertCriticalEnv } from './utils/env';
 assertCriticalEnv();

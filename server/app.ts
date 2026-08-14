@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
+import * as Sentry from '@sentry/node';
 
 import { pool } from './pg-db';
 import {
@@ -306,7 +307,10 @@ export function createApp(): express.Application {
   app.use('/api/backup/restore', express.json({ limit: '50mb' }));
   app.use(express.json({ limit: '2mb' }));
 
-  // Global API rate limit (authenticated + public) — auth endpoints have tighter limits below
+  // Global API rate limit (authenticated + public) — auth endpoints have tighter limits below.
+  // ⚠ express-rate-limit uses in-process MemoryStore by default. On multi-instance deployments,
+  // each process has its own counter — effective limit = max × instance_count.
+  // Fix before scaling: swap to rate-limit-redis store (drop-in, same options).
   if (!isTest) {
     app.use(
       '/api/',
@@ -320,16 +324,6 @@ export function createApp(): express.Application {
       }),
     );
   }
-
-  app.use((req, _res, next) => {
-    if (req.method === 'QUERY') {
-      if (req.body && typeof req.body === 'object') {
-        Object.assign(req.query, req.body);
-      }
-      req.method = 'GET';
-    }
-    next();
-  });
 
   app.use('/api/', async (req, res, next) => {
     if (isPublicApiPath(req.path)) return next();
@@ -716,6 +710,10 @@ export function createApp(): express.Application {
   app.use(hospitalityCatalogRouter);
   app.use(hospitalityMembersRouter);
   app.use(booksRouter);
+
+  // Sentry must be registered before the custom error handler so it captures the raw error.
+  // No-ops when Sentry is not initialized (no SENTRY_DSN).
+  Sentry.setupExpressErrorHandler(app);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const correlationId =
