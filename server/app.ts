@@ -599,6 +599,11 @@ export function createApp(): express.Application {
     res.json({ ok: true, message: 'hello', ts: new Date().toISOString() });
   });
 
+  /** Temporary Sentry smoke test — delete after verifying. */
+  app.get('/api/sentry-test', (_req, _res) => {
+    throw new Error('Sentry test error — delete /api/sentry-test after verifying');
+  });
+
   /** Readiness — DB reachable. Use for load-balancer / Render health. */
   app.get('/api/ready', async (req, res) => {
     try {
