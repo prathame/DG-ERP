@@ -417,8 +417,8 @@ export async function buildStandaloneInvoicePdfBlob(
     y += rowH;
   });
 
-  // Stretch empty body only within the item zone (never into the footer reserve).
-  const minBodyBottom = Math.min(margin + 145, itemContentBottom());
+  // Small breathing room below last item row (never into the footer reserve).
+  const minBodyBottom = Math.min(y + 20, itemContentBottom());
   if (y < minBodyBottom) {
     const fillH = minBodyBottom - y;
     setBorder();
