@@ -82,7 +82,6 @@ const PUBLIC_PATHS = [
   '/api/live',
   '/api/ready',
   '/manifest.json',
-  '/api/sentry-test',
   '/api/onprem/activate',
   '/api/onprem/heartbeat',
   '/api/onprem/deactivate',
@@ -598,11 +597,6 @@ export function createApp(): express.Application {
   /** Tiny public ping (no DB) — keep-alive cron / manual click. */
   app.get('/api/hello', (_req, res) => {
     res.json({ ok: true, message: 'hello', ts: new Date().toISOString() });
-  });
-
-  /** Temporary Sentry smoke test — delete after verifying. */
-  app.get('/api/sentry-test', (_req, _res) => {
-    throw new Error('Sentry test error — delete /api/sentry-test after verifying');
   });
 
   /** Readiness — DB reachable. Use for load-balancer / Render health. */
