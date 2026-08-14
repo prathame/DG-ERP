@@ -56,6 +56,10 @@ services:
       # Set in Render Dashboard → Environment.
       - key: VITE_SENTRY_DSN
         sync: false
+      # WhatsApp payment reminder cron — call POST /api/vendor-finance/reminders-run
+      # with x-cron-secret: <value> header. Leave unset to disable cron path entirely.
+      - key: CRON_SECRET
+        sync: false
       # Pool size: default is 10. analytics/overview + FORCE RLS can peak at 10 simultaneous
       # connections for a single user. Set to 20 to safely handle 2-3 concurrent dashboard loads.
       # Neon free tier supports 20 connections; upgrade plan before scaling further.

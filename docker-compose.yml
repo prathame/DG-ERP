@@ -1,9 +1,16 @@
+# Self-hosted / local development Docker stack.
+# FOR PRODUCTION: use environment-specific overrides or Render/cloud deployment.
+# DO NOT use the default fallback values (POSTGRES_PASSWORD=dhandho, JWT_SECRET=change-me...) in production.
+# Set real secrets via docker-compose.override.yml or environment variables.
+
 services:
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: dhandho
-      POSTGRES_PASSWORD: dhandho
+      # SECURITY: Change POSTGRES_PASSWORD for any non-local deployment.
+      # Use: POSTGRES_PASSWORD=<strong-random-password> docker compose up
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dhandho-local-only}
       POSTGRES_DB: dhandho
     ports:
       - "5432:5432"
@@ -22,10 +29,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
-      DATABASE_URL: postgres://dhandho:dhandho@db:5432/dhandho
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-use-long-random}
-      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@example.com}
-      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-ChangeMeNow!}
+      DATABASE_URL: postgres://dhandho:${POSTGRES_PASSWORD:-dhandho-local-only}@db:5432/dhandho
+      # SECURITY: JWT_SECRET MUST be set via env var for any real deployment.
+      # The fallback value is intentionally invalid for production (assertCriticalEnv will reject it).
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it as an environment variable}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3001,http://localhost:3000}
     depends_on:
       db:

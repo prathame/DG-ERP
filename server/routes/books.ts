@@ -113,6 +113,14 @@ fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({
   dest: uploadDir,
   limits: { fileSize: 80 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    // Only accept Miracle CMP archive formats (.rar, .zip)
+    if (!/\.(rar|zip)$/i.test(file.originalname)) {
+      cb(Object.assign(new Error('Only .rar and .zip files are accepted for Miracle import'), { status: 400 }));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 function tenantOf(req: AuthRequest): string | null {
