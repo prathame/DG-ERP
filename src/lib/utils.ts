@@ -672,94 +672,178 @@ export type OpenPrintWindowOpts = {
 
 /**
  * Fullscreen in-app overlay when window.open is unavailable.
- * Offline Mobile / Capacitor → preview + Print (optional Download PDF); cloud popup-blocked → classic Print / PDF.
+ * Cap/service-mobile → compact top-bar layout (small screen).
+ * Web browser + Electron → side-by-side layout: invoice preview left, print panel right.
  * Returns the iframe's contentWindow so existing printBillInWindow() callers keep working.
  */
 function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOpts): Window | null {
   closePrintOverlay();
   const nativePdf = needsNativePrintPath();
   const hideDownload = !!opts?.hidePdfDownload;
+
   const host = document.createElement('div');
   host.id = PRINT_OVERLAY_ID;
   host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-label', nativePdf ? 'Print preview' : 'Print preview');
+  host.setAttribute('aria-label', 'Print preview');
   if (hideDownload) host.setAttribute('data-hide-pdf-download', '1');
-  host.style.cssText =
-    'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
 
-  const bar = document.createElement('div');
-  bar.className = 'no-print';
-  // Cap Android: env(safe-area-inset-top) is often 0 — use --safe-top (SystemBars / dg-capacitor-native floor).
-  bar.style.cssText =
-    'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + var(--safe-top, env(safe-area-inset-top, 0px)));background:#111827;color:#fff;flex-shrink:0;';
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = 'Close';
-  closeBtn.style.cssText =
-    'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:600;font-size:13px;';
-  closeBtn.onclick = () => closePrintOverlay();
-
-  const title = document.createElement('div');
-  title.textContent = nativePdf ? 'Preview' : 'Print / PDF';
-  title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
-
-  const actions = document.createElement('div');
-  actions.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+  const iframe = document.createElement('iframe');
+  iframe.id = PRINT_FRAME_ID;
+  iframe.title = 'Print preview';
 
   if (nativePdf) {
+    // ── Cap / service-mobile: compact top-bar (unchanged, small screen) ──
+    host.style.cssText =
+      'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
+
+    const bar = document.createElement('div');
+    bar.className = 'no-print';
+    bar.style.cssText =
+      'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + var(--safe-top, env(safe-area-inset-top, 0px)));background:#111827;color:#fff;flex-shrink:0;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = 'Close';
+    closeBtn.style.cssText =
+      'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:600;font-size:13px;';
+    closeBtn.onclick = () => closePrintOverlay();
+
+    const titleEl = document.createElement('div');
+    titleEl.textContent = 'Preview';
+    titleEl.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;';
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
     const printBtn = document.createElement('button');
     printBtn.type = 'button';
     printBtn.setAttribute('data-pdf-print', '1');
     printBtn.textContent = 'Print';
     printBtn.style.cssText =
       'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
-    printBtn.onclick = () => {
-      void triggerOverlayNativePrint();
-    };
+    printBtn.onclick = () => void triggerOverlayNativePrint();
     actions.appendChild(printBtn);
 
-    // html2pdf canvas capture breaks bordered Tax Invoice tables — omit for invoices
     if (!hideDownload) {
-      const actionBtn = document.createElement('button');
-      actionBtn.type = 'button';
-      actionBtn.setAttribute('data-pdf-download', '1');
-      actionBtn.textContent = 'Download PDF';
-      actionBtn.style.cssText =
+      const dlBtn = document.createElement('button');
+      dlBtn.type = 'button';
+      dlBtn.setAttribute('data-pdf-download', '1');
+      dlBtn.textContent = 'Download PDF';
+      dlBtn.style.cssText =
         'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:700;font-size:13px;';
-      actionBtn.onclick = () => {
-        void triggerOverlayDownload();
-      };
-      actions.appendChild(actionBtn);
+      dlBtn.onclick = () => void triggerOverlayDownload();
+      actions.appendChild(dlBtn);
     }
+
+    bar.appendChild(closeBtn);
+    bar.appendChild(titleEl);
+    bar.appendChild(actions);
+
+    const frameWrap = document.createElement('div');
+    frameWrap.style.cssText =
+      'flex:1;min-height:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;';
+    iframe.style.cssText = 'display:block;width:100%;min-height:100%;border:0;background:#fff;';
+
+    frameWrap.appendChild(iframe);
+    host.appendChild(bar);
+    host.appendChild(frameWrap);
   } else {
-    const actionBtn = document.createElement('button');
-    actionBtn.type = 'button';
-    actionBtn.textContent = 'Print / PDF';
-    actionBtn.style.cssText =
-      'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
-    actionBtn.onclick = () => {
-      void triggerOverlayPrint();
+    // ── Web browser + Electron: side-by-side layout ──
+    host.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;background:#111827;';
+
+    // Left — scrollable A4 preview
+    const previewPane = document.createElement('div');
+    previewPane.style.cssText =
+      'flex:1;min-width:0;overflow:auto;-webkit-overflow-scrolling:touch;background:#374151;display:flex;flex-direction:column;align-items:center;padding:32px 20px;gap:0;';
+
+    iframe.style.cssText =
+      'display:block;width:794px;max-width:calc(100vw - 340px);min-height:1123px;border:0;background:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+    previewPane.appendChild(iframe);
+
+    // Right — options panel
+    const panel = document.createElement('div');
+    panel.className = 'no-print';
+    panel.style.cssText =
+      'width:300px;flex-shrink:0;background:#1f2937;color:#fff;display:flex;flex-direction:column;padding:28px 24px 24px;gap:0;overflow-y:auto;border-left:1px solid #374151;';
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px;';
+    const hdrTitle = document.createElement('div');
+    hdrTitle.textContent = 'Print';
+    hdrTitle.style.cssText = 'font-size:22px;font-weight:700;letter-spacing:-0.3px;';
+    const pageLabel = document.createElement('div');
+    pageLabel.textContent = '1 page';
+    pageLabel.style.cssText = 'font-size:12px;color:#9ca3af;';
+    hdr.appendChild(hdrTitle);
+    hdr.appendChild(pageLabel);
+    panel.appendChild(hdr);
+
+    // Option row helper
+    const mkOption = (label: string, valueHtml: string) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:16px;';
+      const lbl = document.createElement('div');
+      lbl.textContent = label;
+      lbl.style.cssText = 'font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;';
+      const val = document.createElement('div');
+      val.style.cssText =
+        'background:#111827;border:1px solid #374151;border-radius:8px;padding:10px 12px;font-size:13px;color:#d1d5db;display:flex;align-items:center;gap:8px;';
+      val.innerHTML = valueHtml;
+      wrap.appendChild(lbl);
+      wrap.appendChild(val);
+      return wrap;
     };
-    actions.appendChild(actionBtn);
+
+    panel.appendChild(mkOption('Destination', '<span style="font-size:15px">📄</span><span>Save as PDF</span>'));
+    panel.appendChild(mkOption('Pages', '<span>All</span>'));
+    panel.appendChild(mkOption('Margins', '<span>Default</span>'));
+
+    // Spacer
+    const spacer = document.createElement('div');
+    spacer.style.cssText = 'flex:1;min-height:24px;';
+    panel.appendChild(spacer);
+
+    // Divider
+    const div1 = document.createElement('div');
+    div1.style.cssText = 'height:1px;background:#374151;margin-bottom:20px;';
+    panel.appendChild(div1);
+
+    // Primary: Print button (→ system dialog, supports connected printers)
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.setAttribute('data-pdf-print', '1');
+    printBtn.textContent = 'Print';
+    printBtn.style.cssText =
+      'width:100%;padding:12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:10px;';
+    printBtn.onclick = () => void triggerOverlayPrint();
+    panel.appendChild(printBtn);
+
+    // Download PDF
+    if (!hideDownload) {
+      const dlBtn = document.createElement('button');
+      dlBtn.type = 'button';
+      dlBtn.setAttribute('data-pdf-download', '1');
+      dlBtn.textContent = 'Download PDF';
+      dlBtn.style.cssText =
+        'width:100%;padding:12px;border-radius:8px;border:1px solid #4b5563;background:#111827;color:#fff;font-weight:600;font-size:14px;cursor:pointer;margin-bottom:10px;';
+      dlBtn.onclick = () => void triggerOverlayDownload();
+      panel.appendChild(dlBtn);
+    }
+
+    // Cancel
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText =
+      'width:100%;padding:12px;border-radius:8px;border:1px solid #374151;background:transparent;color:#9ca3af;font-weight:600;font-size:14px;cursor:pointer;';
+    cancelBtn.onclick = () => closePrintOverlay();
+    panel.appendChild(cancelBtn);
+
+    host.appendChild(previewPane);
+    host.appendChild(panel);
   }
 
-  bar.appendChild(closeBtn);
-  bar.appendChild(title);
-  bar.appendChild(actions);
-
-  const frameWrap = document.createElement('div');
-  frameWrap.style.cssText =
-    'flex:1;min-height:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;';
-
-  const iframe = document.createElement('iframe');
-  iframe.id = PRINT_FRAME_ID;
-  iframe.title = nativePdf ? 'PDF preview' : 'Print preview';
-  iframe.style.cssText = 'display:block;width:100%;min-height:100%;border:0;background:#fff;';
-
-  host.appendChild(bar);
-  frameWrap.appendChild(iframe);
-  host.appendChild(frameWrap);
   document.body.appendChild(host);
 
   const win = iframe.contentWindow;
@@ -767,7 +851,7 @@ function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOp
   try {
     win.document.open();
     win.document.write(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${nativePdf ? 'PDF' : 'Print'}</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
     );
     win.document.close();
   } catch {
