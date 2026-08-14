@@ -36,10 +36,13 @@ export function BooksExpensesHint({ onOpenProfitLoss, onOpenCashBook, compact, c
           <BookOpen size={compact ? 15 : 17} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
-          <p className={cn('font-bold dg-ink', compact ? 'text-[13px]' : 'text-sm')}>Same expenses as Accounts</p>
+          <p className={cn('font-bold dg-ink', compact ? 'text-[13px]' : 'text-sm')}>
+            Operating expenses (same as Accounts)
+          </p>
           <p className={cn('dg-muted mt-1 leading-relaxed', compact ? 'text-[11px]' : 'text-xs')}>
-            This list shows Books expense payments (including Miracle import). Salary stays under Staff → Staff Salary.
-            Add here and it posts to Accounts; delete here removes it from Accounts too.
+            This list matches Accounts P&amp;L operating expenses (including Miracle import). Staff pay stays under
+            Staff → Staff Salary and is not counted here. Add here and it posts to Accounts; delete here removes it from
+            Accounts too.
           </p>
           {hasLinks && (
             <div className={cn('flex flex-wrap gap-2', compact ? 'mt-2.5' : 'mt-3')}>

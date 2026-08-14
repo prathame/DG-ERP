@@ -5,7 +5,12 @@ import {
   staffNameFromSalaryVoucher,
   syncBooksSalaryToStaff,
 } from '../../server/services/booksSalaryToStaff';
-import { booksDeskHasData, sumBooksExpenses, sumTenantExpenses } from '../../server/services/booksExpenses';
+import {
+  booksDeskHasData,
+  isStaffPayrollExpenseCategory,
+  sumBooksExpenses,
+  sumTenantExpenses,
+} from '../../server/services/booksExpenses';
 
 function mockPool(impl: (sql: string, params: unknown[]) => { rows: unknown[] }): Pool {
   return {
@@ -105,6 +110,20 @@ describe('syncBooksSalaryToStaff', () => {
       String(c[0]).includes('INSERT INTO staff_members'),
     );
     expect(inserts).toHaveLength(0);
+  });
+});
+
+describe('isStaffPayrollExpenseCategory', () => {
+  it('flags payroll-synced Staff* and salary/wages categories', () => {
+    expect(isStaffPayrollExpenseCategory('Staff Salary')).toBe(true);
+    expect(isStaffPayrollExpenseCategory('Staff Advance')).toBe(true);
+    expect(isStaffPayrollExpenseCategory('Staff Advance Repaid')).toBe(true);
+    expect(isStaffPayrollExpenseCategory('Staff Bonus')).toBe(true);
+    expect(isStaffPayrollExpenseCategory('Salary')).toBe(true);
+    expect(isStaffPayrollExpenseCategory('Office Wages')).toBe(true);
+    expect(isStaffPayrollExpenseCategory('Office')).toBe(false);
+    expect(isStaffPayrollExpenseCategory('Rent')).toBe(false);
+    expect(isStaffPayrollExpenseCategory(null)).toBe(false);
   });
 });
 
