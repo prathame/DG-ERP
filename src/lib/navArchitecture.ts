@@ -46,7 +46,10 @@ const BOOKS_FAMILY_TAB_IDS = new Set<string>(['books', 'book_import', ...BOOKS_S
 export function isNavItemActive(
   itemId: string,
   activeTab: string,
-  opts?: { /** Service: masters hub also owns Invoice Finance (collections) */ serviceClientsHub?: boolean },
+  opts?: {
+    /** @deprecated Service Collections is its own Transactions nav item; keep for old callers. */
+    serviceClientsHub?: boolean;
+  },
 ): boolean {
   if (itemId === activeTab) return true;
   if (itemId === 'books' && BOOKS_FAMILY_TAB_IDS.has(activeTab)) return true;

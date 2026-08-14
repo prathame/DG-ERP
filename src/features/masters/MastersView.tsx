@@ -12,6 +12,7 @@ import {
   Tag,
   Wallet,
   Truck,
+  IndianRupee,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -43,7 +44,7 @@ const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ defa
 const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
 const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
 
-/** Hub ids — `item` / `expenses` are shortcuts to other tabs (Inventory / Purchases). */
+/** Hub ids — `item` / `expenses` / `collections` are shortcuts to other tabs. */
 export type MasterType =
   | 'customer'
   | 'vendor'
@@ -54,6 +55,7 @@ export type MasterType =
   | 'priceList'
   | 'staff'
   | 'expenses'
+  | 'collections'
   /** @deprecated Prefer Accounts → Data import (`book_import`). Kept for old deep links. */
   | 'importData';
 
@@ -102,6 +104,7 @@ export function MastersView({
       staff: t('masters.staff'),
       priceList: t('masters.prices'),
       expenses: t('masters.expenses'),
+      collections: tabConfig['finance']?.label || 'Collections',
       mapping: t('masters.mapping'),
       rewardRules: t('nav.rewards'),
     };
@@ -119,7 +122,7 @@ export function MastersView({
   /** When opening Staff manage from a hub row, jump into that person’s payments. */
   const [focusStaffId, setFocusStaffId] = useState<string | null>(null);
   const [focusStaffName, setFocusStaffName] = useState<string | null>(null);
-  /** When opening Clients manage from a hub row (service only), jump into that client’s invoice hub. */
+  /** Optional vendor id deep-link (non-service invoice hub; service Directory is create-only). */
   const [focusVendorId, setFocusVendorId] = useState<string | null>(null);
   /** Phone hub selected pill. */
   const [hubTab, setHubTab] = useState<MasterType | null>(null);
@@ -181,6 +184,11 @@ export function MastersView({
     }
     if (master === 'expenses') {
       setActiveTab('purchases');
+      onLaunchConsumed?.();
+      return;
+    }
+    if (master === 'collections') {
+      setActiveTab('finance');
       onLaunchConsumed?.();
       return;
     }
@@ -271,6 +279,19 @@ export function MastersView({
       color: 'text-indigo-600',
       bg: 'bg-indigo-50',
     },
+    // Service: Collections shortcut (also under Transactions) — money due / receive payments.
+    ...(serviceCatalogUx && tv('finance')
+      ? [
+          {
+            id: 'collections' as const,
+            name: tabConfig['finance']?.label || 'Collections',
+            count: '' as number | string,
+            icon: IndianRupee,
+            color: 'text-emerald-700',
+            bg: 'bg-emerald-50',
+          },
+        ]
+      : []),
     // Shortcut to existing Purchases/Expenses screen (More → Expenses) — not a nested copy.
     ...(tv('purchases')
       ? [
@@ -430,6 +451,10 @@ export function MastersView({
     }
     if (id === 'expenses') {
       setActiveTab('purchases');
+      return;
+    }
+    if (id === 'collections') {
+      setActiveTab('finance');
       return;
     }
     if (id === 'staff') setFocusStaffId(opts?.staffId ?? null);
@@ -598,7 +623,13 @@ export function MastersView({
           value={active || ''}
           onChange={id => {
             const next = id as MasterType;
-            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules' || next === 'expenses') {
+            if (
+              next === 'priceList' ||
+              next === 'mapping' ||
+              next === 'rewardRules' ||
+              next === 'expenses' ||
+              next === 'collections'
+            ) {
               openFull(next);
               return;
             }
@@ -611,11 +642,15 @@ export function MastersView({
             <LoadingSpinner />
           </div>
         ) : showList && active === 'vendor' ? (
-          vendors.length === 0 ? (
+          serviceCatalogUx || vendors.length === 0 ? (
             <MobileEmptyState
               icon={<Truck />}
               title={t('masters.noClientsYet')}
-              subtitle={t('masters.addFirstPartner')}
+              subtitle={
+                serviceCatalogUx
+                  ? 'Add clients here. Use Collections for invoices & payments.'
+                  : t('masters.addFirstPartner')
+              }
               actionLabel={`${t('common.add')} ${fabLabel}`}
               onAction={() => openFull('vendor')}
             />
@@ -633,7 +668,7 @@ export function MastersView({
                         : undefined
                     }
                     meta={typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined}
-                    onClick={() => openFull('vendor', cfg.type === 'service' ? { vendorId: v.id } : undefined)}
+                    onClick={() => openFull('vendor')}
                   />
                 </Fragment>
               ))}
