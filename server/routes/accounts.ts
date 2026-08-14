@@ -793,7 +793,7 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
       const qty = Number(item.quantity) || 1;
       const price = Number(item.price) || 0;
       const net = qty * price;
-      const gst = item.withGst !== false ? Math.round((net * rate) / 100) : 0;
+      const gst = item.withGst !== false ? Math.round(((net * rate) / 100) * 100) / 100 : 0;
       resolvedItems.push({
         description: item.description || '',
         quantity: qty,

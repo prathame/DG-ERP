@@ -4,6 +4,7 @@ import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postCashIncomeToBooks, postInvoicePaymentToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 import type { PoolClient } from 'pg';
 
 async function booksPostPayment(
@@ -20,11 +21,7 @@ async function booksPostPayment(
     partyName: string;
   },
 ) {
-  try {
-    await postInvoicePaymentToBooks(client, tenantId, payment);
-  } catch {
-    /* Books dual-write must not block collections */
-  }
+  await withBooks(() => postInvoicePaymentToBooks(client, tenantId, payment), 'invoice-payment');
 }
 
 const router = Router();
@@ -429,20 +426,20 @@ router.post('/api/invoice-finance/cash-income', blockVendors, async (req: AuthRe
       [payId, tenantId, id, amount, incomeDate, paymentMethod, referenceNumber, noteBody, `cash-income:${id}`],
     );
 
-    try {
-      await postCashIncomeToBooks(client, tenantId, {
-        id,
-        amount,
-        incomeDate,
-        incomeHead,
-        paymentMethod,
-        referenceNumber,
-        notes: noteBody,
-        invoiceNumber,
-      });
-    } catch {
-      /* Books dual-write must not block cash income */
-    }
+    await withBooks(
+      () =>
+        postCashIncomeToBooks(client, tenantId, {
+          id,
+          amount,
+          incomeDate,
+          incomeHead,
+          paymentMethod,
+          referenceNumber,
+          notes: noteBody,
+          invoiceNumber,
+        }),
+      'cash-income',
+    );
 
     await client.query('COMMIT');
     await logAudit(
@@ -1057,6 +1054,9 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
         .json({ error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})` });
     }
 
+    // SAVEPOINT allows rollback of just this INSERT on idempotency conflict
+    // without aborting the whole transaction (avoids PG error 25P02 on follow-up queries).
+    await client.query('SAVEPOINT before_payment_insert');
     try {
       await client.query(
         `INSERT INTO invoice_payments
@@ -1064,9 +1064,13 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [id, tenantId, invoiceId, payAmt, pDate, pMethod, referenceNumber || null, notes || null, idemKey],
       );
+      await client.query('RELEASE SAVEPOINT before_payment_insert');
     } catch (insErr) {
       const code = (insErr as { code?: string }).code;
       if (code === '23505' && idemKey) {
+        // Rollback the failed INSERT only — transaction remains usable
+        await client.query('ROLLBACK TO SAVEPOINT before_payment_insert');
+        await client.query('RELEASE SAVEPOINT before_payment_insert');
         const existing = (
           await client.query(
             `SELECT id, invoice_id, amount, payment_date, payment_method

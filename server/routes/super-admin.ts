@@ -976,7 +976,7 @@ router.post('/api/super-admin/billing', superAdminMiddleware, async (req, res) =
       ? ((await pool.query('SELECT name FROM plans WHERE id = $1', [tenant.plan_id])).rows[0] as
           { name: string } | undefined)
       : null;
-    const gst = gstRate ? Math.round((Number(amount) * Number(gstRate)) / 100) : 0;
+    const gst = gstRate ? Math.round(((Number(amount) * Number(gstRate)) / 100) * 100) / 100 : 0;
     const total = Number(amount) + gst;
     const id = uid('INV');
     const invNum = `DG-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;

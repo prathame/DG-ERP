@@ -18,6 +18,7 @@ import {
   unitPricesAfterDiscount,
 } from '../utils/price-resolve';
 import { postDistributionBatchToBooks, postVendorPaymentToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 
 const router = Router();
 
@@ -467,7 +468,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             batchId,
           ],
         );
-        try {
+        await withBooks(async () => {
           await postDistributionBatchToBooks(client, tenantId, {
             batchId,
             vendorId,
@@ -484,9 +485,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             vendorId,
             vendorName,
           });
-        } catch {
-          /* Books dual-write must not block distribution */
-        }
+        }, 'distribution-batch-with-payment');
         // Auto-mark as sold for dealer/retail tenants
         const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
           ?.business_type;
@@ -513,17 +512,17 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             `${vendorName} paid ₹${paidAmount} (with distribution)`,
           );
       } else {
-        try {
-          await postDistributionBatchToBooks(client, tenantId, {
-            batchId,
-            vendorId,
-            vendorName,
-            billValue: totalBilled,
-            distributionDate: date,
-          });
-        } catch {
-          /* Books dual-write must not block distribution */
-        }
+        await withBooks(
+          () =>
+            postDistributionBatchToBooks(client, tenantId, {
+              batchId,
+              vendorId,
+              vendorName,
+              billValue: totalBilled,
+              distributionDate: date,
+            }),
+          'distribution-batch',
+        );
         // Auto-mark as sold for dealer/retail tenants
         const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
           ?.business_type;
@@ -717,12 +716,12 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
           ],
         );
       }
-      try {
-        const vName =
-          (
-            (await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId]))
-              .rows[0] as { name: string } | undefined
-          )?.name ?? vendorId;
+      const vName =
+        (
+          (await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId]))
+            .rows[0] as { name: string } | undefined
+        )?.name ?? vendorId;
+      await withBooks(async () => {
         await postDistributionBatchToBooks(client, tenantId, {
           batchId: baseId,
           vendorId,
@@ -741,9 +740,7 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
             vendorName: vName,
           });
         }
-      } catch {
-        /* Books dual-write must not block distribution */
-      }
+      }, 'distribution-single');
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -1976,8 +1973,9 @@ router.get('/api/distribution/einvoice', async (req: AuthRequest, res) => {
       }
       grouped[key].qty += 1;
       grouped[key].taxable += netPrice;
-      grouped[key].cgst += Math.round(gstAmount / 2);
-      grouped[key].sgst += Math.round(gstAmount / 2);
+      const halfGstAmt1 = Math.round((gstAmount / 2) * 100) / 100;
+      grouped[key].cgst += halfGstAmt1;
+      grouped[key].sgst += Math.round((gstAmount - halfGstAmt1) * 100) / 100;
       grouped[key].total += billedPrice;
     }
     if (Object.keys(grouped).length === 0) {
@@ -2184,8 +2182,9 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
         };
       grouped[key].qty += 1;
       grouped[key].taxable += netPrice;
-      grouped[key].cgst += Math.round(gstAmt / 2);
-      grouped[key].sgst += Math.round(gstAmt / 2);
+      const halfGstAmt2 = Math.round((gstAmt / 2) * 100) / 100;
+      grouped[key].cgst += halfGstAmt2;
+      grouped[key].sgst += Math.round((gstAmt - halfGstAmt2) * 100) / 100;
       grouped[key].total += billedPrice;
     }
 

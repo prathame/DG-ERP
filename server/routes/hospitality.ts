@@ -715,7 +715,10 @@ router.post('/api/hospitality/orders/:id/bill', blockVendors, async (req: AuthRe
       ])
     ).rows[0] as { id: string; table_id: string } | undefined;
     if (!order) return res.status(404).json({ error: 'Open order not found' });
-    await pool.query(`UPDATE hosp_orders SET status = 'billed', updated_at = NOW() WHERE id = $1`, [order.id]);
+    await pool.query(`UPDATE hosp_orders SET status = 'billed', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`, [
+      order.id,
+      tenantId,
+    ]);
     if (order.table_id) {
       await pool.query(`UPDATE hosp_dining_tables SET status = 'billing' WHERE id = $1 AND tenant_id = $2`, [
         order.table_id,
@@ -747,7 +750,10 @@ router.post('/api/hospitality/orders/:id/close', blockVendors, async (req: AuthR
       )
     ).rows[0] as { id: string; table_id: string | null } | undefined;
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    await pool.query(`UPDATE hosp_orders SET status = 'closed', updated_at = NOW() WHERE id = $1`, [order.id]);
+    await pool.query(`UPDATE hosp_orders SET status = 'closed', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`, [
+      order.id,
+      tenantId,
+    ]);
     if (order.table_id) {
       // Happy path: paid → available (skip cleaning)
       await pool.query(`UPDATE hosp_dining_tables SET status = 'available' WHERE id = $1 AND tenant_id = $2`, [
@@ -785,7 +791,10 @@ async function cancelHospOrder(
     }
   }
 
-  await pool.query(`UPDATE hosp_orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [order.id]);
+  await pool.query(`UPDATE hosp_orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`, [
+    order.id,
+    tenantId,
+  ]);
   if (order.table_id) {
     await pool.query(`UPDATE hosp_dining_tables SET status = 'available' WHERE id = $1 AND tenant_id = $2`, [
       order.table_id,
@@ -895,7 +904,11 @@ router.delete('/api/hospitality/order-items/:id', blockVendors, async (req: Auth
       return res.status(400).json({ error: 'Can only remove items still queued in the kitchen' });
     }
 
-    await pool.query(`DELETE FROM hosp_order_items WHERE id = $1`, [row.id]);
+    await pool.query(
+      `DELETE FROM hosp_order_items WHERE id = $1
+       AND order_id IN (SELECT id FROM hosp_orders WHERE tenant_id = $2)`,
+      [row.id, tenantId],
+    );
     await pool.query(`UPDATE hosp_orders SET updated_at = NOW() WHERE id = $1 AND tenant_id = $2`, [
       row.order_id,
       tenantId,

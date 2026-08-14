@@ -5,6 +5,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
 import { postExpenseToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 import { deleteBookVoucher, BookVoucherNotFoundError, BookVoucherValidationError } from '../services/bookVouchers';
 import {
   BOOKS_EXPENSE_SQL,
@@ -275,7 +276,7 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
           notes || null,
         ],
       );
-      try {
+      await withBooks(async () => {
         booksVoucherId = await postExpenseToBooks(client, tenantId, {
           id,
           amount: parsedAmount,
@@ -284,9 +285,7 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
           description: description || notes || null,
           paymentMethod: paymentMethod || 'Cash',
         });
-      } catch {
-        /* Books dual-write must not block expense create */
-      }
+      }, 'expense-create');
       await client.query('COMMIT');
     } catch (err) {
       try {

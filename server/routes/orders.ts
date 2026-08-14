@@ -143,7 +143,7 @@ router.post('/api/orders', blockVendors, async (req: AuthRequest, res) => {
       const gross = price * qty;
       const discAmt = Math.round((gross * disc) / 100);
       const net = gross - discAmt;
-      const gst = item.withGst !== false ? Math.round((net * rate) / 100) : 0;
+      const gst = item.withGst !== false ? Math.round(((net * rate) / 100) * 100) / 100 : 0;
       resolvedItems.push({
         productId: item.productId,
         productName: product?.name ?? item.productName ?? '',
