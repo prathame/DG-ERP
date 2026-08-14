@@ -1445,8 +1445,9 @@ export function SettingsView({
 
   const desktopGlass = settingsGlass();
   const capMobileSettings = mobileApp && !desktopGlass;
-  // Cap service (online + offline): GSTIN/rate live under Business Identity — hide empty GST sheet.
-  const hideGstModule = serviceProductSettingsUx;
+  // Cap / phone service: GSTIN + rates live under Business Identity (company card).
+  // Desktop service: keep the GST Settings tab (same as manufacturer) so GSTIN is editable.
+  const hideGstModule = serviceProductSettingsUx && !desktopGlass;
 
   const showTab = (id: DesktopSettingsTabId | DesktopSettingsTabId[]) => {
     const ids = Array.isArray(id) ? id : [id];
