@@ -120,11 +120,12 @@ async function run() {
     ['PROD-A-BN001', 'Silver Bangle Set 2pc', '7113', 3, 'CAT-A-BANGLE', 3200],
     ['PROD-A-AK001', 'Silver Anklet Pair', '7113', 3, 'CAT-A-ANKLET', 2400],
   ];
-  for (const [id, name, hsn, gst, cat, price] of productsA) {
+  for (const [id, name, hsn, gst, , price] of productsA) {
+    // Note: products table has no category_id column; categories are a separate table
     await pool.query(
-      `INSERT INTO products (id, tenant_id, name, hsn_code, gst_rate, price, stock, category_id)
-       VALUES ($1,$2,$3,$4,$5,$6,0,$7) ON CONFLICT DO NOTHING`,
-      [id, QA_A.tenantId, name, hsn, gst, price, cat],
+      `INSERT INTO products (id, tenant_id, name, hsn_code, gst_rate, price, stock)
+       VALUES ($1,$2,$3,$4,$5,$6,0) ON CONFLICT DO NOTHING`,
+      [id, QA_A.tenantId, name, hsn, gst, price],
     );
   }
 
