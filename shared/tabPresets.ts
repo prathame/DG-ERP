@@ -86,8 +86,8 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   }),
   /** Service / consulting — Miracle CMP → clients, invoices & payments; ledgers/vouchers under Accounts */
   service: baseAllVisible({
-    /** Sidebar: Clients (masters) + Collections under Transactions; finance tab id for deep links / SA */
-    masters: { label: 'Clients', visible: true },
+    /** Sidebar: Masters (client profiles inside) + Collections under Transactions */
+    masters: { label: 'Masters', visible: true },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
     sales: { label: 'Sales Entry', visible: false },
@@ -257,6 +257,10 @@ export function fillMissingTabPresetKeys(
     ) {
       out.quotations = { ...out.quotations, label: 'Party Quotes' };
     }
+  }
+  // Service used to default masters → "Clients"; sidebar is Masters again (profiles live inside).
+  if (businessType === 'service' && out.masters?.label === 'Clients') {
+    out.masters = { ...out.masters, label: 'Masters' };
   }
   return out;
 }
