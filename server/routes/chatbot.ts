@@ -26,6 +26,11 @@ function resolveFeature(config: TabConfig | null, term: string): string | null {
   return null;
 }
 
+/** Escape SQL LIKE wildcards to prevent wildcard abuse in fuzzy searches. */
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&');
+}
+
 async function query(input: string, tenantId: string, tabConfig: TabConfig | null = null): Promise<ChatResponse> {
   const q = input.trim().toLowerCase();
 
@@ -672,8 +677,8 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     if (staffName) {
       const rows = (
         await pool.query(
-          'SELECT amount, payment_date, payment_method, notes FROM staff_payments WHERE staff_name ILIKE $1 AND tenant_id = $2 ORDER BY payment_date DESC LIMIT 10',
-          [`%${staffName}%`, tenantId],
+          "SELECT amount, payment_date, payment_method, notes FROM staff_payments WHERE staff_name ILIKE $1 ESCAPE '\\' AND tenant_id = $2 ORDER BY payment_date DESC LIMIT 10",
+          [`%${escapeLike(staffName)}%`, tenantId],
         )
       ).rows as { amount: number; payment_date: string; payment_method: string; notes: string }[];
       if (rows.length === 0) return { text: `No payments found for "${staffName}".` };
@@ -775,8 +780,8 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   // ============ VENDOR LOOKUP (fuzzy) ============
   const vendorRows = (
     await pool.query(
-      "SELECT id, name, phone, contact_person FROM vendors WHERE id != 'OWNER' AND (LOWER(name) LIKE $1 OR LOWER(contact_person) LIKE $1) AND tenant_id = $2",
-      [`%${q}%`, tenantId],
+      "SELECT id, name, phone, contact_person FROM vendors WHERE id != 'OWNER' AND (LOWER(name) LIKE $1 ESCAPE '\\' OR LOWER(contact_person) LIKE $1 ESCAPE '\\') AND tenant_id = $2",
+      [`%${escapeLike(q)}%`, tenantId],
     )
   ).rows as { id: string; name: string; phone: string; contact_person: string }[];
   if (vendorRows.length === 1) {
@@ -845,10 +850,10 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
 
   // ============ CUSTOMER LOOKUP (fuzzy) ============
   const custRows = (
-    await pool.query('SELECT id, name, phone FROM customers WHERE LOWER(name) LIKE $1 AND tenant_id = $2 LIMIT 5', [
-      `%${q}%`,
-      tenantId,
-    ])
+    await pool.query(
+      "SELECT id, name, phone FROM customers WHERE LOWER(name) LIKE $1 ESCAPE '\\' AND tenant_id = $2 LIMIT 5",
+      [`%${escapeLike(q)}%`, tenantId],
+    )
   ).rows as { id: string; name: string; phone: string }[];
   if (custRows.length === 1) {
     const c = custRows[0];
