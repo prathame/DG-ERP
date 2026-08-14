@@ -25,8 +25,19 @@ export default defineConfig(({ mode }) => {
   const sharedTsResolve: PluginOption = {
     name: 'dg-shared-ts-resolve',
     enforce: 'pre',
-    resolveId(source) {
-      const m = source.match(/(?:^|[/.])shared\/(mobileFeatures|tabPresets|metal|hospPricing)(?:\.js)?$/);
+    resolveId(source, importer) {
+      // Relative imports between shared/ modules (e.g. ./tabPresets from shared/mobileFeatures.ts)
+      if (importer && importer.includes('/shared/') && source.startsWith('./')) {
+        const filename = source.replace('./', '').replace(/\.js$/, '');
+        const sharedFiles = ['mobileFeatures', 'tabPresets', 'metal', 'hospPricing', 'hospAnalytics', 'hotelMasters'];
+        if (sharedFiles.includes(filename)) {
+          return path.resolve(__dirname, `shared/${filename}.ts`);
+        }
+      }
+      // Direct shared/* imports (e.g. shared/tabPresets or shared/tabPresets.js)
+      const m = source.match(
+        /(?:^|[/.])shared\/(mobileFeatures|tabPresets|metal|hospPricing|hospAnalytics|hotelMasters)(?:\.js)?$/,
+      );
       if (!m) return null;
       return path.resolve(__dirname, `shared/${m[1]}.ts`);
     },
