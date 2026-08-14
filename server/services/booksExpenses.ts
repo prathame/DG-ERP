@@ -4,6 +4,28 @@
  */
 import type { Pool } from 'pg';
 
+/**
+ * Payroll dual-writes Staff Salary / Advance / Bonus into `expenses` for audit history.
+ * Purchases → Expenses and Analytics expense tiles must exclude these (Staff owns them).
+ */
+export function isStaffPayrollExpenseCategory(category: string | null | undefined): boolean {
+  const c = String(category || '')
+    .trim()
+    .toLowerCase();
+  if (!c) return false;
+  if (c.startsWith('staff ')) return true;
+  if (c.includes('salary') || c.includes('wages') || /(^|\s)wage(\s|$)/.test(c)) return true;
+  return false;
+}
+
+/** SQL AND-clause (column alias `category`) matching {@link isStaffPayrollExpenseCategory}. */
+export const EXCLUDE_STAFF_PAYROLL_EXPENSE_CATEGORY_SQL = `
+  AND LOWER(COALESCE(category, '')) NOT LIKE 'staff %'
+  AND LOWER(COALESCE(category, '')) NOT LIKE '%salary%'
+  AND LOWER(COALESCE(category, '')) NOT LIKE '%wages%'
+  AND LOWER(COALESCE(category, '')) !~ '(^|[^a-z])wage([^a-z]|$)'
+`;
+
 /** Payment vouchers that debit an expense-like ledger (Miracle PT/EX + Ops expense dual-write). */
 export const BOOKS_EXPENSE_SQL = `
   SELECT

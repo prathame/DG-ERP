@@ -102,7 +102,7 @@ export function QuotationsView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'Draft' | 'Sent' | 'Accepted' | 'Converted'>('Draft');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Draft' | 'Sent' | 'Accepted' | 'Converted'>('all');
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [partialConvert, setPartialConvert] = useState<{
     quote: Quotation;

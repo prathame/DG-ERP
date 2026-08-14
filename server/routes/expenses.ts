@@ -6,7 +6,12 @@ import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
 import { postExpenseToBooks } from '../services/opsToBooks';
 import { deleteBookVoucher, BookVoucherNotFoundError, BookVoucherValidationError } from '../services/bookVouchers';
-import { BOOKS_EXPENSE_SQL, booksDeskHasData } from '../services/booksExpenses';
+import {
+  BOOKS_EXPENSE_SQL,
+  booksDeskHasData,
+  EXCLUDE_STAFF_PAYROLL_EXPENSE_CATEGORY_SQL,
+  isStaffPayrollExpenseCategory,
+} from '../services/booksExpenses';
 
 const router = Router();
 
@@ -81,7 +86,8 @@ router.get('/api/expenses', async (req, res) => {
         [...cteParams, listLimit, offset],
       );
 
-      // Ops expenses that never dual-wrote to Books (rare)
+      // Ops expenses that never dual-wrote to Books (rare). Exclude payroll sync rows —
+      // those live under Staff → Staff Salary (Books salary vouchers are already filtered out).
       const orphanOps = (
         await pool.query(
           `SELECT e.* FROM expenses e
@@ -97,18 +103,20 @@ router.get('/api/expenses', async (req, res) => {
       ).rows as Record<string, unknown>[];
 
       const booksMapped = rows.map((r: Record<string, unknown>) => mapBooksExpense(r));
-      const orphanMapped: ExpenseRowOut[] = orphanOps.map(r => ({
-        id: String(r.id),
-        category: String(r.category),
-        description: (r.description as string) || null,
-        amount: Number(r.amount),
-        expenseDate: r.expense_date as string | Date,
-        paymentMethod: String(r.payment_method || 'Cash'),
-        referenceNumber: (r.reference_number as string) || null,
-        notes: (r.notes as string) || null,
-        source: 'ops' as const,
-        booksVoucherId: null,
-      }));
+      const orphanMapped: ExpenseRowOut[] = orphanOps
+        .filter(r => !isStaffPayrollExpenseCategory(String(r.category || '')))
+        .map(r => ({
+          id: String(r.id),
+          category: String(r.category),
+          description: (r.description as string) || null,
+          amount: Number(r.amount),
+          expenseDate: r.expense_date as string | Date,
+          paymentMethod: String(r.payment_method || 'Cash'),
+          referenceNumber: (r.reference_number as string) || null,
+          notes: (r.notes as string) || null,
+          source: 'ops' as const,
+          booksVoucherId: null,
+        }));
 
       const seen = new Set(booksMapped.map(b => b.id));
       const merged = [...booksMapped, ...orphanMapped.filter(o => !seen.has(o.id))];
@@ -136,6 +144,8 @@ router.get('/api/expenses', async (req, res) => {
       where += ` AND expense_date <= $${idx++}`;
       params.push(to);
     }
+    // Staff payroll rows are mirrored into expenses for audit; list them only under Staff.
+    where += ` ${EXCLUDE_STAFF_PAYROLL_EXPENSE_CATEGORY_SQL}`;
     const total = Number((await pool.query(`SELECT COUNT(*)::int AS c FROM expenses ${where}`, params)).rows[0].c);
     const { rows } = await pool.query(
       `SELECT * FROM expenses ${where} ORDER BY expense_date DESC LIMIT $${idx++} OFFSET $${idx}`,
@@ -206,13 +216,19 @@ router.get('/api/expenses/summary', async (req, res) => {
 
     const byCategory = (
       await pool.query(
-        'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY category ORDER BY total DESC',
+        `SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses
+         WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2
+           ${EXCLUDE_STAFF_PAYROLL_EXPENSE_CATEGORY_SQL}
+         GROUP BY category ORDER BY total DESC`,
         [tenantId, year],
       )
     ).rows as { category: string; total: number; count: number }[];
     const byMonth = (
       await pool.query(
-        "SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month",
+        `SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses
+         WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2
+           ${EXCLUDE_STAFF_PAYROLL_EXPENSE_CATEGORY_SQL}
+         GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month`,
         [tenantId, year],
       )
     ).rows as { month: string; total: number }[];
