@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
-import { logger } from './utils/logger';
+import { logger, requestContext } from './utils/logger';
 import { databaseHostname, formatDbConnectError, resolvePoolSsl } from './utils/databaseUrl';
 
 dotenv.config();
@@ -142,6 +142,47 @@ pool.on('error', err => {
     code: (err as NodeJS.ErrnoException).code,
   });
 });
+
+// ── Transparent tenant-context injection for FORCE ROW LEVEL SECURITY ──────────
+//
+// Override pool.query to automatically set app.tenant_id (transaction-locally)
+// when a tenant request context is present in AsyncLocalStorage. This makes
+// FORCE RLS work for all existing pool.query() calls without changing route files.
+//
+// Skipped in test environments (requestContext absent for fixture setup code).
+// Skipped for platform queries (no tenantId in context → platform tables bypass RLS).
+//
+// ponytail: wraps each pool.query in BEGIN/SET LOCAL/query/COMMIT — 4 round-trips.
+// Upgrade path when throughput matters: migrate hot routes to withTenantClient()
+// which amortises the overhead across multiple queries in one connection.
+
+const _rawPoolQuery = pool.query.bind(pool);
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(pool as any).query = async function tenantAwareQuery(textOrConfig: unknown, values?: unknown[]) {
+  const tenantId = requestContext.getStore()?.tenantId;
+  if (!tenantId) {
+    // No tenant context: platform query, test fixture, or initSchema — bypass.
+    return _rawPoolQuery(textOrConfig as string, values);
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+    const result = await client.query(textOrConfig as string, values);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore rollback error — connection may already be in error state */
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+};
 
 /**
  * Instrumented query helper — prefer for new code / hot paths.
@@ -1868,9 +1909,12 @@ export async function initSchema() {
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
-      // Clear leftover FORCE from the reverted experiment — FORCE + unset app.tenant_id
-      // breaks SA inserts (42501) and silently empties pool.query() SELECTs.
-      await client.query(`ALTER TABLE ${table} NO FORCE ROW LEVEL SECURITY`);
+      // FORCE RLS: even the pool owner (table creator) must satisfy the RLS policy.
+      // app.tenant_id is set transaction-locally by the pool.query() override above,
+      // so every tenant request carries the correct context automatically.
+      // SA operations that need cross-tenant access use client.query() directly on
+      // a connection they control, bypassing the pool.query() override.
+      await client.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
       await client.query(`
         DO $$ BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = '${table}' AND policyname = '${table}_tenant_isolation') THEN
@@ -1881,12 +1925,7 @@ export async function initSchema() {
         END $$
       `);
     }
-    // RLS policies are enabled (not forced) — the pool owner bypasses them,
-    // but the explicit WHERE tenant_id = $1 in every handler is the primary isolation.
-    // FORCE ROW LEVEL SECURITY was removed: without per-request SET LOCAL inside the
-    // same transaction, handlers use pool.query() on different connections where
-    // app.tenant_id is unset → FORCE RLS returns empty rows (silent data loss).
-    logger.info('Row Level Security policies applied');
+    logger.info('Row Level Security policies applied (FORCE enabled)');
 
     logger.info('Database schema ready');
   } finally {
