@@ -27,12 +27,25 @@ function isStrict(): boolean {
 
 export async function withBooks(fn: () => Promise<unknown>, context: string): Promise<void> {
   if (isStrict()) {
-    await fn();
+    try {
+      await fn();
+    } catch (err) {
+      // Strict mode: log as ERROR so alert rules can fire on this pattern.
+      // Alert rule: "Books dual-write failed" in Sentry/Logtail → P0 financial integrity issue.
+      logger.error('Books dual-write failed — strict mode, transaction will roll back', {
+        alert: 'books_dual_write_failure',
+        context,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      throw err;
+    }
   } else {
     try {
       await fn();
     } catch (err) {
-      logger.warn('Books dual-write failed — permissive mode, ops will commit without Books entry', {
+      logger.warn('Books dual-write failed — permissive mode (BOOKS_STRICT=0), ops will commit without Books entry', {
+        alert: 'books_dual_write_failure_permissive',
         context,
         error: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
