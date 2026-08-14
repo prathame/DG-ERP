@@ -352,7 +352,7 @@ export function generateSalesInvoiceHtml(
           <div style="font-size:18px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
           ${bill.company.address ? `<div style="font-size:10px;color:#555;">${esc(bill.company.address)}</div>` : ''}
           ${bill.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(bill.company.phone)}</div>` : ''}
-          ${showGst && bill.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
+          ${bill.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
         </div>
       </div>
     </td>
@@ -670,7 +670,7 @@ export function generateStandaloneInvoiceHtml(
           ${company.address ? `<div style="font-size:10px;color:#555;">${esc(company.address)}</div>` : ''}
           ${company.phone ? `<div style="font-size:10px;color:#555;">Phone: ${esc(company.phone)}</div>` : ''}
           ${company.email ? `<div style="font-size:10px;color:#555;">Email: ${esc(company.email)}</div>` : ''}
-          ${hasGst && company.gstNumber ? `<div class="gstin-text" style="margin-top:2px;">GSTIN: ${esc(company.gstNumber)}</div>` : ''}
+          ${company.gstNumber ? `<div class="gstin-text" style="margin-top:2px;">GSTIN: ${esc(company.gstNumber)}</div>` : ''}
           ${tagline ? `<div class="tagline" style="margin-top:6px;display:inline-block;padding:2px 8px;">${esc(tagline)}</div>` : ''}
         </div>
       </div>
@@ -987,7 +987,7 @@ ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
           <div style="font-size:18px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
           ${bill.company.address ? `<div style="font-size:10px;color:#555;">${esc(bill.company.address)}</div>` : ''}
           ${bill.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(bill.company.phone)}</div>` : ''}
-          ${showGst && bill.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
+          ${bill.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
         </div>
       </div>
     </td>

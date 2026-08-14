@@ -233,7 +233,7 @@ export async function buildStandaloneInvoicePdfBlob(
   if (company.address) companyLines.push(...wrapLines(doc, company.address, leftW - 22));
   if (company.phone) companyLines.push(`Phone: ${company.phone}`);
   if (company.email) companyLines.push(`Email: ${company.email}`);
-  if (hasGst && company.gstNumber) companyLines.push(`GSTIN: ${company.gstNumber}`);
+  if (company.gstNumber) companyLines.push(`GSTIN: ${company.gstNumber}`);
   if (tagline) companyLines.push(tagline);
   const metaRows: [string, string][] = [
     [numberLabel, `${invPrefix}${inv.invoiceNumber}`],
