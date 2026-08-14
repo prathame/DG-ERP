@@ -392,11 +392,83 @@ export async function shareStandaloneInvoiceWhatsApp(
     if (electronResult) return electronResult;
   }
 
-  waLog('info', 'WhatsApp invoice share start', { ...ctx, path: 'pdf' });
-  const { html, filename } = await buildStandaloneInvoiceHtml(shareInv, options);
+  // Web browser — use jsPDF (no html2canvas, no main-thread freeze).
+  waLog('info', 'WhatsApp invoice share start (web jsPDF)', { ...ctx, path: 'pdf' });
+  const user = (session.getUser() || {}) as {
+    companyName?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    gstNumber?: string;
+  };
+  const billSettings =
+    options?.billSettings || ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
+  const filename = standaloneInvoicePdfBasename(shareInv.customerName);
+  const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType };
+
+  try {
+    const blob = await buildStandaloneInvoicePdfBlob(
+      shareInv,
+      {
+        companyName: user.companyName,
+        address: user.address,
+        phone: user.phone,
+        email: user.email,
+        gstNumber: user.gstNumber,
+      },
+      pdfOpts,
+    );
+
+    // Web Share API (mobile browsers with file-share support)
+    if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
+      try {
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        const payload = { files: [file], title: filename };
+        if (!navigator.canShare || navigator.canShare(payload)) {
+          await navigator.share(payload);
+          waLog('info', 'WhatsApp web navigator.share ok', { ...ctx, path: 'pdf' });
+          return { how: 'shared' };
+        }
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return { how: 'cancelled' };
+        waLog('warn', 'WhatsApp web navigator.share fail', {
+          ...ctx,
+          path: 'pdf',
+          errorMessage: truncateShareError(err),
+        });
+      }
+    }
+
+    // Download PDF + open WhatsApp with text
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+    const phone = (shareInv.customerPhone || '').trim();
+    if (phone) {
+      window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+      return { how: 'text' };
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    return { how: 'downloaded' };
+  } catch (err) {
+    // ponytail: html2canvas fallback only if jsPDF itself fails (rare)
+    waLog('warn', 'WhatsApp web jsPDF failed, falling back to html2canvas', {
+      ...ctx,
+      path: 'pdf',
+      errorMessage: (err as Error)?.message,
+    });
+  }
+
+  const { html, filename: htmlFilename } = await buildStandaloneInvoiceHtml(shareInv, options);
   const how = await shareHtmlPdfViaWhatsApp({
     html,
-    filename,
+    filename: htmlFilename,
     phone: shareInv.customerPhone,
     message,
     logCtx: ctx,
