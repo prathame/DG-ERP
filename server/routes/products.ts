@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
@@ -77,6 +77,8 @@ router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res)
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       // Older schemas may lack products.category_id / reward_rules.category_id
       for (const sql of [
         'UPDATE products SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2',
@@ -599,6 +601,8 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     let created = 0;
     let stockAdded = 0;
     const details: { name: string; action: 'created' | 'stock_added'; quantity: number }[] = [];
@@ -777,6 +781,8 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
 
       const insertProductRow = async () => {
         await client.query(
@@ -1161,6 +1167,8 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       // Delete in order of foreign key dependencies (child tables first)
       const saleIds = (
         await client.query('SELECT id FROM product_sales WHERE product_id = $1 AND tenant_id = $2', [id, tenantId])

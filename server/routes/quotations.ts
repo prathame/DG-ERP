@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { hasExplicitUnitPrice, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
@@ -491,6 +491,8 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       let quote = (
         await client.query('SELECT * FROM quotations WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
           req.params.id,

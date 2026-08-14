@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
@@ -45,6 +45,8 @@ router.post('/api/banks/batch', requireAdmin, async (req: AuthRequest, res) => {
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     let count = 0;
     for (const r of items) {
       const name = String(r.name || '').trim();
@@ -106,16 +108,14 @@ router.post('/api/banks', requireAdmin, async (req: AuthRequest, res) => {
       [id, tenantId, name.trim(), accountNumber, bankName, branch, ifscCode],
     );
     const row = (await pool.query('SELECT * FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    res
-      .status(201)
-      .json({
-        id: row.id,
-        name: row.name,
-        accountNumber: row.account_number,
-        bankName: row.bank_name,
-        branch: row.branch,
-        ifscCode: row.ifsc_code,
-      });
+    res.status(201).json({
+      id: row.id,
+      name: row.name,
+      accountNumber: row.account_number,
+      bankName: row.bank_name,
+      branch: row.branch,
+      ifscCode: row.ifsc_code,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }

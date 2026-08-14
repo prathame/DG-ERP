@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit, isValidPhone } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { syncBooksSalaryToStaff } from '../services/booksSalaryToStaff';
@@ -86,6 +86,8 @@ router.post('/api/staff/batch', blockVendors, async (req: AuthRequest, res) => {
     }
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     let count = 0;
     for (const r of items) {
       const name = String(r.name).trim();

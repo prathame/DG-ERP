@@ -160,10 +160,23 @@ const _rawPoolQuery = pool.query.bind(pool);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (pool as any).query = async function tenantAwareQuery(textOrConfig: unknown, values?: unknown[]) {
+  // Circuit breaker: fail fast when the DB is known to be unhealthy.
+  // Previously only loggedQuery() checked this; since no routes use loggedQuery()
+  // the breaker had zero production effect. Checking here makes it apply to all
+  // pool.query() calls regardless of call site.
+  checkCircuit();
+
   const tenantId = requestContext.getStore()?.tenantId;
   if (!tenantId) {
     // No tenant context: platform query, test fixture, or initSchema — bypass.
-    return _rawPoolQuery(textOrConfig as string, values);
+    try {
+      const result = await _rawPoolQuery(textOrConfig as string, values);
+      recordDbSuccess();
+      return result;
+    } catch (err) {
+      recordDbFailure();
+      throw err;
+    }
   }
   const client = await pool.connect();
   try {
@@ -171,8 +184,10 @@ const _rawPoolQuery = pool.query.bind(pool);
     await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
     const result = await client.query(textOrConfig as string, values);
     await client.query('COMMIT');
+    recordDbSuccess();
     return result;
   } catch (err) {
+    recordDbFailure();
     try {
       await client.query('ROLLBACK');
     } catch {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
@@ -266,6 +266,8 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       if (isRcm && !resolvedInvoiceNumber) {
         resolvedInvoiceNumber = await allocateNextSelfInvoiceNumber(client, tenantId);
       }
@@ -680,6 +682,8 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
     if (parsedAmount > 100000000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     const supplier = (
       await client.query('SELECT id, name FROM suppliers WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
         supplierId,

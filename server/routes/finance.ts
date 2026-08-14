@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, AuthRequest, vendorScopeId, assertVendorAccess, assertVendorLinked } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postVendorPaymentToBooks } from '../services/opsToBooks';
@@ -246,6 +246,8 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
     const pMethod = paymentMethod || 'Cash';
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     if (idemKey) {
       const existing = (
         await client.query(
@@ -722,6 +724,8 @@ router.post('/api/vendor-finance/bank-statement/apply', blockVendors, async (req
 
     const importBatchId = uid('BSI');
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     let count = 0;
     const skipped: string[] = [];
     for (const p of payments) {
