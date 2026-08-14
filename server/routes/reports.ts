@@ -825,13 +825,20 @@ router.get('/api/reports/gstr1', async (req, res) => {
       )
     ).rows as Record<string, unknown>[];
 
-    // Credit notes for CDNR
+    // Credit notes for CDNR — only for registered buyers (vendor_id present with GSTIN)
+    // Unregistered buyer credit notes belong in CDNS (not yet implemented); include here
+    // only when a vendor with a GSTIN can be resolved. Fixes GSTN portal rejection.
     const cnRows = (
       await pool.query(
         `
-      SELECT note_number, note_date, customer_name, vendor_name, subtotal, gst_amount, total, reference_invoice, gst_rate
-      FROM credit_debit_notes
-      WHERE tenant_id = $1 AND note_date >= $2 AND note_date < $3 AND note_type = 'credit'
+      SELECT cdn.note_number, cdn.note_date, cdn.customer_name, cdn.vendor_name,
+             cdn.subtotal, cdn.gst_amount, cdn.total, cdn.reference_invoice, cdn.gst_rate,
+             v.gst_number AS vendor_gstin
+      FROM credit_debit_notes cdn
+      LEFT JOIN vendors v ON v.id = cdn.vendor_id AND v.tenant_id = cdn.tenant_id
+      WHERE cdn.tenant_id = $1 AND cdn.note_date >= $2 AND cdn.note_date < $3
+        AND cdn.note_type = 'credit'
+        AND v.gst_number IS NOT NULL AND LENGTH(v.gst_number) >= 15
     `,
         [tenantId, startDate, endDate],
       )
@@ -1088,11 +1095,20 @@ router.get('/api/reports/gstr1', async (req, res) => {
       };
     });
 
+    // gt = total invoice value for the period (B2B + B2CS + credit notes net)
+    const totalB2B = Object.values(b2bByGstin).reduce(
+      (s, g) => s + g.inv.reduce((is, inv) => is + Number(inv.val || 0), 0),
+      0,
+    );
+    const totalB2CS = Object.values(b2csGrouped).reduce((s, g) => s + (g.txval + g.camt + g.samt + g.iamt), 0);
+    const totalCDNR = cnRows.reduce((s, n) => s - Number(n.total || 0), 0); // deduct credit notes
+    const gt = Math.round((totalB2B + totalB2CS + totalCDNR) * 100) / 100;
+
     const gstr1 = {
       gstin: sellerGstin,
       fp: period,
-      gt: 0,
-      cur_gt: 0,
+      gt,
+      cur_gt: gt,
       disclaimer: 'Working draft for internal use — verify before GST portal upload.',
       b2b: Object.values(b2bByGstin),
       b2cs: Object.values(b2csGrouped).map(g => ({

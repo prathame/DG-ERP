@@ -87,4 +87,27 @@ export const migrations: Migration[] = [
       END $$;
     `,
   },
+
+  /**
+   * 0003 — Performance indexes for notification digest queries (Phase 2)
+   *
+   * buildDigests() runs 6 sequential pool.query() calls per /api/notifications
+   * request. Without compound indexes, each fires a full tenant partition scan.
+   */
+  {
+    id: '0003_notification_digest_indexes',
+    up: `
+      CREATE INDEX IF NOT EXISTS idx_pl_tenant_valid_to
+        ON price_lists(tenant_id, valid_to) WHERE is_active = true;
+
+      CREATE INDEX IF NOT EXISTS idx_quotations_tenant_valid_until
+        ON quotations(tenant_id, status, valid_until);
+
+      CREATE INDEX IF NOT EXISTS idx_warranties_tenant_status_expiry
+        ON warranties(tenant_id, status, expiry_date);
+
+      CREATE INDEX IF NOT EXISTS idx_vendor_payments_date
+        ON vendor_payments(tenant_id, payment_date);
+    `,
+  },
 ];
