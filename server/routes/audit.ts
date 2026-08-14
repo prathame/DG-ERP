@@ -108,6 +108,7 @@ router.get('/api/backup', requireAdmin, async (req: AuthRequest, res) => {
       'supplier_payments',
       'banks',
       'bill_settings',
+      'expenses',
       'staff_members',
       'staff_payments',
       'audit_log',
@@ -350,6 +351,14 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
     if (!data || !data._meta) return res.status(400).json({ error: 'Invalid backup file — missing _meta header' });
     if (data._meta.version !== '1.0')
       return res.status(400).json({ error: `Unsupported backup version: ${data._meta.version}` });
+
+    // Tenant safety: backup must belong to the authenticated tenant.
+    // Restoring another tenant's backup would overwrite this tenant's data with foreign records.
+    if (!data._meta.tenantId || data._meta.tenantId !== tenantId) {
+      return res.status(400).json({
+        error: 'Backup belongs to a different tenant and cannot be restored.',
+      });
+    }
 
     // H3: only clear/restore tables that have a column allowlist — never wipe
     // tables we cannot reinsert (staff_members, audit_log, rewards, etc.).
