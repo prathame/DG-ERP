@@ -160,7 +160,7 @@ router.get('/api/reports/distribution-register', async (req, res) => {
       const netPrice = Number(r.net_price ?? r.product_price ?? 0);
       const billedPrice = Number(r.billed_price ?? netPrice);
       const gstAmt = r.gst_applied ? billedPrice - netPrice : 0;
-      const halfGst = Math.round(gstAmt / 2);
+      const halfGst = Math.round((gstAmt / 2) * 100) / 100;
       return {
         batchId: r.batch_id,
         date: r.distribution_date,
@@ -652,7 +652,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       const net = Number(r.net_price ?? 0);
       const billed = Number(r.billed_price ?? net);
       const gstAmt = billed - net;
-      const halfGst = Math.round(gstAmt / 2);
+      const halfGst = Math.round((gstAmt / 2) * 100) / 100;
       const gstin = (r.vendor_gstin as string) || '';
       const hsn = (r.hsn_code as string) || 'N/A';
 
@@ -742,7 +742,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
         const hsn = String(it.hsnSac || 'N/A');
         const lineTaxable = Number(it.taxable) || 0;
         const lineTax = Number(it.tax) || 0;
-        const half = Math.round(lineTax / 2);
+        const half = Math.round((lineTax / 2) * 100) / 100;
         if (!hsnMap[hsn])
           hsnMap[hsn] = {
             hsn,
@@ -887,7 +887,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
       const net = Number(r.net_price) || Number(r.product_price) || 0;
       const billed = Number(r.billed_price) || net;
       const gstAmt = billed - net;
-      const halfGst = Math.round(gstAmt / 2);
+      const halfGst = Math.round((gstAmt / 2) * 100) / 100;
       const gstin = (r.vendor_gstin as string) || '';
       const hsn = (r.hsn_code as string) || '';
       const gstRate = Number(r.gst_rate) || 18;

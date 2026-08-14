@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { hasExplicitUnitPrice, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 
 const router = Router();
 
@@ -723,23 +724,23 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
            WHERE id = $4 AND tenant_id = $5`,
           [newStatus, JSON.stringify(items), invoiceId, req.params.id, tenantId],
         );
-        try {
-          await postStandaloneInvoiceToBooks(client, tenantId, {
-            id: invoiceId,
-            invoiceNumber,
-            customerName: String(quote.customer_name || quote.vendor_name || 'Customer'),
-            partyId: (quote.vendor_id as string) || null,
-            grandTotal,
-            subtotal,
-            taxCgst,
-            taxSgst,
-            taxIgst,
-            invoiceDate: date,
-            notes: quote.notes ? String(quote.notes) : `From quotation ${quote.quotation_number}`,
-          });
-        } catch {
-          /* Books dual-write must not block quote convert */
-        }
+        await withBooks(
+          () =>
+            postStandaloneInvoiceToBooks(client, tenantId, {
+              id: invoiceId,
+              invoiceNumber,
+              customerName: String(quote.customer_name || quote.vendor_name || 'Customer'),
+              partyId: (quote.vendor_id as string) || null,
+              grandTotal,
+              subtotal,
+              taxCgst,
+              taxSgst,
+              taxIgst,
+              invoiceDate: date,
+              notes: quote.notes ? String(quote.notes) : `From quotation ${quote.quotation_number}`,
+            }),
+          'quote-convert-invoice',
+        );
         await client.query('COMMIT');
         await logAudit(
           pool,

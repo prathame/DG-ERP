@@ -4,6 +4,7 @@ import { pool } from '../pg-db';
 import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 
 const router = Router();
 
@@ -345,7 +346,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
           'INSERT INTO supplier_payments (id, tenant_id, supplier_id, amount, payment_date, payment_method, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
           [payId, tenantId, supplierId, paidAmount, date, 'Cash', `Payment with purchase ${batchId}`, batchId],
         );
-        try {
+        await withBooks(async () => {
           await postPurchaseBatchToBooks(client, tenantId, {
             batchId,
             supplierId,
@@ -362,21 +363,19 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
             supplierId,
             supplierName: supplier.name,
           });
-        } catch {
-          /* Books dual-write must not block purchases */
-        }
+        }, 'purchase-batch-with-payment');
       } else {
-        try {
-          await postPurchaseBatchToBooks(client, tenantId, {
-            batchId,
-            supplierId,
-            supplierName: supplier.name,
-            billValue: totalBilled,
-            purchaseDate: date,
-          });
-        } catch {
-          /* Books dual-write must not block purchases */
-        }
+        await withBooks(
+          () =>
+            postPurchaseBatchToBooks(client, tenantId, {
+              batchId,
+              supplierId,
+              supplierName: supplier.name,
+              billValue: totalBilled,
+              purchaseDate: date,
+            }),
+          'purchase-batch',
+        );
       }
       await client.query('COMMIT');
     } catch (e) {
@@ -751,20 +750,20 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
         batchId || null,
       ],
     );
-    try {
-      await postSupplierPaymentToBooks(client, tenantId, {
-        id,
-        amount: parsedAmount,
-        paymentDate: paymentDate || new Date().toISOString().slice(0, 10),
-        paymentMethod: paymentMethod || 'Cash',
-        referenceNumber: referenceNumber || null,
-        notes: notes || null,
-        supplierId,
-        supplierName: supplier.name,
-      });
-    } catch {
-      /* Books dual-write must not block supplier payments */
-    }
+    await withBooks(
+      () =>
+        postSupplierPaymentToBooks(client, tenantId, {
+          id,
+          amount: parsedAmount,
+          paymentDate: paymentDate || new Date().toISOString().slice(0, 10),
+          paymentMethod: paymentMethod || 'Cash',
+          referenceNumber: referenceNumber || null,
+          notes: notes || null,
+          supplierId,
+          supplierName: supplier.name,
+        }),
+      'supplier-payment',
+    );
     await client.query('COMMIT');
     const row = (await pool.query('SELECT * FROM supplier_payments WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
       .rows[0] as Record<string, unknown>;

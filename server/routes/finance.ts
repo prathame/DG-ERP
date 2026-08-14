@@ -4,6 +4,7 @@ import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postVendorPaymentToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 import { listRemindersDue, markReminderSentDate, runAutoWhatsAppReminders } from '../services/paymentReminderOps';
 
 const router = Router();
@@ -91,11 +92,16 @@ router.post('/api/vendor-finance/reminders-run', async (req: AuthRequest, res) =
 
     let tenantId: string | undefined;
     if (isCron) {
-      tenantId =
+      const candidateId =
         (typeof req.body?.tenantId === 'string' && req.body.tenantId.trim()) ||
         (typeof req.query.tenantId === 'string' && String(req.query.tenantId).trim()) ||
         (req.headers['x-tenant-id'] as string | undefined);
-      if (!tenantId) return res.status(400).json({ error: 'tenantId required for cron run' });
+      if (!candidateId) return res.status(400).json({ error: 'tenantId required for cron run' });
+      // Validate the cron-supplied tenantId actually exists — prevents running reminders
+      // for arbitrary tenants if CRON_SECRET is ever leaked.
+      const tenantRow = (await pool.query('SELECT id FROM tenants WHERE id = $1', [candidateId])).rows[0];
+      if (!tenantRow) return res.status(404).json({ error: 'Tenant not found' });
+      tenantId = candidateId;
     } else {
       // Inline admin + non-vendor gate (avoid awkward multi-middleware auth fork)
       if (!req.user) return res.status(401).json({ error: 'Authentication required' });
@@ -312,6 +318,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
 
       const id = uid('VP');
       responseId = id;
+      await client.query('SAVEPOINT before_vendor_payment_insert');
       try {
         await client.query(
           `INSERT INTO vendor_payments
@@ -330,9 +337,12 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
             idemKey,
           ],
         );
+        await client.query('RELEASE SAVEPOINT before_vendor_payment_insert');
       } catch (insErr) {
         const code = (insErr as { code?: string }).code;
         if (code === '23505' && idemKey) {
+          await client.query('ROLLBACK TO SAVEPOINT before_vendor_payment_insert');
+          await client.query('RELEASE SAVEPOINT before_vendor_payment_insert');
           const existing = (
             await client.query(
               `SELECT id, amount, payment_date, payment_method, reference_number, notes
@@ -364,20 +374,20 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         }
         throw insErr;
       }
-      try {
-        await postVendorPaymentToBooks(client, tenantId, {
-          id,
-          amount: parsedAmount,
-          paymentDate: pDate,
-          paymentMethod: pMethod,
-          referenceNumber: referenceNumber || null,
-          notes: notes || null,
-          vendorId,
-          vendorName,
-        });
-      } catch {
-        /* Books dual-write must not block vendor payment */
-      }
+      await withBooks(
+        () =>
+          postVendorPaymentToBooks(client, tenantId, {
+            id,
+            amount: parsedAmount,
+            paymentDate: pDate,
+            paymentMethod: pMethod,
+            referenceNumber: referenceNumber || null,
+            notes: notes || null,
+            vendorId,
+            vendorName,
+          }),
+        'vendor-payment-batch',
+      );
       await client.query('COMMIT');
       logAudit(
         pool,
@@ -455,7 +465,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         return res.status(400).json({ error: 'Vendor balance is already fully paid' });
       }
       responseId = firstId;
-      try {
+      await withBooks(async () => {
         for (const p of postedPays) {
           await postVendorPaymentToBooks(client, tenantId, {
             id: p.id,
@@ -468,9 +478,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
             vendorName,
           });
         }
-      } catch {
-        /* Books dual-write must not block vendor payment */
-      }
+      }, 'vendor-payment-all-batches');
       await client.query('COMMIT');
       logAudit(
         pool,
@@ -771,25 +779,25 @@ router.post('/api/vendor-finance/bank-statement/apply', blockVendors, async (req
         'INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
         [id, tenantId, p.vendorId, amount, payDate, 'Bank Statement', p.reference || null, payNotes, p.batchId || null],
       );
-      try {
-        const vName =
-          (
-            (await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [p.vendorId, tenantId]))
-              .rows[0] as { name: string } | undefined
-          )?.name ?? p.vendorId;
-        await postVendorPaymentToBooks(client, tenantId, {
-          id,
-          amount,
-          paymentDate: payDate,
-          paymentMethod: 'Bank Statement',
-          referenceNumber: p.reference || null,
-          notes: payNotes,
-          vendorId: p.vendorId,
-          vendorName: vName,
-        });
-      } catch {
-        /* Books dual-write must not block bank-statement apply */
-      }
+      const vName =
+        (
+          (await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [p.vendorId, tenantId]))
+            .rows[0] as { name: string } | undefined
+        )?.name ?? p.vendorId;
+      await withBooks(
+        () =>
+          postVendorPaymentToBooks(client, tenantId, {
+            id,
+            amount,
+            paymentDate: payDate,
+            paymentMethod: 'Bank Statement',
+            referenceNumber: p.reference || null,
+            notes: payNotes,
+            vendorId: p.vendorId,
+            vendorName: vName,
+          }),
+        'bank-statement-vendor-payment',
+      );
       count++;
     }
     await client.query('COMMIT');

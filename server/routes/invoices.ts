@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
 
 const router = Router();
@@ -402,23 +403,23 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
         }
         throw insErr;
       }
-      try {
-        await postStandaloneInvoiceToBooks(client, tenantId, {
-          id,
-          invoiceNumber: finalNumber,
-          customerName,
-          partyId: resolvedPartyId,
-          grandTotal,
-          subtotal,
-          taxCgst,
-          taxSgst,
-          taxIgst,
-          invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10),
-          notes: notes || null,
-        });
-      } catch {
-        /* Books dual-write must not block invoice create */
-      }
+      await withBooks(
+        () =>
+          postStandaloneInvoiceToBooks(client, tenantId, {
+            id,
+            invoiceNumber: finalNumber,
+            customerName,
+            partyId: resolvedPartyId,
+            grandTotal,
+            subtotal,
+            taxCgst,
+            taxSgst,
+            taxIgst,
+            invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10),
+            notes: notes || null,
+          }),
+        'invoice-create',
+      );
       await client.query('COMMIT');
     } catch (err) {
       try {
