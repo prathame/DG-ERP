@@ -47,7 +47,8 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 ## Tech Stack
 
 - **Frontend**: React 19, Vite 6, Tailwind CSS, Motion
-- **Backend**: Node.js, Express 4, PostgreSQL 16 (RLS per tenant)
+- **Backend**: Node.js, Express 4, PostgreSQL 16
+- **Multi-tenancy**: FORCE ROW LEVEL SECURITY on all 31 tenant tables; 4-layer isolation (JWT → pool.query override → setTenantContext → FORCE RLS)
 - **Auth**: JWT (HS256, 24h), bcrypt
 - **Desktop**: Electron (cloud wrapper + on-prem with embedded PostgreSQL)
 - **Clients**: Responsive web + unified Desktop Electron (Online/Offline) + unified Cap phone (Online/Offline)
@@ -144,6 +145,11 @@ Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform
 | [`DEVELOPER.md`](DEVELOPER.md) | Architecture, routes, Electron, platforms |
 | [`src/platforms/README.md`](src/platforms/README.md) | Shared, Electron, Service Mobile |
 | [`electron/README.md`](electron/README.md) | Unified Desktop Electron |
+| [`docs/PRODUCTION_ARCHITECTURE.md`](docs/PRODUCTION_ARCHITECTURE.md) | System diagram, scaling, infrastructure |
+| [`docs/PRODUCTION_READINESS_2026.md`](docs/PRODUCTION_READINESS_2026.md) | Launch checklist, RPO/RTO, known gaps |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | On-call runbook — incidents, rollback, DB recovery |
+| [`docs/FINAL_PRE_LAUNCH_AUDIT_2026.md`](docs/FINAL_PRE_LAUNCH_AUDIT_2026.md) | 30-section master audit — all findings and verdicts |
+| [`engineering-academy/`](engineering-academy/) | Internal onboarding portal (Docusaurus) |
 | Super Admin → **Guide** | Operator how-tos inside the product |
 
 ---
