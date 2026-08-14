@@ -17,6 +17,7 @@ import {
   IndianRupee,
   Clock,
   Printer,
+  Users,
 } from 'lucide-react';
 import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
@@ -103,10 +104,6 @@ export function VendorMasterView({
     notes: '',
   });
   const [paySubmitting, setPaySubmitting] = useState(false);
-  /** Service: invoice / advance totals keyed by vendor id (from Invoice Finance summary). */
-  const [clientFinance, setClientFinance] = useState<
-    Map<string, { invoiceCount: number; totalPaid: number; balance: number }>
-  >(new Map());
 
   const load = () => {
     api.vendors
@@ -121,39 +118,16 @@ export function VendorMasterView({
     onRefresh();
   };
   useEffect(() => {
-    setLoading(true);
-    load();
-  }, [debouncedSearch]);
-
-  useEffect(() => {
-    if (!isServiceBusiness) {
-      setClientFinance(new Map());
+    // Service Directory is create-only — no client record list / finance summary.
+    if (isServiceBusiness) {
+      setList([]);
+      setLoading(false);
+      onRefresh();
       return;
     }
-    let cancelled = false;
-    api.invoiceFinance
-      .summary()
-      .then(rows => {
-        if (cancelled) return;
-        const m = new Map<string, { invoiceCount: number; totalPaid: number; balance: number }>();
-        for (const r of Array.isArray(rows) ? rows : []) {
-          if (r.partyType === 'vendor' && r.partyId) {
-            m.set(r.partyId, {
-              invoiceCount: Number(r.invoiceCount) || 0,
-              totalPaid: Number(r.totalPaid) || 0,
-              balance: Number(r.balance) || 0,
-            });
-          }
-        }
-        setClientFinance(m);
-      })
-      .catch(() => {
-        if (!cancelled) setClientFinance(new Map());
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isServiceBusiness, list]);
+    setLoading(true);
+    load();
+  }, [debouncedSearch, isServiceBusiness]);
 
   const partyKeyFor = (v: Vendor) => `vendor:${v.id}`;
 
@@ -190,9 +164,9 @@ export function VendorMasterView({
     loadDetail(v);
   };
 
-  // Masters hub → Client row: jump straight into that client’s invoice hub (service only)
+  // Non-service: Masters hub deep-link into party invoice hub.
   useEffect(() => {
-    if (!isServiceBusiness || focusedInitial || !initialVendorId || loading) return;
+    if (isServiceBusiness || focusedInitial || !initialVendorId || loading) return;
     const v = list.find(x => x.id === initialVendorId);
     if (v) {
       selectClient(v);
@@ -460,8 +434,9 @@ export function VendorMasterView({
       .catch(err => toast(err.message, 'error'));
   };
 
-  // Hub deep-link: wait until the named client is selected (avoid list flash) — service only
-  if (isServiceBusiness && initialVendorId && !focusedInitial && !selected) {
+  // Hub deep-link into Collections-style invoice hub is disabled for service (use Collections tab).
+  // Non-service: wait until the named party is selected (avoid list flash).
+  if (!isServiceBusiness && initialVendorId && !focusedInitial && !selected) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-16 text-center">
         <LoadingSpinner />
@@ -469,8 +444,8 @@ export function VendorMasterView({
     );
   }
 
-  // ── Client detail hub (invoices + payments; Back → list) ──────────────────
-  if (selected) {
+  // ── Client detail hub (invoices + payments; Back → list) — not used for service ──
+  if (selected && !isServiceBusiness) {
     const overallPaid = detail ? isBillFullyPaid(detail.totalInvoiced, detail.balance) : false;
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 pb-8">
@@ -840,35 +815,37 @@ export function VendorMasterView({
           </h2>
           <p className={cn('text-sm', desktopGlass ? 'dg-muted opacity-80' : 'text-gray-500')}>
             {isServiceBusiness
-              ? `Tap a ${label.toLowerCase()} for invoices & payments`
+              ? 'Add client profiles here. Use Collections for invoices & payments'
               : `Manage your business ${label.toLowerCase()} records and GST details`}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() =>
-              list.length &&
-              exportToCsv(
-                list.map(v => ({
-                  id: v.id,
-                  name: v.name,
-                  contactPerson: v.contactPerson ?? '',
-                  phone: v.phone ?? '',
-                  email: v.email ?? '',
-                  address: v.address ?? '',
-                  totalSales: v.totalSales ?? 0,
-                  totalRewardPoints: v.totalRewardPoints ?? 0,
-                })),
-                'vendors',
-              )
-            }
-            disabled={!list.length}
-            className={btnGhost}
-          >
-            <Download size={18} /> Export CSV
-          </button>
-          {list.length > 0 && (
+          {!isServiceBusiness && (
+            <button
+              type="button"
+              onClick={() =>
+                list.length &&
+                exportToCsv(
+                  list.map(v => ({
+                    id: v.id,
+                    name: v.name,
+                    contactPerson: v.contactPerson ?? '',
+                    phone: v.phone ?? '',
+                    email: v.email ?? '',
+                    address: v.address ?? '',
+                    totalSales: v.totalSales ?? 0,
+                    totalRewardPoints: v.totalRewardPoints ?? 0,
+                  })),
+                  'vendors',
+                )
+              }
+              disabled={!list.length}
+              className={btnGhost}
+            >
+              <Download size={18} /> Export CSV
+            </button>
+          )}
+          {!isServiceBusiness && list.length > 0 && (
             <button
               type="button"
               onClick={async () => {
@@ -904,117 +881,31 @@ export function VendorMasterView({
       </div>
 
       {isServiceBusiness ? (
-        <>
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder={`Search ${label.toLowerCase()}s...`}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-            />
+        <div
+          className={cn(
+            'rounded-2xl border border-dashed p-8 sm:p-12 text-center space-y-4',
+            desktopGlass ? 'border-[var(--dg-card-border)] bg-[var(--dg-card)]' : 'border-gray-200 bg-white',
+          )}
+        >
+          <Users className={cn('mx-auto opacity-40', desktopGlass ? 'dg-muted' : 'text-gray-400')} size={40} />
+          <div className="space-y-1">
+            <p className={cn('font-bold text-base', desktopGlass ? 'dg-ink' : 'text-gray-800')}>
+              Create {label.toLowerCase()}s
+            </p>
+            <p className={cn('text-sm max-w-md mx-auto', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
+              Directory only adds profiles. Open <span className="font-semibold">Collections</span> to see the same
+              parties with invoices, advances, and payments — no duplicate list here.
+            </p>
           </div>
-
-          {loading && (
-            <div className="py-16 text-center">
-              <LoadingSpinner />
-            </div>
-          )}
-
-          {/* Client cards — tap opens invoice hub (Edit/Delete do not) */}
-          {!loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {list.map(v => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => selectClient(v)}
-                  className="text-left p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-md transition-all"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-gray-800 truncate">{v.name}</span>
-                    <div className="flex gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          openEdit(v);
-                        }}
-                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
-                        aria-label={`Edit ${v.name}`}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          setDeleteTarget(v);
-                        }}
-                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
-                        aria-label={`Delete ${v.name}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
-                  {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
-                  {v.gstNumber && <p className="text-[10px] font-mono text-gray-400 mt-1">GSTIN: {v.gstNumber}</p>}
-                  {label === 'Vendor' && (v.totalSales || v.totalRewardPoints) ? (
-                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                      {typeof v.totalSales === 'number' && v.totalSales > 0 && (
-                        <span>
-                          Sales: <b>₹{v.totalSales.toLocaleString('en-IN')}</b>
-                        </span>
-                      )}
-                      {typeof v.totalRewardPoints === 'number' && v.totalRewardPoints > 0 && (
-                        <span>
-                          Pts: <b className="text-emerald-600">{v.totalRewardPoints}</b>
-                        </span>
-                      )}
-                    </div>
-                  ) : null}
-                  {isServiceBusiness &&
-                    (() => {
-                      const fin = clientFinance.get(v.id);
-                      if (!fin) {
-                        return <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>;
-                      }
-                      const invLabel =
-                        fin.invoiceCount === 0
-                          ? fin.totalPaid > 0
-                            ? 'No invoices · payments recorded'
-                            : 'No invoices yet'
-                          : `${fin.invoiceCount} invoice${fin.invoiceCount !== 1 ? 's' : ''}`;
-                      return (
-                        <p className="text-[10px] text-brand font-medium mt-2">
-                          {invLabel}
-                          {fin.invoiceCount > 0 || fin.totalPaid > 0 ? ' · Tap to open' : ''}
-                        </p>
-                      );
-                    })()}
-                  {!isServiceBusiness && (
-                    <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>
-                  )}
-                </button>
-              ))}
-              {list.length === 0 && !search && (
-                <div className="col-span-full py-16 text-center text-gray-400">
-                  <FileText size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No {label.toLowerCase()}s yet</p>
-                  <p className="text-sm mt-1">Click “Add {label}” to get started</p>
-                </div>
-              )}
-              {list.length === 0 && search && (
-                <div className="col-span-full py-12 text-center text-gray-400 text-sm">
-                  No matching {label.toLowerCase()}s
-                </div>
-              )}
-            </div>
-          )}
-        </>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <button type="button" onClick={openAdd} className={btnPrimary}>
+              <Plus size={18} /> Add {label}
+            </button>
+            <button type="button" onClick={() => setCsvImportOpen(true)} className={btnGhost}>
+              <Upload size={18} /> Import CSV
+            </button>
+          </div>
+        </div>
       ) : (
         <div
           className={cn(

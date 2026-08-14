@@ -57,7 +57,7 @@ export function ServiceClientsHub({
     {
       id: 'directory',
       label: 'Directory',
-      hint: 'Clients, prices, banks, staff',
+      hint: 'Add clients, prices, banks, staff',
       icon: <Users size={16} />,
       show: canDirectory,
     },
@@ -79,7 +79,7 @@ export function ServiceClientsHub({
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Clients & collections</h1>
           <p className="text-sm text-slate-500">
-            One place for service parties — directory for master data, collections for money due
+            Directory creates client profiles; Collections is where you see invoices and payments
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -19,6 +19,7 @@ const DESCRIPTIONS: Partial<Record<MasterType, string>> = {
   bank: 'Bank accounts, IFSC, and reconciliation setup.',
   staff: 'Employee directory, roles, and payroll identifiers.',
   expenses: 'Expense categories and purchase ledger mapping.',
+  collections: 'Who owes money — receive payments and track advances.',
   priceList: 'Multi-tier pricing and discount rules.',
   rewardRules: 'Loyalty points, thresholds, and reward campaigns.',
   mapping: 'Link vendors to customers for sales and distribution.',
@@ -32,6 +33,7 @@ const CTA: Partial<Record<MasterType, string>> = {
   bank: 'Open Banks',
   staff: 'Open Staff',
   expenses: 'Open Expenses',
+  collections: 'Open Collections',
   priceList: 'Open Price List',
   rewardRules: 'Open Reward Rules',
   mapping: 'Open Mapping',
@@ -110,7 +112,8 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
             type="button"
             onClick={() => {
               // Prefer a master that stays in Masters (item/expenses are tab shortcuts).
-              const first = masters.find(m => m.id !== 'item' && m.id !== 'expenses') ?? masters[0];
+              const first =
+                masters.find(m => m.id !== 'item' && m.id !== 'expenses' && m.id !== 'collections') ?? masters[0];
               if (first) onOpen(first.id);
             }}
             className="px-6 py-2.5 dg-bg-primary font-bold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all"

@@ -21,6 +21,7 @@ const COUNT_SUFFIX: Partial<Record<MasterType, string>> = {
   bank: 'Accounts',
   staff: 'Employees',
   expenses: '',
+  collections: '',
   priceList: '',
   rewardRules: '',
   mapping: '',

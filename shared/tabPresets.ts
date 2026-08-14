@@ -86,7 +86,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   }),
   /** Service / consulting — Miracle CMP → clients, invoices & payments; ledgers/vouchers under Accounts */
   service: baseAllVisible({
-    /** Sidebar: Clients hub (Directory + Collections); finance tab id kept for deep links / SA */
+    /** Sidebar: Clients (masters) + Collections under Transactions; finance tab id for deep links / SA */
     masters: { label: 'Clients', visible: true },
     inventory: { label: 'Inventory', visible: false },
     distribution: { label: 'Distribution', visible: false },
