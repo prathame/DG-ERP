@@ -118,13 +118,6 @@ export function VendorMasterView({
     onRefresh();
   };
   useEffect(() => {
-    // Service Directory is create-only — no client record list / finance summary.
-    if (isServiceBusiness) {
-      setList([]);
-      setLoading(false);
-      onRefresh();
-      return;
-    }
     setLoading(true);
     load();
   }, [debouncedSearch, isServiceBusiness]);
@@ -815,37 +808,35 @@ export function VendorMasterView({
           </h2>
           <p className={cn('text-sm', desktopGlass ? 'dg-muted opacity-80' : 'text-gray-500')}>
             {isServiceBusiness
-              ? 'Add client profiles here. Use Collections for invoices & payments'
+              ? 'Client profiles (Miracle + manual). Use Collections for invoices & payments'
               : `Manage your business ${label.toLowerCase()} records and GST details`}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {!isServiceBusiness && (
-            <button
-              type="button"
-              onClick={() =>
-                list.length &&
-                exportToCsv(
-                  list.map(v => ({
-                    id: v.id,
-                    name: v.name,
-                    contactPerson: v.contactPerson ?? '',
-                    phone: v.phone ?? '',
-                    email: v.email ?? '',
-                    address: v.address ?? '',
-                    totalSales: v.totalSales ?? 0,
-                    totalRewardPoints: v.totalRewardPoints ?? 0,
-                  })),
-                  'vendors',
-                )
-              }
-              disabled={!list.length}
-              className={btnGhost}
-            >
-              <Download size={18} /> Export CSV
-            </button>
-          )}
-          {!isServiceBusiness && list.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              list.length &&
+              exportToCsv(
+                list.map(v => ({
+                  id: v.id,
+                  name: v.name,
+                  contactPerson: v.contactPerson ?? '',
+                  phone: v.phone ?? '',
+                  email: v.email ?? '',
+                  address: v.address ?? '',
+                  totalSales: v.totalSales ?? 0,
+                  totalRewardPoints: v.totalRewardPoints ?? 0,
+                })),
+                'vendors',
+              )
+            }
+            disabled={!list.length}
+            className={btnGhost}
+          >
+            <Download size={18} /> Export CSV
+          </button>
+          {list.length > 0 && (
             <button
               type="button"
               onClick={async () => {
@@ -881,31 +872,74 @@ export function VendorMasterView({
       </div>
 
       {isServiceBusiness ? (
-        <div
-          className={cn(
-            'rounded-2xl border border-dashed p-8 sm:p-12 text-center space-y-4',
-            desktopGlass ? 'border-[var(--dg-card-border)] bg-[var(--dg-card)]' : 'border-gray-200 bg-white',
+        <>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder={`Search ${label.toLowerCase()}s...`}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+            />
+          </div>
+
+          {loading && (
+            <div className="py-16 text-center">
+              <LoadingSpinner />
+            </div>
           )}
-        >
-          <Users className={cn('mx-auto opacity-40', desktopGlass ? 'dg-muted' : 'text-gray-400')} size={40} />
-          <div className="space-y-1">
-            <p className={cn('font-bold text-base', desktopGlass ? 'dg-ink' : 'text-gray-800')}>
-              Create {label.toLowerCase()}s
-            </p>
-            <p className={cn('text-sm max-w-md mx-auto', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
-              Directory only adds profiles. Open <span className="font-semibold">Collections</span> to see the same
-              parties with invoices, advances, and payments — no duplicate list here.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            <button type="button" onClick={openAdd} className={btnPrimary}>
-              <Plus size={18} /> Add {label}
-            </button>
-            <button type="button" onClick={() => setCsvImportOpen(true)} className={btnGhost}>
-              <Upload size={18} /> Import CSV
-            </button>
-          </div>
-        </div>
+
+          {/* Profile cards only — invoices/payments stay under Collections */}
+          {!loading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {list.map(v => (
+                <div
+                  key={v.id}
+                  className="text-left p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-gray-800 truncate">{v.name}</span>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(v)}
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
+                        aria-label={`Edit ${v.name}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(v)}
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                        aria-label={`Delete ${v.name}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
+                  {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
+                  {v.gstNumber && <p className="text-[10px] font-mono text-gray-400 mt-1">GSTIN: {v.gstNumber}</p>}
+                  <p className="text-[10px] text-gray-400 mt-2">Profile · invoices & payments in Collections</p>
+                </div>
+              ))}
+              {list.length === 0 && !search && (
+                <div className="col-span-full py-16 text-center text-gray-400">
+                  <Users size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No {label.toLowerCase()}s yet</p>
+                  <p className="text-sm mt-1">Add a {label.toLowerCase()}, import CSV, or run Miracle import</p>
+                </div>
+              )}
+              {list.length === 0 && search && (
+                <div className="col-span-full py-12 text-center text-gray-400 text-sm">
+                  No matching {label.toLowerCase()}s
+                </div>
+              )}
+            </div>
+          )}
+        </>
       ) : (
         <div
           className={cn(
