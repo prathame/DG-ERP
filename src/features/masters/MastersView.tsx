@@ -642,13 +642,13 @@ export function MastersView({
             <LoadingSpinner />
           </div>
         ) : showList && active === 'vendor' ? (
-          serviceCatalogUx || vendors.length === 0 ? (
+          vendors.length === 0 ? (
             <MobileEmptyState
               icon={<Truck />}
               title={t('masters.noClientsYet')}
               subtitle={
                 serviceCatalogUx
-                  ? 'Add clients here. Use Collections for invoices & payments.'
+                  ? 'Add clients, import CSV, or run Miracle import. Money stays in Collections.'
                   : t('masters.addFirstPartner')
               }
               actionLabel={`${t('common.add')} ${fabLabel}`}
@@ -663,11 +663,13 @@ export function MastersView({
                     title={v.name}
                     subtitle={v.gstNumber ? `GSTIN: ${v.gstNumber}` : v.phone || v.contactPerson || '—'}
                     trailing={
-                      typeof v.totalSales === 'number' && v.totalSales > 0
+                      !serviceCatalogUx && typeof v.totalSales === 'number' && v.totalSales > 0
                         ? `₹${v.totalSales.toLocaleString('en-IN')}`
                         : undefined
                     }
-                    meta={typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined}
+                    meta={
+                      !serviceCatalogUx && typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined
+                    }
                     onClick={() => openFull('vendor')}
                   />
                 </Fragment>
