@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
@@ -177,6 +177,7 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
       const wClient = await pool.connect();
       try {
         await wClient.query('BEGIN');
+        await setTenantContext(wClient, tenantId);
         const [firstBc, secondBc] = [oldBc, newBc].sort();
         await wClient.query(
           `SELECT 1 FROM product_distribution WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
