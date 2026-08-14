@@ -137,18 +137,58 @@ describe('Full backup → restore cycle', () => {
     expect(ids).not.toContain('PROD-OTHER-001');
   });
 
-  it('backup includes products but NOT expenses (expenses not in backup table list)', async () => {
-    // NOTE: The backup does NOT include 'expenses' — only restore allows it.
-    // This is a known gap: expenses created since last backup will be lost on restore.
-    const products = backupData.products as Array<{ id: string }> | undefined;
-    expect(Array.isArray(products)).toBe(true);
-    expect((products ?? []).length).toBeGreaterThan(0);
-    // expenses key may be absent
-    const expenses = backupData.expenses;
-    // Either absent or empty — expenses are not in the backup export list
-    if (expenses !== undefined) {
-      expect(Array.isArray(expenses)).toBe(true);
+  it('backup NOW includes expenses (P1 fix verified)', async () => {
+    // P1 fix: expenses was missing from the backup export table list.
+    // It has been added. Verify expenses are exported.
+    const expenses = backupData.expenses as Array<{ id: string; category: string; amount: number }> | undefined;
+    expect(Array.isArray(expenses)).toBe(true);
+    const ids = (expenses ?? []).map(e => e.id);
+    expect(ids).toContain('EXP-BKUP-001');
+    expect(ids).toContain('EXP-BKUP-002');
+    // Expenses must only belong to Tenant T
+    for (const e of expenses ?? []) {
+      expect((e as Record<string, unknown>).tenant_id).toBe(T);
     }
+  });
+
+  it('REGRESSION: Create expense → backup → delete expense → restore → expense exists', async () => {
+    // 1. Create a fresh expense
+    const expenseR = await api()
+      .post('/api/expenses')
+      .set(hdrs)
+      .send({
+        category: 'Training',
+        description: 'Staff training workshop',
+        amount: 12000,
+        expenseDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: 'Bank Transfer',
+      });
+    expect([200, 201]).toContain(expenseR.status);
+    const expenseId = expenseR.body?.id;
+    expect(expenseId).toBeDefined();
+
+    // 2. Take a fresh backup (includes the new expense)
+    const freshBackup = (await api().get('/api/backup').set(hdrs)).body;
+    const freshExpenses = freshBackup.expenses as Array<{ id: string; category: string; amount: number }>;
+    expect(freshExpenses.some(e => e.id === expenseId)).toBe(true);
+
+    // 3. Delete the expense
+    await pool.query('DELETE FROM expenses WHERE id = $1 AND tenant_id = $2', [expenseId, T]);
+    const afterDelete = (await pool.query('SELECT id FROM expenses WHERE id = $1 AND tenant_id = $2', [expenseId, T]))
+      .rows;
+    expect(afterDelete).toHaveLength(0);
+
+    // 4. Restore the backup
+    const restoreR = await api().post('/api/backup/restore').set(hdrs).send(freshBackup);
+    expect([200, 201]).toContain(restoreR.status);
+
+    // 5. Expense must be back with correct values
+    const restored = (await pool.query('SELECT * FROM expenses WHERE id = $1 AND tenant_id = $2', [expenseId, T]))
+      .rows[0] as Record<string, unknown> | undefined;
+    expect(restored).toBeDefined();
+    expect(restored?.category).toBe('Training');
+    expect(Number(restored?.amount)).toBe(12000);
+    expect(restored?.tenant_id).toBe(T);
   });
 
   it('restore own backup — products and vendors restored', async () => {
@@ -185,33 +225,44 @@ describe('Full backup → restore cycle', () => {
 
 // ─── Cross-tenant isolation ───────────────────────────────────────────────────
 
-describe('Cross-tenant restore isolation', () => {
-  it('restore with T_OTHER JWT: restore uses JWT tenant, not backup tenant_id', async () => {
-    // The restore endpoint (line 390 in audit.ts) forcibly overwrites each row's
-    // tenant_id with the JWT tenant. So sending T's backup with T_OTHER's JWT:
-    //   - DELETES T_OTHER's existing data
-    //   - INSERTS T's data but with tenant_id = T_OTHER
-    //   - T's original data is NOT affected
-    // This is the correct behavior: JWT tenant controls where data goes.
-    // A practical attack requires T_OTHER admin to obtain T's backup file first,
-    // which they cannot do via the API (backup endpoint is scoped to JWT tenant).
-
+describe('Cross-tenant restore isolation — tenant validation enforced', () => {
+  it('Tenant A backup + Tenant B JWT → 400 (tenant mismatch)', async () => {
+    // backupData._meta.tenantId = T (Tenant A).
+    // hdrsOther uses JWT for T_OTHER (Tenant B).
+    // The restore endpoint now validates these must match — returns 400 if not.
     const r = await api().post('/api/backup/restore').set(hdrsOther).send(backupData);
-    // Should succeed (200/201) or reject if _meta.tenant_id mismatch check is added
-    expect([200, 201, 400]).toContain(r.status);
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/different tenant|cannot be restored/i);
 
-    if (r.status === 200 || r.status === 201) {
-      // Verify T's ORIGINAL data is intact (cross-tenant leak = T's data appears in T_OTHER)
-      // The products ARE in T_OTHER now (with tenant_id=T_OTHER) — that's by design
-      // But T's data should still be in T unchanged
-      const tOriginalProducts = (
-        await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND id = ANY($2::text[])', [
-          T,
-          ['PROD-BKUP-001', 'PROD-BKUP-002'],
-        ])
-      ).rows;
-      expect(tOriginalProducts.length).toBeGreaterThan(0); // T's data not destroyed
-    }
+    // Crucially: Tenant T's product IDs must NOT have leaked into T_OTHER
+    const tProductsInOther = (
+      await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND id = ANY($2::text[])', [
+        T_OTHER,
+        ['PROD-BKUP-001', 'PROD-BKUP-002'],
+      ])
+    ).rows;
+    expect(tProductsInOther).toHaveLength(0);
+
+    // T's data must also be untouched
+    const tProducts = (
+      await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND id = ANY($2::text[])', [
+        T,
+        ['PROD-BKUP-001', 'PROD-BKUP-002'],
+      ])
+    ).rows;
+    expect(tProducts.length).toBe(2);
+  });
+
+  it('Tenant A backup + Tenant A JWT → 200/201 PASS (same tenant)', async () => {
+    const r = await api().post('/api/backup/restore').set(hdrs).send(backupData);
+    expect([200, 201]).toContain(r.status);
+  });
+
+  it('Backup with missing tenantId in _meta → 400', async () => {
+    const noTenantMeta = { ...backupData, _meta: { version: '1.0', exportedAt: new Date().toISOString() } };
+    const r = await api().post('/api/backup/restore').set(hdrs).send(noTenantMeta);
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/different tenant|cannot be restored/i);
   });
 
   it('Staff cannot access backup (Admin only)', async () => {
