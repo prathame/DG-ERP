@@ -97,8 +97,15 @@ router.post('/api/vendor-finance/reminders-run', async (req: AuthRequest, res) =
         (typeof req.query.tenantId === 'string' && String(req.query.tenantId).trim()) ||
         (req.headers['x-tenant-id'] as string | undefined);
       if (!candidateId) return res.status(400).json({ error: 'tenantId required for cron run' });
-      // Validate the cron-supplied tenantId actually exists — prevents running reminders
-      // for arbitrary tenants if CRON_SECRET is ever leaked.
+
+      // Authorization: if the request carries a tenant JWT (user is present), the cron
+      // may only run for that JWT's own tenant. This prevents a compromised CRON_SECRET
+      // from being used with a tenant A JWT to run reminders for tenant B.
+      if (req.user?.tenantId && req.user.tenantId !== candidateId) {
+        return res.status(403).json({ error: 'Cron request tenantId does not match authenticated JWT tenant.' });
+      }
+
+      // Validate the cron-supplied tenantId actually exists.
       const tenantRow = (await pool.query('SELECT id FROM tenants WHERE id = $1', [candidateId])).rows[0];
       if (!tenantRow) return res.status(404).json({ error: 'Tenant not found' });
       tenantId = candidateId;

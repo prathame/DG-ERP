@@ -887,8 +887,8 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   // ============ STAFF LOOKUP (fuzzy) ============
   const staffRows = (
     await pool.query(
-      "SELECT staff_name, SUM(amount) as total, COUNT(*) as payments, SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END) - SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END) as advance_bal FROM staff_payments WHERE LOWER(staff_name) LIKE $1 AND tenant_id = $2 GROUP BY staff_name",
-      [`%${q}%`, tenantId],
+      "SELECT staff_name, SUM(amount) as total, COUNT(*) as payments, SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END) - SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END) as advance_bal FROM staff_payments WHERE LOWER(staff_name) LIKE $1 ESCAPE '\\' AND tenant_id = $2 GROUP BY staff_name",
+      [`%${escapeLike(q)}%`, tenantId],
     )
   ).rows as { staff_name: string; total: number; payments: number; advance_bal: number }[];
   if (staffRows.length === 1) {
