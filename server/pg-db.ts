@@ -28,7 +28,12 @@ function recordDbFailure() {
     if (!_circuitOpen) {
       _circuitOpen = true;
       _circuitOpenedAt = Date.now();
-      logger.error('Database circuit breaker opened', { failures: _circuitFailures, resetMs: CIRCUIT_RESET_MS });
+      // alert: 'circuit_breaker_open' — configure Sentry/Logtail alert on this pattern
+      logger.error('Database circuit breaker opened', {
+        alert: 'circuit_breaker_open',
+        failures: _circuitFailures,
+        resetMs: CIRCUIT_RESET_MS,
+      });
     }
   }
 }
