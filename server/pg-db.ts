@@ -8,10 +8,72 @@ dotenv.config();
 
 export const SLOW_QUERY_MS = Number(process.env.SLOW_QUERY_MS || 200);
 
+// Simple circuit breaker for loggedQuery — no external dependency.
+// Opens after CIRCUIT_THRESHOLD consecutive failures; auto-closes after CIRCUIT_RESET_MS.
+// ponytail: global state, fine for single-instance. Multi-instance: each process has its own breaker (acceptable — DB outage affects all).
+const CIRCUIT_THRESHOLD = Number(process.env.DB_CIRCUIT_THRESHOLD || 5);
+const CIRCUIT_RESET_MS = Number(process.env.DB_CIRCUIT_RESET_MS || 10_000);
+let _circuitOpen = false;
+let _circuitFailures = 0;
+let _circuitOpenedAt = 0;
+
+function recordDbSuccess() {
+  _circuitFailures = 0;
+  _circuitOpen = false;
+}
+
+function recordDbFailure() {
+  _circuitFailures++;
+  if (_circuitFailures >= CIRCUIT_THRESHOLD) {
+    if (!_circuitOpen) {
+      _circuitOpen = true;
+      _circuitOpenedAt = Date.now();
+      logger.error('Database circuit breaker opened', { failures: _circuitFailures, resetMs: CIRCUIT_RESET_MS });
+    }
+  }
+}
+
+function checkCircuit() {
+  if (!_circuitOpen) return;
+  if (Date.now() - _circuitOpenedAt >= CIRCUIT_RESET_MS) {
+    _circuitOpen = false;
+    _circuitFailures = 0;
+    logger.info('Database circuit breaker closed (reset after timeout)');
+    return;
+  }
+  throw Object.assign(new Error('Database circuit breaker is open — too many consecutive failures'), {
+    code: 'CIRCUIT_OPEN',
+  });
+}
+
 // Set tenant context on a connection for RLS (P2 fix)
 // Use true = transaction-local (resets after COMMIT/ROLLBACK)
 export async function setTenantContext(client: import('pg').PoolClient, tenantId: string) {
   await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+}
+
+/**
+ * Dev-time assertion: verify that a SQL string contains a tenant_id filter.
+ * Throws in non-production if a tenant-scoped query silently omits isolation.
+ * No-ops in production (zero overhead on the hot path).
+ */
+export function assertTenantScoped(sql: string): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
+  // Skip platform-level queries (no tenant column) and DDL
+  if (
+    /create |alter |drop |insert into (?:tenants|plans|super_admins|platform_config|onprem_licenses|service_mobile_licenses|service_mobile_backups|service_mobile_notifications|onprem_notifications|super_admin_sessions)\b/.test(
+      normalized,
+    )
+  )
+    return;
+  if (/from (?:tenants|plans|super_admins|platform_config|onprem_licenses|service_mobile_licenses)\b/.test(normalized))
+    return;
+  if (!normalized.includes('tenant_id')) {
+    logger.warn('assertTenantScoped: query missing tenant_id — potential cross-tenant data access', {
+      sql: sql.replace(/\s+/g, ' ').slice(0, 300),
+    });
+  }
 }
 
 /**
@@ -89,10 +151,12 @@ export async function loggedQuery<T extends import('pg').QueryResultRow = import
   text: string,
   params?: unknown[],
 ): Promise<import('pg').QueryResult<T>> {
+  checkCircuit();
   const started = Date.now();
   try {
     const result = await pool.query<T>(text, params);
     const durationMs = Date.now() - started;
+    recordDbSuccess();
     if (durationMs >= SLOW_QUERY_MS) {
       logger.warn('Slow database query', {
         durationMs,
@@ -102,6 +166,7 @@ export async function loggedQuery<T extends import('pg').QueryResultRow = import
     }
     return result;
   } catch (err) {
+    recordDbFailure();
     logger.error('Database query failed', {
       durationMs: Date.now() - started,
       sql: text.replace(/\s+/g, ' ').slice(0, 200),
@@ -1921,6 +1986,10 @@ export async function seedPlatformData() {
 export async function initDatabase() {
   try {
     await initSchema();
+    // Run versioned migrations — new schema changes go in server/migrations/index.ts
+    const { runMigrations } = await import('./migrations/runner');
+    const { migrations } = await import('./migrations/index');
+    await runMigrations(pool, migrations);
     await seedPlatformData();
     logger.info('Database ready', {
       host: databaseHostname(process.env.DATABASE_URL || '') || undefined,

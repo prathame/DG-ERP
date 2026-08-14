@@ -21,7 +21,9 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
-        generateValue: true
+        # Do NOT use generateValue — it rotates the secret on every deploy, logging out all users.
+        # Set once in the Render Dashboard → Environment and never change it without a migration plan.
+        sync: false
       - key: NODE_ENV
         value: production
       # Skip git hooks install on Render (husky is a local-dev tool)
@@ -45,4 +47,12 @@ services:
       - key: LOGTAIL_TOKEN
         sync: false
       - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      # Sentry error monitoring — paste DSN from your Sentry project (Settings → Client Keys).
+      # Leave unset to disable; both server and client no-op without it.
+      - key: SENTRY_DSN
+        sync: false
+      # Frontend Sentry DSN — same value as SENTRY_DSN (injected at build time via Vite).
+      # Set in Render Dashboard → Environment.
+      - key: VITE_SENTRY_DSN
         sync: false
