@@ -7,7 +7,7 @@ import {
   assertVendorAccess,
   assertVendorLinked,
 } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL, resolveShipToGstin } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import {
@@ -369,6 +369,8 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
     try {
       await client.query('BEGIN');
 
+      await setTenantContext(client, tenantId);
+
       for (const item of itemsPrepped) {
         const invRows = (
           await client.query(
@@ -648,6 +650,8 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       distInvRows = (
         await client.query(
           `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
@@ -831,6 +835,8 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       let sql = `
         SELECT pd.id, pd.discount_percent, pd.net_price, pd.irn,
                p.price as product_price, p.price_includes_gst, p.gst_rate as product_gst_rate
@@ -1287,6 +1293,8 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
 
       const applyPricing = async (
         rowId: string,
@@ -1809,6 +1817,8 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
     let unitsReturned = 0;
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       const rows = (
         await client.query(
           'SELECT id, barcode, status, irn, ewb_number FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE',

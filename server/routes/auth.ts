@@ -559,9 +559,8 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     // Token stored — retrievable by authenticated admin via GET /api/admin/reset-tokens
     // or super-admin via GET /api/super-admin/reset-tokens.
-    // Never returned here: keeps anti-enumeration intact and prevents token
-    // leaking to anyone who guesses a valid email address.
-    res.json({ ok: true, message: 'Reset token generated. Contact your admin or support to retrieve it.' });
+    // Same message as the not-found branch: prevents email enumeration.
+    res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
   } catch (err) {
     return handleApiError(req, res, err);
   }

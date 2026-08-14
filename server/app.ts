@@ -733,7 +733,11 @@ export function createApp(): express.Application {
       cause: 'cause' in err ? err.cause : undefined,
     });
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal server error', correlationId });
+      // Preserve 4xx status codes from body-parser (SyntaxError on malformed JSON has status=400)
+      const statusCode = (err as { status?: number }).status ?? 500;
+      res
+        .status(statusCode)
+        .json({ error: statusCode === 400 ? 'Invalid request body' : 'Internal server error', correlationId });
     }
   });
 

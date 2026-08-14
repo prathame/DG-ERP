@@ -7,7 +7,7 @@ import {
   assertVendorLinked,
   vendorScopeId,
 } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { computeMetalSalePrice } from '../../shared/metal';
@@ -182,6 +182,8 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
 
       // #9 fix: lock the barcode rows inside the transaction to prevent double-sell race
       const dist = (

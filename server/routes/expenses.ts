@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
@@ -262,6 +262,8 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       await client.query(
         'INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
         [
@@ -331,6 +333,8 @@ router.delete('/api/expenses/:id', blockVendors, async (req: AuthRequest, res) =
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
 
       // Ops row (id = EXP…) and/or Books voucher (id = BV… or linked via ops:ex:)
       const ops = (await client.query(`SELECT id FROM expenses WHERE id = $1 AND tenant_id = $2`, [id, tenantId]))

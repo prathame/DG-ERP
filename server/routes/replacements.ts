@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
@@ -222,6 +222,8 @@ router.post('/api/replacements', blockVendors, async (req: AuthRequest, res) => 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
 
       // Lock barcodes in stable order to avoid deadlocks under concurrent replace
       const [firstBc, secondBc] = [oldBarcode, newBarcode].sort();

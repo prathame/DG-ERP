@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { checkPlanLimit } from '../utils/planLimits';
 import { blockVendors, requireAdmin, AuthRequest, assertVendorLinked, vendorScopeId } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
@@ -104,6 +104,8 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
     const crypto = await import('crypto');
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     let success = 0;
     const credentials: { name: string; email: string; password: string; url: string }[] = [];
 
@@ -511,6 +513,8 @@ router.delete('/api/vendors/all', requireAdmin, async (req: AuthRequest, res) =>
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     const tables = [
       'vendor_ship_to',
       'price_lists',
@@ -553,6 +557,8 @@ router.delete('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) =>
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       await client.query('DELETE FROM vendor_ship_to WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM price_lists WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [

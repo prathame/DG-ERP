@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
@@ -134,6 +134,8 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
       try {
         await client.query('BEGIN');
 
+        await setTenantContext(client, tenantId);
+
         const settings = (
           await client.query(
             'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
@@ -250,6 +252,8 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
     const { points, type, description, date } = req.body;
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     const existing = (
       await client.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [id, tenantId])
     ).rows[0] as Record<string, unknown> | undefined;
@@ -316,6 +320,8 @@ router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) =>
 
     const { id } = req.params;
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     const existing = (
       await client.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [id, tenantId])
     ).rows[0] as Record<string, unknown> | undefined;

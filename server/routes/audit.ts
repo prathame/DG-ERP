@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAdmin, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { logger } from '../utils/logger';
@@ -375,6 +375,8 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
 
       for (const table of clearOrder) {
         await client.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [tenantId]);

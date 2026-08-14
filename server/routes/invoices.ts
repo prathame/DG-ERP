@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
@@ -128,6 +128,8 @@ router.get('/api/invoices/next-number', async (req: AuthRequest, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       const number = await allocateNextInvoiceNumber(client, tenantId);
       await client.query('ROLLBACK'); // preview only — do not consume the number
       res.json({ number });
@@ -361,6 +363,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     let finalNumber: string;
     try {
       await client.query('BEGIN');
+
+      await setTenantContext(client, tenantId);
       finalNumber =
         typeof invoiceNumber === 'string' && invoiceNumber.trim()
           ? invoiceNumber.trim()
@@ -461,6 +465,8 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
     }
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     const inv = (
       await client.query(
         'SELECT id, grand_total, status FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
@@ -538,6 +544,8 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     await client.query('BEGIN');
+
+    await setTenantContext(client, tenantId);
     const inv = (
       await client.query(
         'SELECT id, status, invoice_number FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
