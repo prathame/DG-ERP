@@ -808,7 +808,7 @@ export function VendorMasterView({
           </h2>
           <p className={cn('text-sm', desktopGlass ? 'dg-muted opacity-80' : 'text-gray-500')}>
             {isServiceBusiness
-              ? 'Client profiles (Miracle + manual). Use Collections for invoices & payments'
+              ? t('masters.clientProfilesSubtitle')
               : `Manage your business ${label.toLowerCase()} records and GST details`}
           </p>
         </div>
@@ -922,14 +922,14 @@ export function VendorMasterView({
                   {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
                   {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
                   {v.gstNumber && <p className="text-[10px] font-mono text-gray-400 mt-1">GSTIN: {v.gstNumber}</p>}
-                  <p className="text-[10px] text-gray-400 mt-2">Profile · invoices & payments in Collections</p>
+                  <p className="text-[10px] text-gray-400 mt-2">{t('masters.profileMoneyInCollections')}</p>
                 </div>
               ))}
               {list.length === 0 && !search && (
                 <div className="col-span-full py-16 text-center text-gray-400">
                   <Users size={40} className="mx-auto mb-3 opacity-30" />
                   <p className="font-medium">No {label.toLowerCase()}s yet</p>
-                  <p className="text-sm mt-1">Add a {label.toLowerCase()}, import CSV, or run Miracle import</p>
+                  <p className="text-sm mt-1">{t('masters.noClientsYetHint')}</p>
                 </div>
               )}
               {list.length === 0 && search && (

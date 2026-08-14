@@ -919,7 +919,7 @@ export default function App() {
         navItem('distribution', t('nav.distribution'), tv('distribution')),
         navItem('inventory', t('nav.inventory'), tv('inventory')),
         // Service: Collections is a normal Transactions item (not only inside Clients hub).
-        navItem('finance', serviceProductUx ? tc('finance', 'Collections') : t('nav.finance'), tv('finance')),
+        navItem('finance', serviceProductUx ? tc('finance', t('nav.collections')) : t('nav.finance'), tv('finance')),
         navItem('verification', t('nav.verification'), tv('verification')),
       ],
     },
@@ -1316,11 +1316,11 @@ export default function App() {
       : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
   const mobileNavLabel: Record<string, string> = {
     analytics: t('nav.analytics'),
-    masters: serviceProductUx ? tc('masters', 'Clients') : t('nav.masters'),
+    masters: t('nav.masters'),
     invoices: t('nav.invoiceShort'),
     quotations: t('nav.quotesShort'),
     distribution: t('nav.dispatch'),
-    finance: serviceProductUx ? tc('finance', 'Collections') : t('nav.finance'),
+    finance: serviceProductUx ? tc('finance', t('nav.collections')) : t('nav.finance'),
     inventory: t('nav.stock'),
   };
   const mobileNavItems = mobileNavIds

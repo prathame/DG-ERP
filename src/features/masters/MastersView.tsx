@@ -104,7 +104,7 @@ export function MastersView({
       staff: t('masters.staff'),
       priceList: t('masters.prices'),
       expenses: t('masters.expenses'),
-      collections: tabConfig['finance']?.label || 'Collections',
+      collections: tabConfig['finance']?.label || t('nav.collections'),
       mapping: t('masters.mapping'),
       rewardRules: t('nav.rewards'),
     };
@@ -284,7 +284,7 @@ export function MastersView({
       ? [
           {
             id: 'collections' as const,
-            name: tabConfig['finance']?.label || 'Collections',
+            name: tabConfig['finance']?.label || t('nav.collections'),
             count: '' as number | string,
             icon: IndianRupee,
             color: 'text-emerald-700',
@@ -646,11 +646,7 @@ export function MastersView({
             <MobileEmptyState
               icon={<Truck />}
               title={t('masters.noClientsYet')}
-              subtitle={
-                serviceCatalogUx
-                  ? 'Add clients, import CSV, or run Miracle import. Money stays in Collections.'
-                  : t('masters.addFirstPartner')
-              }
+              subtitle={serviceCatalogUx ? t('masters.addClientsMiracleHint') : t('masters.addFirstPartner')}
               actionLabel={`${t('common.add')} ${fabLabel}`}
               onAction={() => openFull('vendor')}
             />

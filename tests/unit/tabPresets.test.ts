@@ -47,7 +47,7 @@ describe('tabPresets', () => {
     expect(p.books.visible).toBe(true);
     expect(p.book_ledgers.visible).toBe(true);
     expect(p.masters.visible).toBe(true);
-    expect(p.masters.label).toBe('Clients');
+    expect(p.masters.label).toBe('Masters');
     expect(p.invoices.visible).toBe(true);
     expect(p.finance.visible).toBe(true);
     expect(p.finance.label).toBe('Collections');
@@ -141,6 +141,21 @@ describe('tabPresets', () => {
     // manufacturer unchanged when missing keys filled from mfg preset
     const mfg = fillMissingTabPresetKeys({ analytics: { label: 'A', visible: true } }, 'manufacturer');
     expect(mfg.hosp_menu.visible).toBe(false);
+  });
+
+  it('migrates stale service masters label Clients → Masters', () => {
+    const migrated = fillMissingTabPresetKeys(
+      {
+        masters: { label: 'Clients', visible: true },
+        finance: { label: 'Collections', visible: true },
+      },
+      'service',
+    );
+    expect(migrated.masters.label).toBe('Masters');
+    expect(migrated.finance.label).toBe('Collections');
+
+    const custom = fillMissingTabPresetKeys({ masters: { label: 'Parties', visible: true } }, 'service');
+    expect(custom.masters.label).toBe('Parties');
   });
 
   it('migrates stale hotel Quotes & Orders off → Party Quotes on; keeps SA Party Quotes off', () => {

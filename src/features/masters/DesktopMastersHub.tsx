@@ -4,39 +4,15 @@
 import React from 'react';
 import { Plus, type LucideIcon } from 'lucide-react';
 import type { MasterType } from './MastersView';
+import { useTranslation } from '../../i18n';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 
 export type DesktopMasterCard = {
   id: MasterType;
   name: string;
   count: number | string;
   icon: LucideIcon;
-};
-
-const DESCRIPTIONS: Partial<Record<MasterType, string>> = {
-  item: 'Products, SKUs, and item configuration for inventory.',
-  customer: 'Customer profiles, contacts, and credit terms.',
-  vendor: 'Partner profiles, credit terms, and distribution relationships.',
-  bank: 'Bank accounts, IFSC, and reconciliation setup.',
-  staff: 'Employee directory, roles, and payroll identifiers.',
-  expenses: 'Expense categories and purchase ledger mapping.',
-  collections: 'Who owes money — receive payments and track advances.',
-  priceList: 'Multi-tier pricing and discount rules.',
-  rewardRules: 'Loyalty points, thresholds, and reward campaigns.',
-  mapping: 'Link vendors to customers for sales and distribution.',
-};
-
-/** Text CTA = open list (truthful labels per MasterType). */
-const CTA: Partial<Record<MasterType, string>> = {
-  item: 'Open Products',
-  customer: 'Open Customers',
-  vendor: 'Open Vendors',
-  bank: 'Open Banks',
-  staff: 'Open Staff',
-  expenses: 'Open Expenses',
-  collections: 'Open Collections',
-  priceList: 'Open Price List',
-  rewardRules: 'Open Reward Rules',
-  mapping: 'Open Mapping',
 };
 
 type Props = {
@@ -46,12 +22,41 @@ type Props = {
 };
 
 export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
+  const { t } = useTranslation();
+  const cfg = useBusinessConfig();
+  const serviceCatalogUx = isServiceProductUx(cfg.type);
   const total = totalRecords ?? masters.reduce((s, m) => s + (typeof m.count === 'number' ? m.count : 0), 0);
+
+  const descriptions: Partial<Record<MasterType, string>> = {
+    item: 'Products, SKUs, and item configuration for inventory.',
+    customer: 'Customer profiles, contacts, and credit terms.',
+    vendor: serviceCatalogUx ? t('masters.clientsDesc') : t('masters.vendorsDesc'),
+    bank: t('masters.banksDesc'),
+    staff: t('masters.staffDesc'),
+    expenses: t('masters.expensesDesc'),
+    collections: t('masters.collectionsDesc'),
+    priceList: t('masters.pricesDesc'),
+    rewardRules: 'Loyalty points, thresholds, and reward campaigns.',
+    mapping: 'Link vendors to customers for sales and distribution.',
+  };
+
+  const cta: Partial<Record<MasterType, string>> = {
+    item: t('masters.openProducts'),
+    customer: 'Open Customers',
+    vendor: serviceCatalogUx ? t('masters.openClients') : t('masters.openVendors'),
+    bank: t('masters.openBanks'),
+    staff: t('masters.openStaff'),
+    expenses: t('masters.openExpenses'),
+    collections: t('masters.openCollections'),
+    priceList: t('masters.openPriceList'),
+    rewardRules: 'Open Reward Rules',
+    mapping: 'Open Mapping',
+  };
 
   return (
     <div className="space-y-10 w-full max-w-none">
       <div>
-        <h3 className="text-3xl font-bold dg-ink tracking-tight">Masters</h3>
+        <h3 className="text-3xl font-bold dg-ink tracking-tight">{t('masters.title')}</h3>
         <p className="text-sm dg-muted mt-2 max-w-2xl leading-relaxed">
           Configure core business entities used across sales, purchases, and compliance.
         </p>
@@ -60,8 +65,8 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {masters.map(m => {
           const Icon = m.icon;
-          const desc = DESCRIPTIONS[m.id] || 'View and manage master records for this category.';
-          const cta = CTA[m.id] || 'Open';
+          const desc = descriptions[m.id] || 'View and manage master records for this category.';
+          const ctaLabel = cta[m.id] || 'Open';
           return (
             <div key={m.id} className="dg-glass-card group p-6 rounded-2xl flex flex-col justify-between min-h-[220px]">
               <div>
@@ -80,7 +85,7 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
                   onClick={() => onOpen(m.id)}
                   className="text-[var(--dg-primary)] font-bold text-xs hover:underline"
                 >
-                  {cta}
+                  {ctaLabel}
                 </button>
                 {/* Create-from-hub is not wired; + opens the same list with a truthful label. */}
                 <button
@@ -111,7 +116,7 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
           <button
             type="button"
             onClick={() => {
-              // Prefer a master that stays in Masters (item/expenses are tab shortcuts).
+              // Prefer a master that stays in Masters (item/expenses/collections are tab shortcuts).
               const first =
                 masters.find(m => m.id !== 'item' && m.id !== 'expenses' && m.id !== 'collections') ?? masters[0];
               if (first) onOpen(first.id);
