@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
-import { LoadingSpinner } from '../../components/ui';
-import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
+import { LoadingSpinner, PeriodPresetChips } from '../../components/ui';
+import { useTranslation } from '../../i18n';
+import {
+  applyReportingPreset,
+  defaultDateRangeFromReportingPeriod,
+  indianLastFyRange,
+  readReportingPeriod,
+  type ReportingPeriodPreset,
+} from '../../lib/reportingPeriod';
 
 function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -82,16 +89,37 @@ export function BooksReportsPanel({
   lockedKind?: ReportKind;
   hideSourceNote?: boolean;
 } = {}) {
+  const { t } = useTranslation();
   const defaults = fyDefaults();
   const [kind, setKind] = useState<ReportKind>(lockedKind || 'tb');
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
+  const [periodPreset, setPeriodPreset] = useState<ReportingPeriodPreset | null>(
+    () => readReportingPeriod()?.preset ?? null,
+  );
+  const [compareLastFy, setCompareLastFy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tb, setTb] = useState<TbResponse | null>(null);
   const [trading, setTrading] = useState<TradingResponse | null>(null);
   const [pnl, setPnl] = useState<PnlResponse | null>(null);
+  const [pnlPrev, setPnlPrev] = useState<PnlResponse | null>(null);
   const [bs, setBs] = useState<BsResponse | null>(null);
+
+  const periodPresets = [
+    { id: 'fy' as const, label: t('common.thisFy') },
+    { id: 'lastFy' as const, label: t('common.lastFy') },
+    { id: 'quarter' as const, label: t('common.thisQuarter') },
+    { id: 'month' as const, label: t('common.thisMonth') },
+  ];
+
+  const applyPeriod = (id: ReportingPeriodPreset) => {
+    const applied = applyReportingPreset(id);
+    if (!applied) return;
+    setFrom(applied.from);
+    setTo(applied.to);
+    setPeriodPreset(id);
+  };
 
   useEffect(() => {
     if (lockedKind) setKind(lockedKind);
@@ -112,6 +140,7 @@ export function BooksReportsPanel({
             setTb(data);
             setTrading(null);
             setPnl(null);
+            setPnlPrev(null);
             setBs(null);
           }
         } else if (kind === 'trading') {
@@ -120,12 +149,20 @@ export function BooksReportsPanel({
             setTrading(data);
             setTb(null);
             setPnl(null);
+            setPnlPrev(null);
             setBs(null);
           }
         } else if (kind === 'pnl') {
           const data = await fetchApi<PnlResponse>(`/books/profit-loss?${qs}`);
+          let prev: PnlResponse | null = null;
+          if (compareLastFy) {
+            const last = indianLastFyRange();
+            const prevQs = new URLSearchParams({ from: last.from, to: last.to });
+            prev = await fetchApi<PnlResponse>(`/books/profit-loss?${prevQs}`);
+          }
           if (!cancelled) {
             setPnl(data);
+            setPnlPrev(prev);
             setTb(null);
             setTrading(null);
             setBs(null);
@@ -137,6 +174,7 @@ export function BooksReportsPanel({
             setTb(null);
             setTrading(null);
             setPnl(null);
+            setPnlPrev(null);
           }
         }
       } catch (e) {
@@ -148,7 +186,7 @@ export function BooksReportsPanel({
     return () => {
       cancelled = true;
     };
-  }, [kind, from, to]);
+  }, [kind, from, to, compareLastFy]);
 
   const tabs: { id: ReportKind; label: string }[] = [
     { id: 'tb', label: 'Trial balance' },
@@ -164,42 +202,62 @@ export function BooksReportsPanel({
           {!hideSourceNote && <p className="text-sm text-slate-500">From double-entry ledgers and vouchers.</p>}
           {!lockedKind && (
             <div className="mt-2 flex flex-wrap gap-2">
-              {tabs.map(t => (
+              {tabs.map(tab => (
                 <button
-                  key={t.id}
+                  key={tab.id}
                   type="button"
-                  onClick={() => setKind(t.id)}
+                  onClick={() => setKind(tab.id)}
                   className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-                    kind === t.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    kind === tab.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  {t.label}
+                  {tab.label}
                 </button>
               ))}
             </div>
           )}
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          {kind !== 'bs' && (
+        <div className="flex flex-col items-stretch sm:items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            {kind !== 'bs' && (
+              <label className="text-xs text-slate-500">
+                From
+                <input
+                  type="date"
+                  value={from}
+                  onChange={e => {
+                    setFrom(e.target.value);
+                    setPeriodPreset('custom');
+                  }}
+                  className="mt-0.5 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                />
+              </label>
+            )}
             <label className="text-xs text-slate-500">
-              From
+              {kind === 'bs' ? 'As of' : 'To'}
               <input
                 type="date"
-                value={from}
-                onChange={e => setFrom(e.target.value)}
+                value={to}
+                onChange={e => {
+                  setTo(e.target.value);
+                  setPeriodPreset('custom');
+                }}
                 className="mt-0.5 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
               />
             </label>
+          </div>
+          <PeriodPresetChips presets={periodPresets} activeId={periodPreset} onSelect={applyPeriod} />
+          {kind === 'pnl' && (
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={compareLastFy}
+                onChange={e => setCompareLastFy(e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              Compare vs last FY
+            </label>
           )}
-          <label className="text-xs text-slate-500">
-            {kind === 'bs' ? 'As of' : 'To'}
-            <input
-              type="date"
-              value={to}
-              onChange={e => setTo(e.target.value)}
-              className="mt-0.5 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-            />
-          </label>
         </div>
       </div>
 
@@ -321,47 +379,72 @@ export function BooksReportsPanel({
           </div>
         </div>
       ) : kind === 'pnl' && pnl ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="mb-2 font-semibold text-slate-800">Income</h3>
-            <ul className="divide-y divide-slate-100 text-sm">
-              {pnl.income.length === 0 && <li className="py-2 text-slate-500">No income in period</li>}
-              {pnl.income.map(r => (
-                <li key={r.name} className="flex justify-between gap-2 py-1.5">
-                  <span>{r.name}</span>
-                  <span className="tabular-nums font-medium">{money(r.amount)}</span>
+        <div className="space-y-3">
+          {pnlPrev && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <div className="font-semibold text-slate-800">This period vs last FY</div>
+              <div className="mt-1 grid gap-2 sm:grid-cols-3 text-slate-700">
+                <div>
+                  Current net: <span className="font-semibold tabular-nums">₹{money(pnl.netProfit)}</span>
+                </div>
+                <div>
+                  Last FY net: <span className="font-semibold tabular-nums">₹{money(pnlPrev.netProfit)}</span>
+                </div>
+                <div>
+                  Change:{' '}
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      pnl.netProfit - pnlPrev.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'
+                    }`}
+                  >
+                    ₹{money(pnl.netProfit - pnlPrev.netProfit)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-slate-800">Income</h3>
+              <ul className="divide-y divide-slate-100 text-sm">
+                {pnl.income.length === 0 && <li className="py-2 text-slate-500">No income in period</li>}
+                {pnl.income.map(r => (
+                  <li key={r.name} className="flex justify-between gap-2 py-1.5">
+                    <span>{r.name}</span>
+                    <span className="tabular-nums font-medium">{money(r.amount)}</span>
+                  </li>
+                ))}
+                <li className="flex justify-between gap-2 border-t border-slate-200 pt-2 font-semibold">
+                  <span>Total income</span>
+                  <span className="tabular-nums">{money(pnl.totalIncome)}</span>
                 </li>
-              ))}
-              <li className="flex justify-between gap-2 border-t border-slate-200 pt-2 font-semibold">
-                <span>Total income</span>
-                <span className="tabular-nums">{money(pnl.totalIncome)}</span>
-              </li>
-            </ul>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="mb-2 font-semibold text-slate-800">Expenses</h3>
-            <ul className="divide-y divide-slate-100 text-sm">
-              {pnl.expenses.length === 0 && <li className="py-2 text-slate-500">No expenses in period</li>}
-              {pnl.expenses.map(r => (
-                <li key={r.name} className="flex justify-between gap-2 py-1.5">
-                  <span>{r.name}</span>
-                  <span className="tabular-nums font-medium">{money(r.amount)}</span>
+              </ul>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 font-semibold text-slate-800">Expenses</h3>
+              <ul className="divide-y divide-slate-100 text-sm">
+                {pnl.expenses.length === 0 && <li className="py-2 text-slate-500">No expenses in period</li>}
+                {pnl.expenses.map(r => (
+                  <li key={r.name} className="flex justify-between gap-2 py-1.5">
+                    <span>{r.name}</span>
+                    <span className="tabular-nums font-medium">{money(r.amount)}</span>
+                  </li>
+                ))}
+                <li className="flex justify-between gap-2 border-t border-slate-200 pt-2 font-semibold">
+                  <span>Total expenses</span>
+                  <span className="tabular-nums">{money(pnl.totalExpenses)}</span>
                 </li>
-              ))}
-              <li className="flex justify-between gap-2 border-t border-slate-200 pt-2 font-semibold">
-                <span>Total expenses</span>
-                <span className="tabular-nums">{money(pnl.totalExpenses)}</span>
-              </li>
-            </ul>
-          </div>
-          <div
-            className={`lg:col-span-2 rounded-xl border px-4 py-3 text-sm font-semibold ${
-              pnl.netProfit >= 0
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                : 'border-red-200 bg-red-50 text-red-800'
-            }`}
-          >
-            {pnl.netLabel}: ₹{money(Math.abs(pnl.netProfit))}
+              </ul>
+            </div>
+            <div
+              className={`lg:col-span-2 rounded-xl border px-4 py-3 text-sm font-semibold ${
+                pnl.netProfit >= 0
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-red-200 bg-red-50 text-red-800'
+              }`}
+            >
+              {pnl.netLabel}: ₹{money(Math.abs(pnl.netProfit))}
+            </div>
           </div>
         </div>
       ) : kind === 'bs' && bs ? (

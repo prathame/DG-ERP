@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { billsForParty, filterOpenBills, partiesWithOpenDues } from '../../src/features/books/bookOutstandingUtils';
+import {
+  billsForParty,
+  daysPastDue,
+  filterOpenBills,
+  outstandingAgeBucket,
+  partiesWithOpenDues,
+  summarizeArAging,
+} from '../../src/features/books/bookOutstandingUtils';
 
 describe('partiesWithOpenDues', () => {
   it('keeps positive balances and sorts by due desc', () => {
@@ -44,5 +51,34 @@ describe('filterOpenBills / billsForParty', () => {
   it('scopes bills to a party', () => {
     expect(billsForParty(bills, 'vendor:1')).toHaveLength(1);
     expect(billsForParty(bills, 'vendor:9')).toHaveLength(0);
+  });
+});
+
+describe('AR aging helpers', () => {
+  const asOf = new Date(2026, 7, 16); // 16 Aug 2026
+
+  it('daysPastDue and outstandingAgeBucket', () => {
+    expect(daysPastDue('2026-08-10', asOf)).toBe(6);
+    expect(outstandingAgeBucket(6)).toBe('0-30');
+    expect(outstandingAgeBucket(45)).toBe('31-60');
+    expect(outstandingAgeBucket(75)).toBe('61-90');
+    expect(outstandingAgeBucket(100)).toBe('90+');
+  });
+
+  it('summarizeArAging buckets open balances', () => {
+    const totals = summarizeArAging(
+      [
+        { invoiceDate: '2026-08-01', balance: 100 }, // 15d
+        { invoiceDate: '2026-07-01', balance: 200 }, // 46d
+        { invoiceDate: '2026-05-01', balance: 50 }, // 107d
+        { invoiceDate: '2026-01-01', balance: 0 }, // ignored
+      ],
+      asOf,
+    );
+    expect(totals.d0_30).toBe(100);
+    expect(totals.d31_60).toBe(200);
+    expect(totals.d61_90).toBe(0);
+    expect(totals.d90plus).toBe(50);
+    expect(totals.total).toBe(350);
   });
 });

@@ -42,7 +42,7 @@ import {
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
-const RANGE_IDS = ['today', 'week', 'month', 'fy', 'overall', 'custom'] as const;
+const RANGE_IDS = ['today', 'week', 'month', 'quarter', 'fy', 'lastFy', 'overall', 'custom'] as const;
 type RangeId = (typeof RANGE_IDS)[number];
 
 const ACTIVITY_META: Record<string, { icon: typeof IndianRupee; color: string; labelKey: string }> = {
@@ -109,7 +109,9 @@ export function AnalyticsView({
     { id: 'today' as const, label: t('common.today') },
     { id: 'week' as const, label: t('common.thisWeek') },
     { id: 'month' as const, label: t('common.thisMonth') },
+    { id: 'quarter' as const, label: t('common.thisQuarter') },
     { id: 'fy' as const, label: t('common.thisFy') },
+    { id: 'lastFy' as const, label: t('common.lastFy') },
     { id: 'overall' as const, label: t('common.overall') },
     { id: 'custom' as const, label: t('common.custom') },
   ];
