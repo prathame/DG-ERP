@@ -1,6 +1,6 @@
 import React from 'react';
-import { cn } from '../lib/utils';
-import type { ReportingPeriodPreset } from '../lib/reportingPeriod';
+import { cn } from '../../lib/utils';
+import type { ReportingPeriodPreset } from '../../lib/reportingPeriod';
 
 export type PeriodPresetChip = {
   id: ReportingPeriodPreset;
