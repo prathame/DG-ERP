@@ -36,7 +36,14 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
-import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass, PeriodPresetChips } from '../../components/ui';
+import {
+  useToast,
+  LoadingSpinner,
+  MobilePillTabs,
+  dateControlClass,
+  PeriodPresetChips,
+  FinancialYearSelect,
+} from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
 import { useTranslation } from '../../i18n';
@@ -44,8 +51,10 @@ import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 import { MobileAccountsPanel } from './MobileAccountsPanel';
 import {
+  applyFinancialYear,
   applyReportingPreset,
   defaultDateRangeFromReportingPeriod,
+  matchFyStartYear,
   readReportingPeriod,
   type ReportingPeriodPreset,
 } from '../../lib/reportingPeriod';
@@ -123,9 +132,11 @@ export function AccountsView({
   const [periodPreset, setPeriodPreset] = useState<ReportingPeriodPreset | null>(
     () => readReportingPeriod()?.preset ?? 'fy',
   );
+  const [fyStartYear, setFyStartYear] = useState<number | null>(
+    () =>
+      readReportingPeriod()?.fyStartYear ?? matchFyStartYear(readReportingPeriod()?.from, readReportingPeriod()?.to),
+  );
   const periodPresets = [
-    { id: 'fy' as const, label: t('common.thisFy') },
-    { id: 'lastFy' as const, label: t('common.lastFy') },
     { id: 'quarter' as const, label: t('common.thisQuarter') },
     { id: 'month' as const, label: t('common.thisMonth') },
   ];
@@ -135,6 +146,14 @@ export function AccountsView({
     setFrom(applied.from);
     setTo(applied.to);
     setPeriodPreset(id);
+    if (id !== 'fy' && id !== 'lastFy') setFyStartYear(null);
+  };
+  const applyFyYear = (startYear: number) => {
+    const fy = applyFinancialYear(startYear);
+    setFrom(fy.from);
+    setTo(fy.to);
+    setPeriodPreset('fy');
+    setFyStartYear(fy.startYear);
   };
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -573,6 +592,9 @@ export function AccountsView({
           periodPresets={periodPresets}
           activePeriodPreset={periodPreset}
           onPeriodPreset={applyPeriod}
+          fyStartYear={fyStartYear}
+          onFyYear={applyFyYear}
+          fyLabel={t('common.financialYear')}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={setLedgerFilter}
@@ -636,6 +658,9 @@ export function AccountsView({
           periodPresets={periodPresets}
           activePeriodPreset={periodPreset}
           onPeriodPreset={applyPeriod}
+          fyStartYear={fyStartYear}
+          onFyYear={applyFyYear}
+          fyLabel={t('common.financialYear')}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={booksSelfContained ? undefined : setLedgerFilter}
@@ -807,11 +832,20 @@ export function AccountsView({
                   </label>
                   <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
                 </div>
-                <div className="col-span-2 min-w-0">
-                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                    Period
-                  </label>
-                  <PeriodPresetChips presets={periodPresets} activeId={periodPreset} onSelect={applyPeriod} />
+                <div className="col-span-2 min-w-0 flex flex-wrap items-end gap-2">
+                  <FinancialYearSelect
+                    value={fyStartYear}
+                    from={from}
+                    to={to}
+                    onChange={applyFyYear}
+                    label={t('common.financialYear')}
+                  />
+                  <div className="min-w-0">
+                    <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                      Period
+                    </label>
+                    <PeriodPresetChips presets={periodPresets} activeId={periodPreset} onSelect={applyPeriod} />
+                  </div>
                 </div>
               </>
             )}

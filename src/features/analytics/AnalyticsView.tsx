@@ -29,6 +29,7 @@ import {
   MobileSectionTitle,
   MobileListRow,
   dateControlClass,
+  FinancialYearSelect,
 } from '../../components/ui';
 import { DesktopAnalyticsDashboard } from './DesktopAnalyticsDashboard';
 import { MobileAnalyticsDashboard } from './MobileAnalyticsDashboard';
@@ -37,6 +38,9 @@ import {
   resolveReportingRange,
   writeReportingPeriod,
   readReportingPeriod,
+  applyFinancialYear,
+  matchFyStartYear,
+  indianLastFyRange,
   type ReportingPeriodPreset,
 } from '../../lib/reportingPeriod';
 
@@ -110,18 +114,25 @@ export function AnalyticsView({
     { id: 'week' as const, label: t('common.thisWeek') },
     { id: 'month' as const, label: t('common.thisMonth') },
     { id: 'quarter' as const, label: t('common.thisQuarter') },
-    { id: 'fy' as const, label: t('common.thisFy') },
-    { id: 'lastFy' as const, label: t('common.lastFy') },
     { id: 'overall' as const, label: t('common.overall') },
     { id: 'custom' as const, label: t('common.custom') },
   ];
   const outstandingLabel = t('dashboard.outstanding');
   const [range, setRange] = useState<RangeId>(() => {
     const saved = readReportingPeriod();
-    return saved?.preset && RANGE_IDS.includes(saved.preset as RangeId) ? (saved.preset as RangeId) : 'month';
+    if (!saved?.preset || !RANGE_IDS.includes(saved.preset as RangeId)) return 'month';
+    // Dropdown replaced This FY / Last FY chips — treat lastFy as fy selection.
+    if (saved.preset === 'lastFy') return 'fy';
+    return saved.preset as RangeId;
   });
   const [fromDate, setFromDate] = useState(() => readReportingPeriod()?.from || '');
   const [toDate, setToDate] = useState(() => readReportingPeriod()?.to || '');
+  const [fyStartYear, setFyStartYear] = useState<number | null>(() => {
+    const saved = readReportingPeriod();
+    if (saved?.fyStartYear) return saved.fyStartYear;
+    if (saved?.preset === 'lastFy') return indianLastFyRange().startYear;
+    return matchFyStartYear(saved?.from, saved?.to);
+  });
   const [money, setMoney] = useState<{
     collections: number;
     revenue: number;
@@ -150,7 +161,13 @@ export function AnalyticsView({
   } | null>(null);
 
   useEffect(() => {
-    const resolved = resolveReportingRange(range as ReportingPeriodPreset, fromDate, toDate);
+    const resolved = resolveReportingRange(
+      range as ReportingPeriodPreset,
+      fromDate,
+      toDate,
+      new Date(),
+      range === 'fy' || range === 'lastFy' ? (fyStartYear ?? undefined) : undefined,
+    );
     const from = resolved.from;
     const to = resolved.to;
     writeReportingPeriod({
@@ -158,6 +175,7 @@ export function AnalyticsView({
       from: from || '',
       to: to || '',
       label: resolved.label,
+      fyStartYear: resolved.fyStartYear,
     });
     api.dashboard
       .overview(from, to)
@@ -190,7 +208,7 @@ export function AnalyticsView({
         });
       })
       .catch(() => {});
-  }, [range, fromDate, toDate]);
+  }, [range, fromDate, toDate, fyStartYear]);
 
   const moneyTiles = money
     ? (
@@ -264,38 +282,58 @@ export function AnalyticsView({
         .map(tile => ({ ...tile, info: moneyTileInfo(tile.id, serviceProductUx) }))
     : [];
 
-  const customSlot =
-    range === 'custom' ? (
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-end sm:gap-2">
-        <div className="min-w-0">
-          <label
-            className={cn(
-              'text-[10px] font-bold uppercase tracking-wide block mb-1',
-              desktopGlass || capMobileGlass ? 'dg-muted dg-m-muted' : 'text-gray-400',
-            )}
-          >
-            {t('common.from')}
-          </label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            className={dateControlClass}
-          />
+  const applyFyYear = (startYear: number) => {
+    const fy = applyFinancialYear(startYear);
+    setFyStartYear(fy.startYear);
+    setFromDate(fy.from);
+    setToDate(fy.to);
+    setRange('fy');
+  };
+
+  const periodTools = (
+    <div className="flex flex-wrap items-end gap-2">
+      <FinancialYearSelect
+        value={fyStartYear}
+        from={fromDate}
+        to={toDate}
+        onChange={applyFyYear}
+        label={t('common.financialYear')}
+      />
+      {range === 'custom' ? (
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-end sm:gap-2">
+          <div className="min-w-0">
+            <label
+              className={cn(
+                'text-[10px] font-bold uppercase tracking-wide block mb-1',
+                desktopGlass || capMobileGlass ? 'dg-muted dg-m-muted' : 'text-gray-400',
+              )}
+            >
+              {t('common.from')}
+            </label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className={dateControlClass}
+            />
+          </div>
+          <div className="min-w-0">
+            <label
+              className={cn(
+                'text-[10px] font-bold uppercase tracking-wide block mb-1',
+                desktopGlass || capMobileGlass ? 'dg-muted dg-m-muted' : 'text-gray-400',
+              )}
+            >
+              {t('common.to')}
+            </label>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={dateControlClass} />
+          </div>
         </div>
-        <div className="min-w-0">
-          <label
-            className={cn(
-              'text-[10px] font-bold uppercase tracking-wide block mb-1',
-              desktopGlass || capMobileGlass ? 'dg-muted dg-m-muted' : 'text-gray-400',
-            )}
-          >
-            {t('common.to')}
-          </label>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={dateControlClass} />
-        </div>
-      </div>
-    ) : null;
+      ) : null}
+    </div>
+  );
+
+  const customSlot = periodTools;
 
   const navigateEntity = (nav: GlobalSearchNavigate) => {
     if (onNavigateEntity) onNavigateEntity(nav);
@@ -407,32 +445,7 @@ export function AnalyticsView({
             onChange={id => setRange(id as RangeId)}
           />
         </div>
-        {range === 'custom' && (
-          <div className="grid grid-cols-2 gap-2 mb-3 sm:mb-4 sm:flex sm:items-end sm:gap-2">
-            <div className="min-w-0">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">
-                {t('common.from')}
-              </label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={e => setFromDate(e.target.value)}
-                className={dateControlClass}
-              />
-            </div>
-            <div className="min-w-0">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">
-                {t('common.to')}
-              </label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={e => setToDate(e.target.value)}
-                className={dateControlClass}
-              />
-            </div>
-          </div>
-        )}
+        <div className="mb-3 sm:mb-4">{periodTools}</div>
         {money ? (
           <>
             {/* Phone KPI cards */}
