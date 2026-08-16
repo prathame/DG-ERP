@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
-import { LoadingSpinner, PeriodPresetChips } from '../../components/ui';
+import { LoadingSpinner, PeriodPresetChips, FinancialYearSelect } from '../../components/ui';
 import { useTranslation } from '../../i18n';
 import {
+  applyFinancialYear,
   applyReportingPreset,
   defaultDateRangeFromReportingPeriod,
   indianLastFyRange,
+  matchFyStartYear,
   readReportingPeriod,
   type ReportingPeriodPreset,
 } from '../../lib/reportingPeriod';
@@ -97,6 +99,10 @@ export function BooksReportsPanel({
   const [periodPreset, setPeriodPreset] = useState<ReportingPeriodPreset | null>(
     () => readReportingPeriod()?.preset ?? null,
   );
+  const [fyStartYear, setFyStartYear] = useState<number | null>(
+    () =>
+      readReportingPeriod()?.fyStartYear ?? matchFyStartYear(readReportingPeriod()?.from, readReportingPeriod()?.to),
+  );
   const [compareLastFy, setCompareLastFy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,8 +113,6 @@ export function BooksReportsPanel({
   const [bs, setBs] = useState<BsResponse | null>(null);
 
   const periodPresets = [
-    { id: 'fy' as const, label: t('common.thisFy') },
-    { id: 'lastFy' as const, label: t('common.lastFy') },
     { id: 'quarter' as const, label: t('common.thisQuarter') },
     { id: 'month' as const, label: t('common.thisMonth') },
   ];
@@ -119,6 +123,15 @@ export function BooksReportsPanel({
     setFrom(applied.from);
     setTo(applied.to);
     setPeriodPreset(id);
+    if (id !== 'fy' && id !== 'lastFy') setFyStartYear(null);
+  };
+
+  const applyFyYear = (startYear: number) => {
+    const fy = applyFinancialYear(startYear);
+    setFrom(fy.from);
+    setTo(fy.to);
+    setPeriodPreset('fy');
+    setFyStartYear(fy.startYear);
   };
 
   useEffect(() => {
@@ -246,7 +259,16 @@ export function BooksReportsPanel({
               />
             </label>
           </div>
-          <PeriodPresetChips presets={periodPresets} activeId={periodPreset} onSelect={applyPeriod} />
+          <div className="flex flex-wrap items-end gap-2">
+            <FinancialYearSelect
+              value={fyStartYear}
+              from={from}
+              to={to}
+              onChange={applyFyYear}
+              label={t('common.financialYear')}
+            />
+            <PeriodPresetChips presets={periodPresets} activeId={periodPreset} onSelect={applyPeriod} />
+          </div>
           {kind === 'pnl' && (
             <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
               <input

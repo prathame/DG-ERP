@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  applyFinancialYear,
   applyReportingPreset,
   defaultDateRangeFromReportingPeriod,
   indianFyRange,
+  indianFyRangeForStartYear,
   indianLastFyRange,
   indianQuarterRange,
+  listIndianFinancialYears,
   localDateISO,
+  matchFyStartYear,
   readReportingPeriod,
   resolveReportingRange,
   writeReportingPeriod,
@@ -75,11 +79,19 @@ describe('reportingPeriod', () => {
       from: '2026-04-01',
       to: '2026-08-16',
       label: 'FY 2026-27',
+      fyStartYear: 2026,
     });
     expect(resolveReportingRange('lastFy', undefined, undefined, asOf)).toEqual({
       from: '2025-04-01',
       to: '2026-03-31',
       label: 'FY 2025-26',
+      fyStartYear: 2025,
+    });
+    expect(resolveReportingRange('fy', undefined, undefined, asOf, 2023)).toEqual({
+      from: '2023-04-01',
+      to: '2024-03-31',
+      label: 'FY 2023-24',
+      fyStartYear: 2023,
     });
     expect(resolveReportingRange('quarter', undefined, undefined, asOf)).toEqual({
       from: '2026-07-01',
@@ -87,6 +99,24 @@ describe('reportingPeriod', () => {
       label: 'Q2 FY 2026-27',
     });
     expect(resolveReportingRange('overall')).toEqual({ label: 'Overall' });
+  });
+
+  it('listIndianFinancialYears and applyFinancialYear cover older years', () => {
+    const asOf = new Date(2026, 7, 16, 12);
+    const list = listIndianFinancialYears(asOf, 5);
+    expect(list.map(x => x.startYear)).toEqual([2026, 2025, 2024, 2023, 2022]);
+    expect(list[2]).toEqual({
+      from: '2024-04-01',
+      to: '2025-03-31',
+      label: 'FY 2024-25',
+      startYear: 2024,
+    });
+
+    const applied = applyFinancialYear(2023, asOf);
+    expect(applied.label).toBe('FY 2023-24');
+    expect(readReportingPeriod()?.fyStartYear).toBe(2023);
+    expect(matchFyStartYear(applied.from, applied.to, asOf)).toBe(2023);
+    expect(indianFyRangeForStartYear(2026, asOf).to).toBe('2026-08-16');
   });
 
   it('applyReportingPreset persists and seeds defaults', () => {

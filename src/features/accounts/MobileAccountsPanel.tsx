@@ -6,7 +6,7 @@
 import React from 'react';
 import { BarChart3, Download, Search, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { PeriodPresetChips, type PeriodPresetChip } from '../../components/ui';
+import { PeriodPresetChips, type PeriodPresetChip, FinancialYearSelect } from '../../components/ui';
 import type { ReportingPeriodPreset } from '../../lib/reportingPeriod';
 import { AccountsHelpButton } from './AccountsGuideModal';
 
@@ -29,6 +29,9 @@ type Props = {
   periodPresets?: PeriodPresetChip[];
   activePeriodPreset?: string | null;
   onPeriodPreset?: (id: ReportingPeriodPreset) => void;
+  fyStartYear?: number | null;
+  onFyYear?: (startYear: number) => void;
+  fyLabel?: string;
   showDateRange: boolean;
   ledgerFilter?: string;
   onLedgerFilter?: (v: string) => void;
@@ -99,6 +102,9 @@ export function MobileAccountsPanel({
   periodPresets,
   activePeriodPreset,
   onPeriodPreset,
+  fyStartYear,
+  onFyYear,
+  fyLabel = 'Financial year',
   showDateRange,
   ledgerFilter,
   onLedgerFilter,
@@ -182,15 +188,27 @@ export function MobileAccountsPanel({
                   <label className={fieldLabel}>To</label>
                   <input type="date" value={to} onChange={e => onTo(e.target.value)} className={fieldInput} />
                 </div>
-                {periodPresets && onPeriodPreset && (
-                  <div className="col-span-2 min-w-0">
-                    <PeriodPresetChips
-                      presets={periodPresets}
-                      activeId={activePeriodPreset}
-                      onSelect={onPeriodPreset}
-                    />
+                {(periodPresets && onPeriodPreset) || onFyYear ? (
+                  <div className="col-span-2 min-w-0 space-y-2">
+                    {onFyYear && (
+                      <FinancialYearSelect
+                        value={fyStartYear}
+                        from={from}
+                        to={to}
+                        onChange={onFyYear}
+                        label={fyLabel}
+                        selectClassName="w-full h-10 rounded-xl text-sm"
+                      />
+                    )}
+                    {periodPresets && onPeriodPreset && (
+                      <PeriodPresetChips
+                        presets={periodPresets}
+                        activeId={activePeriodPreset}
+                        onSelect={onPeriodPreset}
+                      />
+                    )}
                   </div>
-                )}
+                ) : null}
               </>
             )}
             {tab === 'ledger' && onLedgerFilter && (
