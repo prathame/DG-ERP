@@ -43,6 +43,7 @@ import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 import { MobileAccountsPanel } from './MobileAccountsPanel';
+import { defaultDateRangeFromReportingPeriod, indianFyRange, writeReportingPeriod } from '../../lib/reportingPeriod';
 import { AccountsGuideModal, AccountsHelpButton } from './AccountsGuideModal';
 import { BooksView } from '../books/BooksView';
 import { BooksReportsPanel } from '../books/BooksReportsPanel';
@@ -112,13 +113,18 @@ export function AccountsView({
   const partySingular = partyLabel.replace(/s$/i, ''); // Vendor | Customer | Client (EN); other locales keep as-is
   const booksModuleOn = booksAccess !== 'hidden';
   const [tab, setTab] = useState<AccountTab>((initialTab as AccountTab) || 'pnl');
-  const now = new Date();
-  const fyStart = now.getMonth() >= 3 ? `${now.getFullYear()}-04-01` : `${now.getFullYear() - 1}-04-01`;
-  const [from, setFrom] = useState(fyStart);
-  const [to, setTo] = useState(now.toISOString().slice(0, 10));
+  const [from, setFrom] = useState(() => defaultDateRangeFromReportingPeriod().from);
+  const [to, setTo] = useState(() => defaultDateRangeFromReportingPeriod().to);
+  const applyThisFy = () => {
+    const fy = indianFyRange();
+    setFrom(fy.from);
+    setTo(fy.to);
+    writeReportingPeriod({ preset: 'fy', from: fy.from, to: fy.to, label: fy.label });
+  };
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState('all');
+  const now = new Date();
   const [gstMonth, setGstMonth] = useState(now.getMonth() + 1);
   const [gstYear, setGstYear] = useState(now.getFullYear());
   /** Prefer double-entry panels when COA exists — same tab labels, no ops+books duplicates. */
@@ -549,6 +555,8 @@ export function AccountsView({
           to={to}
           onFrom={setFrom}
           onTo={setTo}
+          onApplyFy={applyThisFy}
+          fyLabel={t('common.thisFy')}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={setLedgerFilter}
@@ -609,6 +617,8 @@ export function AccountsView({
           to={to}
           onFrom={setFrom}
           onTo={setTo}
+          onApplyFy={applyThisFy}
+          fyLabel={t('common.thisFy')}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={booksSelfContained ? undefined : setLedgerFilter}
@@ -779,6 +789,18 @@ export function AccountsView({
                     To
                   </label>
                   <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
+                </div>
+                <div className="col-span-2 sm:col-span-1 min-w-0 sm:w-auto">
+                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                    &nbsp;
+                  </label>
+                  <button
+                    type="button"
+                    onClick={applyThisFy}
+                    className={cn(dateControlClass, 'font-bold whitespace-nowrap')}
+                  >
+                    {t('common.thisFy')}
+                  </button>
                 </div>
               </>
             )}

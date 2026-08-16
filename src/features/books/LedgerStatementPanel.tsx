@@ -2,15 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
 import { ArrowLeft } from 'lucide-react';
+import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 
 function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
 function fyDefaults() {
-  const now = new Date();
-  const fyStart = now.getMonth() >= 3 ? `${now.getFullYear()}-04-01` : `${now.getFullYear() - 1}-04-01`;
-  return { from: fyStart, to: now.toISOString().slice(0, 10) };
+  return defaultDateRangeFromReportingPeriod();
 }
 
 interface StatementResponse {

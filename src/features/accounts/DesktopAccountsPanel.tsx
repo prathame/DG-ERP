@@ -25,6 +25,8 @@ type Props = {
   to: string;
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
+  onApplyFy?: () => void;
+  fyLabel?: string;
   showDateRange: boolean;
   ledgerFilter?: string;
   onLedgerFilter?: (v: string) => void;
@@ -55,6 +57,8 @@ export function DesktopAccountsPanel({
   to,
   onFrom,
   onTo,
+  onApplyFy,
+  fyLabel = 'This FY',
   showDateRange,
   ledgerFilter,
   onLedgerFilter,
@@ -170,6 +174,18 @@ export function DesktopAccountsPanel({
                     <label className={fieldLabel}>To Date</label>
                     <input type="date" value={to} onChange={e => onTo(e.target.value)} className={fieldInput} />
                   </div>
+                  {onApplyFy && (
+                    <div className="min-w-0 sm:w-auto">
+                      <label className={fieldLabel}>&nbsp;</label>
+                      <button
+                        type="button"
+                        onClick={onApplyFy}
+                        className="h-[42px] px-3 rounded-lg text-xs font-bold border border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)] whitespace-nowrap"
+                      >
+                        {fyLabel}
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
               {tab === 'ledger' && onLedgerFilter && (

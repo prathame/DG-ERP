@@ -33,10 +33,16 @@ import {
 import { DesktopAnalyticsDashboard } from './DesktopAnalyticsDashboard';
 import { MobileAnalyticsDashboard } from './MobileAnalyticsDashboard';
 import { MetricInfoTip } from './MetricInfoTip';
+import {
+  resolveReportingRange,
+  writeReportingPeriod,
+  readReportingPeriod,
+  type ReportingPeriodPreset,
+} from '../../lib/reportingPeriod';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
-const RANGE_IDS = ['today', 'week', 'month', 'overall', 'custom'] as const;
+const RANGE_IDS = ['today', 'week', 'month', 'fy', 'overall', 'custom'] as const;
 type RangeId = (typeof RANGE_IDS)[number];
 
 const ACTIVITY_META: Record<string, { icon: typeof IndianRupee; color: string; labelKey: string }> = {
@@ -103,13 +109,17 @@ export function AnalyticsView({
     { id: 'today' as const, label: t('common.today') },
     { id: 'week' as const, label: t('common.thisWeek') },
     { id: 'month' as const, label: t('common.thisMonth') },
+    { id: 'fy' as const, label: t('common.thisFy') },
     { id: 'overall' as const, label: t('common.overall') },
     { id: 'custom' as const, label: t('common.custom') },
   ];
   const outstandingLabel = t('dashboard.outstanding');
-  const [range, setRange] = useState<RangeId>('month');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [range, setRange] = useState<RangeId>(() => {
+    const saved = readReportingPeriod();
+    return saved?.preset && RANGE_IDS.includes(saved.preset as RangeId) ? (saved.preset as RangeId) : 'month';
+  });
+  const [fromDate, setFromDate] = useState(() => readReportingPeriod()?.from || '');
+  const [toDate, setToDate] = useState(() => readReportingPeriod()?.to || '');
   const [money, setMoney] = useState<{
     collections: number;
     revenue: number;
@@ -138,23 +148,15 @@ export function AnalyticsView({
   } | null>(null);
 
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    let from: string | undefined, to: string | undefined;
-    if (range === 'today') {
-      from = today;
-      to = today;
-    } else if (range === 'week') {
-      const d = new Date();
-      d.setDate(d.getDate() - 6);
-      from = d.toISOString().slice(0, 10);
-      to = today;
-    } else if (range === 'month') {
-      from = today.slice(0, 7) + '-01';
-      to = today;
-    } else if (range === 'custom') {
-      from = fromDate || undefined;
-      to = toDate || undefined;
-    }
+    const resolved = resolveReportingRange(range as ReportingPeriodPreset, fromDate, toDate);
+    const from = resolved.from;
+    const to = resolved.to;
+    writeReportingPeriod({
+      preset: range as ReportingPeriodPreset,
+      from: from || '',
+      to: to || '',
+      label: resolved.label,
+    });
     api.dashboard
       .overview(from, to)
       .then(data => {
