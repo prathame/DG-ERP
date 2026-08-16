@@ -1692,6 +1692,14 @@ export async function initSchema() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_book_fy_tenant ON book_financial_years(tenant_id)`);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS book_settings (
+        tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+        lock_date DATE,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS book_account_groups (
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

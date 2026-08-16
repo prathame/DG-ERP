@@ -57,8 +57,18 @@ export function handleApiError(
   message = 'Request failed',
   options: ApiErrorOptions = {},
 ): Response {
-  const status = options.status ?? 500;
-  const publicMessage = options.publicMessage ?? (status >= 500 ? 'Internal server error' : safeErrorMessage(err));
+  const errStatus =
+    err && typeof err === 'object' && typeof (err as { status?: unknown }).status === 'number'
+      ? (err as { status: number }).status
+      : undefined;
+  const status = options.status ?? (errStatus && errStatus >= 400 && errStatus < 600 ? errStatus : 500);
+  const publicMessage =
+    options.publicMessage ??
+    (status >= 500
+      ? 'Internal server error'
+      : err instanceof Error && err.message
+        ? err.message
+        : safeErrorMessage(err));
   const correlationId =
     (req as ReqWithMeta).correlationId ||
     (typeof req.headers['x-correlation-id'] === 'string' ? req.headers['x-correlation-id'] : undefined);

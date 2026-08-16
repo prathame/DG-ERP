@@ -11,6 +11,7 @@ import { VoucherDetailModal } from './VoucherDetailModal';
 import { BooksReportsPanel } from './BooksReportsPanel';
 import { VoucherDeskForm } from './VoucherDeskForm';
 import { BooksOutstandingPanel } from './BooksOutstandingPanel';
+import { BooksPeriodLockPanel } from './BooksPeriodLockPanel';
 
 type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports' | 'outstanding';
 
@@ -18,6 +19,7 @@ interface BooksSummary {
   ledgers: number;
   products: number;
   vouchers: number;
+  lockDate?: string | null;
   recentImports: Array<{
     id: string;
     status: string;
@@ -234,102 +236,109 @@ export function BooksView({
           <LoadingSpinner />
         </div>
       ) : panel === 'overview' ? (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[
-            { label: 'Ledgers', value: summary?.ledgers ?? 0 },
-            { label: 'Products', value: summary?.products ?? 0 },
-            { label: 'Vouchers', value: summary?.vouchers ?? 0 },
-          ].map(c => (
-            <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">{c.label}</div>
-              <div className="mt-1 text-3xl font-semibold text-slate-900">{c.value}</div>
+        <div className="space-y-4">
+          <BooksPeriodLockPanel
+            lockDate={summary?.lockDate}
+            onChanged={d => setSummary(prev => (prev ? { ...prev, lockDate: d } : prev))}
+          />
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              { label: 'Ledgers', value: summary?.ledgers ?? 0 },
+              { label: 'Products', value: summary?.products ?? 0 },
+              { label: 'Vouchers', value: summary?.vouchers ?? 0 },
+            ].map(c => (
+              <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-sm text-slate-500">{c.label}</div>
+                <div className="mt-1 text-3xl font-semibold text-slate-900">{c.value}</div>
+              </div>
+            ))}
+            <div className="sm:col-span-3 rounded-xl border border-orange-100 bg-orange-50/60 p-4">
+              <h2 className="mb-2 text-sm font-semibold text-slate-800">CA books path</h2>
+              <ol className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                <li>
+                  <span className="font-semibold text-orange-700">1. Import</span> — Miracle CMP fills ledgers &
+                  vouchers
+                </li>
+                <li>
+                  <span className="font-semibold text-orange-700">2. Statement</span> — open a ledger for party books
+                </li>
+                <li>
+                  <span className="font-semibold text-orange-700">3. Reports</span> — trial balance, P&amp;L, balance
+                  sheet
+                </li>
+              </ol>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => openPanel('import')}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
+                >
+                  <FileUp size={16} />
+                  Data import
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPanel('reports')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
+                >
+                  <Scale size={16} />
+                  Reports
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPanel('daybook')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
+                >
+                  <CalendarDays size={16} />
+                  Day book
+                </button>
+              </div>
             </div>
-          ))}
-          <div className="sm:col-span-3 rounded-xl border border-orange-100 bg-orange-50/60 p-4">
-            <h2 className="mb-2 text-sm font-semibold text-slate-800">CA books path</h2>
-            <ol className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-              <li>
-                <span className="font-semibold text-orange-700">1. Import</span> — Miracle CMP fills ledgers & vouchers
-              </li>
-              <li>
-                <span className="font-semibold text-orange-700">2. Statement</span> — open a ledger for party books
-              </li>
-              <li>
-                <span className="font-semibold text-orange-700">3. Reports</span> — trial balance, P&amp;L, balance
-                sheet
-              </li>
-            </ol>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => openPanel('import')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
-              >
-                <FileUp size={16} />
-                Data import
-              </button>
-              <button
-                type="button"
-                onClick={() => openPanel('reports')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
-              >
-                <Scale size={16} />
-                Reports
-              </button>
-              <button
-                type="button"
-                onClick={() => openPanel('daybook')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50"
-              >
-                <CalendarDays size={16} />
-                Day book
-              </button>
+            <div className="sm:col-span-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="mb-2 font-semibold text-slate-800">Recent Miracle imports</h2>
+              {!summary?.recentImports?.length ? (
+                <p className="text-sm text-slate-500">No imports yet — use Data import to upload a CMP .rar / .zip.</p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {summary.recentImports.map(j => {
+                    const s = (j.summary || {}) as Record<string, unknown>;
+                    const opsBits = [
+                      summaryCount(s, 'vendors') ? `${summaryCount(s, 'vendors')} parties` : null,
+                      summaryCount(s, 'opsProducts') ? `${summaryCount(s, 'opsProducts')} products` : null,
+                      summaryCount(s, 'invoices') ? `${summaryCount(s, 'invoices')} invoices` : null,
+                      summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')
+                        ? `${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments`
+                        : null,
+                    ].filter(Boolean);
+                    return (
+                      <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium">{j.companyName || 'Import'}</span>
+                          <span className="ml-2 text-slate-500">{j.miracleVersion}</span>
+                          {opsBits.length > 0 && (
+                            <div className="text-xs text-slate-500 mt-0.5">Dhandho: {opsBits.join(', ')}</div>
+                          )}
+                          {j.status === 'failed' && j.errorMessage && (
+                            <div className="text-xs text-red-600 mt-0.5 break-words">{j.errorMessage}</div>
+                          )}
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            j.status === 'completed'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : j.status === 'failed'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {j.status}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-          </div>
-          <div className="sm:col-span-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-2 font-semibold text-slate-800">Recent Miracle imports</h2>
-            {!summary?.recentImports?.length ? (
-              <p className="text-sm text-slate-500">No imports yet — use Data import to upload a CMP .rar / .zip.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {summary.recentImports.map(j => {
-                  const s = (j.summary || {}) as Record<string, unknown>;
-                  const opsBits = [
-                    summaryCount(s, 'vendors') ? `${summaryCount(s, 'vendors')} parties` : null,
-                    summaryCount(s, 'opsProducts') ? `${summaryCount(s, 'opsProducts')} products` : null,
-                    summaryCount(s, 'invoices') ? `${summaryCount(s, 'invoices')} invoices` : null,
-                    summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')
-                      ? `${summaryCount(s, 'vendorPayments') + summaryCount(s, 'invoicePayments')} payments`
-                      : null,
-                  ].filter(Boolean);
-                  return (
-                    <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium">{j.companyName || 'Import'}</span>
-                        <span className="ml-2 text-slate-500">{j.miracleVersion}</span>
-                        {opsBits.length > 0 && (
-                          <div className="text-xs text-slate-500 mt-0.5">Dhandho: {opsBits.join(', ')}</div>
-                        )}
-                        {j.status === 'failed' && j.errorMessage && (
-                          <div className="text-xs text-red-600 mt-0.5 break-words">{j.errorMessage}</div>
-                        )}
-                      </div>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          j.status === 'completed'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : j.status === 'failed'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {j.status}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
           </div>
         </div>
       ) : panel === 'ledgers' ? (

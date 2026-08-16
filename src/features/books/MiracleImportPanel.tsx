@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FileUp } from 'lucide-react';
 import { session } from '../../lib/session';
 import { resolveApiUrl } from '../../platforms/shared';
@@ -6,6 +6,8 @@ import { ensureCorrelationId } from '../../lib/logger';
 import { appClientHeader } from '../../lib/deviceId';
 import { serviceCloudClientHeader } from '../../platforms/service-cloud/mode';
 import { useTranslation } from '../../i18n';
+import { fetchApi } from '../../api';
+import { BooksPeriodLockPanel } from './BooksPeriodLockPanel';
 
 export interface MiracleImportIssue {
   stage: string;
@@ -409,6 +411,21 @@ export function MiracleImportPanel({
   const [errors, setErrors] = useState<MiracleImportIssue[]>([]);
   const [warnings, setWarnings] = useState<MiracleImportIssue[]>([]);
   const [coverage, setCoverage] = useState<MiracleImportCoverage | null>(null);
+  const [lockDate, setLockDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApi<{ lockDate?: string | null }>('/books/summary')
+      .then(s => {
+        if (!cancelled) setLockDate(s.lockDate || null);
+      })
+      .catch(() => {
+        /* ignore — lock panel still usable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onFile = async (file: File | null) => {
     if (!file) return;
@@ -434,6 +451,7 @@ export function MiracleImportPanel({
 
   return (
     <div className="space-y-3">
+      <BooksPeriodLockPanel lockDate={lockDate} onChanged={setLockDate} />
       {message && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 text-left">
           {message}
