@@ -7,6 +7,7 @@
 import type { PoolClient } from 'pg';
 import { uid } from '../utils/helpers';
 import { round2 } from './bookReports';
+import { assertBooksDatesUnlocked } from './bookPeriodLock';
 
 /**
  * Ensure Cash / Bank / Sales Income (+ party ledgers for existing clients) exist.
@@ -460,6 +461,7 @@ async function insertVoucher(
 
   const amount = round2(opts.amount);
   if (!(amount > 0)) return null;
+  await assertBooksDatesUnlocked(client, tenantId, [opts.voucherDate]);
   const fy = await resolveFinancialYearId(client, tenantId, opts.voucherDate);
   const voucherId = uid('BV');
   await client.query(

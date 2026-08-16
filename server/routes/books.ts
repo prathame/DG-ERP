@@ -24,6 +24,7 @@ import {
   cancelMemoVoucher,
   type BookVoucherType,
 } from '../services/bookVouchers';
+import { BooksPeriodLockedError, getBooksLockDate, setBooksLockDate } from '../services/bookPeriodLock';
 import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
 import {
   getBooksBalanceSheet,
@@ -194,7 +195,7 @@ router.get('/api/books/summary', blockVendors, async (req: AuthRequest, res) => 
     const tenantId = tenantOf(req);
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     await withNativeBooksDesk(tenantId);
-    const [ledgers, products, vouchers, jobs] = await Promise.all([
+    const [ledgers, products, vouchers, jobs, lockDate] = await Promise.all([
       pool.query(`SELECT COUNT(*)::int AS c FROM book_ledgers WHERE tenant_id = $1`, [tenantId]),
       pool.query(`SELECT COUNT(*)::int AS c FROM book_products WHERE tenant_id = $1`, [tenantId]),
       pool.query(`SELECT COUNT(*)::int AS c FROM book_vouchers WHERE tenant_id = $1`, [tenantId]),
@@ -203,11 +204,13 @@ router.get('/api/books/summary', blockVendors, async (req: AuthRequest, res) => 
          FROM book_import_jobs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5`,
         [tenantId],
       ),
+      getBooksLockDate(pool, tenantId),
     ]);
     res.json({
       ledgers: ledgers.rows[0]?.c ?? 0,
       products: products.rows[0]?.c ?? 0,
       vouchers: vouchers.rows[0]?.c ?? 0,
+      lockDate,
       recentImports: jobs.rows.map(r => ({
         id: r.id,
         status: r.status,
@@ -219,6 +222,34 @@ router.get('/api/books/summary', blockVendors, async (req: AuthRequest, res) => 
         finishedAt: r.finished_at,
       })),
     });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Admin: set or clear books period lock (close books through this date). */
+router.put('/api/books/period-lock', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const raw = req.body?.lockDate;
+    let next: string | null = null;
+    if (raw != null && String(raw).trim() !== '') {
+      next = String(raw).trim().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) {
+        return res.status(400).json({ error: 'lockDate must be YYYY-MM-DD or null' });
+      }
+    }
+    const lockDate = await setBooksLockDate(pool, tenantId, next);
+    await logAudit(
+      pool,
+      tenantId,
+      lockDate ? 'Books Period Locked' : 'Books Period Unlocked',
+      'book_settings',
+      tenantId,
+      lockDate ? `lock_date=${lockDate}` : 'lock_date=cleared',
+    );
+    res.json({ lockDate });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -896,6 +927,9 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
     if (err instanceof BookVoucherValidationError) {
       return res.status(err.status).json({ error: err.message });
     }
+    if (err instanceof BooksPeriodLockedError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     return handleApiError(req, res, err);
   } finally {
     client.release();
@@ -940,6 +974,9 @@ router.put('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res
     if (err instanceof BookVoucherNotFoundError || err instanceof BookVoucherValidationError) {
       return res.status(err.status).json({ error: err.message });
     }
+    if (err instanceof BooksPeriodLockedError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     return handleApiError(req, res, err);
   } finally {
     client.release();
@@ -978,6 +1015,9 @@ router.post('/api/books/vouchers/:id/realise', blockVendors, async (req: AuthReq
     if (err instanceof BookVoucherValidationError) {
       return res.status(err.status).json({ error: err.message });
     }
+    if (err instanceof BooksPeriodLockedError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     return handleApiError(req, res, err);
   } finally {
     client.release();
@@ -1003,6 +1043,9 @@ router.post('/api/books/vouchers/:id/cancel-memo', blockVendors, async (req: Aut
       /* ignore */
     }
     if (err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    if (err instanceof BooksPeriodLockedError) {
       return res.status(err.status).json({ error: err.message });
     }
     return handleApiError(req, res, err);
@@ -1031,6 +1074,9 @@ router.delete('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, 
       /* ignore */
     }
     if (err instanceof BookVoucherNotFoundError || err instanceof BookVoucherValidationError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    if (err instanceof BooksPeriodLockedError) {
       return res.status(err.status).json({ error: err.message });
     }
     return handleApiError(req, res, err);

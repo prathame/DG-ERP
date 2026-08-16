@@ -22,6 +22,7 @@ import {
   upsertCreditNoteStockIn,
   upsertSaleStockOut,
 } from './salesStockOps';
+import { assertBooksDatesUnlocked } from './bookPeriodLock';
 
 export const BOOK_VOUCHER_TYPES = [
   'receipt',
@@ -498,6 +499,7 @@ export async function createBookVoucher(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(voucherDate)) {
     throw new BookVoucherValidationError('voucherDate must be YYYY-MM-DD');
   }
+  await assertBooksDatesUnlocked(client, tenantId, [voucherDate]);
 
   let lines: ReturnType<typeof normalizeEntries>;
   let partyLedgerId: string | null = input.partyLedgerId || null;
@@ -740,6 +742,7 @@ export async function deleteBookVoucher(
   voucherId: string,
 ): Promise<{ id: string; voucherType: string }> {
   const row = await loadVoucherRow(client, tenantId, voucherId);
+  await assertBooksDatesUnlocked(client, tenantId, [asIsoDate(row.voucher_date)]);
   if (isManualVoucher(row.external_ref) && (row.voucher_type === 'receipt' || row.voucher_type === 'payment')) {
     await clearBooksDualWritePayments(client, tenantId, voucherId);
   }
@@ -809,6 +812,7 @@ export async function updateBookVoucher(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(voucherDateRaw)) {
     throw new BookVoucherValidationError('voucherDate must be YYYY-MM-DD');
   }
+  await assertBooksDatesUnlocked(client, tenantId, [asIsoDate(row.voucher_date), voucherDateRaw]);
 
   const voucherNumber = input.voucherNumber !== undefined ? input.voucherNumber?.trim() || null : row.voucher_number;
   const narration = input.narration !== undefined ? input.narration?.trim() || null : row.narration;
@@ -1016,6 +1020,7 @@ export async function realisePdcVoucher(
   };
   const realiseDate = toIsoDate(opts?.voucherDate) || toIsoDate(row.maturity_date) || toIsoDate(row.voucher_date);
   if (!realiseDate) throw new BookVoucherValidationError('Could not resolve realisation date');
+  await assertBooksDatesUnlocked(client, tenantId, [toIsoDate(row.voucher_date), realiseDate]);
   const chq = row.instrument_ref ? `Chq ${row.instrument_ref}` : 'PDC';
   const narration = [row.narration, `Realised from ${chq}`].filter(Boolean).join(' — ');
 
@@ -1050,11 +1055,11 @@ export async function cancelMemoVoucher(
   voucherId: string,
 ): Promise<{ id: string; voucherType: string }> {
   const row = (
-    await client.query(`SELECT id, voucher_type, memo_status FROM book_vouchers WHERE tenant_id = $1 AND id = $2`, [
-      tenantId,
-      voucherId,
-    ])
-  ).rows[0] as { id: string; voucher_type: string; memo_status: string | null } | undefined;
+    await client.query(
+      `SELECT id, voucher_type, voucher_date, memo_status FROM book_vouchers WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, voucherId],
+    )
+  ).rows[0] as { id: string; voucher_type: string; voucher_date: string; memo_status: string | null } | undefined;
 
   if (!row) throw new BookVoucherValidationError('Voucher not found');
   if (!isNonPostingVoucherType(row.voucher_type)) {
@@ -1063,6 +1068,7 @@ export async function cancelMemoVoucher(
   if (row.memo_status !== 'open') {
     throw new BookVoucherValidationError('Only open memo vouchers can be cancelled');
   }
+  await assertBooksDatesUnlocked(client, tenantId, [row.voucher_date]);
 
   await client.query(`UPDATE book_vouchers SET memo_status = 'cancelled' WHERE tenant_id = $1 AND id = $2`, [
     tenantId,

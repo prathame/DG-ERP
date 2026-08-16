@@ -36,6 +36,7 @@ import { classifyGst } from './bookTradeRegister';
 import { round2 } from './bookReports';
 import { upsertPurchaseStockIn, upsertPurchaseStockReturn } from './purchaseStockOps';
 import { upsertCreditNoteStockIn, upsertSaleStockOut } from './salesStockOps';
+import { getBooksLockDate, isDateLocked } from './bookPeriodLock';
 
 export { expandPurchaseStockUnits, type OpsPurchaseUnit } from './purchaseStockOps';
 
@@ -87,6 +88,8 @@ export interface MiracleImportSummary {
   ledgers: number;
   products: number;
   vouchers: number;
+  /** Vouchers skipped because date is on/before books lock date */
+  lockedVouchersSkipped?: number;
   voucherEntries: number;
   voucherItems: number;
   /** Dhandho ops dual-write counts */
@@ -1119,6 +1122,7 @@ export async function importMiracleCompany(
     ledgers: 0,
     products: 0,
     vouchers: 0,
+    lockedVouchersSkipped: 0,
     voucherEntries: 0,
     voucherItems: 0,
     vendors: 0,
@@ -1502,6 +1506,7 @@ export async function importMiracleCompany(
     billRefs: string[];
   };
   const pendingCash: PendingCash[] = [];
+  const booksLockDate = await getBooksLockDate(client, tenantId);
 
   for (const h of headers) {
     const ext = str(h.FIELD01);
@@ -1511,6 +1516,10 @@ export async function importMiracleCompany(
     const subtype = str(h.FIELD16) || '';
     const voucherType = mapVoucherType(miracleType, subtype, field98);
     const vDate = dateStr(h.FIELD02) || '2025-04-01';
+    if (isDateLocked(vDate, booksLockDate)) {
+      summary.lockedVouchersSkipped = (summary.lockedVouchersSkipped || 0) + 1;
+      continue;
+    }
     const vNumberRaw = str(h.FIELD12) || str(h.T41FVNO) || '';
     const vNumber = normalizeMiracleDocNumber(vNumberRaw) || null;
     const partyExt = str(h.FIELD04);
@@ -2192,6 +2201,12 @@ export async function importMiracleCompany(
   }
 
   warnBooksOnlySkips(issues, coverage);
+  if ((summary.lockedVouchersSkipped || 0) > 0) {
+    issues.warn({
+      stage: 'period-lock',
+      message: `${summary.lockedVouchersSkipped} voucher(s) skipped — dated on or before books lock date`,
+    });
+  }
   const { errors, warnings } = issues.finalize();
   const persisted = { ...summary, errors, warnings };
 
