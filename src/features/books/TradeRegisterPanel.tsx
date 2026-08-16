@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
+import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 
 function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
@@ -38,10 +39,9 @@ export function TradeRegisterPanel({
   kind: TradeKind;
   onOpenVoucher: (voucherId: string) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const fyStart = today.slice(5, 7) >= '04' ? `${today.slice(0, 4)}-04-01` : `${Number(today.slice(0, 4)) - 1}-04-01`;
-  const [from, setFrom] = useState(fyStart);
-  const [to, setTo] = useState(today);
+  const seeded = defaultDateRangeFromReportingPeriod();
+  const [from, setFrom] = useState(seeded.from);
+  const [to, setTo] = useState(seeded.to);
   const [data, setData] = useState<TradeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

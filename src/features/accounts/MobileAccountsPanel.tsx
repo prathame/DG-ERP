@@ -24,6 +24,8 @@ type Props = {
   to: string;
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
+  onApplyFy?: () => void;
+  fyLabel?: string;
   showDateRange: boolean;
   ledgerFilter?: string;
   onLedgerFilter?: (v: string) => void;
@@ -91,6 +93,8 @@ export function MobileAccountsPanel({
   to,
   onFrom,
   onTo,
+  onApplyFy,
+  fyLabel = 'This FY',
   showDateRange,
   ledgerFilter,
   onLedgerFilter,
@@ -174,6 +178,17 @@ export function MobileAccountsPanel({
                   <label className={fieldLabel}>To</label>
                   <input type="date" value={to} onChange={e => onTo(e.target.value)} className={fieldInput} />
                 </div>
+                {onApplyFy && (
+                  <div className="col-span-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={onApplyFy}
+                      className="w-full h-10 rounded-xl text-[12px] font-bold border border-[var(--dg-card-border)] dg-m-surface dg-m-ink"
+                    >
+                      {fyLabel}
+                    </button>
+                  </div>
+                )}
               </>
             )}
             {tab === 'ledger' && onLedgerFilter && (

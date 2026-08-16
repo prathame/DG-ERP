@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
 import { QuickFundEntryModal } from './QuickFundEntryModal';
+import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 
 function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -41,10 +42,9 @@ interface FundBookResponse {
 }
 
 export function FundBookPanel({ kind, onOpenVoucher }: { kind: FundKind; onOpenVoucher: (voucherId: string) => void }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const fyStart = today.slice(5, 7) >= '04' ? `${today.slice(0, 4)}-04-01` : `${Number(today.slice(0, 4)) - 1}-04-01`;
-  const [from, setFrom] = useState(fyStart);
-  const [to, setTo] = useState(today);
+  const seeded = defaultDateRangeFromReportingPeriod();
+  const [from, setFrom] = useState(seeded.from);
+  const [to, setTo] = useState(seeded.to);
   const [ledgerId, setLedgerId] = useState('');
   const [data, setData] = useState<FundBookResponse | null>(null);
   const [loading, setLoading] = useState(true);
