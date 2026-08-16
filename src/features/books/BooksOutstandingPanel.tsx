@@ -4,8 +4,11 @@ import { api } from '../../api';
 import { AppModal, LoadingSpinner, useToast } from '../../components/ui';
 import {
   billsForParty,
+  daysPastDue,
   filterOpenBills,
+  outstandingAgeBucket,
   partiesWithOpenDues,
+  summarizeArAging,
   type OutstandingBillRow,
   type OutstandingPartyRow,
 } from './bookOutstandingUtils';
@@ -97,6 +100,7 @@ export function BooksOutstandingPanel() {
   );
 
   const totalDue = useMemo(() => openParties.reduce((s, p) => s + (Number(p.balance) || 0), 0), [openParties]);
+  const aging = useMemo(() => summarizeArAging(bills), [bills]);
 
   function openPay(target: PayTarget) {
     setPayTarget(target);
@@ -284,6 +288,22 @@ export function BooksOutstandingPanel() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {(
+          [
+            { label: '0–30d', value: aging.d0_30 },
+            { label: '31–60d', value: aging.d31_60 },
+            { label: '61–90d', value: aging.d61_90 },
+            { label: '90d+', value: aging.d90plus },
+          ] as const
+        ).map(b => (
+          <div key={b.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{b.label}</div>
+            <div className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">₹{money(b.value)}</div>
+          </div>
+        ))}
+      </div>
+
       {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       {view === 'parties' ? (
@@ -331,37 +351,42 @@ export function BooksOutstandingPanel() {
                 <th className="px-3 py-2">Party</th>
                 <th className="px-3 py-2">Bill</th>
                 <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Age</th>
                 <th className="px-3 py-2 text-right">Due</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
-              {filteredBills.map(b => (
-                <tr key={b.invoiceId} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{b.clientName}</td>
-                  <td className="px-3 py-2 font-medium">{b.invoiceNumber}</td>
-                  <td className="px-3 py-2 text-slate-600">{b.invoiceDate}</td>
-                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-orange-800">
-                    {money(b.balance)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openPay({
-                          mode: 'invoice',
-                          invoiceId: b.invoiceId,
-                          label: b.invoiceNumber,
-                          balance: b.balance,
-                        })
-                      }
-                      className="rounded-md px-2 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50"
-                    >
-                      Collect
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredBills.map(b => {
+                const days = daysPastDue(b.invoiceDate);
+                return (
+                  <tr key={b.invoiceId} className="border-t border-slate-100">
+                    <td className="px-3 py-2">{b.clientName}</td>
+                    <td className="px-3 py-2 font-medium">{b.invoiceNumber}</td>
+                    <td className="px-3 py-2 text-slate-600">{b.invoiceDate}</td>
+                    <td className="px-3 py-2 text-slate-600">{outstandingAgeBucket(days)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-orange-800">
+                      {money(b.balance)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openPay({
+                            mode: 'invoice',
+                            invoiceId: b.invoiceId,
+                            label: b.invoiceNumber,
+                            balance: b.balance,
+                          })
+                        }
+                        className="rounded-md px-2 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50"
+                      >
+                        Collect
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

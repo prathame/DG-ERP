@@ -6,6 +6,8 @@
 import React from 'react';
 import { BarChart3, Download, Search, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { PeriodPresetChips, type PeriodPresetChip } from '../../components/ui';
+import type { ReportingPeriodPreset } from '../../lib/reportingPeriod';
 import { AccountsHelpButton } from './AccountsGuideModal';
 
 export type MobileAccountChip = {
@@ -24,8 +26,9 @@ type Props = {
   to: string;
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
-  onApplyFy?: () => void;
-  fyLabel?: string;
+  periodPresets?: PeriodPresetChip[];
+  activePeriodPreset?: string | null;
+  onPeriodPreset?: (id: ReportingPeriodPreset) => void;
   showDateRange: boolean;
   ledgerFilter?: string;
   onLedgerFilter?: (v: string) => void;
@@ -93,8 +96,9 @@ export function MobileAccountsPanel({
   to,
   onFrom,
   onTo,
-  onApplyFy,
-  fyLabel = 'This FY',
+  periodPresets,
+  activePeriodPreset,
+  onPeriodPreset,
   showDateRange,
   ledgerFilter,
   onLedgerFilter,
@@ -178,15 +182,13 @@ export function MobileAccountsPanel({
                   <label className={fieldLabel}>To</label>
                   <input type="date" value={to} onChange={e => onTo(e.target.value)} className={fieldInput} />
                 </div>
-                {onApplyFy && (
+                {periodPresets && onPeriodPreset && (
                   <div className="col-span-2 min-w-0">
-                    <button
-                      type="button"
-                      onClick={onApplyFy}
-                      className="w-full h-10 rounded-xl text-[12px] font-bold border border-[var(--dg-card-border)] dg-m-surface dg-m-ink"
-                    >
-                      {fyLabel}
-                    </button>
+                    <PeriodPresetChips
+                      presets={periodPresets}
+                      activeId={activePeriodPreset}
+                      onSelect={onPeriodPreset}
+                    />
                   </div>
                 )}
               </>

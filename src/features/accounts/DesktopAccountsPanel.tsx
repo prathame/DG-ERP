@@ -5,6 +5,8 @@
 import React from 'react';
 import { BarChart3, Download, Search, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { PeriodPresetChips, type PeriodPresetChip } from '../../components/ui';
+import type { ReportingPeriodPreset } from '../../lib/reportingPeriod';
 import { AccountsHelpButton } from './AccountsGuideModal';
 
 export type DesktopAccountTile = {
@@ -25,8 +27,9 @@ type Props = {
   to: string;
   onFrom: (v: string) => void;
   onTo: (v: string) => void;
-  onApplyFy?: () => void;
-  fyLabel?: string;
+  periodPresets?: PeriodPresetChip[];
+  activePeriodPreset?: string | null;
+  onPeriodPreset?: (id: ReportingPeriodPreset) => void;
   showDateRange: boolean;
   ledgerFilter?: string;
   onLedgerFilter?: (v: string) => void;
@@ -57,8 +60,9 @@ export function DesktopAccountsPanel({
   to,
   onFrom,
   onTo,
-  onApplyFy,
-  fyLabel = 'This FY',
+  periodPresets,
+  activePeriodPreset,
+  onPeriodPreset,
   showDateRange,
   ledgerFilter,
   onLedgerFilter,
@@ -174,16 +178,14 @@ export function DesktopAccountsPanel({
                     <label className={fieldLabel}>To Date</label>
                     <input type="date" value={to} onChange={e => onTo(e.target.value)} className={fieldInput} />
                   </div>
-                  {onApplyFy && (
-                    <div className="min-w-0 sm:w-auto">
-                      <label className={fieldLabel}>&nbsp;</label>
-                      <button
-                        type="button"
-                        onClick={onApplyFy}
-                        className="h-[42px] px-3 rounded-lg text-xs font-bold border border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)] whitespace-nowrap"
-                      >
-                        {fyLabel}
-                      </button>
+                  {periodPresets && onPeriodPreset && (
+                    <div className="col-span-2 min-w-0 sm:col-span-1 sm:flex-1">
+                      <label className={fieldLabel}>Period</label>
+                      <PeriodPresetChips
+                        presets={periodPresets}
+                        activeId={activePeriodPreset}
+                        onSelect={onPeriodPreset}
+                      />
                     </div>
                   )}
                 </>

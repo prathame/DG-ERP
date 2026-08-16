@@ -36,14 +36,19 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
-import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
+import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass, PeriodPresetChips } from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 import { MobileAccountsPanel } from './MobileAccountsPanel';
-import { defaultDateRangeFromReportingPeriod, indianFyRange, writeReportingPeriod } from '../../lib/reportingPeriod';
+import {
+  applyReportingPreset,
+  defaultDateRangeFromReportingPeriod,
+  readReportingPeriod,
+  type ReportingPeriodPreset,
+} from '../../lib/reportingPeriod';
 import { AccountsGuideModal, AccountsHelpButton } from './AccountsGuideModal';
 import { BooksView } from '../books/BooksView';
 import { BooksReportsPanel } from '../books/BooksReportsPanel';
@@ -115,11 +120,21 @@ export function AccountsView({
   const [tab, setTab] = useState<AccountTab>((initialTab as AccountTab) || 'pnl');
   const [from, setFrom] = useState(() => defaultDateRangeFromReportingPeriod().from);
   const [to, setTo] = useState(() => defaultDateRangeFromReportingPeriod().to);
-  const applyThisFy = () => {
-    const fy = indianFyRange();
-    setFrom(fy.from);
-    setTo(fy.to);
-    writeReportingPeriod({ preset: 'fy', from: fy.from, to: fy.to, label: fy.label });
+  const [periodPreset, setPeriodPreset] = useState<ReportingPeriodPreset | null>(
+    () => readReportingPeriod()?.preset ?? 'fy',
+  );
+  const periodPresets = [
+    { id: 'fy' as const, label: t('common.thisFy') },
+    { id: 'lastFy' as const, label: t('common.lastFy') },
+    { id: 'quarter' as const, label: t('common.thisQuarter') },
+    { id: 'month' as const, label: t('common.thisMonth') },
+  ];
+  const applyPeriod = (id: ReportingPeriodPreset) => {
+    const applied = applyReportingPreset(id);
+    if (!applied) return;
+    setFrom(applied.from);
+    setTo(applied.to);
+    setPeriodPreset(id);
   };
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -555,8 +570,9 @@ export function AccountsView({
           to={to}
           onFrom={setFrom}
           onTo={setTo}
-          onApplyFy={applyThisFy}
-          fyLabel={t('common.thisFy')}
+          periodPresets={periodPresets}
+          activePeriodPreset={periodPreset}
+          onPeriodPreset={applyPeriod}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={setLedgerFilter}
@@ -617,8 +633,9 @@ export function AccountsView({
           to={to}
           onFrom={setFrom}
           onTo={setTo}
-          onApplyFy={applyThisFy}
-          fyLabel={t('common.thisFy')}
+          periodPresets={periodPresets}
+          activePeriodPreset={periodPreset}
+          onPeriodPreset={applyPeriod}
           showDateRange={showDateRange && tab !== 'gstr3b'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={booksSelfContained ? undefined : setLedgerFilter}
@@ -790,17 +807,11 @@ export function AccountsView({
                   </label>
                   <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
                 </div>
-                <div className="col-span-2 sm:col-span-1 min-w-0 sm:w-auto">
+                <div className="col-span-2 min-w-0">
                   <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                    &nbsp;
+                    Period
                   </label>
-                  <button
-                    type="button"
-                    onClick={applyThisFy}
-                    className={cn(dateControlClass, 'font-bold whitespace-nowrap')}
-                  >
-                    {t('common.thisFy')}
-                  </button>
+                  <PeriodPresetChips presets={periodPresets} activeId={periodPreset} onSelect={applyPeriod} />
                 </div>
               </>
             )}
