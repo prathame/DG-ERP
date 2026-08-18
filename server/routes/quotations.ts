@@ -7,6 +7,7 @@ import { hasExplicitUnitPrice, resolvePrice, unitPricesAfterDiscount } from '../
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 
 const router = Router();
 
@@ -14,6 +15,8 @@ type QuoteItem = {
   productId: string;
   productName: string;
   quantity: number;
+  /** Sale unit from bill settings (Piece, Kg, …). */
+  unit?: string;
   price: number;
   discountPercent: number;
   withGst: boolean;
@@ -29,6 +32,7 @@ type QuoteItemInput = {
   description?: string;
   productName?: string;
   quantity?: number;
+  unit?: string;
   customPrice?: unknown;
   discountPercent?: number;
   withGst?: boolean;
@@ -114,7 +118,8 @@ async function buildResolvedItems(
   const resolvedItems: QuoteItem[] = [];
   for (const item of items) {
     const productId = String(item.productId || '').trim();
-    const qty = Math.max(1, Number(item.quantity) || 1);
+    const qty = parseBillQty(item.quantity, 1);
+    const unit = normalizeLineUnit(item.unit, DEFAULT_BILL_UNIT);
     const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
     const withGst = item.withGst !== false;
 
@@ -147,6 +152,7 @@ async function buildResolvedItems(
         productId: '',
         productName: customName,
         quantity: qty,
+        unit,
         price,
         discountPercent: disc,
         withGst,
@@ -185,6 +191,7 @@ async function buildResolvedItems(
       productId: product.id,
       productName: product.name,
       quantity: qty,
+      unit,
       price,
       discountPercent: disc,
       withGst,
@@ -636,6 +643,7 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
             productId: productId || '',
             hsnSac,
             qty: p.convertQty,
+            unit: normalizeLineUnit(p.item.unit, DEFAULT_BILL_UNIT),
             rate: Number(p.item.price),
             discountPercent: Number(p.item.discountPercent) || 0,
             gstPercent: withGst ? gstRate : 0,

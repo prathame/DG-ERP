@@ -9,6 +9,7 @@ import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
 import { addCalendarDaysIso } from '../utils/partyCreditTerms';
+import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 
 const router = Router();
 
@@ -261,6 +262,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       description?: string;
       hsnSac?: string;
       qty?: number;
+      unit?: string;
       rate?: number;
       gstPercent?: number;
       discountPercent?: number;
@@ -278,6 +280,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       description: string;
       hsnSac?: string;
       qty: number;
+      unit: string;
       rate: number;
       gstPercent: number;
       discountPercent: number;
@@ -287,7 +290,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       total: number;
     }[] = [];
     for (const raw of items as LineIn[]) {
-      const qty = Number(raw.qty) || 1;
+      const qty = parseBillQty(raw.qty, 1);
+      const unit = normalizeLineUnit(raw.unit, DEFAULT_BILL_UNIT);
       let rate = Number(raw.rate) || 0;
       if (!Number.isFinite(rate) || rate < 0) {
         return res.status(400).json({ error: 'Line rate cannot be negative' });
@@ -334,6 +338,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
         description: raw.description || '',
         hsnSac: raw.hsnSac,
         qty,
+        unit,
         rate,
         gstPercent,
         discountPercent: disc,

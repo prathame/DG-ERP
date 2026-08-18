@@ -14,6 +14,7 @@ import crypto from 'crypto';
 import { decryptSecret } from '../utils/secret-crypto';
 import { isValidGstin } from '../utils/helpers';
 import { logger } from '../utils/logger';
+import { billUnitToGstUqc } from '../../shared/billUnits';
 
 const SLOW_EXTERNAL_MS = Number(process.env.SLOW_EXTERNAL_MS || 3000);
 
@@ -139,6 +140,7 @@ export function buildIrnPayload(opts: {
     hsnCode: string;
     productName: string;
     qty: number;
+    unit?: string;
     unitPrice: number;
     gstRate: number;
     taxable: number;
@@ -184,7 +186,7 @@ export function buildIrnPayload(opts: {
       IsServc: 'N',
       HsnCd: it.hsnCode || '9999',
       Qty: it.qty,
-      Unit: 'NOS',
+      Unit: billUnitToGstUqc(it.unit),
       UnitPrice: it.unitPrice,
       TotAmt: it.taxable,
       Discount: 0,
@@ -224,6 +226,7 @@ export function buildEwbPayload(opts: {
     productName: string;
     hsnCode: string;
     qty: number;
+    unit?: string;
     taxable: number;
     cgst: number;
     sgst: number;
@@ -283,7 +286,7 @@ export function buildEwbPayload(opts: {
       productDesc: it.productName.substring(0, 300),
       hsnCode: it.hsnCode || '9999',
       quantity: it.qty,
-      qtyUnit: 'NOS',
+      qtyUnit: billUnitToGstUqc(it.unit),
       taxableAmount: it.taxable,
       cgstRate: 0,
       sgstRate: 0,

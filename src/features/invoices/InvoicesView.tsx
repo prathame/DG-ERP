@@ -26,6 +26,14 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
+import {
+  DEFAULT_BILL_UNIT,
+  defaultBillUnit,
+  formatBillQty,
+  normalizeBillUnits,
+  normalizeLineUnit,
+  parseBillQty,
+} from '../../../shared/billUnits';
 import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
 import {
   printStandaloneInvoice,
@@ -84,6 +92,7 @@ type LineItem = {
   description: string;
   hsnSac?: string;
   qty: number;
+  unit?: string;
   rate: number;
   gstPercent: number;
   discountPercent?: number;
@@ -97,6 +106,7 @@ type InvoiceLineRow = {
   description: string;
   hsnSac: string;
   qty: number;
+  unit: string;
   rate: number;
   gstPercent: number;
   discountPercent: number;
@@ -114,10 +124,11 @@ type PriceRule = {
   isActive: boolean;
 };
 
-const emptyRow = (gstOn = true): InvoiceLineRow => ({
+const emptyRow = (gstOn = true, unit = DEFAULT_BILL_UNIT): InvoiceLineRow => ({
   description: '',
   hsnSac: '',
   qty: 1,
+  unit,
   rate: 0,
   gstPercent: gstOn ? 18 : 0,
   discountPercent: 0,
@@ -885,7 +896,10 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                     {selectedInvoice.items.map((it, i) => (
                       <tr key={i} className="border-b border-gray-50">
                         <td className="py-2">{it.description}</td>
-                        <td className="py-2 text-right">{it.qty}</td>
+                        <td className="py-2 text-right">
+                          {formatBillQty(Number(it.qty) || 0)}
+                          {it.unit ? ` ${it.unit}` : ''}
+                        </td>
                         <td className="py-2 text-right">₹{Number(it.rate).toLocaleString('en-IN')}</td>
                         {invoiceHasGst(selectedInvoice) && <td className="py-2 text-right">{it.gstPercent}%</td>}
                         <td className="py-2 text-right font-medium">₹{Number(it.total).toLocaleString('en-IN')}</td>
@@ -1053,6 +1067,7 @@ export function CreateInvoiceModal({
     terms: '',
   });
   const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
+  const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
   const [rows, setRows] = useState<InvoiceLineRow[]>(() => [emptyRow(isGstBillingEnabled(null))]);
   const [submitting, setSubmitting] = useState(false);
   const [parties, setParties] = useState<InvoiceParty[]>([]);
@@ -1114,12 +1129,16 @@ export function CreateInvoiceModal({
       .then(s => {
         if (cancelled) return;
         const on = isGstBillingEnabled(s);
+        const units = normalizeBillUnits(s?.billUnits);
+        const unitDefault = defaultBillUnit(units);
         setGstBilling(on);
+        setBillUnits(units);
         setRows(prev =>
           prev.map(r => ({
             ...r,
             gstPercent: on ? r.gstPercent || 18 : 0,
             hsnSac: on ? r.hsnSac : '',
+            unit: normalizeLineUnit(r.unit, unitDefault),
           })),
         );
       })
@@ -1221,7 +1240,17 @@ export function CreateInvoiceModal({
 
   const applyCatalogItem = (idx: number, productId: string) => {
     if (!productId) {
-      setRows(rows.map((r, i) => (i === idx ? { ...emptyRow(gstBilling), qty: r.qty || 1 } : r)));
+      setRows(
+        rows.map((r, i) =>
+          i === idx
+            ? {
+                ...emptyRow(gstBilling, defaultBillUnit(billUnits)),
+                qty: r.qty || 1,
+                unit: r.unit || defaultBillUnit(billUnits),
+              }
+            : r,
+        ),
+      );
       return;
     }
     const p = products.find(x => x.id === productId);
@@ -1331,10 +1360,11 @@ export function CreateInvoiceModal({
           ...(serviceProductUx ? { notes: '', terms: '' } : {}),
           invoiceNumber,
           gstEnabled: gstBilling,
-          items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
+          items: validRows.map(({ description, hsnSac, qty, unit, rate, gstPercent, discountPercent, productId }) => ({
             description,
             hsnSac: gstBilling ? hsnSac : '',
             qty,
+            unit: normalizeLineUnit(unit, defaultBillUnit(billUnits)),
             rate,
             gstPercent: gstBilling ? gstPercent : 0,
             discountPercent: discountPercent || 0,
@@ -1488,12 +1518,34 @@ export function CreateInvoiceModal({
         node: (
           <input
             type="number"
-            min={1}
-            inputMode="numeric"
+            min={0.001}
+            step="any"
+            inputMode="decimal"
             value={row.qty || ''}
-            onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
+            onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
             className={formControlClass}
           />
+        ),
+      },
+      {
+        key: 'unit',
+        label: 'Unit',
+        node: (
+          <select
+            value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
+            onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))}
+            className={formControlClass}
+          >
+            {(() => {
+              const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
+              const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+              return opts.map(u => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ));
+            })()}
+          </select>
         ),
       },
       {
@@ -1780,6 +1832,7 @@ export function CreateInvoiceModal({
                         <th className="px-3 py-2 text-left w-[38%]">Item</th>
                         {gstBilling && <th className="px-3 py-2 w-[9%]">HSN/SAC</th>}
                         <th className="px-3 py-2 w-[7%]">Qty</th>
+                        <th className="px-3 py-2 w-[8%]">Unit</th>
                         <th className="px-3 py-2 w-[11%]">Rate</th>
                         <th className="px-3 py-2 w-[7%]">Disc%</th>
                         {gstBilling && <th className="px-3 py-2 w-[8%]">GST%</th>}
@@ -1860,11 +1913,31 @@ export function CreateInvoiceModal({
                             <td className="px-3 py-2">
                               <input
                                 type="number"
-                                min={1}
+                                min={0.001}
+                                step="any"
                                 value={row.qty || ''}
-                                onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
+                                onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
                                 className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
                               />
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
+                                }
+                                className="w-full px-1 py-1.5 border border-gray-200 rounded-lg text-sm"
+                              >
+                                {(() => {
+                                  const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
+                                  const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+                                  return opts.map(u => (
+                                    <option key={u} value={u}>
+                                      {u}
+                                    </option>
+                                  ));
+                                })()}
+                              </select>
                             </td>
                             <td className="px-3 py-2">
                               <input
@@ -1948,7 +2021,7 @@ export function CreateInvoiceModal({
 
                 <button
                   type="button"
-                  onClick={() => setRows([...rows, emptyRow(gstBilling)])}
+                  onClick={() => setRows([...rows, emptyRow(gstBilling, defaultBillUnit(billUnits))])}
                   className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
                 >
                   + Add Line

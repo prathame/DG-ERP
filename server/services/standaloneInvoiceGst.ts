@@ -97,6 +97,7 @@ function parseItems(raw: unknown): Array<{
   description: string;
   hsnSac?: string;
   qty: number;
+  unit?: string;
   rate: number;
   gstPercent: number;
   taxable: number;
@@ -118,6 +119,7 @@ function parseItems(raw: unknown): Array<{
       description: String(row.description || 'Item'),
       hsnSac: row.hsnSac != null ? String(row.hsnSac) : undefined,
       qty: Number(row.qty) || 1,
+      unit: row.unit != null ? String(row.unit) : undefined,
       rate: Number(row.rate) || 0,
       gstPercent: Number(row.gstPercent) || 0,
       taxable: Number(row.taxable) || 0,
@@ -188,6 +190,7 @@ function buildLines(inv: InvRow, sellerGstin: string, buyerGstin: string) {
       hsnCode: it.hsnSac || '9999',
       productName: it.description,
       qty: it.qty,
+      unit: it.unit,
       unitPrice: it.qty ? taxable / it.qty : taxable,
       gstRate: rate,
       taxable,
@@ -335,6 +338,7 @@ export async function generateStandaloneInvoiceEwb(
         productName: it.productName,
         hsnCode: it.hsnCode,
         qty: it.qty,
+        unit: it.unit,
         taxable: it.taxable,
         cgst: it.cgst,
         sgst: it.sgst,

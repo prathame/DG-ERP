@@ -1,4 +1,5 @@
 import type { SaleBillData, DistributionBillData } from '../api';
+import { formatBillQty } from '../../shared/billUnits';
 
 export function esc(text: unknown): string {
   return String(text ?? '')
@@ -474,6 +475,8 @@ export type StandaloneInvoicePrintItem = {
   description: string;
   hsnSac?: string;
   qty: number;
+  /** Sale unit label (Piece, Kg, …) from bill settings. */
+  unit?: string;
   rate: number;
   gstPercent: number;
   discountPercent?: number;
@@ -628,11 +631,12 @@ export function generateStandaloneInvoiceHtml(
   const itemRows = inv.items
     .map((it, i) => {
       const disc = it.discountPercent || 0;
+      const qtyLabel = `${formatBillQty(Number(it.qty) || 0)}${it.unit ? ` ${esc(it.unit)}` : ''}`;
       return `<tr>
       <td>${i + 1}</td>
       <td class="left">${esc(it.description)}</td>
       ${showHsn ? `<td>${esc(it.hsnSac || '—')}</td>` : ''}
-      <td>${it.qty}</td>
+      <td>${qtyLabel}</td>
       <td class="right">${money(it.rate)}</td>
       ${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}
       ${hasGst ? `<td class="right">${Number(it.gstPercent || 0).toFixed(1)}%</td><td class="right">${money(it.tax)}</td>` : ''}
@@ -725,7 +729,7 @@ export function generateStandaloneInvoiceHtml(
       <td></td>
       <td class="right"><strong>Total</strong></td>
       ${showHsn ? '<td></td>' : ''}
-      <td><strong>${qtyTotal}</strong></td>
+      <td><strong>${formatBillQty(qtyTotal)}</strong></td>
       <td></td>
       ${showDiscCol ? '<td></td>' : ''}
       ${hasGst ? `<td></td><td class="right"><strong>${money(taxTotalAmt)}</strong></td>` : ''}
@@ -1160,6 +1164,7 @@ export type QuotationBillInput = {
   items: {
     productName: string;
     quantity: number;
+    unit?: string;
     price: number;
     discountPercent: number;
     withGst: boolean;
@@ -1192,6 +1197,7 @@ export function quotationToStandalonePrint(q: QuotationBillInput): StandaloneInv
     items: q.items.map(it => ({
       description: it.productName,
       qty: it.quantity,
+      unit: it.unit,
       rate: it.price,
       gstPercent: it.withGst ? q.gstRate : 0,
       discountPercent: it.discountPercent,

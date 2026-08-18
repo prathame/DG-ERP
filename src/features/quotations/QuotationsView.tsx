@@ -48,6 +48,14 @@ import { CsvImport } from '../../components/ui/CsvImport';
 import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { isGstBillingEnabled, quotationLineWithGst } from '../../lib/billSettingsFlags';
+import {
+  DEFAULT_BILL_UNIT,
+  defaultBillUnit,
+  formatBillQty,
+  normalizeBillUnits,
+  normalizeLineUnit,
+  parseBillQty,
+} from '../../../shared/billUnits';
 
 function asApiList<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -72,6 +80,7 @@ interface Quotation {
     productId: string;
     productName: string;
     quantity: number;
+    unit?: string;
     price: number;
     discountPercent: number;
     withGst: boolean;
@@ -122,16 +131,19 @@ export function QuotationsView() {
     productId: string;
     description: string;
     quantity: number;
+    unit: string;
     customPrice: string;
     discount: number;
     withGst: boolean;
   };
   /** Same bill-settings GST flag as invoices (`showGst` / legacy `showHsnSac`). */
   const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
+  const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
   const emptyQuoteRow = (): QuoteLineRow => ({
     productId: '',
     description: '',
     quantity: 1,
+    unit: defaultBillUnit(billUnits),
     customPrice: '',
     discount: 0,
     withGst: gstBilling,
@@ -141,6 +153,7 @@ export function QuotationsView() {
       productId: '',
       description: '',
       quantity: 1,
+      unit: DEFAULT_BILL_UNIT,
       customPrice: '',
       discount: 0,
       withGst: isGstBillingEnabled(null),
@@ -205,13 +218,16 @@ export function QuotationsView() {
           const s = results[3].value as BillSettings;
           setBillSettings(s);
           const on = isGstBillingEnabled(s);
+          const units = normalizeBillUnits(s.billUnits);
+          const unitDefault = defaultBillUnit(units);
           setGstBilling(on);
+          setBillUnits(units);
           // Match invoices: only stamp GST defaults on a fresh (unedited) single empty row.
           if (!modalOpen && !editingId) {
             setRows(prev =>
               prev.length === 1 && !prev[0]?.productId && !prev[0]?.description.trim()
-                ? [{ ...prev[0]!, withGst: on }]
-                : prev,
+                ? [{ ...prev[0]!, withGst: on, unit: normalizeLineUnit(prev[0]!.unit, unitDefault) }]
+                : prev.map(r => ({ ...r, unit: normalizeLineUnit(r.unit, unitDefault) })),
             );
           }
         }
@@ -420,6 +436,7 @@ export function QuotationsView() {
         productId: i.productId || '',
         description: i.productId ? '' : i.productName || '',
         quantity: i.quantity,
+        unit: normalizeLineUnit(i.unit, defaultBillUnit(billUnits)),
         customPrice: String(i.price),
         discount: i.discountPercent || 0,
         withGst: i.withGst !== false,
@@ -466,6 +483,7 @@ export function QuotationsView() {
         items: validRows.map(r => ({
           ...(r.productId ? { productId: r.productId } : { description: r.description.trim() }),
           quantity: r.quantity,
+          unit: normalizeLineUnit(r.unit, defaultBillUnit(billUnits)),
           customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
           discountPercent: r.discount > 0 ? r.discount : undefined,
           withGst: quotationLineWithGst(gstBilling, !!editingId, r.withGst),
@@ -815,7 +833,10 @@ export function QuotationsView() {
                             </span>
                           )}
                         </td>
-                        <td className="py-2 text-right">{item.quantity}</td>
+                        <td className="py-2 text-right">
+                          {formatBillQty(Number(item.quantity) || 0)}
+                          {item.unit ? ` ${item.unit}` : ''}
+                        </td>
                         <td className="py-2 text-right">₹{item.price.toLocaleString('en-IN')}</td>
                         <td className="py-2 text-right">{item.discountPercent}%</td>
                         <td className="py-2 text-right">₹{item.lineNet.toLocaleString('en-IN')}</td>
@@ -1256,11 +1277,12 @@ export function QuotationsView() {
                       node: (
                         <input
                           type="number"
-                          min={1}
-                          inputMode="numeric"
+                          min={0.001}
+                          step="any"
+                          inputMode="decimal"
                           value={row.quantity || ''}
                           onChange={e => {
-                            const newQty = parseInt(e.target.value) || 0;
+                            const newQty = parseBillQty(e.target.value, 0);
                             setRows(rows.map((r, i) => (i === idx ? { ...r, quantity: newQty } : r)));
                             if (row.productId && newQty > 0) {
                               resolveQuoteRowPrice(idx, row.productId, form.vendorId, newQty);
@@ -1268,6 +1290,27 @@ export function QuotationsView() {
                           }}
                           className={formControlClass}
                         />
+                      ),
+                    },
+                    {
+                      key: 'unit',
+                      label: 'Unit',
+                      node: (
+                        <select
+                          value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
+                          onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))}
+                          className={formControlClass}
+                        >
+                          {(() => {
+                            const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
+                            const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+                            return opts.map(u => (
+                              <option key={u} value={u}>
+                                {u}
+                              </option>
+                            ));
+                          })()}
+                        </select>
                       ),
                     },
                     {
@@ -1349,6 +1392,7 @@ export function QuotationsView() {
                       <th className="px-3 py-3 w-8">#</th>
                       <th className="px-3 py-3">{allowCustomLines ? 'Item' : 'Product'}</th>
                       <th className="px-3 py-3 w-16">Qty</th>
+                      <th className="px-3 py-3 w-20">Unit</th>
                       <th className="px-3 py-3 w-24">Price</th>
                       <th className="px-3 py-3 w-16">Disc%</th>
                       {showGstControls && <th className="px-3 py-3 w-12 text-center">GST</th>}
@@ -1410,10 +1454,11 @@ export function QuotationsView() {
                           <td className="px-3 py-2">
                             <input
                               type="number"
-                              min={1}
+                              min={0.001}
+                              step="any"
                               value={row.quantity || ''}
                               onChange={e => {
-                                const newQty = parseInt(e.target.value) || 0;
+                                const newQty = parseBillQty(e.target.value, 0);
                                 setRows(rows.map((r, i) => (i === idx ? { ...r, quantity: newQty } : r)));
                                 if (row.productId && newQty > 0) {
                                   resolveQuoteRowPrice(idx, row.productId, form.vendorId, newQty);
@@ -1421,6 +1466,25 @@ export function QuotationsView() {
                               }}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
                             />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
+                              onChange={e =>
+                                setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
+                              }
+                              className="w-full px-1 py-1.5 border border-gray-200 rounded-lg text-sm"
+                            >
+                              {(() => {
+                                const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
+                                const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+                                return opts.map(u => (
+                                  <option key={u} value={u}>
+                                    {u}
+                                  </option>
+                                ));
+                              })()}
+                            </select>
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -1551,7 +1615,7 @@ export function QuotationsView() {
                       max={line.remaining}
                       value={line.qty || ''}
                       onChange={e => {
-                        const qty = Math.min(line.remaining, Math.max(0, parseInt(e.target.value) || 0));
+                        const qty = Math.min(line.remaining, Math.max(0, parseBillQty(e.target.value, 0)));
                         setPartialConvert(pc =>
                           pc
                             ? {

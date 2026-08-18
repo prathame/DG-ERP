@@ -194,4 +194,9 @@ export interface BillSettings {
   hospPricesIncludeGst?: boolean;
   /** FSSAI license number printed on hospitality guest bills when set. */
   fssaiLicense?: string | null;
+  /**
+   * Sale units for invoices/quotations (Piece, Kg, Meter, …).
+   * Configured once in Bill Settings; picked per line on bills.
+   */
+  billUnits?: string[];
 }
