@@ -7,6 +7,7 @@ import type { Product, Vendor } from '../../types';
 import { useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import {
@@ -70,6 +71,7 @@ export function CreateDistributionModal({
   } | null>(null);
   const [printing, setPrinting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [quickAdd, setQuickAdd] = useState<{ idx: number; name: string } | null>(null);
   const headerGstRef = useRef<HTMLInputElement>(null);
 
   useEscapeKey(() => {
@@ -110,6 +112,29 @@ export function CreateDistributionModal({
     setDistRows(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
 
   const rowGstRate = (p?: Product) => p?.gstRate ?? defaultGstRate;
+
+  const applyDistProduct = (idx: number, selPr: Product) => {
+    const shown = displayUnitPriceForGst(selPr.price, {
+      withGst: defaultWithGst,
+      priceIncludesGst: !!selPr.priceIncludesGst,
+      gstRate: rowGstRate(selPr),
+    });
+    setDistRows(prev =>
+      prev.map((r, i) =>
+        i === idx
+          ? {
+              ...r,
+              productId: selPr.id,
+              withGst: defaultWithGst,
+              customPrice: String(shown),
+            }
+          : r,
+      ),
+    );
+    if (distVendorId) {
+      resolveDistRowPrice(idx, selPr.id, distVendorId, distRows[idx]?.quantity || 1);
+    }
+  };
 
   const setAllWithGst = (on: boolean) =>
     setDistRows(prev =>
@@ -476,6 +501,7 @@ export function CreateDistributionModal({
                               <SearchSelect
                                 value={row.productId}
                                 placeholder="Select product"
+                                onCreateNew={typed => setQuickAdd({ idx, name: typed })}
                                 options={products
                                   .filter(pr => (pr.stock ?? 0) > 0)
                                   .sort((a, b) => a.name.localeCompare(b.name))
@@ -491,26 +517,9 @@ export function CreateDistributionModal({
                                   })}
                                 onChange={pid => {
                                   const selPr = products.find(x => x.id === pid);
-                                  setDistRows(prev =>
-                                    prev.map((r, i) => {
-                                      if (i !== idx) return r;
-                                      if (!selPr) return { ...r, productId: pid };
-                                      const shown = displayUnitPriceForGst(selPr.price, {
-                                        withGst: defaultWithGst,
-                                        priceIncludesGst: !!selPr.priceIncludesGst,
-                                        gstRate: rowGstRate(selPr),
-                                      });
-                                      return {
-                                        ...r,
-                                        productId: pid,
-                                        withGst: defaultWithGst,
-                                        customPrice: String(shown),
-                                      };
-                                    }),
-                                  );
-                                  if (pid && distVendorId) {
-                                    resolveDistRowPrice(idx, pid, distVendorId, row.quantity || 1);
-                                  }
+                                  if (selPr) applyDistProduct(idx, selPr);
+                                  else
+                                    setDistRows(prev => prev.map((r, i) => (i === idx ? { ...r, productId: pid } : r)));
                                 }}
                               />
                             </td>
@@ -819,6 +828,18 @@ export function CreateDistributionModal({
           </>
         )}
       </motion.div>
+      {quickAdd && (
+        <QuickAddProductModal
+          initialName={quickAdd.name}
+          defaultGstRate={defaultGstRate}
+          onClose={() => setQuickAdd(null)}
+          onCreated={p => {
+            setProducts(prev => (prev.some(x => x.id === p.id) ? prev : [...prev, p]));
+            applyDistProduct(quickAdd.idx, p);
+            setQuickAdd(null);
+          }}
+        />
+      )}
     </div>
   );
 }

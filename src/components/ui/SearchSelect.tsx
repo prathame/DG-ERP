@@ -24,6 +24,9 @@ interface SearchSelectProps {
   emptyHint?: string;
   /** Label for the “use typed text” footer, e.g. customer / client. */
   customLabel?: string;
+  /** Footer to create a new catalog product from the typed name. */
+  onCreateNew?: (typedName: string) => void;
+  createNewLabel?: string;
 }
 
 export function SearchSelect({
@@ -37,6 +40,8 @@ export function SearchSelect({
   onInputChange,
   emptyHint,
   customLabel = 'customer',
+  onCreateNew,
+  createNewLabel = 'product',
 }: SearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -168,6 +173,21 @@ export function SearchSelect({
               ))
             )}
           </div>
+          {onCreateNew && !exactMatch && (
+            <div
+              role="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCreateNew(query.trim());
+                setOpen(false);
+                setSearch('');
+              }}
+              className="w-full px-3 py-2.5 text-left text-sm border-t border-gray-100 hover:bg-brand/5 cursor-pointer text-brand font-medium"
+            >
+              {query.trim() ? `+ Add “${query.trim()}” as ${createNewLabel}` : `+ Add new ${createNewLabel}`}
+            </div>
+          )}
           {showCustomFooter && (
             <div
               role="button"

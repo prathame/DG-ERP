@@ -15,6 +15,7 @@ import {
   formControlClass,
 } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import {
   DEFAULT_BILL_UNIT,
@@ -187,6 +188,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   } | null>(null);
   const [printing, setPrinting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [quickAdd, setQuickAdd] = useState<{ idx: number; name: string } | null>(null);
   const resolveTokenRef = useRef<Record<number, number>>({});
   const headerGstRef = useRef<HTMLInputElement>(null);
 
@@ -318,24 +320,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     );
   };
 
-  const applyCatalogItem = (idx: number, productId: string) => {
-    if (!productId) {
-      setRows(prev =>
-        prev.map((r, i) =>
-          i === idx
-            ? {
-                ...emptyRow(gstBilling, defaultBillUnit(billUnits)),
-                qty: r.qty || 1,
-                description: r.description,
-                unit: r.unit || defaultBillUnit(billUnits),
-              }
-            : r,
-        ),
-      );
-      return;
-    }
-    const p = products.find(x => x.id === productId);
-    if (!p) return;
+  const applyProduct = (idx: number, p: Product) => {
     const qty = rows[idx]?.qty || 1;
     const catalog = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
     const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
@@ -363,6 +348,27 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       ),
     );
     resolveRowPrice(idx, p.id, vendorId || null, qty);
+  };
+
+  const applyCatalogItem = (idx: number, productId: string) => {
+    if (!productId) {
+      setRows(prev =>
+        prev.map((r, i) =>
+          i === idx
+            ? {
+                ...emptyRow(gstBilling, defaultBillUnit(billUnits)),
+                qty: r.qty || 1,
+                description: r.description,
+                unit: r.unit || defaultBillUnit(billUnits),
+              }
+            : r,
+        ),
+      );
+      return;
+    }
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    applyProduct(idx, p);
   };
 
   const updateRowQty = (idx: number, qty: number) => {
@@ -873,7 +879,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
 
               <FormSection
                 title="Line Items"
-                description="Type to match inventory, or keep as a custom line (no stock)"
+                description="Type to match inventory, add a new product, or keep as a custom line (no stock)"
               >
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-1">
                   <table className="w-full text-left min-w-[920px]">
@@ -925,6 +931,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                   }
                                   applyCatalogItem(idx, pid);
                                 }}
+                                onCreateNew={typed => setQuickAdd({ idx, name: typed })}
                                 placeholder="Type product or custom item…"
                                 customLabel="custom item"
                                 options={productOptions(row.qty || 1)}
@@ -1225,6 +1232,18 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
           </motion.div>
         )}
       </AnimatePresence>
+      {quickAdd && (
+        <QuickAddProductModal
+          initialName={quickAdd.name}
+          defaultGstRate={defaultGstRate}
+          onClose={() => setQuickAdd(null)}
+          onCreated={p => {
+            setProducts(prev => (prev.some(x => x.id === p.id) ? prev : [...prev, p]));
+            applyProduct(quickAdd.idx, p);
+            setQuickAdd(null);
+          }}
+        />
+      )}
     </>
   );
 }
