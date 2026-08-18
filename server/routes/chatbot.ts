@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isHowToChatQuery, matchChatbotHelp } from '../../shared/chatbotHelp';
 import { pool } from '../pg-db';
 import { logger } from '../utils/logger';
 import { handleApiError } from '../utils/http-error';
@@ -28,12 +29,12 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   // ============ GREETINGS ============
   if (/^(hi|hello|hey|namaste|hii+|good\s*(morning|afternoon|evening))$/i.test(q)) {
     return {
-      text: `Hello! I'm your ERP assistant.\n\nType *help* to see all commands, or just ask me anything about your business!`,
+      text: `Hello! I'm your Dhandho assistant.\n\nI can pull live numbers (sales, stock, invoices) and explain how to use the app.\n\nType *help* for commands, or ask e.g. *"how to set sale units"*.`,
     };
   }
 
   // ============ HELP ============
-  if (/^(help|commands|menu|what can you do|options)/.test(q)) {
+  if (/^(help|commands|menu|options)[?!.]*$|^(what can you do)[?!.]*$/.test(q)) {
     const salesLabel = tabLabel(tabConfig, 'sales', 'Sales');
     const distLabel = tabLabel(tabConfig, 'distribution', 'Distribution');
     const invLabel = tabLabel(tabConfig, 'inventory', 'Inventory');
@@ -41,7 +42,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     const finLabel = tabLabel(tabConfig, 'finance', 'Finance');
     const sections: string[] = [];
     sections.push(
-      `*${invLabel}*\n- "low stock" -- products under 10 units\n- "out of stock" -- products with 0 units\n- "total inventory" -- full stock breakdown\n- "all products" -- list all products\n- Any barcode -- status & details`,
+      `*${invLabel}*\n- "low stock" -- products under 10 units\n- "out of stock" -- products with 0 units\n- "total inventory" -- full stock breakdown\n- "all products" -- list all products\n- "search [name]" -- find a product\n- Any barcode -- status & details`,
     );
     if (tabConfig?.distribution?.visible !== false)
       sections.push(
@@ -51,6 +52,13 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
       sections.push(
         `*${salesLabel}*\n- "sales today" -- today's count & revenue\n- "sales this month" -- monthly summary\n- "recent sales" -- last 5 sales`,
       );
+    if (tabConfig?.invoices?.visible !== false)
+      sections.push(
+        `*Invoices*\n- "unpaid invoices" -- sent bills not marked paid\n- "invoices today" -- today's invoice totals`,
+      );
+    if (tabConfig?.quotations?.visible !== false) sections.push(`*Quotations*\n- "quotations" -- counts by status`);
+    if (tabConfig?.purchases?.visible !== false)
+      sections.push(`*Purchases*\n- "purchases today" -- units bought today`);
     sections.push(
       `*Vendors*\n- Any vendor name -- full details + finance\n- "all vendors" -- list all\n- "pending payments" -- who owes money`,
     );
@@ -64,6 +72,9 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     );
     sections.push(
       `*Reports*\n- "daily report" -- today's summary\n- "monthly report" -- this month's summary\n- "vendor report" -- all vendors overview`,
+    );
+    sections.push(
+      `*How to*\n- "how to set sale units"\n- "how to create invoice"\n- "how to add stock"\n- "how to enable GST"\n- "how to dispatch"`,
     );
     return { text: `Here's everything I can do:\n\n${sections.join('\n\n')}` };
   }
@@ -229,7 +240,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   }
 
   // ============ INVENTORY ============
-  if (/low\s*stock|stock\s*alert/.test(q)) {
+  if (/low\s*stock|stock\s*alert|products?\s*running\s*low|running\s*low/.test(q)) {
     const rows = (
       await pool.query(
         "SELECT p.name, COUNT(pi.id) as stock FROM products p LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1 WHERE p.tenant_id = $1 GROUP BY p.id, p.name HAVING COUNT(pi.id) < 10 AND COUNT(pi.id) > 0 ORDER BY COUNT(pi.id) ASC LIMIT 10",
@@ -289,7 +300,27 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     };
   }
 
-  if (/all\s*product|list\s*product|show\s*product|product\s*list/.test(q)) {
+  const productSearch = q.match(/^(?:search|find|look\s*up)\s+(?:for\s+)?(?:product\s+)?(.+)$/i);
+  if (productSearch) {
+    const term = productSearch[1].trim();
+    const skip =
+      term.length < 2 ||
+      /^[%_\\]+$/.test(term) ||
+      /^(all\s+)?(vendor|customer|staff|invoice|quotation|quote)s?\b/.test(term);
+    if (!skip) {
+      const rows = (
+        await pool.query(
+          "SELECT p.name, p.price, COUNT(pi.id) as stock FROM products p LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1 WHERE p.tenant_id = $1 AND LOWER(p.name) LIKE $2 ESCAPE '\\' GROUP BY p.id, p.name, p.price ORDER BY p.name LIMIT 8",
+          [tenantId, `%${escapeLike(term)}%`],
+        )
+      ).rows as { name: string; price: number; stock: number }[];
+      if (rows.length === 0) return { text: `No products matching "${term}".` };
+      const list = rows.map(r => `- ${r.name}\n  ${r.price.toLocaleString('en-IN')} - ${r.stock} in stock`).join('\n');
+      return { text: `*Products matching "${term}"*\n\n${list}` };
+    }
+  }
+
+  if (/all\s*product|list\s*product|show\s*all\s*product|product\s*list/.test(q)) {
     const rows = (
       await pool.query(
         "SELECT p.name, p.price, COUNT(pi.id) as stock FROM products p LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1 WHERE p.tenant_id = $1 GROUP BY p.id, p.name, p.price ORDER BY p.name",
@@ -323,6 +354,120 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     if (rows.length === 0) return { text: 'No vendor sales recorded yet.' };
     const list = rows.map((r, i) => `${i + 1}. ${r.name}\n   ${r.sold} sold - ${r.pts} reward pts`).join('\n');
     return { text: `*Top Vendors*\n\n${list}` };
+  }
+
+  // ============ INVOICES ============
+  if (/unpaid\s*invoices?|outstanding\s*invoices?|invoices?\s*(due|unpaid)|due\s*invoices?/.test(q)) {
+    const rows = (
+      await pool.query(
+        `SELECT invoice_number, customer_name, grand_total, status, invoice_date
+         FROM standalone_invoices
+         WHERE tenant_id = $1 AND LOWER(status) IN ('sent', 'unpaid')
+         ORDER BY invoice_date DESC, created_at DESC
+         LIMIT 10`,
+        [tenantId],
+      )
+    ).rows as {
+      invoice_number: string;
+      customer_name: string;
+      grand_total: number;
+      status: string;
+      invoice_date: string;
+    }[];
+    if (rows.length === 0) return { text: 'No unpaid invoices. All sent bills are marked paid.' };
+    const total = rows.reduce((s, r) => s + Number(r.grand_total), 0);
+    const list = rows
+      .map(
+        r =>
+          `- ${r.invoice_number} — ${r.customer_name}\n  ${Number(r.grand_total).toLocaleString('en-IN')} (${r.status}, ${r.invoice_date})`,
+      )
+      .join('\n');
+    return {
+      text: `*Unpaid invoices* (${rows.length} shown)\n\n${list}\n\nTotal shown: *${total.toLocaleString('en-IN')}*`,
+    };
+  }
+
+  if (/invoices?\s*today|today'?s?\s*invoices?/.test(q)) {
+    const today = new Date().toISOString().slice(0, 10);
+    const row = (
+      await pool.query(
+        `SELECT COUNT(*)::int as c, COALESCE(SUM(grand_total), 0) as t
+         FROM standalone_invoices
+         WHERE tenant_id = $1 AND invoice_date = $2 AND LOWER(status) != 'cancelled'`,
+        [tenantId, today],
+      )
+    ).rows[0] as { c: number; t: number };
+    return {
+      text: `*Invoices today* (${today})\n\n- ${row.c} invoice${row.c !== 1 ? 's' : ''}\n- Total: ${Number(row.t).toLocaleString('en-IN')}`,
+    };
+  }
+
+  if (/^(all|list|recent)\s*invoices?$/.test(q) || /^invoices$/.test(q)) {
+    const rows = (
+      await pool.query(
+        `SELECT invoice_number, customer_name, grand_total, status, invoice_date
+         FROM standalone_invoices
+         WHERE tenant_id = $1 AND LOWER(status) != 'cancelled'
+         ORDER BY invoice_date DESC, created_at DESC
+         LIMIT 8`,
+        [tenantId],
+      )
+    ).rows as {
+      invoice_number: string;
+      customer_name: string;
+      grand_total: number;
+      status: string;
+      invoice_date: string;
+    }[];
+    if (rows.length === 0) return { text: 'No invoices yet. Open *Invoices → New* to create one.' };
+    const list = rows
+      .map(
+        r =>
+          `- ${r.invoice_number} — ${r.customer_name}\n  ${Number(r.grand_total).toLocaleString('en-IN')} (${r.status}, ${r.invoice_date})`,
+      )
+      .join('\n');
+    return { text: `*Recent invoices*\n\n${list}` };
+  }
+
+  // ============ QUOTATIONS ============
+  if (
+    !isHowToChatQuery(q) &&
+    (/\bquotations\b/.test(q) || /^(all|list|open|pending)\s+quotes?\b/.test(q) || /^quotes$/.test(q))
+  ) {
+    const rows = (
+      await pool.query(
+        `SELECT status, COUNT(*)::int as c, COALESCE(SUM(total), 0) as t
+         FROM quotations WHERE tenant_id = $1 GROUP BY status ORDER BY status`,
+        [tenantId],
+      )
+    ).rows as { status: string; c: number; t: number }[];
+    if (rows.length === 0) return { text: 'No quotations yet. Open *Quotations → New* to create one.' };
+    const list = rows.map(r => `- ${r.status}: ${r.c} (${Number(r.t).toLocaleString('en-IN')})`).join('\n');
+    return { text: `*Quotations*\n\n${list}` };
+  }
+
+  // ============ PURCHASES ============
+  if (!isHowToChatQuery(q) && /purchases?\s*(today|summary)|today'?s?\s*purchases?/.test(q)) {
+    const today = new Date().toISOString().slice(0, 10);
+    const count = (
+      (
+        await pool.query('SELECT COUNT(*) as c FROM product_purchases WHERE purchase_date = $1 AND tenant_id = $2', [
+          today,
+          tenantId,
+        ])
+      ).rows[0] as { c: number }
+    ).c;
+    const value = (
+      (
+        await pool.query(
+          'SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE purchase_date = $1 AND tenant_id = $2',
+          [today, tenantId],
+        )
+      ).rows[0] as { t: number }
+    ).t;
+    return {
+      text: `*Purchases today* (${today})\n\n- ${count} unit${count !== 1 ? 's' : ''}\n- Value: ${Number(value).toLocaleString('en-IN')}`,
+    };
   }
 
   // ============ PENDING PAYMENTS ============
@@ -684,8 +829,31 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     }
   }
 
-  // ============ DISTRIBUTION SUMMARY ============
-  if (/distribution\s*summary|distributed\s*today|how\s*much\s*distributed/.test(q)) {
+  // ============ DISTRIBUTION / DISPATCH ============
+  if (/^dispatch$|dispatch\s*today|distributed\s*today/.test(q)) {
+    const today = new Date().toISOString().slice(0, 10);
+    const count = (
+      (
+        await pool.query(
+          'SELECT COUNT(*) as c FROM product_distribution WHERE distribution_date = $1 AND tenant_id = $2',
+          [today, tenantId],
+        )
+      ).rows[0] as { c: number }
+    ).c;
+    const value = (
+      (
+        await pool.query(
+          'SELECT COALESCE(SUM(COALESCE(billed_price, net_price, 0)), 0) as t FROM product_distribution WHERE distribution_date = $1 AND tenant_id = $2',
+          [today, tenantId],
+        )
+      ).rows[0] as { t: number }
+    ).t;
+    return {
+      text: `*${distLbl} Today* (${today})\n\n- ${count} unit${count !== 1 ? 's' : ''} dispatched\n- Value: ${Number(value).toLocaleString('en-IN')}`,
+    };
+  }
+
+  if (/dispatch\s*summary|distribution\s*summary|how\s*much\s*distributed/.test(q)) {
     const total = (
       (await pool.query('SELECT COUNT(*) as c FROM product_distribution WHERE tenant_id = $1', [tenantId])).rows[0] as {
         c: number;
@@ -768,13 +936,21 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     return { text: `Barcode *${barcode}* not found in inventory.` };
   }
 
+  // ============ HOW-TO (after data intents, before fuzzy name lookup) ============
+  const helpText = matchChatbotHelp(input);
+  if (helpText) return { text: helpText };
+
+  const canFuzzy = q.length >= 3 && !/^[%_\\]+$/.test(q);
+
   // ============ VENDOR LOOKUP (fuzzy) ============
-  const vendorRows = (
-    await pool.query(
-      "SELECT id, name, phone, contact_person FROM vendors WHERE id != 'OWNER' AND (LOWER(name) LIKE $1 ESCAPE '\\' OR LOWER(contact_person) LIKE $1 ESCAPE '\\') AND tenant_id = $2",
-      [`%${escapeLike(q)}%`, tenantId],
-    )
-  ).rows as { id: string; name: string; phone: string; contact_person: string }[];
+  const vendorRows = canFuzzy
+    ? ((
+        await pool.query(
+          "SELECT id, name, phone, contact_person FROM vendors WHERE id != 'OWNER' AND (LOWER(name) LIKE $1 ESCAPE '\\' OR LOWER(contact_person) LIKE $1 ESCAPE '\\') AND tenant_id = $2",
+          [`%${escapeLike(q)}%`, tenantId],
+        )
+      ).rows as { id: string; name: string; phone: string; contact_person: string }[])
+    : [];
   if (vendorRows.length === 1) {
     const v = vendorRows[0];
     const totalVal = (
@@ -840,12 +1016,14 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   }
 
   // ============ CUSTOMER LOOKUP (fuzzy) ============
-  const custRows = (
-    await pool.query(
-      "SELECT id, name, phone FROM customers WHERE LOWER(name) LIKE $1 ESCAPE '\\' AND tenant_id = $2 LIMIT 5",
-      [`%${escapeLike(q)}%`, tenantId],
-    )
-  ).rows as { id: string; name: string; phone: string }[];
+  const custRows = canFuzzy
+    ? ((
+        await pool.query(
+          "SELECT id, name, phone FROM customers WHERE LOWER(name) LIKE $1 ESCAPE '\\' AND tenant_id = $2 LIMIT 5",
+          [`%${escapeLike(q)}%`, tenantId],
+        )
+      ).rows as { id: string; name: string; phone: string }[])
+    : [];
   if (custRows.length === 1) {
     const c = custRows[0];
     const purchaseRows = (
@@ -876,12 +1054,14 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   }
 
   // ============ STAFF LOOKUP (fuzzy) ============
-  const staffRows = (
-    await pool.query(
-      "SELECT staff_name, SUM(amount) as total, COUNT(*) as payments, SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END) - SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END) as advance_bal FROM staff_payments WHERE LOWER(staff_name) LIKE $1 ESCAPE '\\' AND tenant_id = $2 GROUP BY staff_name",
-      [`%${escapeLike(q)}%`, tenantId],
-    )
-  ).rows as { staff_name: string; total: number; payments: number; advance_bal: number }[];
+  const staffRows = canFuzzy
+    ? ((
+        await pool.query(
+          "SELECT staff_name, SUM(amount) as total, COUNT(*) as payments, SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END) - SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END) as advance_bal FROM staff_payments WHERE LOWER(staff_name) LIKE $1 ESCAPE '\\' AND tenant_id = $2 GROUP BY staff_name",
+          [`%${escapeLike(q)}%`, tenantId],
+        )
+      ).rows as { staff_name: string; total: number; payments: number; advance_bal: number }[])
+    : [];
   if (staffRows.length === 1) {
     const s = staffRows[0];
     const member = (
@@ -921,6 +1101,27 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     return { text: `Found ${staffRows.length} staff matching "${input}":\n\n${list}` };
   }
 
+  if (canFuzzy) {
+    const prodRows = (
+      await pool.query(
+        "SELECT p.name, p.price, COUNT(pi.id) as stock FROM products p LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1 WHERE p.tenant_id = $1 AND LOWER(p.name) LIKE $2 ESCAPE '\\' GROUP BY p.id, p.name, p.price ORDER BY p.name LIMIT 5",
+        [tenantId, `%${escapeLike(q)}%`],
+      )
+    ).rows as { name: string; price: number; stock: number }[];
+    if (prodRows.length === 1) {
+      const r = prodRows[0];
+      return {
+        text: `*${r.name}*\n\n- Price: ${r.price.toLocaleString('en-IN')}\n- In stock: ${r.stock}`,
+      };
+    }
+    if (prodRows.length > 1) {
+      const list = prodRows
+        .map(r => `- ${r.name}\n  ${r.price.toLocaleString('en-IN')} - ${r.stock} in stock`)
+        .join('\n');
+      return { text: `Found ${prodRows.length} products matching "${input}":\n\n${list}` };
+    }
+  }
+
   // ============ THANK YOU ============
   if (/thank|thanks|dhanyawad|shukriya/.test(q)) {
     return { text: `You're welcome! Let me know if you need anything else.` };
@@ -928,7 +1129,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
 
   // ============ NOTHING MATCHED ============
   return {
-    text: `I couldn't find anything for "${input}".\n\nTry:\n- A vendor or customer name\n- A barcode (e.g. SUB1H001)\n- "sales today"\n- "low stock"\n- "pending payments"\n- "daily report"\n- "help" for all commands`,
+    text: `I couldn't find anything for "${input}".\n\nTry:\n- *help* for commands\n- "sales today" / "low stock" / "unpaid invoices"\n- "how to set sale units" / "how to create invoice"\n- A vendor, customer, or product name\n- A barcode (e.g. SUB1H001)`,
   };
 }
 
@@ -936,16 +1137,21 @@ router.get('/api/chatbot/quick-actions', blockVendors, async (req: AuthRequest, 
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
-      { tab_config: TabConfig | null } | undefined;
-    const tc = tenantRow?.tab_config ?? null;
-    const actions: string[] = ['daily report'];
+    const tenantRow = (await pool.query('SELECT tab_config, chatbot_enabled FROM tenants WHERE id = $1', [tenantId]))
+      .rows[0] as { tab_config: TabConfig | null; chatbot_enabled?: boolean } | undefined;
+    if (!tenantRow) return res.status(401).json({ error: 'Tenant not found' });
+    if (tenantRow.chatbot_enabled === false)
+      return res.status(403).json({ error: 'Chatbot is disabled for this company' });
+    const tc = tenantRow.tab_config ?? null;
+    const actions: string[] = ['help', 'daily report'];
     if (tc?.sales?.visible !== false || tc?.distribution?.visible !== false) {
       const label =
         tc?.sales?.visible === false && tc?.distribution?.label ? tc.distribution.label.toLowerCase() : 'sales';
       actions.push(`${label} today`);
     }
-    actions.push('low stock', 'pending payments');
+    actions.push('low stock');
+    if (tc?.invoices?.visible !== false) actions.push('unpaid invoices');
+    actions.push('pending payments');
     if (tc?.distribution?.visible !== false)
       actions.push(`${tabLabel(tc, 'distribution', 'distribution').toLowerCase()} summary`);
     actions.push('all vendors');
@@ -962,10 +1168,16 @@ router.post('/api/chatbot', blockVendors, async (req: AuthRequest, res) => {
 
     const { message } = req.body;
     if (!message || typeof message !== 'string') return res.status(400).json({ error: 'message required' });
-    const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
-      { tab_config: TabConfig | null } | undefined;
-    const tabConfig = tenantRow?.tab_config ?? null;
-    const response = await query(message, tenantId, tabConfig);
+    const trimmed = message.trim();
+    if (!trimmed) return res.status(400).json({ error: 'message required' });
+    if (trimmed.length > 2000) return res.status(400).json({ error: 'message too long' });
+    const tenantRow = (await pool.query('SELECT tab_config, chatbot_enabled FROM tenants WHERE id = $1', [tenantId]))
+      .rows[0] as { tab_config: TabConfig | null; chatbot_enabled?: boolean } | undefined;
+    if (!tenantRow) return res.status(401).json({ error: 'Tenant not found' });
+    if (tenantRow.chatbot_enabled === false)
+      return res.status(403).json({ error: 'Chatbot is disabled for this company' });
+    const tabConfig = tenantRow.tab_config ?? null;
+    const response = await query(trimmed, tenantId, tabConfig);
     res.json(response);
   } catch (err) {
     logger.exception('Chatbot request failed', err, {
