@@ -104,6 +104,19 @@ describe('LIKE wildcard injection prevention', () => {
     expect(body).not.toMatch(/SECRET Customer/);
   });
 
+  it('search "%" does not dump product names', async () => {
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price)
+       VALUES ('PRD-CHAT-SECRET',$1,'SECRET Product Widget',100)
+       ON CONFLICT DO NOTHING`,
+      [T],
+    );
+    const r = await api().post('/api/chatbot').set(hdrs).send({ message: 'search %' });
+    expect(r.status).toBe(200);
+    const body = typeof r.body.text === 'string' ? r.body.text : '';
+    expect(body).not.toMatch(/SECRET Product Widget/);
+  });
+
   it('exact vendor name still works (not over-escaped)', async () => {
     const r = await api().post('/api/chatbot').set(hdrs).send({ message: 'secret vendor corp' });
     expect(r.status).toBe(200);
@@ -156,12 +169,25 @@ describe('Tenant isolation — chatbot cannot cross tenant boundary', () => {
   });
 
   it('basic chatbot commands work', async () => {
-    for (const msg of ['hello', 'help', 'sales today']) {
+    for (const msg of ['hello', 'help', 'sales today', 'dispatch today', 'products running low']) {
       const r = await api().post('/api/chatbot').set(hdrs).send({ message: msg });
       expect(r.status).toBe(200);
       expect(typeof r.body.text).toBe('string');
       expect(r.body.text.length).toBeGreaterThan(0);
     }
+  });
+
+  it('how-to questions return app guidance', async () => {
+    const r = await api().post('/api/chatbot').set(hdrs).send({ message: 'how to set sale units' });
+    expect(r.status).toBe(200);
+    expect(r.body.text).toMatch(/Bill Customization/i);
+    expect(r.body.text).toMatch(/Sale Units/i);
+  });
+
+  it('unpaid invoices does not 500', async () => {
+    const r = await api().post('/api/chatbot').set(hdrs).send({ message: 'unpaid invoices' });
+    expect(r.status).toBe(200);
+    expect(typeof r.body.text).toBe('string');
   });
 });
 
@@ -174,5 +200,18 @@ describe('Chatbot quick actions', () => {
     // Response is { actions: string[] }
     expect(Array.isArray(r.body.actions)).toBe(true);
     expect(r.body.actions.length).toBeGreaterThan(0);
+    expect(r.body.actions).toContain('help');
+  });
+});
+
+describe('Chatbot can be disabled per company', () => {
+  it('POST /api/chatbot returns 403 when chatbot_enabled is false', async () => {
+    await pool.query('UPDATE tenants SET chatbot_enabled = false WHERE id = $1', [T]);
+    try {
+      const r = await api().post('/api/chatbot').set(hdrs).send({ message: 'help' });
+      expect(r.status).toBe(403);
+    } finally {
+      await pool.query('UPDATE tenants SET chatbot_enabled = true WHERE id = $1', [T]);
+    }
   });
 });
