@@ -42,6 +42,18 @@ import { getTradeRegister } from '../services/bookTradeRegister';
 import { getProductLedger, getBooksStockSummary } from '../services/bookProductLedger';
 import { getBooksDailyStatus } from '../services/bookDailyStatus';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
+import {
+  BookCoaNotFoundError,
+  BookCoaValidationError,
+  createBookGroup,
+  createBookLedger,
+  deleteBookGroup,
+  deleteBookLedger,
+  listBookGroups,
+  setBookLedgerOpening,
+  updateBookGroup,
+  updateBookLedger,
+} from '../services/bookCoa';
 
 const router = Router();
 
@@ -290,6 +302,7 @@ router.get('/api/books/ledgers', blockVendors, async (req: AuthRequest, res) => 
         gstin: r.gstin,
         openingBalance: Number(r.opening_balance || 0),
         openingSide: r.opening_side,
+        isSystem: !!r.is_system,
         city: r.city,
         state: r.state,
         contactPerson: r.contact_person,
@@ -299,6 +312,204 @@ router.get('/api/books/ledgers', blockVendors, async (req: AuthRequest, res) => 
     );
   } catch (err) {
     return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/books/groups', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await withNativeBooksDesk(tenantId);
+    const groups = await listBookGroups(client, tenantId);
+    res.json(groups);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/api/books/groups', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id = await createBookGroup(client, tenantId, req.body || {});
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Group Created', 'book_group', id, String(req.body?.name || ''));
+    const groups = await listBookGroups(client, tenantId);
+    res.status(201).json(groups.find(g => g.id === id) || { id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/api/books/groups/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await updateBookGroup(client, tenantId, req.params.id, req.body || {});
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Group Updated', 'book_group', req.params.id, String(req.body?.name || ''));
+    const groups = await listBookGroups(client, tenantId);
+    res.json(groups.find(g => g.id === req.params.id) || { id: req.params.id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/api/books/groups/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await deleteBookGroup(client, tenantId, req.params.id);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Group Deleted', 'book_group', req.params.id, '');
+    res.json({ ok: true });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/api/books/ledgers', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id = await createBookLedger(client, tenantId, req.body || {});
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Ledger Created', 'book_ledger', id, String(req.body?.name || ''));
+    res.status(201).json({ id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/api/books/ledgers/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await updateBookLedger(client, tenantId, req.params.id, req.body || {});
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Ledger Updated', 'book_ledger', req.params.id, String(req.body?.name || ''));
+    res.json({ id: req.params.id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/api/books/ledgers/:id/opening', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await setBookLedgerOpening(
+      client,
+      tenantId,
+      req.params.id,
+      Number(req.body?.openingBalance ?? 0),
+      req.body?.openingSide ?? null,
+    );
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Ledger Opening', 'book_ledger', req.params.id, '');
+    res.json({ id: req.params.id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/api/books/ledgers/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = tenantOf(req);
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await deleteBookLedger(client, tenantId, req.params.id);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Books Ledger Deleted', 'book_ledger', req.params.id, '');
+    res.json({ ok: true });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof BookCoaValidationError || err instanceof BookCoaNotFoundError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 
@@ -887,6 +1098,9 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
       items: Array.isArray(body.items) ? body.items : undefined,
       instrumentRef: body.instrumentRef ?? null,
       maturityDate: body.maturityDate ?? null,
+      preferredInvoiceNumbers: Array.isArray(body.preferredInvoiceNumbers)
+        ? body.preferredInvoiceNumbers.map((s: unknown) => String(s || '').trim()).filter(Boolean)
+        : undefined,
     });
     await client.query('COMMIT');
     await logAudit(

@@ -12,6 +12,7 @@ import { BooksReportsPanel } from './BooksReportsPanel';
 import { VoucherDeskForm } from './VoucherDeskForm';
 import { BooksOutstandingPanel } from './BooksOutstandingPanel';
 import { BooksPeriodLockPanel } from './BooksPeriodLockPanel';
+import { BooksLedgerMasterPanel } from './BooksLedgerMasterPanel';
 
 type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports' | 'outstanding';
 
@@ -29,20 +30,6 @@ interface BooksSummary {
     errorMessage?: string;
     createdAt?: string;
   }>;
-}
-
-interface LedgerRow {
-  id: string;
-  name: string;
-  groupName?: string;
-  ledgerType?: string;
-  nature?: string;
-  gstin?: string;
-  openingBalance: number;
-  openingSide?: string;
-  contactPerson?: string;
-  city?: string;
-  state?: string;
 }
 
 interface ProductRow {
@@ -69,15 +56,6 @@ function money(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
-function openingLabel(l: LedgerRow) {
-  const amt = money(Math.abs(l.openingBalance || 0));
-  if (!l.openingBalance) return '—';
-  const side = String(l.openingSide || '').toUpperCase();
-  if (side === 'C' || side === 'CR') return `${amt} Cr`;
-  if (side === 'D' || side === 'DR') return `${amt} Dr`;
-  return l.openingBalance < 0 ? `${amt} Cr` : `${amt} Dr`;
-}
-
 export function BooksView({
   initialPanel = 'overview',
   /** Hide Books chrome when mounted inside Accounts (single nav surface). */
@@ -88,7 +66,6 @@ export function BooksView({
 }) {
   const [panel, setPanel] = useState<BooksPanel>(initialPanel);
   const [summary, setSummary] = useState<BooksSummary | null>(null);
-  const [ledgers, setLedgers] = useState<LedgerRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +95,7 @@ export function BooksView({
       panel === 'daybook' ||
       panel === 'reports' ||
       panel === 'outstanding' ||
+      panel === 'ledgers' ||
       selectedLedger ||
       selectedProduct
     ) {
@@ -130,11 +108,7 @@ export function BooksView({
       setError(null);
       try {
         await loadSummary();
-        if (panel === 'ledgers') {
-          const q = search ? `?search=${encodeURIComponent(search)}` : '';
-          const rows = await fetchApi<LedgerRow[]>(`/books/ledgers${q}`);
-          if (!cancelled) setLedgers(rows);
-        } else if (panel === 'products') {
+        if (panel === 'products') {
           const [rows, stock] = await Promise.all([
             fetchApi<ProductRow[]>('/books/products'),
             fetchApi<{ rows: Array<{ productId: string; qty: number }> }>('/books/stock-summary'),
@@ -256,8 +230,8 @@ export function BooksView({
               <h2 className="mb-2 text-sm font-semibold text-slate-800">CA books path</h2>
               <ol className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
                 <li>
-                  <span className="font-semibold text-orange-700">1. Import</span> — Miracle CMP fills ledgers &
-                  vouchers
+                  <span className="font-semibold text-orange-700">1. COA</span> — create ledgers &amp; groups, or import
+                  Miracle
                 </li>
                 <li>
                   <span className="font-semibold text-orange-700">2. Statement</span> — open a ledger for party books
@@ -342,45 +316,12 @@ export function BooksView({
           </div>
         </div>
       ) : panel === 'ledgers' ? (
-        <div className="space-y-3">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search ledgers…"
-            className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          />
-          <p className="text-sm text-slate-500">Click a ledger to open its statement (opening → vouchers → closing).</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Group</th>
-                  <th className="px-3 py-2">Contact</th>
-                  <th className="px-3 py-2 text-right">Opening</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledgers.map(l => (
-                  <tr
-                    key={l.id}
-                    className="border-t border-slate-100 cursor-pointer hover:bg-orange-50/50"
-                    onClick={() => setSelectedLedger({ id: l.id, name: l.name })}
-                  >
-                    <td className="px-3 py-2 font-medium text-orange-800">{l.name}</td>
-                    <td className="px-3 py-2 text-slate-600">{l.ledgerType || l.nature || '—'}</td>
-                    <td className="px-3 py-2 text-slate-600">{l.groupName || '—'}</td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {[l.contactPerson, l.city, l.state].filter(Boolean).join(', ') || '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{openingLabel(l)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <BooksLedgerMasterPanel
+          search={search}
+          onSearchChange={setSearch}
+          onOpenStatement={setSelectedLedger}
+          onChanged={() => void loadSummary()}
+        />
       ) : panel === 'products' ? (
         <div className="space-y-3">
           <p className="text-sm text-slate-500">
