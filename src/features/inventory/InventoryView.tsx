@@ -33,6 +33,8 @@ import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { MetalIntakeModal } from './MetalIntakeModal';
 import { DesktopInventoryPanel, type StockFilter } from './DesktopInventoryPanel';
 import { MobileInventoryPanel } from './MobileInventoryPanel';
+import { ProductThumb } from './ProductThumb';
+import { fileToProductImageDataUrl } from '../../lib/productImage';
 
 const emptyAddForm = () => ({
   name: '',
@@ -51,6 +53,7 @@ const emptyAddForm = () => ({
   packName: 'Piece',
   barcodePerBox: true,
   priceIncludesGst: false,
+  imageBase64: '' as string,
 });
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
@@ -150,6 +153,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       packName: p.packName || (p.packSize && p.packSize > 1 ? 'Box' : 'Piece'),
       barcodePerBox: p.barcodeUnitType === 'box',
       priceIncludesGst: !!p.priceIncludesGst,
+      imageBase64: p.imageBase64 || '',
     });
     setAddModalOpen(true);
   };
@@ -505,13 +509,16 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           )}
                         >
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-gray-900">{p.name}</span>
-                              {isLowStock && (
-                                <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                                  <AlertTriangle size={10} /> Low
-                                </span>
-                              )}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <ProductThumb name={p.name} src={p.imageBase64} size={40} />
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
+                                {isLowStock && (
+                                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                                    <AlertTriangle size={10} /> Low
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           {colShow('price') && (
@@ -699,6 +706,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 min-w-0">
+                          <ProductThumb name={p.name} src={p.imageBase64} size={40} />
                           <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
                           {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                         </div>
@@ -832,6 +840,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                         packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
                         packName: addForm.packSize > 1 ? addForm.packName : undefined,
                         priceIncludesGst: addForm.priceIncludesGst,
+                        imageBase64: addForm.imageBase64 || null,
                       });
                       toast('Product updated', 'success');
                     } else {
@@ -851,6 +860,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                         packName: addForm.packSize > 1 ? addForm.packName : undefined,
                         barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
                         priceIncludesGst: addForm.priceIncludesGst || undefined,
+                        imageBase64: addForm.imageBase64 || undefined,
                       });
                       toast('Product added successfully', 'success');
                     }
@@ -872,6 +882,38 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     onChange={e => setAddForm({ ...addForm, name: e.target.value })}
                     className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                   />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase">Photo (optional)</label>
+                  <div className="mt-1 flex items-center gap-3">
+                    <ProductThumb name={addForm.name || 'Product'} src={addForm.imageBase64 || null} size={56} />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!file) return;
+                          void fileToProductImageDataUrl(file)
+                            .then(imageBase64 => setAddForm(f => ({ ...f, imageBase64 })))
+                            .catch(err => toast((err as Error).message, 'error'));
+                        }}
+                      />
+                      {addForm.imageBase64 ? (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-rose-500"
+                          onClick={() => setAddForm(f => ({ ...f, imageBase64: '' }))}
+                        >
+                          Remove photo
+                        </button>
+                      ) : (
+                        <p className="text-[11px] text-gray-400">Shown on the inventory product tile</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 {!editingProductId && inventoryTrackingEnabled && (
                   <div>

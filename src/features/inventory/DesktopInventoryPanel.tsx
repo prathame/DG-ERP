@@ -21,6 +21,7 @@ import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { TableSkeleton } from '../../components/ui';
 import { ColumnPickerButton } from '../../components/ui/ColumnPicker';
+import { ProductThumb } from './ProductThumb';
 
 export type StockFilter = 'all' | 'low' | 'out';
 
@@ -55,13 +56,6 @@ type Props = {
   onDelete: (p: Product) => void;
   onToggleGst: (p: Product) => void;
 };
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
 
 function skuLabel(p: Product): string | null {
   if (p.barcodeRange?.first) {
@@ -340,9 +334,11 @@ export function DesktopInventoryPanel({
                       >
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center text-sm font-bold border border-[var(--dg-card-border)] bg-[var(--dg-card)] text-[var(--dg-primary)] group-hover:scale-105 transition-transform">
-                              {initials(p.name)}
-                            </div>
+                            <ProductThumb
+                              name={p.name}
+                              src={p.imageBase64}
+                              className="border-[var(--dg-card-border)] bg-[var(--dg-card)] text-[var(--dg-primary)] group-hover:scale-105 transition-transform"
+                            />
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-bold dg-ink text-sm truncate">{p.name}</p>

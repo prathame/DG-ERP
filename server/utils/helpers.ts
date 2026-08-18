@@ -308,4 +308,5 @@ export const mapProduct = (r: Record<string, unknown>) => ({
     (r.barcode_unit_type as string) ||
     ((Number(r.pack_size) || 1) > 1 ? 'box' : 'piece'),
   priceIncludesGst: !!r.price_includes_gst,
+  imageBase64: (r.image_base64 as string) || null,
 });
