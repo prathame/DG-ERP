@@ -3,8 +3,23 @@ import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, isValidPhone, isValidEmail } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { creditTermsFromRow, parseCreditLimit, parseCreditPeriodDays } from '../utils/partyCreditTerms';
 
 const router = Router();
+
+function mapCustomer(r: Record<string, unknown>) {
+  const credit = creditTermsFromRow(r);
+  return {
+    id: r.id,
+    name: r.name,
+    phone: r.phone,
+    email: r.email,
+    address: r.address,
+    vendorId: r.vendor_id ?? null,
+    creditLimit: credit.creditLimit,
+    creditPeriodDays: credit.creditPeriodDays,
+  };
+}
 
 router.get('/api/customers', async (req: AuthRequest, res) => {
   try {
@@ -36,14 +51,7 @@ router.get('/api/customers', async (req: AuthRequest, res) => {
     sql += ` ORDER BY name LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
     const { rows } = await pool.query(sql, params);
-    const list = rows.map((r: Record<string, unknown>) => ({
-      id: r.id,
-      name: r.name,
-      phone: r.phone,
-      email: r.email,
-      address: r.address,
-      vendorId: r.vendor_id ?? null,
-    }));
+    const list = rows.map((r: Record<string, unknown>) => mapCustomer(r));
     res.setHeader('X-Total-Count', String(total));
     res.setHeader('X-Page', String(page));
     res.setHeader('X-Limit', String(limit));
@@ -63,6 +71,14 @@ router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
     if (phone && !isValidPhone(phone))
       return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
     if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Invalid email format' });
+    let creditLimit: number | null = null;
+    let creditPeriodDays: number | null = null;
+    try {
+      creditLimit = parseCreditLimit(req.body.creditLimit);
+      creditPeriodDays = parseCreditPeriodDays(req.body.creditPeriodDays);
+    } catch (e) {
+      return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid credit terms' });
+    }
     const dup = (
       await pool.query(
         'SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND (phone IS NULL OR phone = $3 OR $3 IS NULL)',
@@ -72,18 +88,11 @@ router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
     if (dup) return res.status(400).json({ error: `Customer "${name}" already exists` });
     const id = uid('C');
     await pool.query(
-      'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name.trim(), phone, email, address, vendorId || null],
+      'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id, credit_limit, credit_period_days) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+      [id, tenantId, name.trim(), phone, email, address, vendorId || null, creditLimit, creditPeriodDays],
     );
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    res.status(201).json({
-      id: row.id,
-      name: row.name,
-      phone: row.phone,
-      email: row.email,
-      address: row.address,
-      vendorId: row.vendor_id ?? null,
-    });
+    res.status(201).json(mapCustomer(row));
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -96,10 +105,35 @@ router.put('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => 
 
     const { id } = req.params;
     const { name, phone, email, address, vendorId } = req.body;
-    const result = await pool.query(
-      'UPDATE customers SET name=COALESCE($1,name), phone=COALESCE($2,phone), email=COALESCE($3,email), address=COALESCE($4,address), vendor_id=$5 WHERE id=$6 AND tenant_id=$7',
-      [name, phone, email, address, vendorId === '' || vendorId === undefined ? null : vendorId, id, tenantId],
-    );
+    const params: unknown[] = [
+      name,
+      phone,
+      email,
+      address,
+      vendorId === '' || vendorId === undefined ? null : vendorId,
+    ];
+    let sql = `UPDATE customers SET name=COALESCE($1,name), phone=COALESCE($2,phone), email=COALESCE($3,email),
+      address=COALESCE($4,address), vendor_id=$5`;
+    let idx = 6;
+    if (req.body.creditLimit !== undefined) {
+      try {
+        params.push(parseCreditLimit(req.body.creditLimit));
+      } catch (e) {
+        return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid credit limit' });
+      }
+      sql += `, credit_limit=$${idx++}`;
+    }
+    if (req.body.creditPeriodDays !== undefined) {
+      try {
+        params.push(parseCreditPeriodDays(req.body.creditPeriodDays));
+      } catch (e) {
+        return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid credit period' });
+      }
+      sql += `, credit_period_days=$${idx++}`;
+    }
+    sql += ` WHERE id=$${idx++} AND tenant_id=$${idx}`;
+    params.push(id, tenantId);
+    const result = await pool.query(sql, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
     // Keep linked invoices' WhatsApp/print phone in sync when Masters phone changes.
     if (req.body.phone !== undefined) {
@@ -110,14 +144,7 @@ router.put('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => 
       );
     }
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    res.json({
-      id: row.id,
-      name: row.name,
-      phone: row.phone,
-      email: row.email,
-      address: row.address,
-      vendorId: row.vendor_id ?? null,
-    });
+    res.json(mapCustomer(row));
   } catch (err) {
     return handleApiError(req, res, err);
   }

@@ -222,6 +222,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
             si.id AS invoice_id,
             si.invoice_number,
             si.invoice_date,
+            si.due_date,
             si.grand_total::float AS grand_total,
             COALESCE(ip.paid, 0)::float AS paid
           FROM standalone_invoices si
@@ -244,6 +245,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
         invoice_id: string;
         invoice_number: string;
         invoice_date: string;
+        due_date: string | null;
         grand_total: number;
         paid: number;
       }[];
@@ -275,7 +277,8 @@ router.get('/api/reports/outstanding', async (req, res) => {
         row.totalBilled += billed;
         row.totalPaid += paid;
         row.balance += due;
-        const days = daysSince(String(inv.invoice_date), now);
+        const ageFrom = String(inv.due_date || inv.invoice_date);
+        const days = daysSince(ageFrom, now);
         const ageBucket = outstandingAge(days);
         if (ageBucket === '0-30') row.d0_30 += due;
         else if (ageBucket === '31-60') row.d31_60 += due;

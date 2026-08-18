@@ -82,7 +82,16 @@ export function VendorMasterView({
     password: string;
     phone?: string;
   } | null>(null);
-  const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
+  const [form, setForm] = useState({
+    name: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    address: '',
+    gstNumber: '',
+    creditLimit: '',
+    creditPeriodDays: '',
+  });
   const [submitting, setSubmitting] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [selected, setSelected] = useState<Vendor | null>(null);
@@ -364,7 +373,16 @@ export function VendorMasterView({
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
+    setForm({
+      name: '',
+      contactPerson: '',
+      phone: '',
+      email: '',
+      address: '',
+      gstNumber: '',
+      creditLimit: '',
+      creditPeriodDays: '',
+    });
     setModalOpen(true);
   };
   const openEdit = (v: Vendor) => {
@@ -375,7 +393,9 @@ export function VendorMasterView({
       phone: v.phone ?? '',
       email: v.email ?? '',
       address: v.address ?? '',
-      gstNumber: (v as unknown as Record<string, string>).gstNumber ?? '',
+      gstNumber: v.gstNumber ?? '',
+      creditLimit: v.creditLimit != null ? String(v.creditLimit) : '',
+      creditPeriodDays: v.creditPeriodDays != null ? String(v.creditPeriodDays) : '',
     });
     setModalOpen(true);
   };
@@ -383,9 +403,19 @@ export function VendorMasterView({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const payload = {
+      name: form.name,
+      contactPerson: form.contactPerson,
+      phone: form.phone,
+      email: form.email,
+      address: form.address,
+      gstNumber: form.gstNumber,
+      creditLimit: form.creditLimit.trim() === '' ? null : Number(form.creditLimit),
+      creditPeriodDays: form.creditPeriodDays.trim() === '' ? null : Number(form.creditPeriodDays),
+    };
     if (editing) {
       api.vendors
-        .update(editing.id, form)
+        .update(editing.id, payload)
         .then(() => {
           setModalOpen(false);
           load();
@@ -395,7 +425,7 @@ export function VendorMasterView({
         .finally(() => setSubmitting(false));
     } else {
       api.vendors
-        .create(form)
+        .create(payload)
         .then(result => {
           setModalOpen(false);
           load();
@@ -1293,6 +1323,39 @@ export function VendorMasterView({
                     !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstNumber) && (
                       <p className="text-[10px] text-rose-500 mt-0.5">Invalid GSTIN format</p>
                     )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={fieldLabel} htmlFor="vendor-form-credit-period">
+                      Credit period (days)
+                    </label>
+                    <input
+                      id="vendor-form-credit-period"
+                      type="number"
+                      min={0}
+                      max={3650}
+                      step={1}
+                      value={form.creditPeriodDays}
+                      onChange={e => setForm({ ...form, creditPeriodDays: e.target.value })}
+                      className={fieldInput}
+                      placeholder="e.g. 30"
+                    />
+                  </div>
+                  <div>
+                    <label className={fieldLabel} htmlFor="vendor-form-credit-limit">
+                      Credit limit (₹)
+                    </label>
+                    <input
+                      id="vendor-form-credit-limit"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={form.creditLimit}
+                      onChange={e => setForm({ ...form, creditLimit: e.target.value })}
+                      className={fieldInput}
+                      placeholder="Optional"
+                    />
+                  </div>
                 </div>
                 <div
                   className={cn(

@@ -65,6 +65,13 @@ describe('AR aging helpers', () => {
     expect(outstandingAgeBucket(100)).toBe('90+');
   });
 
+  it('ages from dueDate when present (not invoice date)', () => {
+    // Invoice 1 Jul, due 10 Aug → only 6 days past due on 16 Aug
+    expect(daysPastDue('2026-08-01', asOf, '2026-08-10')).toBe(6);
+    // Not yet due → 0
+    expect(daysPastDue('2026-07-01', asOf, '2026-08-20')).toBe(0);
+  });
+
   it('summarizeArAging buckets open balances', () => {
     const totals = summarizeArAging(
       [
@@ -80,5 +87,19 @@ describe('AR aging helpers', () => {
     expect(totals.d61_90).toBe(0);
     expect(totals.d90plus).toBe(50);
     expect(totals.total).toBe(350);
+  });
+
+  it('summarizeArAging prefers dueDate for buckets', () => {
+    const totals = summarizeArAging(
+      [
+        // Old invoice but due recently → 0-30
+        { invoiceDate: '2026-01-01', dueDate: '2026-08-10', balance: 100 },
+        // Due long ago → 90+
+        { invoiceDate: '2026-08-01', dueDate: '2026-04-01', balance: 50 },
+      ],
+      asOf,
+    );
+    expect(totals.d0_30).toBe(100);
+    expect(totals.d90plus).toBe(50);
   });
 });

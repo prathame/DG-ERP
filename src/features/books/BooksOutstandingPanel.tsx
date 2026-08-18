@@ -65,6 +65,7 @@ export function BooksOutstandingPanel() {
         invoiceId: r.invoiceId,
         invoiceNumber: r.invoiceNumber,
         invoiceDate: r.invoiceDate,
+        dueDate: (r as { dueDate?: string | null }).dueDate ?? null,
         balance: Number(r.balance) || 0,
         grandTotal: Number(r.grandTotal) || 0,
         paid: Number(r.paid) || 0,
@@ -202,9 +203,10 @@ export function BooksOutstandingPanel() {
                 <tr>
                   <th className="px-3 py-2">Bill</th>
                   <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Due</th>
                   <th className="px-3 py-2 text-right">Total</th>
                   <th className="px-3 py-2 text-right">Paid</th>
-                  <th className="px-3 py-2 text-right">Due</th>
+                  <th className="px-3 py-2 text-right">Balance</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
@@ -213,6 +215,7 @@ export function BooksOutstandingPanel() {
                   <tr key={b.invoiceId} className="border-t border-slate-100">
                     <td className="px-3 py-2 font-medium">{b.invoiceNumber}</td>
                     <td className="px-3 py-2 text-slate-600">{b.invoiceDate}</td>
+                    <td className="px-3 py-2 text-slate-600">{b.dueDate || '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{money(b.grandTotal)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{money(b.paid)}</td>
                     <td className="px-3 py-2 text-right font-medium tabular-nums text-orange-800">
@@ -351,19 +354,21 @@ export function BooksOutstandingPanel() {
                 <th className="px-3 py-2">Party</th>
                 <th className="px-3 py-2">Bill</th>
                 <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Due</th>
                 <th className="px-3 py-2">Age</th>
-                <th className="px-3 py-2 text-right">Due</th>
+                <th className="px-3 py-2 text-right">Balance</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {filteredBills.map(b => {
-                const days = daysPastDue(b.invoiceDate);
+                const days = daysPastDue(b.invoiceDate, new Date(), b.dueDate);
                 return (
                   <tr key={b.invoiceId} className="border-t border-slate-100">
                     <td className="px-3 py-2">{b.clientName}</td>
                     <td className="px-3 py-2 font-medium">{b.invoiceNumber}</td>
                     <td className="px-3 py-2 text-slate-600">{b.invoiceDate}</td>
+                    <td className="px-3 py-2 text-slate-600">{b.dueDate || '—'}</td>
                     <td className="px-3 py-2 text-slate-600">{outstandingAgeBucket(days)}</td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums text-orange-800">
                       {money(b.balance)}

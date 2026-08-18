@@ -14,6 +14,8 @@ export type OutstandingBillRow = {
   invoiceId: string;
   invoiceNumber: string;
   invoiceDate: string;
+  /** When set, AR aging uses due date instead of invoice date. */
+  dueDate?: string | null;
   balance: number;
   grandTotal: number;
   paid: number;
@@ -29,9 +31,9 @@ export type AgingTotals = {
   total: number;
 };
 
-/** Days between bill date and asOf (calendar days, floored). */
-export function daysPastDue(invoiceDate: string, asOf = new Date()): number {
-  const raw = String(invoiceDate || '').slice(0, 10);
+/** Days overdue vs asOf. Prefer dueDate; fall back to invoice date (not-yet-due → 0). */
+export function daysPastDue(invoiceDate: string, asOf = new Date(), dueDate?: string | null): number {
+  const raw = String(dueDate || invoiceDate || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return 0;
   const [y, m, d] = raw.split('-').map(Number);
   const start = new Date(y, m - 1, d);
@@ -46,9 +48,9 @@ export function outstandingAgeBucket(days: number): AgeBucket {
   return '90+';
 }
 
-/** Sum open bill balances into AR aging buckets (QuickBooks-style). */
+/** Sum open bill balances into AR aging buckets (due-date based when available). */
 export function summarizeArAging(
-  bills: Array<{ invoiceDate: string; balance: number }>,
+  bills: Array<{ invoiceDate: string; dueDate?: string | null; balance: number }>,
   asOf = new Date(),
 ): AgingTotals {
   const totals: AgingTotals = { d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 0 };
@@ -56,7 +58,7 @@ export function summarizeArAging(
     const bal = Number(b.balance) || 0;
     if (bal <= 0.005) continue;
     totals.total += bal;
-    const bucket = outstandingAgeBucket(daysPastDue(b.invoiceDate, asOf));
+    const bucket = outstandingAgeBucket(daysPastDue(b.invoiceDate, asOf, b.dueDate));
     if (bucket === '0-30') totals.d0_30 += bal;
     else if (bucket === '31-60') totals.d31_60 += bal;
     else if (bucket === '61-90') totals.d61_90 += bal;
