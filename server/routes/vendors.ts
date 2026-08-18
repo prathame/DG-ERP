@@ -4,10 +4,28 @@ import { blockVendors, requireAdmin, AuthRequest, assertVendorLinked, vendorScop
 import { pool, setTenantContext } from '../pg-db';
 import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { creditTermsFromRow, parseCreditLimit, parseCreditPeriodDays } from '../utils/partyCreditTerms';
 
 const router = Router();
 
 type ShipToRow = Record<string, unknown>;
+
+function mapVendor(r: Record<string, unknown>) {
+  const credit = creditTermsFromRow(r);
+  return {
+    id: r.id,
+    name: r.name,
+    contactPerson: r.contact_person,
+    phone: r.phone,
+    email: r.email,
+    address: r.address,
+    totalSales: r.total_sales ?? 0,
+    totalRewardPoints: r.total_reward_points ?? 0,
+    gstNumber: r.gst_number ?? null,
+    creditLimit: credit.creditLimit,
+    creditPeriodDays: credit.creditPeriodDays,
+  };
+}
 
 function mapShipTo(r: ShipToRow) {
   return {
@@ -55,17 +73,7 @@ router.get('/api/vendors', async (req: AuthRequest, res) => {
     sql += ` ORDER BY name LIMIT $${limIdx} OFFSET $${limIdx + 1}`;
     params.push(limit, offset);
     const { rows } = await pool.query(sql, params);
-    const list = rows.map((r: Record<string, unknown>) => ({
-      id: r.id,
-      name: r.name,
-      contactPerson: r.contact_person,
-      phone: r.phone,
-      email: r.email,
-      address: r.address,
-      totalSales: r.total_sales ?? 0,
-      totalRewardPoints: r.total_reward_points ?? 0,
-      gstNumber: r.gst_number ?? null,
-    }));
+    const list = rows.map((r: Record<string, unknown>) => mapVendor(r));
     res.setHeader('X-Total-Count', String(total));
     res.setHeader('X-Page', String(page));
     res.setHeader('X-Limit', String(limit));
@@ -234,9 +242,28 @@ router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
     if (duplicate) return res.status(400).json({ error: `Vendor "${duplicate.name}" already exists` });
 
     const id = uid('V');
+    let creditLimit: number | null = null;
+    let creditPeriodDays: number | null = null;
+    try {
+      creditLimit = parseCreditLimit(req.body.creditLimit);
+      creditPeriodDays = parseCreditPeriodDays(req.body.creditPeriodDays);
+    } catch (e) {
+      return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid credit terms' });
+    }
     await pool.query(
-      'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-      [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address, req.body.gstNumber || null],
+      'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address, gst_number, credit_limit, credit_period_days) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+      [
+        id,
+        tenantId,
+        name.trim(),
+        contactPerson,
+        phone?.trim() || null,
+        email,
+        address,
+        req.body.gstNumber || null,
+        creditLimit,
+        creditPeriodDays,
+      ],
     );
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     let credentials: { email: string; password: string } | null = null;
@@ -286,15 +313,7 @@ router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
     }
     res.setHeader('Cache-Control', 'no-store');
     res.status(201).json({
-      id: row.id,
-      name: row.name,
-      contactPerson: row.contact_person,
-      phone: row.phone,
-      email: row.email,
-      address: row.address,
-      totalSales: 0,
-      totalRewardPoints: 0,
-      gstNumber: row.gst_number ?? null,
+      ...mapVendor(row),
       credentials,
     });
   } catch (err) {
@@ -338,12 +357,30 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
       ).rows[0];
       if (emailDup) return res.status(400).json({ error: `Email "${emailArg}" already exists` });
     }
-    const result = await pool.query(
-      `UPDATE vendors SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone),
+    const params: unknown[] = [name, contactPerson, phone?.trim() || null, emailArg, address, gstNumber ?? null];
+    let sql = `UPDATE vendors SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone),
        email=CASE WHEN $4::text IS NULL THEN email WHEN $4 = '' THEN NULL ELSE $4 END,
-       address=COALESCE($5,address), gst_number=COALESCE($8,gst_number) WHERE id=$6 AND tenant_id=$7`,
-      [name, contactPerson, phone?.trim() || null, emailArg, address, id, tenantId, gstNumber ?? null],
-    );
+       address=COALESCE($5,address), gst_number=COALESCE($6,gst_number)`;
+    let idx = 7;
+    if (req.body.creditLimit !== undefined) {
+      try {
+        params.push(parseCreditLimit(req.body.creditLimit));
+      } catch (e) {
+        return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid credit limit' });
+      }
+      sql += `, credit_limit=$${idx++}`;
+    }
+    if (req.body.creditPeriodDays !== undefined) {
+      try {
+        params.push(parseCreditPeriodDays(req.body.creditPeriodDays));
+      } catch (e) {
+        return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid credit period' });
+      }
+      sql += `, credit_period_days=$${idx++}`;
+    }
+    sql += ` WHERE id=$${idx++} AND tenant_id=$${idx}`;
+    params.push(id, tenantId);
+    const result = await pool.query(sql, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Vendor not found' });
     // Keep linked invoices' WhatsApp/print phone in sync when Masters phone changes.
     if (req.body.phone !== undefined) {
@@ -354,17 +391,7 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
       );
     }
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    res.json({
-      id: row.id,
-      name: row.name,
-      contactPerson: row.contact_person,
-      phone: row.phone,
-      email: row.email,
-      address: row.address,
-      totalSales: row.total_sales ?? 0,
-      totalRewardPoints: row.total_reward_points ?? 0,
-      gstNumber: row.gst_number ?? null,
-    });
+    res.json(mapVendor(row));
   } catch (err) {
     return handleApiError(req, res, err);
   }

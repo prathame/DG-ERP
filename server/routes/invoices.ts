@@ -8,6 +8,7 @@ import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
+import { addCalendarDaysIso } from '../utils/partyCreditTerms';
 
 const router = Router();
 
@@ -358,6 +359,26 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     const interstate = isInterstateSupply(sellerGstin, customerGstin || null);
     const { taxCgst, taxSgst, taxIgst } = splitGstTax(taxTotal, interstate);
 
+    const invDate =
+      typeof invoiceDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(invoiceDate)
+        ? invoiceDate.slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+    let resolvedDueDate: string | null =
+      typeof dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dueDate) ? dueDate.slice(0, 10) : null;
+    if (!resolvedDueDate && resolvedPartyType && resolvedPartyId) {
+      const table = resolvedPartyType === 'vendor' ? 'vendors' : 'customers';
+      const partyRow = (
+        await pool.query(`SELECT credit_period_days FROM ${table} WHERE id = $1 AND tenant_id = $2`, [
+          resolvedPartyId,
+          tenantId,
+        ])
+      ).rows[0] as { credit_period_days?: number | null } | undefined;
+      const days = Number(partyRow?.credit_period_days);
+      if (Number.isFinite(days) && days > 0) {
+        resolvedDueDate = addCalendarDaysIso(invDate, days);
+      }
+    }
+
     const id = uid('INV');
     const client = await pool.connect();
     let finalNumber: string;
@@ -390,8 +411,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
             notes || null,
             terms || null,
             createStatus,
-            invoiceDate || new Date().toISOString().slice(0, 10),
-            dueDate || null,
+            invDate,
+            resolvedDueDate,
             taxCgst,
             taxSgst,
             taxIgst,
@@ -419,7 +440,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
             taxCgst,
             taxSgst,
             taxIgst,
-            invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10),
+            invoiceDate: invDate,
             notes: notes || null,
           }),
         'invoice-create',

@@ -37,7 +37,15 @@ export function CustomerMasterView({
     customer: Customer;
     purchases: { productName: string; vendorName: string; barcode: string; purchaseDate: string }[];
   } | null>(null);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', vendorId: '' as string | '' });
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    vendorId: '' as string | '',
+    creditLimit: '',
+    creditPeriodDays: '',
+  });
   const [submitting, setSubmitting] = useState(false);
 
   useEscapeKey(() => {
@@ -91,7 +99,15 @@ export function CustomerMasterView({
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', phone: '', email: '', address: '', vendorId: vendorId ?? '' });
+    setForm({
+      name: '',
+      phone: '',
+      email: '',
+      address: '',
+      vendorId: vendorId ?? '',
+      creditLimit: '',
+      creditPeriodDays: '',
+    });
     setModalOpen(true);
   };
   const openEdit = (c: Customer) => {
@@ -102,6 +118,8 @@ export function CustomerMasterView({
       email: c.email ?? '',
       address: c.address ?? '',
       vendorId: c.vendorId ?? '',
+      creditLimit: c.creditLimit != null ? String(c.creditLimit) : '',
+      creditPeriodDays: c.creditPeriodDays != null ? String(c.creditPeriodDays) : '',
     });
     setModalOpen(true);
   };
@@ -109,11 +127,14 @@ export function CustomerMasterView({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const { vendorId, ...rest } = form;
-    (editing
-      ? api.customers.update(editing.id, { ...rest, vendorId: vendorId || null })
-      : api.customers.create({ ...rest, vendorId: vendorId || null })
-    )
+    const { vendorId: formVendorId, creditLimit, creditPeriodDays, ...rest } = form;
+    const payload = {
+      ...rest,
+      vendorId: formVendorId || null,
+      creditLimit: creditLimit.trim() === '' ? null : Number(creditLimit),
+      creditPeriodDays: creditPeriodDays.trim() === '' ? null : Number(creditPeriodDays),
+    };
+    (editing ? api.customers.update(editing.id, payload) : api.customers.create(payload))
       .then(() => {
         setModalOpen(false);
         load();
@@ -375,6 +396,33 @@ export function CustomerMasterView({
                     </select>
                   </div>
                 )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Credit period (days)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={3650}
+                      step={1}
+                      value={form.creditPeriodDays}
+                      onChange={e => setForm({ ...form, creditPeriodDays: e.target.value })}
+                      placeholder="e.g. 30"
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Credit limit (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={form.creditLimit}
+                      onChange={e => setForm({ ...form, creditLimit: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </div>
+                </div>
                 <div className="flex gap-2 pt-2">
                   <button
                     type="button"

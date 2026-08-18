@@ -85,6 +85,8 @@ export interface Customer {
   email?: string;
   address?: string;
   vendorId?: string | null;
+  creditLimit?: number | null;
+  creditPeriodDays?: number | null;
 }
 
 export interface Vendor {
@@ -97,6 +99,8 @@ export interface Vendor {
   gstNumber?: string | null;
   totalSales?: number;
   totalRewardPoints?: number;
+  creditLimit?: number | null;
+  creditPeriodDays?: number | null;
 }
 
 export interface Bank {

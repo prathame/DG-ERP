@@ -335,6 +335,8 @@ export async function initSchema() {
         address TEXT,
         total_sales INTEGER DEFAULT 0,
         total_reward_points INTEGER DEFAULT 0,
+        credit_limit NUMERIC(14,2),
+        credit_period_days INTEGER,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (id, tenant_id)
       );
@@ -348,6 +350,8 @@ export async function initSchema() {
         email TEXT,
         address TEXT,
         vendor_id TEXT,
+        credit_limit NUMERIC(14,2),
+        credit_period_days INTEGER,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (id, tenant_id)
       );
@@ -734,6 +738,11 @@ export async function initSchema() {
 
     // Vendor GSTIN for GST reports
     await client.query('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gst_number TEXT');
+    // RealBooks-style party credit terms (AR)
+    await client.query('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(14,2)');
+    await client.query('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS credit_period_days INTEGER');
+    await client.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(14,2)');
+    await client.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS credit_period_days INTEGER');
 
     // Miracle / external system refs for idempotent ops import
     await client.query('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS external_ref TEXT');
