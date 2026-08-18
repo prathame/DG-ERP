@@ -46,6 +46,13 @@ import {
 } from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
+import {
+  DEFAULT_BILL_UNIT,
+  defaultBillUnit,
+  normalizeBillUnits,
+  normalizeLineUnit,
+  parseBillQty,
+} from '../../../shared/billUnits';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { DesktopAccountsPanel } from './DesktopAccountsPanel';
@@ -1548,6 +1555,7 @@ function NotesView({
     referenceId?: string | null;
   }[];
   const [creating, setCreating] = React.useState(false);
+  const [billUnits, setBillUnits] = React.useState<string[]>(() => normalizeBillUnits(undefined));
   const emptyNoteForm = {
     noteType: 'credit' as 'credit' | 'debit',
     vendorName: '',
@@ -1556,11 +1564,26 @@ function NotesView({
     referenceInvoice: '',
     referenceType: '' as '' | 'invoice' | 'distribution' | 'quotation',
     referenceId: '',
-    items: [{ description: '', quantity: 1, price: 0, withGst: true }],
+    items: [{ description: '', quantity: 1, unit: DEFAULT_BILL_UNIT, price: 0, withGst: true }],
   };
   const [noteForm, setNoteForm] = React.useState(emptyNoteForm);
   const [submitting, setSubmitting] = React.useState(false);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    api.settings
+      .getBillSettings()
+      .then(s => {
+        const units = normalizeBillUnits(s?.billUnits);
+        const unitDefault = defaultBillUnit(units);
+        setBillUnits(units);
+        setNoteForm(prev => ({
+          ...prev,
+          items: prev.items.map(it => ({ ...it, unit: normalizeLineUnit(it.unit, unitDefault) })),
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCreate = async () => {
     if (noteForm.items.filter(i => i.description && i.price > 0).length === 0) return;
@@ -1576,7 +1599,10 @@ function NotesView({
         }),
       });
       setCreating(false);
-      setNoteForm(emptyNoteForm);
+      setNoteForm({
+        ...emptyNoteForm,
+        items: [{ description: '', quantity: 1, unit: defaultBillUnit(billUnits), price: 0, withGst: true }],
+      });
       onRefresh();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to save note', 'error');
@@ -1740,18 +1766,40 @@ function NotesView({
                 />
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   value={item.quantity || ''}
                   onChange={e => {
-                    const v = e.target.value.replace(/[^0-9]/g, '');
+                    const v = e.target.value.replace(/[^0-9.]/g, '');
                     setNoteForm({
                       ...noteForm,
-                      items: noteForm.items.map((x, j) => (j === i ? { ...x, quantity: v ? parseInt(v) : 0 } : x)),
+                      items: noteForm.items.map((x, j) =>
+                        j === i ? { ...x, quantity: v ? parseBillQty(v, 0) : 0 } : x,
+                      ),
                     });
                   }}
                   className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                   placeholder="Qty"
                 />
+                <select
+                  value={normalizeLineUnit(item.unit, defaultBillUnit(billUnits))}
+                  onChange={e =>
+                    setNoteForm({
+                      ...noteForm,
+                      items: noteForm.items.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)),
+                    })
+                  }
+                  className="w-24 px-1 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  {(() => {
+                    const current = normalizeLineUnit(item.unit, defaultBillUnit(billUnits));
+                    const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+                    return opts.map(u => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ));
+                  })()}
+                </select>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -1782,7 +1830,10 @@ function NotesView({
               onClick={() =>
                 setNoteForm({
                   ...noteForm,
-                  items: [...noteForm.items, { description: '', quantity: 1, price: 0, withGst: true }],
+                  items: [
+                    ...noteForm.items,
+                    { description: '', quantity: 1, unit: defaultBillUnit(billUnits), price: 0, withGst: true },
+                  ],
                 })
               }
               className="text-sm font-bold text-brand"

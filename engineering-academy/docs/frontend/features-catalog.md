@@ -190,9 +190,9 @@ A public-facing-adjacent trust feature: scan or type a barcode to instantly see 
 
 **`features/settings/SettingsView.tsx`**
 
-Per-tenant configuration: user profile, password change, bill customization (logo, terms, bank details for printed bills — `bill_settings` table), and the GST API integration settings (NIC e-Invoice/e-Way Bill credentials — see the "GST API Settings" section of the file and [../security/secrets.md](../security/secrets.md) for how those credentials are encrypted at rest with AES-256-GCM before storage).
+Per-tenant configuration: user profile, password change, bill customization (logo, terms, bank details, **sale units** — Piece/Kg/Meter/custom — `bill_settings.bill_units`), and GST API credentials (NIC e-Invoice/e-Way Bill — encrypted at rest; see [../security/secrets.md](../security/secrets.md)). Sale units are picked on **invoice, quotation, and credit/debit-note** lines (decimal qty allowed). Inventory, barcode sales, purchases, and dispatch stay piece/box stock — they do not use this list.
 
-**Business value:** the one place an Admin configures everything that makes bills/invoices look like *their* company's bills, and everything that connects the tenant to government tax infrastructure.
+**Business value:** the one place an Admin configures everything that makes bills/invoices look like *their* company's bills, including how qty is labeled (Kg vs Piece), and everything that connects the tenant to government tax infrastructure.
 
 ## Hospitality
 

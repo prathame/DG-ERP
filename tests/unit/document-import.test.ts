@@ -98,7 +98,7 @@ describe('buildDocumentsFromRows', () => {
     expect(documents).toHaveLength(1);
     expect(documents[0].vendorId).toBe('V1');
     expect(documents[0].items).toHaveLength(2);
-    expect(documents[0].items[0]).toMatchObject({ productId: 'P1', quantity: 2, customPrice: 90 });
+    expect(documents[0].items[0]).toMatchObject({ productId: 'P1', quantity: 2, customPrice: 90, unit: 'Piece' });
     expect(documents[0].items[1]).toMatchObject({ productId: 'P2', quantity: 1 });
   });
 
@@ -113,6 +113,15 @@ describe('buildDocumentsFromRows', () => {
       customPrice: 500,
       quantity: 1,
     });
+  });
+
+  it('keeps sale unit and decimal qty on quotation lines', () => {
+    const { documents, errors } = buildDocumentsFromRows(
+      [{ productName: 'Widget A', quantity: '2.5', unit: 'Kg', price: '40' }],
+      { products, vendors },
+    );
+    expect(errors).toEqual([]);
+    expect(documents[0].items[0]).toMatchObject({ productId: 'P1', quantity: 2.5, unit: 'Kg', customPrice: 40 });
   });
 
   it('errors when product missing and custom lines disabled', () => {

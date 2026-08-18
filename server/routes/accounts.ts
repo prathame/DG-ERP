@@ -18,6 +18,7 @@ import {
   splitGst,
 } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 import { reconcileGstr2b } from '../services/gstr2bReconcile';
 import {
   extractGstr2bRtnprd,
@@ -783,6 +784,7 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
     const resolvedItems: {
       description: string;
       quantity: number;
+      unit: string;
       price: number;
       withGst: boolean;
       lineNet: number;
@@ -790,13 +792,14 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
       lineTotal: number;
     }[] = [];
     for (const item of items) {
-      const qty = Number(item.quantity) || 1;
+      const qty = parseBillQty(item.quantity, 1);
       const price = Number(item.price) || 0;
       const net = qty * price;
       const gst = item.withGst !== false ? Math.round(((net * rate) / 100) * 100) / 100 : 0;
       resolvedItems.push({
         description: item.description || '',
         quantity: qty,
+        unit: normalizeLineUnit(item.unit, DEFAULT_BILL_UNIT),
         price,
         withGst: item.withGst !== false,
         lineNet: net,
