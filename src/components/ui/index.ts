@@ -7,6 +7,7 @@ export { FinancialYearSelect } from './FinancialYearSelect';
 export { PaginationControls } from './Pagination';
 export { PaidBadge, PartialBadge, PaidStamp, isBillFullyPaid, isBillPartiallyPaid } from './PaidBadge';
 export { PasswordInput } from './PasswordInput';
+export { QuickAddProductModal } from './QuickAddProductModal';
 export { Skeleton, DashboardSkeleton, TableSkeleton } from './Skeleton';
 export { NotificationCenter } from './NotificationCenter';
 export { AppModal } from './AppModal';

@@ -22,6 +22,7 @@ import {
   MobileKpiCard,
   MobileFab,
   MobileEmptyState,
+  QuickAddProductModal,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
@@ -1073,6 +1074,7 @@ export function CreateInvoiceModal({
   const [parties, setParties] = useState<InvoiceParty[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
+  const [quickAdd, setQuickAdd] = useState<{ idx: number; name: string } | null>(null);
   const [partyKey, setPartyKey] = useState(() => {
     if (initialParty?.partyType && initialParty?.partyId) {
       return `${initialParty.partyType}:${initialParty.partyId}`;
@@ -1238,6 +1240,28 @@ export function CreateInvoiceModal({
     });
   };
 
+  const applyProduct = (idx: number, p: Product) => {
+    const qty = rows[idx]?.qty || 1;
+    const rate = resolveCatalogPrice(p, priceRules, pricingVendorId, qty);
+    const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
+    setRows(prev =>
+      prev.map((r, i) =>
+        i === idx
+          ? {
+              ...r,
+              productId: p.id,
+              description: p.name,
+              hsnSac: gstBilling ? p.hsnCode || r.hsnSac || '' : '',
+              qty,
+              rate,
+              gstPercent: gstBilling ? (p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18) : 0,
+            }
+          : r,
+      ),
+    );
+    resolveRowPrice(idx, p.id, pricingVendorId, qty);
+  };
+
   const applyCatalogItem = (idx: number, productId: string) => {
     if (!productId) {
       setRows(
@@ -1255,25 +1279,7 @@ export function CreateInvoiceModal({
     }
     const p = products.find(x => x.id === productId);
     if (!p) return;
-    const qty = rows[idx]?.qty || 1;
-    const rate = resolveCatalogPrice(p, priceRules, pricingVendorId, qty);
-    const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
-    setRows(
-      rows.map((r, i) =>
-        i === idx
-          ? {
-              ...r,
-              productId: p.id,
-              description: p.name,
-              hsnSac: gstBilling ? p.hsnCode || r.hsnSac || '' : '',
-              qty,
-              rate,
-              gstPercent: gstBilling ? (p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18) : 0,
-            }
-          : r,
-      ),
-    );
-    resolveRowPrice(idx, p.id, pricingVendorId, qty);
+    applyProduct(idx, p);
   };
 
   const updateRowQty = (idx: number, qty: number) => {
@@ -1458,6 +1464,13 @@ export function CreateInvoiceModal({
               <option value="">Custom item</option>
               {productSelectOptions(row.qty || 1)}
             </select>
+            <button
+              type="button"
+              onClick={() => setQuickAdd({ idx, name: row.description })}
+              className="text-xs font-bold text-brand mt-1"
+            >
+              + Add new product
+            </button>
             {catalogPrice != null && row.rate !== catalogPrice && (
               <p className="text-[10px] text-amber-600 mt-1">
                 Rate edited from price list ₹{catalogPrice.toLocaleString('en-IN')}
@@ -1694,378 +1707,403 @@ export function CreateInvoiceModal({
   );
 
   return (
-    <AppModal
-      title={createdInvoice ? t('invoices.invoiceCreated') : t('invoices.newInvoice')}
-      subtitle={<span className="font-mono">{createdInvoice?.invoiceNumber || invoiceNumber}</span>}
-      onClose={createdInvoice ? finishCreated : onClose}
-      footer={footer}
-      size="2xl"
-      className="sm:w-[min(96vw,72rem)]"
-    >
-      <div className="space-y-4">
-        {createdInvoice ? (
-          <div className="text-center py-8 space-y-3">
-            <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
-              <Check size={24} />
+    <>
+      <AppModal
+        title={createdInvoice ? t('invoices.invoiceCreated') : t('invoices.newInvoice')}
+        subtitle={<span className="font-mono">{createdInvoice?.invoiceNumber || invoiceNumber}</span>}
+        onClose={createdInvoice ? finishCreated : onClose}
+        footer={footer}
+        size="2xl"
+        className="sm:w-[min(96vw,72rem)]"
+      >
+        <div className="space-y-4">
+          {createdInvoice ? (
+            <div className="text-center py-8 space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Check size={24} />
+              </div>
+              <p className="font-bold text-lg">Invoice {createdInvoice.invoiceNumber} is ready</p>
+              <p className="text-sm text-gray-500">
+                {createdInvoice.customerName} · ₹{Number(createdInvoice.grandTotal || 0).toLocaleString('en-IN')}
+              </p>
+              <p className="text-xs text-gray-400">
+                Print the bill now (Save as PDF from the print dialog), or tap Done.
+              </p>
             </div>
-            <p className="font-bold text-lg">Invoice {createdInvoice.invoiceNumber} is ready</p>
-            <p className="text-sm text-gray-500">
-              {createdInvoice.customerName} · ₹{Number(createdInvoice.grandTotal || 0).toLocaleString('en-IN')}
-            </p>
-            <p className="text-xs text-gray-400">
-              Print the bill now (Save as PDF from the print dialog), or tap Done.
-            </p>
-          </div>
-        ) : null}
-        {!createdInvoice && (
-          <MobileStepper
-            className="sm:hidden"
-            steps={INVOICE_STEPS}
-            current={step}
-            onStepClick={i => {
-              if (i <= step) setStep(i);
-            }}
-          />
-        )}
-        {!createdInvoice && (
-          <>
-            {/* Step 0 — Party */}
-            <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
-              <FormSection title={t('masters.customer')} description="Type a name — pick a match or leave as custom">
-                <FormGrid>
-                  <FormField label={t('invoices.customerName')} required className="sm:col-span-2">
-                    <SearchSelect
-                      allowCustom
-                      value={partyKey}
-                      onChange={selectParty}
-                      inputValue={form.customerName}
-                      onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
-                      placeholder={isService ? 'Type client name…' : 'Type customer or vendor name…'}
-                      emptyHint={
-                        parties.length === 0
-                          ? `No ${isService ? 'clients' : 'parties'} yet — type a name, or add in Masters`
-                          : undefined
-                      }
-                      customLabel={isService ? 'client' : 'customer'}
-                      options={parties.map(p => ({
-                        value: p.key,
-                        label: p.name,
-                        sublabel: p.phone || undefined,
-                      }))}
-                      className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
-                    />
-                  </FormField>
-                  <FormField label="GSTIN">
-                    <input
-                      value={form.customerGstin}
-                      onChange={e => setForm({ ...form, customerGstin: e.target.value.toUpperCase() })}
-                      maxLength={15}
-                      className={cn(formControlClass, 'font-mono')}
-                      placeholder="Optional"
-                    />
-                  </FormField>
-                  <FormField label={t('common.address')} className="sm:col-span-2">
-                    <input
-                      value={form.customerAddress}
-                      onChange={e => setForm({ ...form, customerAddress: e.target.value })}
-                      className={formControlClass}
-                      placeholder="Street, City, State"
-                    />
-                  </FormField>
-                  <FormField label={t('common.phone')}>
-                    <input
-                      type="tel"
-                      value={form.customerPhone}
-                      onChange={e => setForm({ ...form, customerPhone: e.target.value })}
-                      className={formControlClass}
-                      placeholder="Optional"
-                    />
-                  </FormField>
-                  <FormField label={t('invoices.invoiceDate')} required>
-                    <input
-                      type="date"
-                      value={form.invoiceDate}
-                      onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
-                      className={formControlClass}
-                      required
-                    />
-                  </FormField>
-                </FormGrid>
-              </FormSection>
-            </div>
+          ) : null}
+          {!createdInvoice && (
+            <MobileStepper
+              className="sm:hidden"
+              steps={INVOICE_STEPS}
+              current={step}
+              onStepClick={i => {
+                if (i <= step) setStep(i);
+              }}
+            />
+          )}
+          {!createdInvoice && (
+            <>
+              {/* Step 0 — Party */}
+              <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
+                <FormSection title={t('masters.customer')} description="Type a name — pick a match or leave as custom">
+                  <FormGrid>
+                    <FormField label={t('invoices.customerName')} required className="sm:col-span-2">
+                      <SearchSelect
+                        allowCustom
+                        value={partyKey}
+                        onChange={selectParty}
+                        inputValue={form.customerName}
+                        onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
+                        placeholder={isService ? 'Type client name…' : 'Type customer or vendor name…'}
+                        emptyHint={
+                          parties.length === 0
+                            ? `No ${isService ? 'clients' : 'parties'} yet — type a name, or add in Masters`
+                            : undefined
+                        }
+                        customLabel={isService ? 'client' : 'customer'}
+                        options={parties.map(p => ({
+                          value: p.key,
+                          label: p.name,
+                          sublabel: p.phone || undefined,
+                        }))}
+                        className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
+                      />
+                    </FormField>
+                    <FormField label="GSTIN">
+                      <input
+                        value={form.customerGstin}
+                        onChange={e => setForm({ ...form, customerGstin: e.target.value.toUpperCase() })}
+                        maxLength={15}
+                        className={cn(formControlClass, 'font-mono')}
+                        placeholder="Optional"
+                      />
+                    </FormField>
+                    <FormField label={t('common.address')} className="sm:col-span-2">
+                      <input
+                        value={form.customerAddress}
+                        onChange={e => setForm({ ...form, customerAddress: e.target.value })}
+                        className={formControlClass}
+                        placeholder="Street, City, State"
+                      />
+                    </FormField>
+                    <FormField label={t('common.phone')}>
+                      <input
+                        type="tel"
+                        value={form.customerPhone}
+                        onChange={e => setForm({ ...form, customerPhone: e.target.value })}
+                        className={formControlClass}
+                        placeholder="Optional"
+                      />
+                    </FormField>
+                    <FormField label={t('invoices.invoiceDate')} required>
+                      <input
+                        type="date"
+                        value={form.invoiceDate}
+                        onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
+                        className={formControlClass}
+                        required
+                      />
+                    </FormField>
+                  </FormGrid>
+                </FormSection>
+              </div>
 
-            {/* Step 1 — Items */}
-            <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
-              <FormSection
-                title={t('invoices.lineItems')}
-                description={
-                  serviceProductUx
-                    ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
-                    : 'Pick from Masters / Price List, or choose Custom'
-                }
-              >
-                {/* Mobile cards */}
-                <div className="sm:hidden space-y-3">
-                  {rows.map((row, idx) => {
-                    const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
-                    const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
-                    return (
-                      <div key={idx}>
-                        <LineItemCard
-                          index={idx}
-                          title={row.description || `Item ${idx + 1}`}
-                          amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString('en-IN')}` : undefined}
-                          canRemove={rows.length > 1}
-                          onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
-                          fields={renderLineItemFields(row, idx)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* Step 1 — Items */}
+              <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
+                <FormSection
+                  title={t('invoices.lineItems')}
+                  description={
+                    serviceProductUx
+                      ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
+                      : 'Pick from Masters / Price List, or choose Custom'
+                  }
+                >
+                  {/* Mobile cards */}
+                  <div className="sm:hidden space-y-3">
+                    {rows.map((row, idx) => {
+                      const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
+                      const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
+                      return (
+                        <div key={idx}>
+                          <LineItemCard
+                            index={idx}
+                            title={row.description || `Item ${idx + 1}`}
+                            amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString('en-IN')}` : undefined}
+                            canRemove={rows.length > 1}
+                            onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
+                            fields={renderLineItemFields(row, idx)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                {/* Desktop table — wide item column so long service names stay readable */}
-                <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-sm min-w-[960px] table-fixed">
-                    <thead className="bg-gray-50">
-                      <tr className="text-xs font-bold text-gray-400 uppercase">
-                        <th className="px-3 py-2 text-left w-[38%]">Item</th>
-                        {gstBilling && <th className="px-3 py-2 w-[9%]">HSN/SAC</th>}
-                        <th className="px-3 py-2 w-[7%]">Qty</th>
-                        <th className="px-3 py-2 w-[8%]">Unit</th>
-                        <th className="px-3 py-2 w-[11%]">Rate</th>
-                        <th className="px-3 py-2 w-[7%]">Disc%</th>
-                        {gstBilling && <th className="px-3 py-2 w-[8%]">GST%</th>}
-                        <th className="px-3 py-2 w-[12%] text-right">Total</th>
-                        <th className="px-3 py-2 w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {rows.map((row, idx) => {
-                        const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
-                        const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
-                        const catalogPrice =
-                          row.productId && products.find(p => p.id === row.productId)
-                            ? resolveCatalogPrice(
-                                products.find(p => p.id === row.productId)!,
-                                priceRules,
-                                pricingVendorId,
-                                row.qty || 1,
-                              )
-                            : null;
-                        return (
-                          <tr key={idx}>
-                            <td className="px-3 py-2 space-y-1.5 align-top">
-                              <select
-                                value={row.productId}
-                                onChange={e => applyCatalogItem(idx, e.target.value)}
-                                title={
-                                  row.productId
-                                    ? products.find(p => p.id === row.productId)?.name || row.description
-                                    : 'Custom item'
-                                }
-                                className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
-                              >
-                                <option value="">Custom item</option>
-                                {productSelectOptions(row.qty || 1)}
-                              </select>
-                              {(!serviceProductUx || !row.productId) && (
-                                <input
-                                  value={row.description}
-                                  onChange={e =>
-                                    setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                  {/* Desktop table — wide item column so long service names stay readable */}
+                  <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-sm min-w-[960px] table-fixed">
+                      <thead className="bg-gray-50">
+                        <tr className="text-xs font-bold text-gray-400 uppercase">
+                          <th className="px-3 py-2 text-left w-[38%]">Item</th>
+                          {gstBilling && <th className="px-3 py-2 w-[9%]">HSN/SAC</th>}
+                          <th className="px-3 py-2 w-[7%]">Qty</th>
+                          <th className="px-3 py-2 w-[8%]">Unit</th>
+                          <th className="px-3 py-2 w-[11%]">Rate</th>
+                          <th className="px-3 py-2 w-[7%]">Disc%</th>
+                          {gstBilling && <th className="px-3 py-2 w-[8%]">GST%</th>}
+                          <th className="px-3 py-2 w-[12%] text-right">Total</th>
+                          <th className="px-3 py-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {rows.map((row, idx) => {
+                          const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
+                          const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
+                          const catalogPrice =
+                            row.productId && products.find(p => p.id === row.productId)
+                              ? resolveCatalogPrice(
+                                  products.find(p => p.id === row.productId)!,
+                                  priceRules,
+                                  pricingVendorId,
+                                  row.qty || 1,
+                                )
+                              : null;
+                          return (
+                            <tr key={idx}>
+                              <td className="px-3 py-2 space-y-1.5 align-top">
+                                <select
+                                  value={row.productId}
+                                  onChange={e => applyCatalogItem(idx, e.target.value)}
+                                  title={
+                                    row.productId
+                                      ? products.find(p => p.id === row.productId)?.name || row.description
+                                      : 'Custom item'
                                   }
-                                  title={row.description}
-                                  className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
-                                  placeholder={serviceProductUx ? 'Type custom service' : 'Type custom service or item'}
-                                />
+                                  className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                                >
+                                  <option value="">Custom item</option>
+                                  {productSelectOptions(row.qty || 1)}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickAdd({ idx, name: row.description })}
+                                  className="text-[11px] font-bold text-brand"
+                                >
+                                  + Add new product
+                                </button>
+                                {(!serviceProductUx || !row.productId) && (
+                                  <input
+                                    value={row.description}
+                                    onChange={e =>
+                                      setRows(
+                                        rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)),
+                                      )
+                                    }
+                                    title={row.description}
+                                    className="w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                    placeholder={
+                                      serviceProductUx ? 'Type custom service' : 'Type custom service or item'
+                                    }
+                                  />
+                                )}
+                                {catalogPrice != null && row.rate !== catalogPrice && (
+                                  <p className="text-[10px] text-amber-600">
+                                    Rate edited from price list ₹{catalogPrice.toLocaleString('en-IN')}
+                                  </p>
+                                )}
+                              </td>
+                              {gstBilling && (
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={row.hsnSac}
+                                    onChange={e => {
+                                      const v = e.target.value;
+                                      const hint = suggestHsnRate(v);
+                                      setRows(
+                                        rows.map((r, i) =>
+                                          i === idx
+                                            ? {
+                                                ...r,
+                                                hsnSac: v,
+                                                ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
+                                              }
+                                            : r,
+                                        ),
+                                      );
+                                    }}
+                                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
+                                    placeholder="9983"
+                                  />
+                                </td>
                               )}
-                              {catalogPrice != null && row.rate !== catalogPrice && (
-                                <p className="text-[10px] text-amber-600">
-                                  Rate edited from price list ₹{catalogPrice.toLocaleString('en-IN')}
-                                </p>
-                              )}
-                            </td>
-                            {gstBilling && (
                               <td className="px-3 py-2">
                                 <input
-                                  value={row.hsnSac}
-                                  onChange={e => {
-                                    const v = e.target.value;
-                                    const hint = suggestHsnRate(v);
-                                    setRows(
-                                      rows.map((r, i) =>
-                                        i === idx
-                                          ? {
-                                              ...r,
-                                              hsnSac: v,
-                                              ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
-                                            }
-                                          : r,
-                                      ),
-                                    );
-                                  }}
-                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
-                                  placeholder="9983"
+                                  type="number"
+                                  min={0.001}
+                                  step="any"
+                                  value={row.qty || ''}
+                                  onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
                                 />
                               </td>
-                            )}
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                min={0.001}
-                                step="any"
-                                value={row.qty || ''}
-                                onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <select
-                                value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
-                                onChange={e =>
-                                  setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
-                                }
-                                className="w-full px-1 py-1.5 border border-gray-200 rounded-lg text-sm"
-                              >
-                                {(() => {
-                                  const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
-                                  const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-                                  return opts.map(u => (
-                                    <option key={u} value={u}>
-                                      {u}
-                                    </option>
-                                  ));
-                                })()}
-                              </select>
-                            </td>
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                min={0}
-                                value={row.rate || ''}
-                                onChange={e =>
-                                  setRows(
-                                    rows.map((r, i) =>
-                                      i === idx ? { ...r, rate: parseFloat(e.target.value) || 0 } : r,
-                                    ),
-                                  )
-                                }
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={row.discountPercent || ''}
-                                onChange={e =>
-                                  setRows(
-                                    rows.map((r, i) =>
-                                      i === idx
-                                        ? {
-                                            ...r,
-                                            discountPercent: Math.min(
-                                              100,
-                                              Math.max(0, parseFloat(e.target.value) || 0),
-                                            ),
-                                          }
-                                        : r,
-                                    ),
-                                  )
-                                }
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                                placeholder="0"
-                              />
-                            </td>
-                            {gstBilling && (
+                              <td className="px-3 py-2">
+                                <select
+                                  value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
+                                  onChange={e =>
+                                    setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
+                                  }
+                                  className="w-full px-1 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                >
+                                  {(() => {
+                                    const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
+                                    const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+                                    return opts.map(u => (
+                                      <option key={u} value={u}>
+                                        {u}
+                                      </option>
+                                    ));
+                                  })()}
+                                </select>
+                              </td>
                               <td className="px-3 py-2">
                                 <input
                                   type="number"
                                   min={0}
-                                  max={40}
-                                  value={row.gstPercent}
+                                  value={row.rate || ''}
                                   onChange={e =>
                                     setRows(
                                       rows.map((r, i) =>
-                                        i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
+                                        i === idx ? { ...r, rate: parseFloat(e.target.value) || 0 } : r,
                                       ),
                                     )
                                   }
                                   className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
                                 />
                               </td>
-                            )}
-                            <td className="px-3 py-2 text-right text-sm font-medium">
-                              {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString('en-IN')}` : '—'}
-                            </td>
-                            <td className="px-3 py-2">
-                              {rows.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setRows(rows.filter((_, i) => i !== idx))}
-                                  className="text-rose-400 hover:text-rose-600 min-h-9 min-w-9"
-                                  aria-label="Remove line"
-                                >
-                                  ×
-                                </button>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={row.discountPercent || ''}
+                                  onChange={e =>
+                                    setRows(
+                                      rows.map((r, i) =>
+                                        i === idx
+                                          ? {
+                                              ...r,
+                                              discountPercent: Math.min(
+                                                100,
+                                                Math.max(0, parseFloat(e.target.value) || 0),
+                                              ),
+                                            }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                  placeholder="0"
+                                />
+                              </td>
+                              {gstBilling && (
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={40}
+                                    value={row.gstPercent}
+                                    onChange={e =>
+                                      setRows(
+                                        rows.map((r, i) =>
+                                          i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
+                                        ),
+                                      )
+                                    }
+                                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                  />
+                                </td>
                               )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              <td className="px-3 py-2 text-right text-sm font-medium">
+                                {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString('en-IN')}` : '—'}
+                              </td>
+                              <td className="px-3 py-2">
+                                {rows.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setRows(rows.filter((_, i) => i !== idx))}
+                                    className="text-rose-400 hover:text-rose-600 min-h-9 min-w-9"
+                                    aria-label="Remove line"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setRows([...rows, emptyRow(gstBilling, defaultBillUnit(billUnits))])}
-                  className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
-                >
-                  + Add Line
-                </button>
-                <div className={cn(step !== 1 && 'max-sm:hidden')}>{totalsBar}</div>
-              </FormSection>
-            </div>
-
-            {/* Step 2 — Review */}
-            <div className={cn(step !== 2 && 'hidden', 'sm:block space-y-4')}>
-              <div className="sm:hidden space-y-2 text-sm">
-                <p className="font-medium text-gray-800">{form.customerName || '—'}</p>
-                <p className="text-xs text-gray-500">
-                  {rows.filter(r => r.description.trim()).length} item(s) · Invoice date {form.invoiceDate || '—'}
-                </p>
+                  <button
+                    type="button"
+                    onClick={() => setRows([...rows, emptyRow(gstBilling, defaultBillUnit(billUnits))])}
+                    className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
+                  >
+                    + Add Line
+                  </button>
+                  <div className={cn(step !== 1 && 'max-sm:hidden')}>{totalsBar}</div>
+                </FormSection>
               </div>
-              {totalsBar}
-              {/* Offline: Notes / payment terms / bank / T&C are set in Settings → Bill Customization */}
-              {!serviceProductUx && (
-                <FormGrid>
-                  <FormField label="Notes">
-                    <textarea
-                      value={form.notes}
-                      onChange={e => setForm({ ...form, notes: e.target.value })}
-                      rows={3}
-                      className={cn(formControlClass, 'min-h-[5rem]')}
-                      placeholder="Payment terms, bank details..."
-                    />
-                  </FormField>
-                  <FormField label="Terms & Conditions">
-                    <textarea
-                      value={form.terms}
-                      onChange={e => setForm({ ...form, terms: e.target.value })}
-                      rows={3}
-                      className={cn(formControlClass, 'min-h-[5rem]')}
-                      placeholder="E&OE, goods once sold..."
-                    />
-                  </FormField>
-                </FormGrid>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </AppModal>
+
+              {/* Step 2 — Review */}
+              <div className={cn(step !== 2 && 'hidden', 'sm:block space-y-4')}>
+                <div className="sm:hidden space-y-2 text-sm">
+                  <p className="font-medium text-gray-800">{form.customerName || '—'}</p>
+                  <p className="text-xs text-gray-500">
+                    {rows.filter(r => r.description.trim()).length} item(s) · Invoice date {form.invoiceDate || '—'}
+                  </p>
+                </div>
+                {totalsBar}
+                {/* Offline: Notes / payment terms / bank / T&C are set in Settings → Bill Customization */}
+                {!serviceProductUx && (
+                  <FormGrid>
+                    <FormField label="Notes">
+                      <textarea
+                        value={form.notes}
+                        onChange={e => setForm({ ...form, notes: e.target.value })}
+                        rows={3}
+                        className={cn(formControlClass, 'min-h-[5rem]')}
+                        placeholder="Payment terms, bank details..."
+                      />
+                    </FormField>
+                    <FormField label="Terms & Conditions">
+                      <textarea
+                        value={form.terms}
+                        onChange={e => setForm({ ...form, terms: e.target.value })}
+                        rows={3}
+                        className={cn(formControlClass, 'min-h-[5rem]')}
+                        placeholder="E&OE, goods once sold..."
+                      />
+                    </FormField>
+                  </FormGrid>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </AppModal>
+      {quickAdd && (
+        <QuickAddProductModal
+          initialName={quickAdd.name}
+          defaultGstRate={18}
+          onClose={() => setQuickAdd(null)}
+          onCreated={p => {
+            setProducts(prev => (prev.some(x => x.id === p.id) ? prev : [...prev, p]));
+            applyProduct(quickAdd.idx, p);
+            setQuickAdd(null);
+          }}
+        />
+      )}
+    </>
   );
 }
