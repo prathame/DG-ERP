@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { fetchApi } from '../../api';
+import { api, fetchApi } from '../../api';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import {
   isCashBankLedger,
@@ -82,6 +82,8 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [openBills, setOpenBills] = useState<Array<{ invoiceNumber: string; balance: number; clientName: string }>>([]);
+  const [againstBills, setAgainstBills] = useState<string[]>([]);
   const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -124,6 +126,47 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
   useEffect(() => {
     if (!loadingLedgers && mode !== 'journal' && mode !== 'memorandum') amountRef.current?.focus();
   }, [loadingLedgers, mode, lastSaved]);
+
+  useEffect(() => {
+    if (mode !== 'receipt' || !partyLedgerId) {
+      setOpenBills([]);
+      setAgainstBills([]);
+      return;
+    }
+    const partyName =
+      ledgers
+        .find(l => l.id === partyLedgerId)
+        ?.name?.trim()
+        .toLowerCase() || '';
+    if (!partyName) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await api.invoiceFinance.openBills();
+        if (cancelled) return;
+        const matched = (Array.isArray(rows) ? rows : [])
+          .filter(
+            r =>
+              String(r.clientName || '')
+                .trim()
+                .toLowerCase() === partyName,
+          )
+          .map(r => ({
+            invoiceNumber: String(r.invoiceNumber || ''),
+            balance: Number(r.balance) || 0,
+            clientName: String(r.clientName || ''),
+          }))
+          .filter(r => r.invoiceNumber && r.balance > 0.009);
+        setOpenBills(matched);
+        setAgainstBills(prev => prev.filter(n => matched.some(m => m.invoiceNumber === n)));
+      } catch {
+        if (!cancelled) setOpenBills([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, partyLedgerId, ledgers]);
 
   const allLedgerOptions = useMemo(
     () =>
@@ -262,8 +305,12 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
           contraLedgerId: fundLedgerId,
           amount: amt,
         };
+        if (mode === 'receipt' && againstBills.length) {
+          body.preferredInvoiceNumbers = againstBills;
+        }
         const fundName = ledgers.find(l => l.id === fundLedgerId)?.name || 'fund';
-        savedLabel = `${mode === 'receipt' ? 'Receipt' : 'Payment'} ₹${amt.toLocaleString('en-IN')} via ${fundName}`;
+        const againstHint = mode === 'receipt' && againstBills.length ? ` against ${againstBills.join(', ')}` : '';
+        savedLabel = `${mode === 'receipt' ? 'Receipt' : 'Payment'} ₹${amt.toLocaleString('en-IN')} via ${fundName}${againstHint}`;
       } else if (usesSalesContra || usesPurchaseContra) {
         if (!partyLedgerId) {
           setError(usesPurchaseContra ? 'Select a supplier / party' : 'Select a customer / party');
@@ -356,6 +403,7 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
       setAmount('');
       setNarration('');
       setVoucherNumber('');
+      setAgainstBills([]);
       if (mode === 'journal' || mode === 'memorandum') {
         setJournalLines([newJournalLine(), newJournalLine()]);
       } else {
@@ -477,6 +525,43 @@ export function VoucherDeskForm({ onSaved }: { onSaved: () => void | Promise<voi
                 placeholder={loadingLedgers ? 'Loading…' : 'Select cash or bank'}
               />
             </div>
+            {mode === 'receipt' && openBills.length > 0 && (
+              <div className="sm:col-span-2 lg:col-span-4 rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                <div className="text-xs font-semibold text-slate-700">Against bill (optional)</div>
+                <p className="text-[11px] text-slate-500">
+                  Selected bills are settled first; any leftover amount applies FIFO to remaining open bills.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {openBills.map(b => {
+                    const checked = againstBills.includes(b.invoiceNumber);
+                    return (
+                      <label
+                        key={b.invoiceNumber}
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs cursor-pointer ${
+                          checked
+                            ? 'border-orange-300 bg-orange-50 text-orange-900'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setAgainstBills(prev =>
+                              checked ? prev.filter(n => n !== b.invoiceNumber) : [...prev, b.invoiceNumber],
+                            )
+                          }
+                        />
+                        <span className="font-medium">{b.invoiceNumber}</span>
+                        <span className="tabular-nums text-slate-500">
+                          ₹{b.balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </>
         )}
 

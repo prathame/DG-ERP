@@ -82,6 +82,11 @@ export interface CreateBookVoucherInput {
   instrumentRef?: string | null;
   /** Cheque maturity / due date (PDC). */
   maturityDate?: string | null;
+  /**
+   * Receipt against-ref: invoice numbers to settle first (then FIFO for remainder).
+   * Passed through to allocatePartyReceipt dual-write.
+   */
+  preferredInvoiceNumbers?: string[];
 }
 
 export class BookVoucherValidationError extends Error {
@@ -272,6 +277,7 @@ async function dualWritePartyCash(
   voucherDate: string,
   voucherNumber: string | null,
   narration: string | null,
+  preferredInvoiceNumbers: string[] = [],
 ): Promise<BookVoucherOpsResult> {
   if (!partyLedgerId) {
     return { dualWrite: 'skipped', reason: 'No party ledger' };
@@ -322,7 +328,7 @@ async function dualWritePartyCash(
       voucherNumber,
       idempotencyBase,
       noteBody || `Books receipt${via}`,
-      [],
+      preferredInvoiceNumbers,
       'Books receipt',
     );
     return {
@@ -627,6 +633,9 @@ export async function createBookVoucher(
 
   let ops: BookVoucherOpsResult = { dualWrite: 'skipped', reason: 'Not a receipt/payment voucher' };
   if (input.voucherType === 'receipt' || input.voucherType === 'payment') {
+    const preferred = Array.isArray(input.preferredInvoiceNumbers)
+      ? input.preferredInvoiceNumbers.map(s => String(s || '').trim()).filter(Boolean)
+      : [];
     ops = await dualWritePartyCash(
       client,
       tenantId,
@@ -638,6 +647,7 @@ export async function createBookVoucher(
       voucherDate,
       input.voucherNumber?.trim() || null,
       input.narration?.trim() || null,
+      preferred,
     );
   } else if (input.voucherType === 'purchase' || input.voucherType === 'purchase_return') {
     await persistVoucherItems(client, tenantId, voucherId, input.items);
