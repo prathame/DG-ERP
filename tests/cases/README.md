@@ -13,7 +13,7 @@ Complete test case suite for the Splendor ERP application. Each file covers a sp
 | 7 | [distribution.md](distribution.md) | Distribution | 9 | High |
 | 8 | [vendors.md](vendors.md) | Vendor Management | 8 | High |
 | 9 | [finance.md](finance.md) | Finance | 6 | High |
-| 10 | [bill-customization.md](bill-customization.md) | Bill Customization | 12 | Medium |
+| 10 | [bill-customization.md](bill-customization.md) | Bill Customization | 14 | Medium |
 | 11 | [settings.md](settings.md) | Settings | 11 | Medium |
 | 12 | [security.md](security.md) | Security | 15 | Critical |
 | 13 | [multi-language.md](multi-language.md) | Multi-Language | 6 | Medium |

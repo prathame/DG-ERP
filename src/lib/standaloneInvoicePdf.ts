@@ -27,6 +27,7 @@ import {
   type StandaloneInvoicePrintCompany,
 } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
+import { formatBillQty } from '../../shared/billUnits';
 
 const BORDER = 34; // ~#222 — all strokes use this (no washed #ccc/#c8 grays)
 const MUTED = 100;
@@ -403,7 +404,8 @@ export async function buildStandaloneInvoicePdfBlob(
       dy += rowPad;
     }
     if (showHsn) doc.text(String(it.hsnSac || '—').slice(0, 10), colHsnL, y + 4.5);
-    doc.text(String(it.qty ?? 0), colQtyR, y + 4.5, { align: 'right' });
+    const qtyLabel = `${formatBillQty(Number(it.qty) || 0)}${it.unit ? ` ${String(it.unit).slice(0, 8)}` : ''}`;
+    doc.text(qtyLabel, colQtyR, y + 4.5, { align: 'right' });
     doc.text(money(it.rate), colRateR, y + 4.5, { align: 'right' });
     if (showDisc) {
       const d = it.discountPercent || 0;
@@ -435,7 +437,7 @@ export async function buildStandaloneInvoicePdfBlob(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.text('Total', colItem, y + 4.8);
-  doc.text(String(qtyTotal), colQtyR, y + 4.8, { align: 'right' });
+  doc.text(formatBillQty(qtyTotal), colQtyR, y + 4.8, { align: 'right' });
   if (hasGst) doc.text(money(taxTotalAmt), colGstTaxR, y + 4.8, { align: 'right' });
   doc.text(money(amountTotal), colAmtR, y + 4.8, { align: 'right' });
   y += totH;

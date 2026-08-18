@@ -16,6 +16,13 @@ import {
 } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { suggestHsnRate } from '../../lib/hsnRates';
+import {
+  DEFAULT_BILL_UNIT,
+  defaultBillUnit,
+  normalizeBillUnits,
+  normalizeLineUnit,
+  parseBillQty,
+} from '../../../shared/billUnits';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { scheduleBakeCapBillPdfCache, type CapBillPdfCacheDoc } from '../../lib/capBillPdfCache';
 import { printStandaloneInvoice, whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
@@ -42,6 +49,7 @@ type Invoice = {
     description: string;
     hsnSac?: string;
     qty: number;
+    unit?: string;
     rate: number;
     gstPercent: number;
     discountPercent?: number;
@@ -70,6 +78,7 @@ type BillLine = {
   description: string;
   hsnSac: string;
   qty: number;
+  unit: string;
   rate: number;
   gstPercent: number;
   discountPercent: number;
@@ -95,11 +104,12 @@ function asApiList<T>(value: unknown): T[] {
   return [];
 }
 
-const emptyRow = (gstOn = true): BillLine => ({
+const emptyRow = (gstOn = true, unit = DEFAULT_BILL_UNIT): BillLine => ({
   productId: '',
   description: '',
   hsnSac: '',
   qty: 1,
+  unit,
   rate: 0,
   gstPercent: gstOn ? 18 : 0,
   discountPercent: 0,
@@ -162,6 +172,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   });
   const [vendorId, setVendorId] = useState('');
   const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
+  const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
   const [rows, setRows] = useState<BillLine[]>(() => [emptyRow(isGstBillingEnabled(null))]);
   const [amountPaid, setAmountPaid] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -197,16 +208,20 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       .then(s => {
         if (cancelled) return;
         const on = isGstBillingEnabled(s);
+        const units = normalizeBillUnits(s?.billUnits);
+        const unitDefault = defaultBillUnit(units);
         setGstBilling(on);
+        setBillUnits(units);
         setRows(prev =>
           prev.map(r =>
             r.productId || r.description.trim()
-              ? r
+              ? { ...r, unit: normalizeLineUnit(r.unit, unitDefault) }
               : {
                   ...r,
                   withGst: on,
                   gstPercent: on ? r.gstPercent || 18 : 0,
                   hsnSac: on ? r.hsnSac : '',
+                  unit: normalizeLineUnit(r.unit, unitDefault),
                 },
           ),
         );
@@ -306,7 +321,16 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const applyCatalogItem = (idx: number, productId: string) => {
     if (!productId) {
       setRows(prev =>
-        prev.map((r, i) => (i === idx ? { ...emptyRow(gstBilling), qty: r.qty || 1, description: r.description } : r)),
+        prev.map((r, i) =>
+          i === idx
+            ? {
+                ...emptyRow(gstBilling, defaultBillUnit(billUnits)),
+                qty: r.qty || 1,
+                description: r.description,
+                unit: r.unit || defaultBillUnit(billUnits),
+              }
+            : r,
+        ),
       );
       return;
     }
@@ -452,19 +476,22 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         ...form,
         invoiceNumber,
         gstEnabled: anyGst,
-        items: customRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId, withGst }) => {
-          const p = productId ? products.find(x => x.id === productId) : undefined;
-          // Rate already stripped in the field when inclusive + GST off
-          return {
-            description: description.trim() || p?.name || 'Item',
-            hsnSac: withGst ? hsnSac : '',
-            qty,
-            rate,
-            gstPercent: withGst ? gstPercent : 0,
-            discountPercent: discountPercent || 0,
-            ...(productId ? { productId } : {}),
-          };
-        }),
+        items: customRows.map(
+          ({ description, hsnSac, qty, unit, rate, gstPercent, discountPercent, productId, withGst }) => {
+            const p = productId ? products.find(x => x.id === productId) : undefined;
+            // Rate already stripped in the field when inclusive + GST off
+            return {
+              description: description.trim() || p?.name || 'Item',
+              hsnSac: withGst ? hsnSac : '',
+              qty,
+              unit: normalizeLineUnit(unit, defaultBillUnit(billUnits)),
+              rate,
+              gstPercent: withGst ? gstPercent : 0,
+              discountPercent: discountPercent || 0,
+              ...(productId ? { productId } : {}),
+            };
+          },
+        ),
         status,
         partyType: partyVendorId ? 'vendor' : null,
         partyId: partyVendorId || null,
@@ -551,7 +578,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const clearCustomLines = () => {
     setRows(prev => {
       const kept = prev.filter(r => r.productId);
-      return kept.length ? kept : [emptyRow(gstBilling)];
+      return kept.length ? kept : [emptyRow(gstBilling, defaultBillUnit(billUnits))];
     });
     setMixDialog(false);
     toast('Custom lines removed. Review inventory lines, then save again.', 'success');
@@ -560,7 +587,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const clearInventoryLines = () => {
     setRows(prev => {
       const kept = prev.filter(r => !r.productId && r.description.trim());
-      return kept.length ? kept : [emptyRow(gstBilling)];
+      return kept.length ? kept : [emptyRow(gstBilling, defaultBillUnit(billUnits))];
     });
     setMixDialog(false);
     toast('Inventory lines removed. Review custom lines, then save again.', 'success');
@@ -855,6 +882,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                         <th className="px-2 py-3 text-left min-w-[240px]">Item</th>
                         <th className="px-2 py-3 w-28">HSN/SAC</th>
                         <th className="px-2 py-3 w-24">Qty</th>
+                        <th className="px-2 py-3 w-24">Unit</th>
                         <th className="px-2 py-3 w-32">Rate</th>
                         <th className="px-2 py-3 w-20">Disc%</th>
                         <th className="px-2 py-3 w-16 text-center">
@@ -936,11 +964,31 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                             <td className="px-2 py-2">
                               <input
                                 type="number"
-                                min={1}
+                                min={0.001}
+                                step="any"
                                 value={row.qty || ''}
-                                onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
+                                onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
                                 className="w-full min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                               />
+                            </td>
+                            <td className="px-2 py-2">
+                              <select
+                                value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
+                                onChange={e =>
+                                  setRows(prev => prev.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
+                                }
+                                className="w-full min-w-[72px] px-1 py-2 border border-gray-200 rounded-lg text-sm"
+                              >
+                                {(() => {
+                                  const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
+                                  const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
+                                  return opts.map(u => (
+                                    <option key={u} value={u}>
+                                      {u}
+                                    </option>
+                                  ));
+                                })()}
+                              </select>
                             </td>
                             <td className="px-2 py-2">
                               <input
@@ -1056,7 +1104,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                   <div className="flex border-t border-gray-200">
                     <button
                       type="button"
-                      onClick={() => setRows(prev => [...prev, emptyRow(gstBilling)])}
+                      onClick={() => setRows(prev => [...prev, emptyRow(gstBilling, defaultBillUnit(billUnits))])}
                       className="flex-1 py-2 text-sm font-medium text-brand hover:bg-orange-50 transition-colors min-h-11"
                     >
                       + Add Line

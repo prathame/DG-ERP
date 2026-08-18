@@ -1,10 +1,12 @@
 /** Shared quote/order line building + row mappers for Offline Mobile local API. */
 import { localQuery } from './db';
+import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../../../shared/billUnits';
 
 export type LineItem = {
   productId: string;
   productName: string;
   quantity: number;
+  unit?: string;
   price: number;
   discountPercent: number;
   withGst: boolean;
@@ -20,6 +22,7 @@ export type LineInput = {
   description?: string;
   productName?: string;
   quantity?: number;
+  unit?: string;
   customPrice?: unknown;
   discountPercent?: number;
   withGst?: boolean;
@@ -48,12 +51,13 @@ export async function buildLineItems(
   let gstAmount = 0;
   const resolvedItems: LineItem[] = [];
   for (const item of items) {
-    const qty = Math.max(1, Number(item.quantity) || 1);
+    const qty = parseBillQty(item.quantity, 1);
+    const saleUnit = normalizeLineUnit(item.unit, DEFAULT_BILL_UNIT);
     const discountPercent = Math.max(0, Math.min(100, Number(item.discountPercent) || 0));
     const withGst = item.withGst !== false;
     const productId = item.productId?.trim() || '';
 
-    let unit: number;
+    let unitPrice: number;
     let productName: string;
     let resolvedProductId: string;
 
@@ -63,8 +67,8 @@ export async function buildLineItems(
       if (item.customPrice == null || item.customPrice === '') {
         return { error: `Rate required for custom line: ${customName}` };
       }
-      unit = Number(item.customPrice);
-      if (!(unit > 0)) return { error: `Rate required for custom line: ${customName}` };
+      unitPrice = Number(item.customPrice);
+      if (!(unitPrice > 0)) return { error: `Rate required for custom line: ${customName}` };
       productName = customName;
       resolvedProductId = '';
     } else {
@@ -74,12 +78,13 @@ export async function buildLineItems(
       ]);
       const product = rows[0] as { id: string; name: string; price: number } | undefined;
       if (!product) return { error: `Product not found: ${productId}` };
-      unit = item.customPrice != null && item.customPrice !== '' ? Number(item.customPrice) : Number(product.price);
+      unitPrice =
+        item.customPrice != null && item.customPrice !== '' ? Number(item.customPrice) : Number(product.price);
       productName = product.name;
       resolvedProductId = product.id;
     }
 
-    const gross = unit * qty;
+    const gross = unitPrice * qty;
     const lineNet = Math.round(gross * (1 - discountPercent / 100) * 100) / 100;
     const lineGst = withGst ? Math.round(((lineNet * rate) / 100) * 100) / 100 : 0;
     const lineTotal = Math.round((lineNet + lineGst) * 100) / 100;
@@ -89,7 +94,8 @@ export async function buildLineItems(
       productId: resolvedProductId,
       productName,
       quantity: qty,
-      price: unit,
+      unit: saleUnit,
+      price: unitPrice,
       discountPercent,
       withGst,
       lineNet,

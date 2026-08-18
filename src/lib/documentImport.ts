@@ -1,4 +1,5 @@
 import type { Product, Vendor } from '../types';
+import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 
 export const MAX_DOCUMENT_IMPORT = 100;
 
@@ -18,6 +19,7 @@ export type NormalizedDocRow = {
   productName: string;
   barcode: string;
   quantity: number;
+  unit: string;
   price: string;
   discountPercent: number;
   withGst: boolean;
@@ -76,6 +78,7 @@ export function normalizeImportRows(rows: Record<string, string>[]): NormalizedD
       productName: cell(row, 'productName', 'product', 'item', 'description'),
       barcode: cell(row, 'barcode', 'sku', 'code'),
       quantity: parseQty(qtyRaw),
+      unit: cell(row, 'unit', 'uom', 'saleUnit'),
       price: cell(row, 'price', 'customPrice', 'rate', 'unitPrice'),
       discountPercent: Number(cell(row, 'discountPercent', 'discount', 'disc') || '0') || 0,
       withGst: parseBool(cell(row, 'withGst', 'gst'), true),
@@ -122,6 +125,7 @@ export type LineItemPayload = {
   productId?: string;
   description?: string;
   quantity: number;
+  unit?: string;
   customPrice?: number;
   discountPercent?: number;
   withGst: boolean;
@@ -183,6 +187,13 @@ export function buildDocumentsFromRows(
         lineError = true;
         break;
       }
+      const qty = parseBillQty(row.quantity, 0);
+      if (!(qty > 0)) {
+        errors.push(`Row ${row.sourceRow}: Quantity must be a positive number`);
+        lineError = true;
+        break;
+      }
+      const unit = normalizeLineUnit(row.unit, DEFAULT_BILL_UNIT);
       if (!row.productName && !row.barcode) {
         errors.push(`Row ${row.sourceRow}: productName or barcode is required`);
         lineError = true;
@@ -196,7 +207,8 @@ export function buildDocumentsFromRows(
       if (product) {
         items.push({
           productId: product.id,
-          quantity: row.quantity,
+          quantity: qty,
+          unit,
           customPrice: hasPrice ? priceNum : undefined,
           discountPercent: row.discountPercent > 0 ? row.discountPercent : undefined,
           withGst: row.withGst,
@@ -204,7 +216,8 @@ export function buildDocumentsFromRows(
       } else if (options.allowCustomLines && row.productName && hasPrice && priceNum > 0) {
         items.push({
           description: row.productName,
-          quantity: row.quantity,
+          quantity: qty,
+          unit,
           customPrice: priceNum,
           discountPercent: row.discountPercent > 0 ? row.discountPercent : undefined,
           withGst: row.withGst,
@@ -343,6 +356,7 @@ export const QUOTATION_IMPORT_COLUMNS = [
   { key: 'productName', label: 'Product Name' },
   { key: 'barcode', label: 'Barcode' },
   { key: 'quantity', label: 'Quantity', required: true },
+  { key: 'unit', label: 'Unit' },
   { key: 'price', label: 'Price' },
   { key: 'discountPercent', label: 'Discount %' },
   { key: 'withGst', label: 'With GST' },

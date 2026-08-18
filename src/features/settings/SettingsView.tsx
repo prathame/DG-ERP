@@ -28,6 +28,7 @@ import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../
 import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
+import { DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../../shared/billUnits';
 import { useTranslation, LANGUAGES } from '../../i18n';
 import { useToast, LoadingSpinner, PercentProgressBar } from '../../components/ui';
 import { session } from '../../lib/session';
@@ -158,6 +159,7 @@ function billDefaults(): BillSettings {
     hospChargeGst: false,
     hospPricesIncludeGst: true,
     fssaiLicense: null,
+    billUnits: [...DEFAULT_BILL_UNITS],
   };
 }
 
@@ -377,6 +379,7 @@ function BillCustomizationSection() {
   const [banks, setBanks] = useState<
     { id: string; name: string; accountNumber?: string; bankName?: string; branch?: string; ifscCode?: string }[]
   >([]);
+  const [unitDraft, setUnitDraft] = useState('');
 
   useEffect(() => {
     api.settings
@@ -395,6 +398,7 @@ function BillCustomizationSection() {
           hospPricesIncludeGst: s?.hospPricesIncludeGst !== false,
           hospChargeGst: s?.hospChargeGst === true,
           fssaiLicense: s?.fssaiLicense ?? null,
+          billUnits: normalizeBillUnits(s?.billUnits),
         });
       })
       .catch(() => {})
@@ -435,10 +439,16 @@ function BillCustomizationSection() {
         showGst: gstOn,
         showHsnSac: gstOn,
         invoiceTemplateStyle: normalizeInvoiceTemplateStyle(form.invoiceTemplateStyle),
+        billUnits: normalizeBillUnits(form.billUnits),
       };
       const saved = await api.settings.updateBillSettings(payload);
       const style = normalizeInvoiceTemplateStyle(saved?.invoiceTemplateStyle ?? payload.invoiceTemplateStyle);
-      setForm({ ...billDefaults(), ...saved, invoiceTemplateStyle: style });
+      setForm({
+        ...billDefaults(),
+        ...saved,
+        invoiceTemplateStyle: style,
+        billUnits: normalizeBillUnits(saved?.billUnits ?? payload.billUnits),
+      });
       localStorage.setItem('dg_inv_style', style);
       toast('Bill settings saved', 'success');
     } catch (err) {
@@ -821,6 +831,89 @@ function BillCustomizationSection() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Sale units — one place for Kg / Meter / Piece / custom */}
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.billUnits')}</p>
+          <p className="text-xs text-gray-500 mb-3">{st('settings.billUnitsDesc')}</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {normalizeBillUnits(form.billUnits).map(unit => (
+              <span
+                key={unit}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-medium text-gray-800"
+              >
+                {unit}
+                <button
+                  type="button"
+                  aria-label={`Remove ${unit}`}
+                  onClick={() =>
+                    setForm(p => {
+                      const next = normalizeBillUnits(p.billUnits).filter(u => u !== unit);
+                      return { ...p, billUnits: next.length ? next : [...DEFAULT_BILL_UNITS] };
+                    })
+                  }
+                  className="text-gray-400 hover:text-rose-500 text-xs font-bold leading-none"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {DEFAULT_BILL_UNITS.filter(
+              u => !normalizeBillUnits(form.billUnits).some(x => x.toLowerCase() === u.toLowerCase()),
+            ).map(preset => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() =>
+                  setForm(p => ({
+                    ...p,
+                    billUnits: normalizeBillUnits([...(p.billUnits || []), preset]),
+                  }))
+                }
+                className="px-2 py-1 text-xs font-bold border border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-brand hover:text-brand"
+              >
+                + {preset}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={unitDraft}
+              onChange={e => setUnitDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                const label = unitDraft.trim();
+                if (!label) return;
+                setForm(p => ({
+                  ...p,
+                  billUnits: normalizeBillUnits([...(p.billUnits || []), label]),
+                }));
+                setUnitDraft('');
+              }}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+              placeholder={st('settings.billUnitsPlaceholder')}
+              maxLength={24}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const label = unitDraft.trim();
+                if (!label) return;
+                setForm(p => ({
+                  ...p,
+                  billUnits: normalizeBillUnits([...(p.billUnits || []), label]),
+                }));
+                setUnitDraft('');
+              }}
+              className="px-3 py-2 text-sm font-bold bg-gray-100 rounded-xl hover:bg-gray-200"
+            >
+              {st('settings.addUnit')}
+            </button>
           </div>
         </div>
 

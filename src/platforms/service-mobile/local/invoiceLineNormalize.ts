@@ -4,10 +4,13 @@
  * (`description`/`qty`/`taxable`). Normalize for UI + one-time row repair.
  */
 
+import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../../../shared/billUnits';
+
 export type NormalizedInvoiceLine = {
   description: string;
   productId?: string;
   qty: number;
+  unit?: string;
   rate: number;
   discountPercent: number;
   gstPercent: number;
@@ -42,7 +45,8 @@ export function needsInvoiceLineRemap(items: unknown[]): boolean {
 export function normalizeInvoiceLine(raw: unknown): NormalizedInvoiceLine {
   const it = asRecord(raw) || {};
   const description = String(it.description ?? it.productName ?? '').trim();
-  const qty = Math.max(1, Number(it.qty ?? it.quantity) || 1);
+  const qty = parseBillQty(it.qty ?? it.quantity, 1);
+  const unit = normalizeLineUnit(it.unit, DEFAULT_BILL_UNIT);
   const rate = Number(it.rate ?? it.unitPrice ?? it.price) || 0;
   const discountPercent = Math.max(0, Math.min(100, Number(it.discountPercent) || 0));
   let taxable = Number(it.taxable ?? it.lineNet);
@@ -63,6 +67,7 @@ export function normalizeInvoiceLine(raw: unknown): NormalizedInvoiceLine {
     description,
     ...(productId ? { productId } : {}),
     qty,
+    unit,
     rate,
     discountPercent,
     gstPercent,

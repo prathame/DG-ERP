@@ -185,6 +185,11 @@ export function GuideView() {
               <p>• Rename tabs (e.g. "Distribution" → "Sales")</p>
               <p>• Toggle features on/off (Warranty, Rewards, etc.)</p>
               <p>• Business type controls which tabs are visible by default</p>
+              <p>
+                After login: <strong>Settings → Bill Customization</strong> — logo, GST, bank, and{' '}
+                <strong>Sale Units</strong> (Piece, Kg, Meter…). That list is used on invoices, quotations, and
+                credit/debit notes. Inventory and barcode sales stay piece/box.
+              </p>
             </div>
           </Step>
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../shared/billUnits';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ const DEFAULTS = {
   hospChargeGst: false,
   hospPricesIncludeGst: true,
   fssaiLicense: null as string | null,
+  billUnits: [...DEFAULT_BILL_UNITS] as string[],
 };
 
 /** Prefer showGst; legacy clients still send showHsnSac. */
@@ -77,6 +79,7 @@ function rowToResponse(row: Record<string, unknown>) {
     hospChargeGst: row.hosp_charge_gst === true,
     hospPricesIncludeGst: row.hosp_prices_include_gst !== false,
     fssaiLicense: (row.fssai_license as string) || null,
+    billUnits: normalizeBillUnits(row.bill_units),
   };
 }
 
@@ -155,8 +158,9 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     const hospChargeGst = requestBody.hospChargeGst === true;
     const hospPricesIncludeGst =
       typeof requestBody.hospPricesIncludeGst === 'boolean' ? requestBody.hospPricesIncludeGst : true;
-    const fssaiLicense =
-      requestBody.fssaiLicense !== undefined ? normalizeFssai(requestBody.fssaiLicense) : null;
+    const fssaiLicense = requestBody.fssaiLicense !== undefined ? normalizeFssai(requestBody.fssaiLicense) : null;
+    const billUnitsProvided = requestBody.billUnits !== undefined;
+    const billUnits = normalizeBillUnits(requestBody.billUnits);
 
     const { rows } = await pool.query(
       `
@@ -166,8 +170,8 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         bank_account_name, bank_account_number, bank_name, bank_branch, bank_ifsc, bank_upi_id,
         terms_and_conditions, signatory_name, signatory_designation, signature_base64,
         show_rewards, show_barcode, show_warranty, show_hsn_sac, footer_text, invoice_template_style,
-        hosp_charge_gst, hosp_prices_include_gst, fssai_license, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25, NOW())
+        hosp_charge_gst, hosp_prices_include_gst, fssai_license, bill_units, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$27::jsonb, NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         logo_base64 = $2, primary_color = $3, tagline = $4,
         invoice_prefix = $5, challan_prefix = $6,
@@ -178,6 +182,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         hosp_charge_gst = $23,
         hosp_prices_include_gst = $24,
         fssai_license = CASE WHEN $26::boolean THEN $25 ELSE bill_settings.fssai_license END,
+        bill_units = CASE WHEN $28::boolean THEN $27::jsonb ELSE bill_settings.bill_units END,
         updated_at = NOW()
       RETURNING *
     `,
@@ -208,6 +213,8 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         hospPricesIncludeGst,
         fssaiLicense,
         requestBody.fssaiLicense !== undefined,
+        JSON.stringify(billUnits),
+        billUnitsProvided,
       ],
     );
 
