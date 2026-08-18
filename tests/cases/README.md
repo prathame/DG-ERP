@@ -17,7 +17,7 @@ Complete test case suite for the Splendor ERP application. Each file covers a sp
 | 11 | [settings.md](settings.md) | Settings | 11 | Medium |
 | 12 | [security.md](security.md) | Security | 15 | Critical |
 | 13 | [multi-language.md](multi-language.md) | Multi-Language | 6 | Medium |
-| 14 | [chatbot.md](chatbot.md) | Chatbot | 7 | Low |
+| 14 | [chatbot.md](chatbot.md) | Chatbot | 12 | Low |
 | 15 | [cross-tenant.md](cross-tenant.md) | Cross-Tenant Isolation | 7 | Critical |
 | 16 | [edge-cases.md](edge-cases.md) | Edge Cases | 10 | Medium |
 | 17 | [service-mobile.md](service-mobile.md) | Service Mobile (offline phone) | 12 | Critical |

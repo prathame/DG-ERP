@@ -23,18 +23,18 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 0,
-      text: 'Hello! I\'m your ERP assistant. Type a vendor name, barcode, or try:\n• "sales today"\n• "low stock"\n• "pending payments"\n• "help"',
+      text: 'Hello! I can look up live data and explain how to use Dhandho.\nTry:\n• "sales today"\n• "low stock"\n• "unpaid invoices"\n• "how to set sale units"\n• "help"',
       sender: 'bot',
       timestamp: new Date(),
     },
   ]);
   const [loading, setLoading] = useState(false);
   const [quickActions, setQuickActions] = useState<string[]>([
+    'help',
     'daily report',
     'sales today',
     'low stock',
-    'pending payments',
-    'all vendors',
+    'unpaid invoices',
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,12 +92,10 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     return true;
   }, open);
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendChat = async (text: string) => {
     if (!text || loading) return;
     const userMsg: Message = { id: Date.now(), text, sender: 'user', timestamp: new Date() };
     setMessages(m => [...m, userMsg]);
-    setInput('');
     setLoading(true);
     try {
       const data = await api.chatbot.send(text);
@@ -105,14 +103,19 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
         ...m,
         { id: Date.now() + 1, text: data.text || 'No response', sender: 'bot', timestamp: new Date() },
       ]);
-    } catch {
-      setMessages(m => [
-        ...m,
-        { id: Date.now() + 1, text: 'Connection error. Is the server running?', sender: 'bot', timestamp: new Date() },
-      ]);
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : 'Connection error. Is the server running?';
+      setMessages(m => [...m, { id: Date.now() + 1, text: msg, sender: 'bot', timestamp: new Date() }]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput('');
+    await sendChat(text);
   };
 
   const accent = desktopGlass ? 'var(--dg-primary)' : '#F27D26';
@@ -278,7 +281,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
               <div className="min-w-0 flex-1">
                 <p className={cn('font-bold', desktopGlass && 'dg-ink')}>ERP Assistant</p>
                 <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-400')}>
-                  Online — ask anything about your business
+                  Live data and how-to for your company
                 </p>
               </div>
               <button
@@ -380,29 +383,8 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 <button
                   key={cmd}
                   type="button"
-                  onClick={async () => {
-                    const userMsg: Message = { id: Date.now(), text: cmd, sender: 'user', timestamp: new Date() };
-                    setMessages(m => [...m, userMsg]);
-                    setLoading(true);
-                    try {
-                      const data = await api.chatbot.send(cmd);
-                      setMessages(m => [
-                        ...m,
-                        {
-                          id: Date.now() + 1,
-                          text: data.text || 'No response',
-                          sender: 'bot',
-                          timestamp: new Date(),
-                        },
-                      ]);
-                    } catch {
-                      setMessages(m => [
-                        ...m,
-                        { id: Date.now() + 1, text: 'Connection error.', sender: 'bot', timestamp: new Date() },
-                      ]);
-                    } finally {
-                      setLoading(false);
-                    }
+                  onClick={() => {
+                    void sendChat(cmd);
                   }}
                   className={cn(
                     'px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors',
@@ -431,7 +413,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                placeholder="Type a vendor name, barcode, or query..."
+                placeholder="Ask: sales today, how to set sale units…"
                 className={cn(
                   'flex-1 min-w-0 px-4 py-2.5 border-none rounded-xl text-sm focus:outline-none',
                   desktopGlass
