@@ -763,6 +763,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         onClose={createdInvoice || createdSale ? finishCreated : onClose}
         footer={footer}
         size="2xl"
+        className="max-w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)]"
         zIndex={100}
         bodyClassName="min-h-[min(60vh,32rem)]"
       >
@@ -882,16 +883,16 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                 description="Type to match inventory, add a new product, or keep as a custom line (no stock)"
               >
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-1">
-                  <table className="w-full text-left min-w-[920px]">
+                  <table className="w-full text-left table-fixed min-w-[1080px]">
                     <thead>
                       <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
-                        <th className="px-2 py-3 text-left min-w-[240px]">Item</th>
-                        <th className="px-2 py-3 w-28">HSN/SAC</th>
-                        <th className="px-2 py-3 w-24">Qty</th>
-                        <th className="px-2 py-3 w-24">Unit</th>
-                        <th className="px-2 py-3 w-32">Rate</th>
-                        <th className="px-2 py-3 w-20">Disc%</th>
-                        <th className="px-2 py-3 w-16 text-center">
+                        <th className="px-2 py-3 text-left w-[44%]">Item</th>
+                        <th className="px-2 py-3 w-[8%]">HSN/SAC</th>
+                        <th className="px-2 py-3 w-[6%]">Qty</th>
+                        <th className="px-2 py-3 w-[7%]">Unit</th>
+                        <th className="px-2 py-3 w-[8%]">Rate</th>
+                        <th className="px-2 py-3 w-[6%]">Disc%</th>
+                        <th className="px-2 py-3 w-[5%] text-center">
                           <div className="flex flex-col items-center gap-1">
                             <span>GST</span>
                             <input
@@ -905,9 +906,9 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                             />
                           </div>
                         </th>
-                        <th className="px-2 py-3 w-20">GST%</th>
-                        <th className="px-2 py-3 w-36 text-right">Total</th>
-                        <th className="px-2 py-3 w-8" />
+                        <th className="px-2 py-3 w-[6%]">GST%</th>
+                        <th className="px-2 py-3 w-[8%] text-right">Total</th>
+                        <th className="px-2 py-3 w-[2%]" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -916,7 +917,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                         const p = row.productId ? products.find(x => x.id === row.productId) : undefined;
                         return (
                           <tr key={idx}>
-                            <td className="px-2 py-2">
+                            <td className="px-2 py-2 w-[44%] min-w-0">
                               <SearchSelect
                                 allowCustom
                                 value={row.productId}

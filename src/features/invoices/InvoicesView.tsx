@@ -1714,7 +1714,7 @@ export function CreateInvoiceModal({
         onClose={createdInvoice ? finishCreated : onClose}
         footer={footer}
         size="2xl"
-        className="sm:w-[min(96vw,72rem)]"
+        className="max-w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)]"
       >
         <div className="space-y-4">
           {createdInvoice ? (
@@ -1843,7 +1843,7 @@ export function CreateInvoiceModal({
                     <table className="w-full text-sm min-w-[960px] table-fixed">
                       <thead className="bg-gray-50">
                         <tr className="text-xs font-bold text-gray-400 uppercase">
-                          <th className="px-3 py-2 text-left w-[38%]">Item</th>
+                          <th className="px-3 py-2 text-left w-[44%]">Item</th>
                           {gstBilling && <th className="px-3 py-2 w-[9%]">HSN/SAC</th>}
                           <th className="px-3 py-2 w-[7%]">Qty</th>
                           <th className="px-3 py-2 w-[8%]">Unit</th>
@@ -1869,7 +1869,7 @@ export function CreateInvoiceModal({
                               : null;
                           return (
                             <tr key={idx}>
-                              <td className="px-3 py-2 space-y-1.5 align-top">
+                              <td className="px-3 py-2 space-y-1.5 align-top w-[44%] min-w-0">
                                 <select
                                   value={row.productId}
                                   onChange={e => applyCatalogItem(idx, e.target.value)}
