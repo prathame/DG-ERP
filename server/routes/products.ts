@@ -9,6 +9,18 @@ import { withTenantClient } from '../pg-db';
 
 const router = Router();
 
+const PRODUCT_IMAGE_RE = /^data:image\/(jpeg|png|webp|gif);base64,/i;
+const PRODUCT_IMAGE_MAX_CHARS = 700_000;
+
+function parseProductImage(raw: unknown): { error: string } | { value: string | null | undefined } {
+  if (raw === undefined) return { value: undefined };
+  if (raw === null || raw === '') return { value: null };
+  if (typeof raw !== 'string' || !PRODUCT_IMAGE_RE.test(raw) || raw.length > PRODUCT_IMAGE_MAX_CHARS) {
+    return { error: 'Product image must be JPEG, PNG, WebP or GIF under 500KB' };
+  }
+  return { value: raw };
+}
+
 // ============ CATEGORIES ============
 router.get('/api/categories', async (req, res) => {
   try {
@@ -764,8 +776,12 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       gstRate,
       barcodePerBox,
       priceIncludesGst,
+      imageBase64: imageBase64Raw,
     } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
+    const parsedImage = parseProductImage(imageBase64Raw);
+    if ('error' in parsedImage) return res.status(400).json({ error: parsedImage.error });
+    const imageBase64 = parsedImage.value ?? null;
     if (hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(hsnCode).replace(/\s/g, '')))
       return res.status(400).json({ error: 'HSN code must be 4, 6, or 8 digits' });
     const duplicate = (
@@ -807,6 +823,14 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
             !!priceIncludesGst,
           ],
         );
+      };
+      const saveProductImage = async () => {
+        if (!imageBase64) return;
+        await client.query('UPDATE products SET image_base64 = $1 WHERE id = $2 AND tenant_id = $3', [
+          imageBase64,
+          id,
+          tenantId,
+        ]);
       };
       const insertBarcodes = async (barcodes: string[]) => {
         const batchId = uid('B');
@@ -908,6 +932,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       const createdPSize = Number(packSize) || 1;
       if (invStock > 0)
         await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [invStock, id, tenantId]);
+      await saveProductImage();
       await client.query('COMMIT');
       const row = (await pool.query('SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1', [tenantId, id]))
         .rows[0] as Record<string, unknown>;
@@ -1061,7 +1086,10 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
       hsnCode,
       gstRate,
       priceIncludesGst,
+      imageBase64: imageBase64Raw,
     } = req.body;
+    const parsedImage = parseProductImage(imageBase64Raw);
+    if ('error' in parsedImage) return res.status(400).json({ error: parsedImage.error });
     const row = (await pool.query('SELECT * FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
       .rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'Product not found' });
@@ -1114,6 +1142,13 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
         priceIncludesGst !== undefined ? !!priceIncludesGst : null,
       ],
     );
+    if (parsedImage.value !== undefined) {
+      await pool.query('UPDATE products SET image_base64 = $1 WHERE id = $2 AND tenant_id = $3', [
+        parsedImage.value,
+        id,
+        tenantId,
+      ]);
+    }
     const updated = (
       await pool.query(
         'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',

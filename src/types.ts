@@ -54,6 +54,8 @@ export interface Product {
   packName?: string;
   barcodeUnitType?: 'box' | 'piece';
   priceIncludesGst?: boolean;
+  /** Optional product photo (data URL) for inventory tiles. */
+  imageBase64?: string | null;
 }
 
 export interface Warranty {

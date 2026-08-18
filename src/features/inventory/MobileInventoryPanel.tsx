@@ -19,6 +19,7 @@ import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
 import type { StockFilter } from './DesktopInventoryPanel';
+import { ProductThumb } from './ProductThumb';
 
 type SortKey = 'name' | 'price' | 'stock';
 
@@ -257,9 +258,17 @@ export function MobileInventoryPanel({
             return (
               <div key={p.id} className="dg-m-glass-card rounded-2xl p-3.5">
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="min-w-0">
-                    <h3 className="text-[15px] font-bold dg-m-ink leading-snug">{p.name}</h3>
-                    {sku ? <p className="text-[11px] dg-m-muted font-mono mt-0.5 truncate">SKU: {sku}</p> : null}
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <ProductThumb
+                      name={p.name}
+                      src={p.imageBase64}
+                      size={44}
+                      className="border-[var(--dg-card-border)] bg-[var(--dg-card)] text-[var(--dg-primary)] mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] font-bold dg-m-ink leading-snug">{p.name}</h3>
+                      {sku ? <p className="text-[11px] dg-m-muted font-mono mt-0.5 truncate">SKU: {sku}</p> : null}
+                    </div>
                   </div>
                   {inventoryTrackingEnabled && status === 'ok' && (
                     <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--dg-success)_14%,transparent)] dg-m-success">
