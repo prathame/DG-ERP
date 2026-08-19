@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense, useMemo } from 'react';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -54,6 +54,13 @@ import {
   applyNavChrome,
   NAV_POSITION_PREF_CHANGED_EVENT,
 } from './lib/navPositionPref';
+import {
+  HORIZONTAL_DOCK_TAB_IDS,
+  horizontalNavGroupForTab,
+  horizontalNavGroupTabIds,
+  visibleHorizontalNavGroups,
+  type HorizontalNavGroupId,
+} from './lib/horizontalNavLayout';
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
@@ -981,6 +988,36 @@ export default function App() {
     return true;
   });
 
+  const navPos = navPosTick >= 0 ? getNavPositionPref() : 'left';
+  const navH = isNavHorizontal(navPos);
+  const drawerRight = navPos === 'right';
+  const visibleTabIdSet = useMemo(() => new Set(visibleNavItems.map(i => i.id)), [visibleNavItems]);
+  const navItemById = useMemo(() => {
+    const map = new Map<string, (typeof visibleNavItems)[number]>();
+    for (const item of visibleNavItems) map.set(item.id, item);
+    return map;
+  }, [visibleNavItems]);
+  const horizontalGroups = useMemo(() => visibleHorizontalNavGroups(visibleTabIdSet), [visibleTabIdSet]);
+  const [horizontalGroup, setHorizontalGroup] = useState<HorizontalNavGroupId>('analytics');
+  useEffect(() => {
+    if (navH) setHorizontalGroup(horizontalNavGroupForTab(activeTab));
+  }, [activeTab, navH]);
+  const horizontalGroupItems = useMemo(() => {
+    if (!navH) return [];
+    return horizontalNavGroupTabIds(horizontalGroup)
+      .map(id => navItemById.get(id))
+      .filter((item): item is NonNullable<typeof item> => !!item);
+  }, [navH, horizontalGroup, navItemById]);
+  const horizontalDockItems = useMemo(() => {
+    if (!navH || navPos !== 'bottom') return [];
+    return HORIZONTAL_DOCK_TAB_IDS.map(id => {
+      if (id === 'settings') {
+        return canAccess('settings') ? { id: 'settings' as const, label: t('nav.settings'), icon: Settings } : null;
+      }
+      return navItemById.get(id) ?? null;
+    }).filter((item): item is NonNullable<typeof item> => !!item);
+  }, [navH, navPos, navItemById, canAccess, t]);
+
   // Cap OS notification tap → open tab (or just bring app to foreground)
   useEffect(() => {
     const onOsNav = (e: Event) => {
@@ -1343,9 +1380,32 @@ export default function App() {
     .filter((n): n is NonNullable<typeof n> => !!n)
     .slice(0, 4);
   const mobileMoreActive = !mobileNavItems.some(i => isNavItemActive(i.id, activeTab)) && activeTab !== 'settings';
-  const navPos = navPosTick >= 0 ? getNavPositionPref() : 'left';
-  const navH = isNavHorizontal(navPos);
-  const drawerRight = navPos === 'right';
+
+  const subscriptionBanner = (() => {
+    const subEnd = (userConfig?.subscriptionEndsAt || userConfig?.trialEndsAt) as string | undefined;
+    if (!subEnd) return null;
+    const days = Math.ceil((new Date(subEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (days > 15) return null;
+    const isTrial = !!userConfig?.trialEndsAt && !userConfig?.subscriptionEndsAt;
+    return (
+      <div
+        className={cn(
+          'shrink-0 px-4 py-2 text-center text-sm font-medium z-[60]',
+          days <= 0
+            ? 'bg-rose-600 text-white'
+            : days <= 7
+              ? 'bg-rose-50 text-rose-700'
+              : desktopGlass
+                ? 'bg-[color-mix(in_srgb,var(--dg-warning)_18%,transparent)] dg-warning'
+                : 'bg-amber-50 text-amber-700',
+        )}
+      >
+        {days <= 0
+          ? `Your ${isTrial ? 'trial' : 'subscription'} has expired. Contact Dhandho to renew.`
+          : `Your ${isTrial ? 'trial' : 'subscription'} expires in ${days} day${days === 1 ? '' : 's'}. Contact Dhandho to renew.`}
+      </div>
+    );
+  })();
 
   return (
     <ToastProvider>
@@ -1361,707 +1421,775 @@ export default function App() {
             <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />
           </Suspense>
         )}
-        <div
-          className={cn(
-            'app-shell flex h-[100dvh] max-h-[100dvh] font-sans overflow-hidden',
-            desktopGlass ? 'dg-desktop-glass' : capGlassHeader ? 'dg-mobile-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
-            drawerRight && 'lg:flex-row-reverse',
-            navPos === 'top' && 'lg:flex-col',
-            navPos === 'bottom' && 'lg:flex-col-reverse',
-          )}
-          data-nav-pos={navPos}
-        >
-          {/* Mobile sidebar backdrop */}
-          {isSidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px] dg-fade-enter"
-              onClick={() => setIsSidebarOpen(false)}
-              aria-hidden="true"
-            />
-          )}
-          {/* Sidebar — drawer on phone, rail or bar on desktop */}
-          <aside
+        <div className="flex flex-col h-[100dvh] max-h-[100dvh] min-h-0">
+          {subscriptionBanner}
+          <div
             className={cn(
-              'transition-transform duration-300 z-50 flex flex-col',
-              navH && 'lg:flex-row lg:items-stretch',
-              desktopGlass
-                ? 'dg-glass-sidebar shadow-none'
-                : capGlassHeader
-                  ? cn(
-                      'bg-[var(--dg-header)] shadow-xl lg:shadow-none',
-                      drawerRight
-                        ? 'border-l border-[var(--dg-card-border)]'
-                        : 'border-r border-[var(--dg-card-border)]',
-                      navH && 'lg:border-l-0 lg:border-r-0',
-                      navPos === 'top' && 'lg:border-b lg:border-[var(--dg-card-border)]',
-                      navPos === 'bottom' && 'lg:border-t lg:border-[var(--dg-card-border)]',
-                    )
-                  : cn(
-                      'bg-white shadow-xl lg:shadow-none',
-                      drawerRight ? 'border-l border-gray-200' : 'border-r border-gray-200',
-                      navH && 'lg:border-l-0 lg:border-r-0',
-                      navPos === 'top' && 'lg:border-b lg:border-gray-200',
-                      navPos === 'bottom' && 'lg:border-t lg:border-gray-200',
-                    ),
-              'fixed lg:relative',
-              drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
-              'h-[100dvh] max-h-[100dvh]',
-              navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
-              navH && (isSidebarOpen ? 'lg:h-16' : 'lg:h-14'),
-              isSidebarOpen
-                ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
-                : cn(
-                    'w-16 lg:translate-x-0',
-                    drawerRight ? 'translate-x-full' : '-translate-x-full',
-                    navH && 'lg:w-full',
-                  ),
+              'app-shell flex flex-1 min-h-0 font-sans overflow-hidden',
+              desktopGlass ? 'dg-desktop-glass' : capGlassHeader ? 'dg-mobile-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
+              drawerRight && 'lg:flex-row-reverse',
+              navPos === 'top' && 'lg:flex-col',
+              navPos === 'bottom' && 'lg:flex-col-reverse',
             )}
+            data-nav-pos={navPos}
           >
-            {/* Sticky brand / profile */}
-            <div
+            {/* Mobile sidebar backdrop */}
+            {isSidebarOpen && (
+              <div
+                className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px] dg-fade-enter"
+                onClick={() => setIsSidebarOpen(false)}
+                aria-hidden="true"
+              />
+            )}
+            {/* Sidebar — drawer on phone, rail or bar on desktop */}
+            <aside
               className={cn(
-                'shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0',
-                desktopGlass ? 'border-b border-[var(--dg-card-border)]' : 'border-b border-gray-100',
-                navH && 'lg:border-b-0 lg:border-r lg:h-auto lg:self-stretch lg:max-w-[11rem]',
+                'transition-transform duration-300 z-50 flex flex-col',
+                navH && 'lg:flex-row lg:items-stretch',
+                desktopGlass
+                  ? 'dg-glass-sidebar shadow-none'
+                  : capGlassHeader
+                    ? cn(
+                        'bg-[var(--dg-header)] shadow-xl lg:shadow-none',
+                        drawerRight
+                          ? 'border-l border-[var(--dg-card-border)]'
+                          : 'border-r border-[var(--dg-card-border)]',
+                        navH && 'lg:border-l-0 lg:border-r-0',
+                        navPos === 'top' && 'lg:border-b lg:border-[var(--dg-card-border)]',
+                        navPos === 'bottom' && 'lg:border-t lg:border-[var(--dg-card-border)]',
+                      )
+                    : cn(
+                        'bg-white shadow-xl lg:shadow-none',
+                        drawerRight ? 'border-l border-gray-200' : 'border-r border-gray-200',
+                        navH && 'lg:border-l-0 lg:border-r-0',
+                        navPos === 'top' && 'lg:border-b lg:border-gray-200',
+                        navPos === 'bottom' && 'lg:border-t lg:border-gray-200',
+                      ),
+                'fixed lg:relative',
+                drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
+                'h-[100dvh] max-h-[100dvh]',
+                navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
+                navH && (isSidebarOpen ? 'lg:h-[var(--dg-nav-bar,7rem)]' : 'lg:h-14'),
+                isSidebarOpen
+                  ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
+                  : cn(
+                      'w-16 lg:translate-x-0',
+                      drawerRight ? 'translate-x-full' : '-translate-x-full',
+                      navH && 'lg:w-full',
+                    ),
               )}
             >
-              {isSidebarOpen && (
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className={cn(
-                      'lg:hidden w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
-                      desktopGlass ? 'dg-bg-primary' : 'bg-gradient-to-tr from-brand to-[#FFB347]',
-                    )}
-                  >
-                    {user?.name?.charAt(0) ?? '?'}
-                  </div>
-                  <BrandMark
-                    relative={isMobileAppShell()}
-                    alt="Dhandho"
-                    className="hidden lg:block h-8 w-8 object-contain shrink-0 rounded-lg"
-                  />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 text-xs lg:text-sm truncate leading-tight">
-                      {user?.companyName}
-                    </p>
-                    {user?.name ? (
-                      <p className="text-[10px] text-gray-400 truncate leading-tight lg:hidden">{user.name}</p>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500 shrink-0"
-                aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
+              {/* Sticky brand / profile */}
+              <div
+                className={cn(
+                  'shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0',
+                  desktopGlass ? 'border-b border-[var(--dg-card-border)]' : 'border-b border-gray-100',
+                  navH && 'lg:border-b-0 lg:border-r lg:h-auto lg:self-stretch lg:max-w-[11rem]',
+                )}
               >
-                {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-              </button>
-            </div>
+                {isSidebarOpen && (
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={cn(
+                        'lg:hidden w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
+                        desktopGlass ? 'dg-bg-primary' : 'bg-gradient-to-tr from-brand to-[#FFB347]',
+                      )}
+                    >
+                      {user?.name?.charAt(0) ?? '?'}
+                    </div>
+                    <BrandMark
+                      relative={isMobileAppShell()}
+                      alt="Dhandho"
+                      className="hidden lg:block h-8 w-8 object-contain shrink-0 rounded-lg"
+                    />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-xs lg:text-sm truncate leading-tight">
+                        {user?.companyName}
+                      </p>
+                      {user?.name ? (
+                        <p className="text-[10px] text-gray-400 truncate leading-tight lg:hidden">{user.name}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500 shrink-0"
+                  aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
+                >
+                  {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+                </button>
+              </div>
 
-            {/* Scrollable menu */}
-            <nav
-              className={cn(
-                'flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain',
-                navH && 'lg:overflow-x-auto lg:overflow-y-hidden lg:flex lg:flex-row lg:items-center lg:gap-1 lg:py-0',
-              )}
-            >
-              {navSections.map(section => {
-                // Cap Online companion: same mobile_features filter as bottom nav / command palette
-                const sectionItems = section.items.filter(i => i.show && canAccess(i.id) && companionAllows(i.id));
-                if (!sectionItems.length) return null;
-                const isCollapsed = section.label ? collapsedSections.has(section.label) : false;
-                const hasActiveChild = sectionItems.some(i => activeTab === i.id);
-                return (
-                  <div
-                    key={section.label || '_top'}
-                    className={cn(
-                      section.label ? 'mt-2 first:mt-0' : '',
-                      navH && 'lg:mt-0 lg:flex lg:items-center lg:shrink-0',
-                    )}
-                  >
-                    {isSidebarOpen && section.label && (
-                      <button
-                        type="button"
-                        onClick={() => toggleSection(section.label)}
-                        className={cn(
-                          'w-full flex items-center justify-between px-2.5 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors min-h-9',
-                          navH && 'lg:hidden',
-                        )}
-                      >
-                        <span
+              {/* Scrollable menu */}
+              <nav
+                className={cn(
+                  'flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain',
+                  navH &&
+                    'lg:overflow-hidden lg:flex lg:flex-col lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-1 lg:py-1 lg:px-2',
+                )}
+              >
+                {navH && horizontalGroups.length > 0 && (
+                  <div className="hidden lg:flex lg:flex-col lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-1.5">
+                    <div className="flex items-center gap-1 overflow-x-auto shrink-0 pb-0.5">
+                      {horizontalGroups.map(g => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => setHorizontalGroup(g.id)}
                           className={cn(
-                            'text-[10px] font-bold uppercase tracking-wider',
-                            hasActiveChild ? 'text-brand' : 'text-gray-500',
+                            'shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
+                            horizontalGroup === g.id
+                              ? desktopGlass
+                                ? 'dg-bg-primary shadow-sm'
+                                : 'bg-brand text-white shadow-sm'
+                              : desktopGlass
+                                ? 'dg-muted hover:opacity-100'
+                                : 'text-gray-600 hover:bg-gray-100',
                           )}
                         >
-                          {section.label}
-                        </span>
-                        <ChevronDown
-                          size={14}
-                          className={cn('text-gray-400 transition-transform', isCollapsed ? '-rotate-90' : '')}
-                        />
-                      </button>
-                    )}
-                    {navH && section.label ? (
-                      <div className="hidden lg:block w-px self-stretch min-h-6 bg-gray-200 mx-1 shrink-0" />
-                    ) : null}
-                    {!isSidebarOpen && section.label && (
-                      <div className={cn('my-1.5 mx-2 border-t border-gray-100', navH && 'lg:hidden')} />
-                    )}
-                    {(!isCollapsed || !isSidebarOpen || navH) && (
-                      <div
-                        className={cn(
-                          'space-y-0.5',
-                          navH && 'lg:flex lg:flex-row lg:items-center lg:gap-0.5 lg:space-y-0',
-                        )}
-                      >
-                        {sectionItems.map(item => (
+                          {t(g.labelKey)}
+                        </button>
+                      ))}
+                    </div>
+                    {isSidebarOpen && (
+                      <div className="flex items-center gap-0.5 overflow-x-auto min-h-0">
+                        {horizontalGroupItems.map(item => (
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => {
-                              setActiveTab(item.id as Tab);
-                              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                            }}
+                            onClick={() => setActiveTab(item.id as Tab)}
                             className={cn(
-                              'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
-                              navH ? 'w-full lg:w-auto lg:shrink-0 lg:min-h-0 lg:py-1.5' : 'w-full',
+                              'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] shrink-0 transition-all',
                               isNavItemActive(item.id, activeTab)
                                 ? desktopGlass
-                                  ? 'dg-nav-active font-semibold pl-[7px]'
-                                  : navH
-                                    ? 'bg-brand/10 text-brand font-semibold'
-                                    : drawerRight
-                                      ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
-                                      : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                                  ? 'dg-nav-active font-semibold'
+                                  : 'bg-brand/10 text-brand font-semibold'
                                 : desktopGlass
                                   ? 'dg-muted hover:opacity-100'
                                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
                             <item.icon
-                              size={18}
+                              size={16}
                               strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
                               className="shrink-0"
                             />
-                            {isSidebarOpen && <span className="truncate">{item.label}</span>}
-                            {!isSidebarOpen && (
-                              <span
-                                className={cn(
-                                  'absolute px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50',
-                                  navH
-                                    ? 'top-full mt-2 left-1/2 -translate-x-1/2'
-                                    : drawerRight
-                                      ? 'right-full mr-2'
-                                      : 'left-full ml-2',
-                                )}
-                              >
-                                {item.label}
-                              </span>
-                            )}
+                            <span className="truncate">{item.label}</span>
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </nav>
-
-            {/* Pinned footer: chatbot (cloud), settings, status */}
-            <div
-              className={cn(
-                'shrink-0 pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2',
-                desktopGlass
-                  ? 'border-t border-[var(--dg-card-border)] bg-transparent'
-                  : 'border-t border-gray-100 bg-white',
-                navH && 'lg:flex lg:items-center lg:border-t-0 lg:border-l lg:pb-0 lg:pr-2',
-              )}
-            >
-              {!serviceMobile &&
-                tv('chatbot') &&
-                getChatbotPref() &&
-                // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
-                // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
-                (!companionFeatures || companionFeatures.chatbot) && (
-                  <Suspense fallback={null}>
-                    <ChatWidget desktopGlass={desktopGlass} />
-                  </Suspense>
                 )}
-              {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
-              {(serviceMobile ||
-                ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
-                  ?.deploymentMode === 'onprem') && (
-                <div className="px-2.5 lg:px-3 pt-2">
-                  <OnlineStatus collapsed={!isSidebarOpen} adapter={serviceMobile ? smOnlineAdapter : undefined} />
-                </div>
-              )}
-              {/* Service Cap Online — Live + Refresh stay in drawer (Emergent chrome). Non-service: App header. */}
-              {isServiceCloudMobile() && user && servicePhoneUx && (
-                <div className="px-2.5 lg:px-3 pt-2">
-                  <ServiceCloudLiveBadge
-                    collapsed={!isSidebarOpen}
-                    userId={user.id}
-                    companySessionLock={(userConfig?.businessType as string) === 'service'}
-                    onConfigRefreshed={merged => {
-                      setUser(merged as typeof user);
-                    }}
-                  />
-                </div>
-              )}
-              {canAccess('settings') && (
-                <div className={cn('px-2.5 lg:px-3 pt-2', navH && 'lg:pt-0 lg:px-2')}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('settings');
-                      if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                    }}
-                    className={cn(
-                      'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
-                      navH ? 'w-full lg:w-auto lg:min-h-0 lg:py-1.5' : 'w-full',
-                      activeTab === 'settings'
-                        ? desktopGlass
-                          ? 'dg-nav-active font-semibold pl-[7px]'
-                          : navH
-                            ? 'bg-brand/10 text-brand font-semibold'
-                            : drawerRight
-                              ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
-                              : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
-                        : desktopGlass
-                          ? 'dg-muted hover:opacity-100'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                    )}
-                  >
-                    <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
-                    {isSidebarOpen && <span>{t('nav.settings')}</span>}
-                  </button>
-                </div>
-              )}
-              {isSidebarOpen && (
-                <div className={cn('px-3 pt-2 pb-1 text-center', navH && 'lg:hidden')}>
-                  <p className={cn('text-[10px]', desktopGlass ? 'dg-faint' : 'text-gray-400')}>
-                    {t('common.poweredBy')}
-                  </p>
-                </div>
-              )}
-            </div>
-          </aside>
-
-          {/* Main Content */}
-          <main className={cn('flex-1 overflow-y-auto relative', navH && 'lg:min-h-0 min-w-0')}>
-            {/* Subscription expiry banner */}
-            {(() => {
-              const subEnd = (userConfig?.subscriptionEndsAt || userConfig?.trialEndsAt) as string | undefined;
-              if (!subEnd) return null;
-              const days = Math.ceil((new Date(subEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-              if (days > 15) return null;
-              const isTrial = !!userConfig?.trialEndsAt && !userConfig?.subscriptionEndsAt;
-              return (
-                <div
-                  className={cn(
-                    'px-4 py-2 text-center text-sm font-medium',
-                    days <= 0
-                      ? 'bg-rose-600 text-white'
-                      : days <= 7
-                        ? 'bg-rose-50 text-rose-700'
-                        : desktopGlass
-                          ? 'bg-[color-mix(in_srgb,var(--dg-warning)_18%,transparent)] dg-warning'
-                          : 'bg-amber-50 text-amber-700',
-                  )}
-                >
-                  {days <= 0
-                    ? `Your ${isTrial ? 'trial' : 'subscription'} has expired. Contact Dhandho to renew.`
-                    : `Your ${isTrial ? 'trial' : 'subscription'} expires in ${days} day${days === 1 ? '' : 's'}. Contact Dhandho to renew.`}
-                </div>
-              );
-            })()}
-            <header
-              className={cn(
-                'sticky top-0 z-30 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe',
-                desktopGlass
-                  ? 'dg-glass-header'
-                  : capGlassHeader
-                    ? 'border-b border-[var(--dg-card-border)] bg-[var(--dg-header)] backdrop-blur-md'
-                    : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
-              )}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className={cn(
-                    'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors lg:hidden shrink-0',
-                    capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100',
-                  )}
-                  aria-label="Open menu"
-                >
-                  <Menu size={20} />
-                </button>
-                <div className="min-w-0">
-                  <h1
-                    className={cn(
-                      'text-sm sm:text-2xl font-bold truncate leading-tight tracking-tight',
-                      capGlassHeader && 'dg-m-ink',
-                    )}
-                  >
-                    {t(`nav.${activeTab}`)}
-                  </h1>
-                  <p
-                    className={cn(
-                      'text-[9px] truncate sm:hidden leading-tight mt-0.5',
-                      capGlassHeader ? 'dg-m-faint' : 'text-gray-400',
-                    )}
-                  >
-                    {user?.companyName}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-0.5 sm:gap-3 shrink-0">
-                {/* Cap Online non-service: Live → search → notify → refresh → avatar (Accounts mock denser chrome) */}
-                {isServiceCloudMobile() && user && !servicePhoneUx && (
-                  <ServiceCloudLiveBadge variant="header" userId={user.id} companySessionLock={false} />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setCmdOpen(true)}
-                  className={cn(
-                    'sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg',
-                    capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100 text-gray-500',
-                  )}
-                  aria-label="Search"
-                >
-                  <Search size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCmdOpen(true)}
-                  className={cn(
-                    'hidden sm:flex items-center gap-2 px-3 py-1.5 transition-colors text-sm',
-                    desktopGlass
-                      ? 'rounded-full border border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-muted min-w-[16rem] lg:min-w-[22rem]'
-                      : 'bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500',
-                  )}
-                >
-                  <Search size={15} />
-                  <span className={desktopGlass ? 'flex-1 text-left' : undefined}>
-                    {desktopGlass ? 'Search across business entities...' : 'Search...'}
-                  </span>
-                  <kbd
-                    className={cn(
-                      'text-[10px] font-mono px-1.5 py-0.5 rounded border',
-                      desktopGlass
-                        ? 'border-[var(--dg-card-border)] dg-faint'
-                        : 'bg-white border-gray-200 text-gray-400',
-                    )}
-                  >
-                    ⌘K
-                  </kbd>
-                </button>
-                <div
-                  className={cn(
-                    'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border',
-                    desktopGlass
-                      ? 'bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] border-[color-mix(in_srgb,var(--dg-primary)_28%,transparent)]'
-                      : 'bg-amber-50 border-amber-100',
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'w-2 h-2 rounded-full animate-pulse',
-                      desktopGlass ? 'bg-[var(--dg-primary)]' : 'bg-amber-400',
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'text-[10px] font-bold uppercase tracking-wider',
-                      desktopGlass ? 'dg-primary' : 'text-amber-700',
-                    )}
-                  >
-                    {(() => {
-                      const raw = String(userConfig?.planName || 'Standard').trim();
-                      // plans.name is "Basic" / "Trial" — avoid "Basic Plan Plan"
-                      return /plan$/i.test(raw) ? raw : `${raw} Plan`;
-                    })()}
-                  </span>
-                </div>
-                <NotificationCenter
-                  onNavigate={tab => {
-                    if (canAccess(tab)) setActiveTab(tab as Tab);
-                  }}
-                  canAccessTab={canAccess}
-                />
-                {isServiceCloudMobile() && user && !servicePhoneUx && (
-                  <ServiceCloudConfigRefresh
-                    userId={user.id}
-                    onConfigRefreshed={merged => {
-                      setUser(merged as typeof user);
-                    }}
-                  />
-                )}
-                <div className="relative flex items-center gap-2 sm:gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setUserMenuOpen(o => !o)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-xl p-1 transition-colors',
-                      capGlassHeader ? 'hover:bg-[var(--dg-input)]' : 'hover:bg-gray-100',
-                    )}
-                    aria-label="Account menu"
-                    aria-expanded={userMenuOpen}
-                    aria-haspopup="menu"
-                    id="account-menu-button"
-                  >
-                    <div className="text-right hidden sm:block">
-                      <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
-                      <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
-                    </div>
-                    <div
-                      className={cn(
-                        'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-[11px] sm:text-sm',
-                        desktopGlass || capGlassHeader
-                          ? 'dg-bg-primary border-[var(--dg-card-border)]'
-                          : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
-                      )}
-                    >
-                      {avatarInitials}
-                    </div>
-                  </button>
-                  {userMenuOpen && (
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setUserMenuOpen(false)}
-                      onKeyDown={e => {
-                        if (e.key === 'Escape') setUserMenuOpen(false);
-                      }}
-                      aria-hidden="true"
-                    />
-                  )}
-                  {userMenuOpen && (
-                    <div
-                      key="user-menu"
-                      role="menu"
-                      aria-labelledby="account-menu-button"
-                      className={cn(
-                        'dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 rounded-xl shadow-xl py-1 overflow-hidden',
-                        desktopGlass
-                          ? 'dg-glass-card border border-[var(--dg-card-border)]'
-                          : 'bg-white border border-gray-100',
-                      )}
-                    >
+                <div className={cn(navH && 'lg:hidden')}>
+                  {navSections.map(section => {
+                    // Cap Online companion: same mobile_features filter as bottom nav / command palette
+                    const sectionItems = section.items.filter(i => i.show && canAccess(i.id) && companionAllows(i.id));
+                    if (!sectionItems.length) return null;
+                    const isCollapsed = section.label ? collapsedSections.has(section.label) : false;
+                    const hasActiveChild = sectionItems.some(i => activeTab === i.id);
+                    return (
                       <div
+                        key={section.label || '_top'}
                         className={cn(
-                          'px-4 py-3 border-b',
-                          desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                          section.label ? 'mt-2 first:mt-0' : '',
+                          navH && 'lg:mt-0 lg:flex lg:items-center lg:shrink-0',
                         )}
                       >
-                        <p className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}>
-                          {user?.name}
-                        </p>
-                        <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
-                          {user?.email}
-                        </p>
-                      </div>
-                      <div className="py-1">
-                        {canAccess('settings') && (
+                        {isSidebarOpen && section.label && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveTab('settings');
-                              setUserMenuOpen(false);
-                            }}
+                            onClick={() => toggleSection(section.label)}
                             className={cn(
-                              'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
-                              desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
+                              'w-full flex items-center justify-between px-2.5 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors min-h-9',
+                              navH && 'lg:hidden',
                             )}
                           >
-                            <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
-                            {t('nav.settings')}
+                            <span
+                              className={cn(
+                                'text-[10px] font-bold uppercase tracking-wider',
+                                hasActiveChild ? 'text-brand' : 'text-gray-500',
+                              )}
+                            >
+                              {section.label}
+                            </span>
+                            <ChevronDown
+                              size={14}
+                              className={cn('text-gray-400 transition-transform', isCollapsed ? '-rotate-90' : '')}
+                            />
                           </button>
                         )}
+                        {navH && section.label ? (
+                          <div className="hidden lg:block w-px self-stretch min-h-6 bg-gray-200 mx-1 shrink-0" />
+                        ) : null}
+                        {!isSidebarOpen && section.label && (
+                          <div className={cn('my-1.5 mx-2 border-t border-gray-100', navH && 'lg:hidden')} />
+                        )}
+                        {(!isCollapsed || !isSidebarOpen || navH) && (
+                          <div
+                            className={cn(
+                              'space-y-0.5',
+                              navH && 'lg:flex lg:flex-row lg:items-center lg:gap-0.5 lg:space-y-0',
+                            )}
+                          >
+                            {sectionItems.map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab(item.id as Tab);
+                                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                }}
+                                className={cn(
+                                  'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
+                                  navH ? 'w-full lg:w-auto lg:shrink-0 lg:min-h-0 lg:py-1.5' : 'w-full',
+                                  isNavItemActive(item.id, activeTab)
+                                    ? desktopGlass
+                                      ? 'dg-nav-active font-semibold pl-[7px]'
+                                      : navH
+                                        ? 'bg-brand/10 text-brand font-semibold'
+                                        : drawerRight
+                                          ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
+                                          : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                                    : desktopGlass
+                                      ? 'dg-muted hover:opacity-100'
+                                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                )}
+                              >
+                                <item.icon
+                                  size={18}
+                                  strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
+                                  className="shrink-0"
+                                />
+                                {isSidebarOpen && <span className="truncate">{item.label}</span>}
+                                {!isSidebarOpen && (
+                                  <span
+                                    className={cn(
+                                      'absolute px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50',
+                                      navH
+                                        ? 'top-full mt-2 left-1/2 -translate-x-1/2'
+                                        : drawerRight
+                                          ? 'right-full mr-2'
+                                          : 'left-full ml-2',
+                                    )}
+                                  >
+                                    {item.label}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </nav>
+
+              {/* Pinned footer: chatbot (cloud), settings, status */}
+              <div
+                className={cn(
+                  'shrink-0 pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2',
+                  desktopGlass
+                    ? 'border-t border-[var(--dg-card-border)] bg-transparent'
+                    : 'border-t border-gray-100 bg-white',
+                  navH && 'lg:flex lg:items-center lg:border-t-0 lg:border-l lg:pb-0 lg:pr-2',
+                )}
+              >
+                {!serviceMobile &&
+                  tv('chatbot') &&
+                  getChatbotPref() &&
+                  // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
+                  // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
+                  (!companionFeatures || companionFeatures.chatbot) && (
+                    <Suspense fallback={null}>
+                      <ChatWidget desktopGlass={desktopGlass} />
+                    </Suspense>
+                  )}
+                {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
+                {(serviceMobile ||
+                  ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
+                    ?.deploymentMode === 'onprem') && (
+                  <div className="px-2.5 lg:px-3 pt-2">
+                    <OnlineStatus collapsed={!isSidebarOpen} adapter={serviceMobile ? smOnlineAdapter : undefined} />
+                  </div>
+                )}
+                {/* Service Cap Online — Live + Refresh stay in drawer (Emergent chrome). Non-service: App header. */}
+                {isServiceCloudMobile() && user && servicePhoneUx && (
+                  <div className="px-2.5 lg:px-3 pt-2">
+                    <ServiceCloudLiveBadge
+                      collapsed={!isSidebarOpen}
+                      userId={user.id}
+                      companySessionLock={(userConfig?.businessType as string) === 'service'}
+                      onConfigRefreshed={merged => {
+                        setUser(merged as typeof user);
+                      }}
+                    />
+                  </div>
+                )}
+                {canAccess('settings') && !(navH && navPos === 'bottom') && (
+                  <div className={cn('px-2.5 lg:px-3 pt-2', navH && 'lg:pt-0 lg:px-2')}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('settings');
+                        if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                      }}
+                      className={cn(
+                        'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
+                        navH ? 'w-full lg:w-auto lg:min-h-0 lg:py-1.5' : 'w-full',
+                        activeTab === 'settings'
+                          ? desktopGlass
+                            ? 'dg-nav-active font-semibold pl-[7px]'
+                            : navH
+                              ? 'bg-brand/10 text-brand font-semibold'
+                              : drawerRight
+                                ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
+                                : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                          : desktopGlass
+                            ? 'dg-muted hover:opacity-100'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                      )}
+                    >
+                      <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
+                      {isSidebarOpen && <span>{t('nav.settings')}</span>}
+                    </button>
+                  </div>
+                )}
+                {isSidebarOpen && (
+                  <div className={cn('px-3 pt-2 pb-1 text-center', navH && 'lg:hidden')}>
+                    <p className={cn('text-[10px]', desktopGlass ? 'dg-faint' : 'text-gray-400')}>
+                      {t('common.poweredBy')}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className={cn('flex-1 overflow-y-auto relative', navH && 'lg:min-h-0 min-w-0')}>
+              <header
+                className={cn(
+                  'sticky top-0 z-30 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe',
+                  desktopGlass
+                    ? 'dg-glass-header'
+                    : capGlassHeader
+                      ? 'border-b border-[var(--dg-card-border)] bg-[var(--dg-header)] backdrop-blur-md'
+                      : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
+                )}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className={cn(
+                      'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors lg:hidden shrink-0',
+                      capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100',
+                    )}
+                    aria-label="Open menu"
+                  >
+                    <Menu size={20} />
+                  </button>
+                  <div className="min-w-0">
+                    <h1
+                      className={cn(
+                        'text-sm sm:text-2xl font-bold truncate leading-tight tracking-tight',
+                        capGlassHeader && 'dg-m-ink',
+                      )}
+                    >
+                      {t(`nav.${activeTab}`)}
+                    </h1>
+                    <p
+                      className={cn(
+                        'text-[9px] truncate sm:hidden leading-tight mt-0.5',
+                        capGlassHeader ? 'dg-m-faint' : 'text-gray-400',
+                      )}
+                    >
+                      {user?.companyName}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-0.5 sm:gap-3 shrink-0">
+                  {/* Cap Online non-service: Live → search → notify → refresh → avatar (Accounts mock denser chrome) */}
+                  {isServiceCloudMobile() && user && !servicePhoneUx && (
+                    <ServiceCloudLiveBadge variant="header" userId={user.id} companySessionLock={false} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setCmdOpen(true)}
+                    className={cn(
+                      'sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg',
+                      capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100 text-gray-500',
+                    )}
+                    aria-label="Search"
+                  >
+                    <Search size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCmdOpen(true)}
+                    className={cn(
+                      'hidden sm:flex items-center gap-2 px-3 py-1.5 transition-colors text-sm',
+                      desktopGlass
+                        ? 'rounded-full border border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-muted min-w-[16rem] lg:min-w-[22rem]'
+                        : 'bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500',
+                    )}
+                  >
+                    <Search size={15} />
+                    <span className={desktopGlass ? 'flex-1 text-left' : undefined}>
+                      {desktopGlass ? 'Search across business entities...' : 'Search...'}
+                    </span>
+                    <kbd
+                      className={cn(
+                        'text-[10px] font-mono px-1.5 py-0.5 rounded border',
+                        desktopGlass
+                          ? 'border-[var(--dg-card-border)] dg-faint'
+                          : 'bg-white border-gray-200 text-gray-400',
+                      )}
+                    >
+                      ⌘K
+                    </kbd>
+                  </button>
+                  <div
+                    className={cn(
+                      'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border',
+                      desktopGlass
+                        ? 'bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] border-[color-mix(in_srgb,var(--dg-primary)_28%,transparent)]'
+                        : 'bg-amber-50 border-amber-100',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'w-2 h-2 rounded-full animate-pulse',
+                        desktopGlass ? 'bg-[var(--dg-primary)]' : 'bg-amber-400',
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        'text-[10px] font-bold uppercase tracking-wider',
+                        desktopGlass ? 'dg-primary' : 'text-amber-700',
+                      )}
+                    >
+                      {(() => {
+                        const raw = String(userConfig?.planName || 'Standard').trim();
+                        // plans.name is "Basic" / "Trial" — avoid "Basic Plan Plan"
+                        return /plan$/i.test(raw) ? raw : `${raw} Plan`;
+                      })()}
+                    </span>
+                  </div>
+                  <NotificationCenter
+                    onNavigate={tab => {
+                      if (canAccess(tab)) setActiveTab(tab as Tab);
+                    }}
+                    canAccessTab={canAccess}
+                  />
+                  {isServiceCloudMobile() && user && !servicePhoneUx && (
+                    <ServiceCloudConfigRefresh
+                      userId={user.id}
+                      onConfigRefreshed={merged => {
+                        setUser(merged as typeof user);
+                      }}
+                    />
+                  )}
+                  <div className="relative flex items-center gap-2 sm:gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setUserMenuOpen(o => !o)}
+                      className={cn(
+                        'flex items-center gap-3 rounded-xl p-1 transition-colors',
+                        capGlassHeader ? 'hover:bg-[var(--dg-input)]' : 'hover:bg-gray-100',
+                      )}
+                      aria-label="Account menu"
+                      aria-expanded={userMenuOpen}
+                      aria-haspopup="menu"
+                      id="account-menu-button"
+                    >
+                      <div className="text-right hidden sm:block">
+                        <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
+                        <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
                       </div>
                       <div
                         className={cn(
-                          'border-t py-1',
-                          desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                          'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-[11px] sm:text-sm',
+                          desktopGlass || capGlassHeader
+                            ? 'dg-bg-primary border-[var(--dg-card-border)]'
+                            : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
                         )}
                       >
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
-                        >
-                          <LogOut size={15} />
-                          {t('common.logout')}
-                        </button>
+                        {avatarInitials}
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </header>
-
-            <div className="app-mobile-content p-3 sm:p-4 lg:p-8">
-              <ErrorBoundary key={`${activeTab}-${tabKey}`} onReset={() => setTabKey(k => k + 1)}>
-                <Suspense fallback={<LazyFallback />}>
-                  <div key={`${activeTab}-${tabKey}`}>
-                    {canAccess(activeTab) && activeTab === 'dashboard' && (
-                      <DashboardView
-                        user={user}
-                        setActiveTab={setActiveTab}
-                        businessType={(userConfig?.businessType as string) || 'manufacturer'}
+                    </button>
+                    {userMenuOpen && (
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setUserMenuOpen(false)}
+                        onKeyDown={e => {
+                          if (e.key === 'Escape') setUserMenuOpen(false);
+                        }}
+                        aria-hidden="true"
                       />
                     )}
-                    {canAccess(activeTab) && activeTab === 'masters' && (
-                      <MastersView
-                        setActiveTab={setActiveTab}
-                        user={user}
-                        businessType={
-                          (userConfig?.businessType as string) || (serviceProductUx ? 'service' : 'manufacturer')
-                        }
-                        launch={mastersLaunch}
-                        onLaunchConsumed={() => setMastersLaunch(null)}
-                      />
+                    {userMenuOpen && (
+                      <div
+                        key="user-menu"
+                        role="menu"
+                        aria-labelledby="account-menu-button"
+                        className={cn(
+                          'dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 rounded-xl shadow-xl py-1 overflow-hidden',
+                          desktopGlass
+                            ? 'dg-glass-card border border-[var(--dg-card-border)]'
+                            : 'bg-white border border-gray-100',
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'px-4 py-3 border-b',
+                            desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                          )}
+                        >
+                          <p
+                            className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}
+                          >
+                            {user?.name}
+                          </p>
+                          <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
+                            {user?.email}
+                          </p>
+                        </div>
+                        <div className="py-1">
+                          {canAccess('settings') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTab('settings');
+                                setUserMenuOpen(false);
+                              }}
+                              className={cn(
+                                'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
+                                desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
+                              )}
+                            >
+                              <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
+                              {t('nav.settings')}
+                            </button>
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            'border-t py-1',
+                            desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
+                          >
+                            <LogOut size={15} />
+                            {t('common.logout')}
+                          </button>
+                        </div>
+                      </div>
                     )}
-                    {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}
-                    {canAccess(activeTab) && activeTab === 'purchases' && (
-                      <PurchasesView
-                        accessLevel={getAccess('purchases')}
-                        onOpenAccountsStatement={openAccountsStatement}
-                      />
-                    )}
-                    {canAccess(activeTab) && activeTab === 'distribution' && (
-                      <DistributionView
-                        user={user}
-                        accessLevel={getAccess('distribution')}
-                        businessType={(userConfig?.businessType as string) || 'manufacturer'}
-                      />
-                    )}
-                    {canAccess(activeTab) && activeTab === 'warranty' && <WarrantyView user={user} />}
-                    {canAccess(activeTab) && activeTab === 'replacements' && <ReplacementsView user={user} />}
-                    {canAccess(activeTab) && activeTab === 'rewards' && <RewardsView user={user} />}
-                    {canAccess(activeTab) && activeTab === 'inventory' && (
-                      <InventoryView accessLevel={getAccess('inventory')} />
-                    )}
-                    {canAccess(activeTab) && activeTab === 'verification' && <ProductVerificationView />}
-                    {canAccess(activeTab) && activeTab === 'quotations' && <QuotationsAndOrdersView />}
-                    {canAccess(activeTab) && activeTab === 'invoices' && (
-                      <InvoicesView onOpenFinance={() => setActiveTab('finance')} />
-                    )}
-                    {canAccess(activeTab) &&
-                      activeTab === 'finance' &&
-                      (serviceProductUx || (userConfig?.businessType as string) === 'hotel_restaurant' ? (
-                        <InvoiceFinanceView accessLevel={getAccess('finance')} />
-                      ) : (
-                        <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
-                      ))}
-                    {canAccess(activeTab) && activeTab === 'hosp_floor' && <HospitalityFloorView />}
-                    {canAccess(activeTab) && activeTab === 'hosp_waiter' && <HospitalityWaiterView />}
-                    {canAccess(activeTab) && activeTab === 'hosp_kitchen' && <HospitalityKitchenView />}
-                    {canAccess(activeTab) && activeTab === 'hosp_queue' && <HospitalityQueueView />}
-                    {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
-                    {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
-                    {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
-                    {canAccess(activeTab) &&
-                      activeTab === 'analytics' &&
-                      ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
-                        <HospitalityAnalyticsView />
-                      ) : (
-                        <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
-                      ))}
-                    {canAccess(activeTab) &&
-                      tv('accounts') &&
-                      activeTab === 'accounts' &&
-                      ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
-                        <HospitalityAccountsView />
-                      ) : (
-                        <AccountsView
-                          accessLevel={getAccess('accounts')}
-                          booksAccess={
-                            isMiracleBooksFamilyVisible(tabConfig) && tv('books') ? getAccess('books') : 'hidden'
-                          }
-                          initialTab={accountsInitialTab}
-                        />
-                      ))}
                   </div>
-                  {canAccess('settings') && activeTab === 'settings' && (
-                    <SettingsView user={user} onUserChange={setUser} />
-                  )}
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-          </main>
-          {/* Mobile bottom nav — primary destinations + More drawer */}
-          <nav
-            className={cn(
-              'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t lg:hidden safe-bottom',
-              capGlassHeader
-                ? 'bg-[var(--dg-header)] border-[var(--dg-card-border)] shadow-[0_-2px_16px_rgba(0,0,0,0.2)]'
-                : 'bg-white/95 border-gray-200 shadow-[0_-2px_16px_rgba(0,0,0,0.05)]',
-            )}
-            aria-label="Primary"
-          >
-            <div className="flex items-stretch justify-around px-0.5 pt-0.5 pb-0">
-              {mobileNavItems.map(item => {
-                const active = isNavItemActive(item.id, activeTab);
-                return (
+                </div>
+              </header>
+
+              <div className="app-mobile-content p-3 sm:p-4 lg:p-8">
+                <ErrorBoundary key={`${activeTab}-${tabKey}`} onReset={() => setTabKey(k => k + 1)}>
+                  <Suspense fallback={<LazyFallback />}>
+                    <div key={`${activeTab}-${tabKey}`}>
+                      {canAccess(activeTab) && activeTab === 'dashboard' && (
+                        <DashboardView
+                          user={user}
+                          setActiveTab={setActiveTab}
+                          businessType={(userConfig?.businessType as string) || 'manufacturer'}
+                        />
+                      )}
+                      {canAccess(activeTab) && activeTab === 'masters' && (
+                        <MastersView
+                          setActiveTab={setActiveTab}
+                          user={user}
+                          businessType={
+                            (userConfig?.businessType as string) || (serviceProductUx ? 'service' : 'manufacturer')
+                          }
+                          launch={mastersLaunch}
+                          onLaunchConsumed={() => setMastersLaunch(null)}
+                        />
+                      )}
+                      {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}
+                      {canAccess(activeTab) && activeTab === 'purchases' && (
+                        <PurchasesView
+                          accessLevel={getAccess('purchases')}
+                          onOpenAccountsStatement={openAccountsStatement}
+                        />
+                      )}
+                      {canAccess(activeTab) && activeTab === 'distribution' && (
+                        <DistributionView
+                          user={user}
+                          accessLevel={getAccess('distribution')}
+                          businessType={(userConfig?.businessType as string) || 'manufacturer'}
+                        />
+                      )}
+                      {canAccess(activeTab) && activeTab === 'warranty' && <WarrantyView user={user} />}
+                      {canAccess(activeTab) && activeTab === 'replacements' && <ReplacementsView user={user} />}
+                      {canAccess(activeTab) && activeTab === 'rewards' && <RewardsView user={user} />}
+                      {canAccess(activeTab) && activeTab === 'inventory' && (
+                        <InventoryView accessLevel={getAccess('inventory')} />
+                      )}
+                      {canAccess(activeTab) && activeTab === 'verification' && <ProductVerificationView />}
+                      {canAccess(activeTab) && activeTab === 'quotations' && <QuotationsAndOrdersView />}
+                      {canAccess(activeTab) && activeTab === 'invoices' && (
+                        <InvoicesView onOpenFinance={() => setActiveTab('finance')} />
+                      )}
+                      {canAccess(activeTab) &&
+                        activeTab === 'finance' &&
+                        (serviceProductUx || (userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                          <InvoiceFinanceView accessLevel={getAccess('finance')} />
+                        ) : (
+                          <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
+                        ))}
+                      {canAccess(activeTab) && activeTab === 'hosp_floor' && <HospitalityFloorView />}
+                      {canAccess(activeTab) && activeTab === 'hosp_waiter' && <HospitalityWaiterView />}
+                      {canAccess(activeTab) && activeTab === 'hosp_kitchen' && <HospitalityKitchenView />}
+                      {canAccess(activeTab) && activeTab === 'hosp_queue' && <HospitalityQueueView />}
+                      {canAccess(activeTab) && activeTab === 'hosp_parcels' && <HospitalityParcelsView />}
+                      {canAccess(activeTab) && activeTab === 'hosp_menu' && <HospitalityMenuAdminView />}
+                      {canAccess(activeTab) && activeTab === 'hosp_members' && <HospitalityMembersView />}
+                      {canAccess(activeTab) &&
+                        activeTab === 'analytics' &&
+                        ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                          <HospitalityAnalyticsView />
+                        ) : (
+                          <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
+                        ))}
+                      {canAccess(activeTab) &&
+                        tv('accounts') &&
+                        activeTab === 'accounts' &&
+                        ((userConfig?.businessType as string) === 'hotel_restaurant' ? (
+                          <HospitalityAccountsView />
+                        ) : (
+                          <AccountsView
+                            accessLevel={getAccess('accounts')}
+                            booksAccess={
+                              isMiracleBooksFamilyVisible(tabConfig) && tv('books') ? getAccess('books') : 'hidden'
+                            }
+                            initialTab={accountsInitialTab}
+                          />
+                        ))}
+                    </div>
+                    {canAccess('settings') && activeTab === 'settings' && (
+                      <SettingsView user={user} onUserChange={setUser} />
+                    )}
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+            </main>
+            {horizontalDockItems.length > 0 && (
+              <nav
+                aria-label="Shortcuts"
+                className={cn(
+                  'dg-horizontal-dock hidden lg:flex fixed left-1/2 -translate-x-1/2 z-[45] items-center gap-1 px-2 py-1.5 rounded-2xl shadow-lg border',
+                  desktopGlass
+                    ? 'dg-glass-card border-[var(--dg-card-border)]'
+                    : 'bg-white/95 border-gray-200 backdrop-blur-md',
+                )}
+                style={{ bottom: 'calc(var(--dg-nav-bar, 7rem) + 1rem)' }}
+              >
+                {horizontalDockItems.map(item => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setActiveTab(item.id as Tab)}
                     className={cn(
-                      'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
-                      active ? 'text-brand' : 'text-gray-400',
+                      'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors min-h-[44px]',
+                      activeTab === item.id
+                        ? desktopGlass
+                          ? 'dg-nav-active'
+                          : 'bg-brand/10 text-brand'
+                        : desktopGlass
+                          ? 'dg-muted hover:opacity-100'
+                          : 'text-gray-600 hover:bg-gray-50',
                     )}
                   >
-                    <span
-                      className={cn(
-                        'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
-                        active && 'bg-brand/10',
-                      )}
-                    >
-                      <item.icon size={17} strokeWidth={active ? 2.5 : 2} />
-                    </span>
-                    <span
-                      className={cn(
-                        'text-[9px] leading-tight max-w-[4.5rem] truncate',
-                        active ? 'font-bold' : 'font-medium',
-                      )}
-                    >
-                      {mobileNavLabel[item.id] || item.label.split(' ')[0]}
-                    </span>
+                    <item.icon size={16} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                    <span className="truncate max-w-[7rem]">{item.label}</span>
                   </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(true)}
-                className={cn(
-                  'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
-                  mobileMoreActive || isSidebarOpen ? 'text-brand' : 'text-gray-400',
-                )}
-              >
-                <span
+                ))}
+              </nav>
+            )}
+            {/* Mobile bottom nav — primary destinations + More drawer */}
+            <nav
+              className={cn(
+                'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t lg:hidden safe-bottom',
+                capGlassHeader
+                  ? 'bg-[var(--dg-header)] border-[var(--dg-card-border)] shadow-[0_-2px_16px_rgba(0,0,0,0.2)]'
+                  : 'bg-white/95 border-gray-200 shadow-[0_-2px_16px_rgba(0,0,0,0.05)]',
+              )}
+              aria-label="Primary"
+            >
+              <div className="flex items-stretch justify-around px-0.5 pt-0.5 pb-0">
+                {mobileNavItems.map(item => {
+                  const active = isNavItemActive(item.id, activeTab);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveTab(item.id as Tab)}
+                      className={cn(
+                        'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
+                        active ? 'text-brand' : 'text-gray-400',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
+                          active && 'bg-brand/10',
+                        )}
+                      >
+                        <item.icon size={17} strokeWidth={active ? 2.5 : 2} />
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[9px] leading-tight max-w-[4.5rem] truncate',
+                          active ? 'font-bold' : 'font-medium',
+                        )}
+                      >
+                        {mobileNavLabel[item.id] || item.label.split(' ')[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(true)}
                   className={cn(
-                    'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
-                    (mobileMoreActive || isSidebarOpen) && 'bg-brand/10',
+                    'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
+                    mobileMoreActive || isSidebarOpen ? 'text-brand' : 'text-gray-400',
                   )}
                 >
-                  <Menu size={17} />
-                </span>
-                <span
-                  className={cn(
-                    'text-[9px] leading-tight font-medium',
-                    (mobileMoreActive || isSidebarOpen) && 'font-bold',
-                  )}
-                >
-                  {t('nav.more')}
-                </span>
-              </button>
-            </div>
-          </nav>
+                  <span
+                    className={cn(
+                      'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
+                      (mobileMoreActive || isSidebarOpen) && 'bg-brand/10',
+                    )}
+                  >
+                    <Menu size={17} />
+                  </span>
+                  <span
+                    className={cn(
+                      'text-[9px] leading-tight font-medium',
+                      (mobileMoreActive || isSidebarOpen) && 'font-bold',
+                    )}
+                  >
+                    {t('nav.more')}
+                  </span>
+                </button>
+              </div>
+            </nav>
+          </div>
         </div>
         {cmdOpen && (
           <Suspense fallback={null}>
