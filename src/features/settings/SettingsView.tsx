@@ -23,6 +23,7 @@ import {
   Trash2,
   Bell,
   Type,
+  BookOpen,
 } from 'lucide-react';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
@@ -54,6 +55,7 @@ import {
 } from '../../platforms/service-mobile';
 import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
 import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
+import { UserGuidePanel } from './UserGuidePanel';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
@@ -1580,6 +1582,7 @@ export function SettingsView({
     { id: 'bill', label: st('settings.billCustomization'), icon: FileText, hidden: !user || !isAdmin },
     { id: 'data', label: st('settings.dataManagement'), icon: HardDrive, hidden: !user || !isAdmin },
     { id: 'preferences', label: st('settings.preferences'), icon: Bell, hidden: !user },
+    { id: 'guide', label: st('settings.howToGuide'), icon: BookOpen, hidden: !user },
     { id: 'users', label: st('settings.users'), icon: UserCog, hidden: !user || !isAdmin || serviceMobile },
   ];
 
@@ -1596,7 +1599,9 @@ export function SettingsView({
               ? st('settings.invoiceStyling')
               : tab.id === 'data'
                 ? st('settings.dataResilience')
-                : tab.label,
+                : tab.id === 'guide'
+                  ? st('settings.howToGuide')
+                  : tab.label,
     blurb: moduleBlurb(tab.id, st),
     icon: tab.icon,
     hidden: tab.hidden,
@@ -3175,6 +3180,18 @@ export function SettingsView({
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {user && (
+                <div className={cn(settingsPanel(), !showTab('guide') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <BookOpen size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                      {st('settings.howToGuide')}
+                    </h3>
+                  </div>
+                  <UserGuidePanel />
                 </div>
               )}
 

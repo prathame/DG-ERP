@@ -33,6 +33,7 @@ const BLURB_KEYS: Partial<Record<DesktopSettingsTabId, string>> = {
   bill: 'settings.blurbBill',
   data: 'settings.blurbData',
   preferences: 'settings.blurbPreferences',
+  guide: 'settings.blurbGuide',
   users: 'settings.blurbUsers',
 };
 

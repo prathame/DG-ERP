@@ -419,6 +419,11 @@
     "invoiceStyling": "ઇન્વૉઇસ સ્ટાઇલિંગ",
     "dataResilience": "ડેટા રેઝિલિયન્સ",
     "preferences": "પસંદગીઓ",
+    "howToGuide": "કેવી રીતે વાપરવું",
+    "howToGuideLead": "દુકાન અને એકાઉન્ટન્ટ માટે ટૂંકા પગલાં. વિભાગ પસંદ કરો, પછી વિષય ખોલો.",
+    "howToShop": "દુકાન",
+    "howToAccountant": "એકાઉન્ટન્ટ",
+    "howToGuideFooter": "ચેટબોટ “how to…” પણ જવાબ આપે. Accounts પર Help બટન છે.",
     "users": "વપરાશકર્તાઓ",
     "defaultGstRatePct": "ડિફૉલ્ટ GST દર (%)",
     "gstSplitHint": "CGST + SGST સમાન રીતે વહેંચાશે (e.g. 18% = 9% + 9%)",
@@ -430,6 +435,7 @@
     "blurbBill": "રંગો, લોગો, દૃશ્યતા",
     "blurbData": "બેકઅપ, એક્સપોર્ટ, ક્લાઉડ",
     "blurbPreferences": "ભાષા, રિમાઇન્ડર, દેખાવ",
+    "blurbGuide": "દુકાન અને એકાઉન્ટ્સ કેવી રીતે ચલાવવા",
     "blurbUsers": "ભૂમિકાઓ અને ઑક્સેસ"
   },
   "auth": {

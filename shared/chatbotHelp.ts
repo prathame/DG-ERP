@@ -83,13 +83,27 @@ export const CHATBOT_HELP_ARTICLES: ChatHelpArticle[] = [
     id: 'notes',
     title: 'Credit and debit notes',
     keywords: ['credit note', 'debit note', 'cn', 'dn'],
-    body: `*Credit / Debit notes*\n\nAccounts → Notes → New Note.\nAdd description, qty, *unit* (from Bill Settings), and price.\nLink an invoice/dispatch/quotation id if needed.`,
+    body: `*Credit / Debit notes*\n\nAccounts → Notes → New Note.\nAdd description, qty, unit (from Bill Settings), and price.\nLink an invoice/dispatch/quotation id if needed.`,
+  },
+  {
+    id: 'user-guide',
+    title: 'How to use Dhandho',
+    keywords: [
+      'user guide',
+      'how to use',
+      'documentation',
+      'how to use the app',
+      'accountant guide',
+      'settings how to',
+      'how to use application',
+    ],
+    body: `*How to use*\n\nOpen *Settings → How to use*.\n\n*Shop* covers sales, stock, invoices, and bill units.\n*Accountant* covers Books (COA), receipts, payments, and reports.\n\nAccounts also has a *Help* button on each report.`,
   },
   {
     id: 'chatbot',
     title: 'This assistant',
     keywords: ['chatbot', 'this chat', 'what can you do', 'erp assistant'],
-    body: `I answer *live business data* (sales, stock, invoices, vendors) and *how-to* for Dhandho screens.\n\nType *help* for commands. Try: "sales today", "low stock", "unpaid invoices", "how to set sale units".`,
+    body: `*This assistant*\n\nI answer *live business data* (sales, stock, invoices, vendors) and *how-to* for Dhandho screens.\n\nFor a full shop + accountant guide: *Settings → How to use*.\n\nType *help* for commands. Try: "sales today", "low stock", "unpaid invoices", "how to set sale units".`,
   },
 ];
 

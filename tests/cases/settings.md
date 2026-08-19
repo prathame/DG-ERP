@@ -15,3 +15,4 @@ Covers profile editing, company details, GST configuration, dark mode, language 
 | 9 | WhatsApp auto-send toggle | Open Settings > Notifications; toggle "Auto-send WhatsApp"; save | When enabled, WhatsApp messages are sent automatically on sale/distribution |
 | 10 | Data backup / export | Open Settings > Backup; click "Export Data" | Data export file (CSV/JSON) is downloaded containing tenant data |
 | 11 | Activity log displays | Open Settings > Activity Log | List of recent user actions (login, product added, sale made) with timestamps |
+| 12 | How to use (shop + accountant) | Open Settings → How to use. Switch Shop / Accountant. Open a topic. | Guide lists steps for sales/stock/invoices and for Books receipts/reports |
