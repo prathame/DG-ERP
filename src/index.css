@@ -349,6 +349,92 @@ html.dg-mobile-dense {
 }
 
 /*
+ * Portaled chrome (chat FAB, toasts, vendor overlays) sits on document.body, so
+ * it cannot inherit app-shell layout. Gutters come from html[data-nav-pos] +
+ * --dg-nav-side / --dg-nav-bar (see applyNavChrome).
+ */
+.dg-chat-fab-default {
+  right: 1.25rem;
+  bottom: 1.5rem;
+}
+.dg-chat-tip-default {
+  right: 5.25rem;
+  bottom: 2rem;
+}
+.dg-toast-stack {
+  top: max(0.75rem, var(--safe-top));
+  right: 0.75rem;
+}
+.dg-over-nav {
+  top: max(1rem, env(safe-area-inset-top, 0px));
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  left: 1rem;
+  right: 1rem;
+}
+@media (max-width: 1023px) {
+  .dg-chat-fab-default {
+    bottom: calc(4.75rem + var(--safe-bottom, 0px));
+  }
+  .dg-chat-tip-default {
+    bottom: calc(5.25rem + var(--safe-bottom, 0px));
+  }
+}
+@media (min-width: 640px) {
+  .dg-toast-stack {
+    right: 1rem;
+  }
+}
+@media (min-width: 1024px) {
+  html[data-nav-pos="right"] .dg-chat-fab-default {
+    right: calc(var(--dg-nav-side, 16rem) + 1.25rem);
+  }
+  html[data-nav-pos="right"] .dg-chat-tip-default {
+    right: calc(var(--dg-nav-side, 16rem) + 5.25rem);
+  }
+  html[data-nav-pos="bottom"] .dg-chat-fab-default {
+    bottom: calc(var(--dg-nav-bar, 4rem) + 1.25rem);
+  }
+  html[data-nav-pos="bottom"] .dg-chat-tip-default {
+    bottom: calc(var(--dg-nav-bar, 4rem) + 1.75rem);
+  }
+  .dg-chat-panel-default {
+    bottom: 6rem;
+    right: 1.25rem;
+  }
+  html[data-nav-pos="right"] .dg-chat-panel-default {
+    right: calc(var(--dg-nav-side, 16rem) + 1.25rem);
+  }
+  html[data-nav-pos="bottom"] .dg-chat-panel-default {
+    bottom: calc(var(--dg-nav-bar, 4rem) + 5.5rem);
+  }
+  html[data-nav-pos="right"] .dg-toast-stack {
+    right: calc(var(--dg-nav-side, 16rem) + 0.75rem);
+  }
+  html[data-nav-pos="top"] .dg-toast-stack {
+    top: calc(var(--dg-nav-bar, 4rem) + 0.75rem);
+  }
+  .dg-over-nav {
+    top: 1.5rem;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    right: 1.5rem;
+  }
+  html[data-nav-pos="left"] .dg-over-nav,
+  html:not([data-nav-pos]) .dg-over-nav {
+    left: calc(var(--dg-nav-side, 16rem) + 1.5rem);
+  }
+  html[data-nav-pos="right"] .dg-over-nav {
+    right: calc(var(--dg-nav-side, 16rem) + 1.5rem);
+  }
+  html[data-nav-pos="top"] .dg-over-nav {
+    top: calc(var(--dg-nav-bar, 4rem) + 1.5rem);
+  }
+  html[data-nav-pos="bottom"] .dg-over-nav {
+    bottom: calc(var(--dg-nav-bar, 4rem) + 1.5rem);
+  }
+}
+
+/*
  * Offline Mobile / Capacitor density — phone-native type + spacing
  * (Bizkit / Invoice Ninja–inspired compact chrome without a new UI kit)
  */
@@ -841,12 +927,39 @@ html.dark .dg-desktop-glass::before {
   border-left: 3px solid var(--dg-primary) !important;
   color: var(--dg-ink) !important;
 }
+.dg-desktop-glass[data-nav-pos="right"] .dg-nav-active {
+  border-left: none !important;
+  border-right: 3px solid var(--dg-primary) !important;
+  background: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--dg-primary) 15%, transparent) 0%,
+    transparent 100%
+  ) !important;
+}
+.dg-desktop-glass[data-nav-pos="top"] .dg-nav-active,
+.dg-desktop-glass[data-nav-pos="bottom"] .dg-nav-active {
+  border-left: none !important;
+  border-bottom: 3px solid var(--dg-primary) !important;
+  background: color-mix(in srgb, var(--dg-primary) 12%, transparent) !important;
+}
 .dg-desktop-glass aside.dg-glass-sidebar {
   background: var(--dg-sidebar) !important;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-right: 1px solid var(--dg-card-border) !important;
   box-shadow: none !important;
+}
+.dg-desktop-glass[data-nav-pos="right"] aside.dg-glass-sidebar {
+  border-right: none !important;
+  border-left: 1px solid var(--dg-card-border) !important;
+}
+.dg-desktop-glass[data-nav-pos="top"] aside.dg-glass-sidebar {
+  border-right: none !important;
+  border-bottom: 1px solid var(--dg-card-border) !important;
+}
+.dg-desktop-glass[data-nav-pos="bottom"] aside.dg-glass-sidebar {
+  border-right: none !important;
+  border-top: 1px solid var(--dg-card-border) !important;
 }
 .dg-desktop-glass header.dg-glass-header,
 .dg-desktop-glass .dg-glass-header {

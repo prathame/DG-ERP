@@ -55,6 +55,7 @@ import {
 } from '../../platforms/service-mobile';
 import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPrefs';
 import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
+import { NAV_POSITIONS, getNavPositionPref, setNavPositionPref } from '../../lib/navPositionPref';
 import { UserGuidePanel } from './UserGuidePanel';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
@@ -1213,6 +1214,7 @@ export function SettingsView({
   // Bumped on every toggle click so the switches below re-read localStorage immediately.
   const [, setTabPrefsTick] = useState(0);
   const [, setChatbotPrefsTick] = useState(0);
+  const [, setNavPosTick] = useState(0);
   const chatbotSaEnabled = !serviceMobile && filledTabConfig.chatbot?.visible !== false;
   const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');
   /** Cap phone module sheet (incl. service) — null = hub */
@@ -2240,6 +2242,31 @@ export function SettingsView({
                           )}
                         >
                           {l.nativeLabel}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-semibold text-sm">{st('settings.navPosition')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{st('settings.navPositionDesc')}</p>
+                    <div className="grid grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
+                      {NAV_POSITIONS.map(pos => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => {
+                            setNavPositionPref(pos);
+                            setNavPosTick(n => n + 1);
+                          }}
+                          className={cn(
+                            'dg-compact box-border h-8 min-h-8 max-h-8 px-1 inline-flex items-center justify-center',
+                            'rounded-lg text-[11px] font-bold leading-none transition-colors',
+                            getNavPositionPref() === pos
+                              ? 'bg-brand text-white shadow-sm'
+                              : 'bg-transparent text-gray-600 hover:text-gray-900',
+                          )}
+                        >
+                          {st(`settings.navPosition${pos.charAt(0).toUpperCase()}${pos.slice(1)}`)}
                         </button>
                       ))}
                     </div>
