@@ -23,7 +23,20 @@ router.get('/api/staff', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     await ensureBooksSalaryMirrored(tenantId);
     const { search } = req.query;
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
     // M7 fix: replace 4 correlated subqueries with a single LEFT JOIN aggregate
+    let payWhere = 'WHERE tenant_id = $1';
+    const payParams: unknown[] = [tenantId];
+    let payIdx = 2;
+    if (from) {
+      payWhere += ` AND payment_date >= $${payIdx++}`;
+      payParams.push(from);
+    }
+    if (to) {
+      payWhere += ` AND payment_date <= $${payIdx++}`;
+      payParams.push(to);
+    }
     let sql = `SELECT s.*,
       COALESCE(agg.total_paid, 0)    AS total_paid,
       COALESCE(agg.total_advance, 0) AS total_advance,
@@ -38,12 +51,12 @@ router.get('/api/staff', async (req, res) => {
           SUM(CASE WHEN payment_type = 'advance_repay'     THEN amount ELSE 0 END) AS total_repaid,
           COUNT(*)                                                                  AS payment_count,
           MAX(payment_date)                                                         AS last_payment
-        FROM staff_payments WHERE tenant_id = $1 GROUP BY staff_name
+        FROM staff_payments ${payWhere} GROUP BY staff_name
       ) agg ON agg.staff_name = s.name
       WHERE s.tenant_id = $1`;
-    const params: unknown[] = [tenantId];
+    const params: unknown[] = [...payParams];
     if (typeof search === 'string' && search) {
-      sql += ` AND (s.name ILIKE $2 OR s.phone ILIKE $2 OR s.role ILIKE $2)`;
+      sql += ` AND (s.name ILIKE $${payIdx} OR s.phone ILIKE $${payIdx} OR s.role ILIKE $${payIdx})`;
       params.push(`%${search}%`);
     }
     sql += ' ORDER BY s.name';
@@ -268,6 +281,8 @@ router.get('/api/payroll', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     await ensureBooksSalaryMirrored(tenantId);
     const { month, year, staffName } = req.query;
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
     const { parsePagination } = await import('../utils/pagination');
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
     let where = 'WHERE tenant_id = $1';
@@ -280,6 +295,14 @@ router.get('/api/payroll', async (req, res) => {
     if (typeof staffName === 'string' && staffName) {
       where += ` AND staff_name ILIKE $${idx++}`;
       params.push(`%${staffName}%`);
+    }
+    if (from) {
+      where += ` AND payment_date >= $${idx++}`;
+      params.push(from);
+    }
+    if (to) {
+      where += ` AND payment_date <= $${idx++}`;
+      params.push(to);
     }
     const total = Number(
       (await pool.query(`SELECT COUNT(*)::int AS c FROM staff_payments ${where}`, params)).rows[0].c,
@@ -316,24 +339,39 @@ router.get('/api/payroll/summary', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     await ensureBooksSalaryMirrored(tenantId);
     const { year } = req.query;
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
     const y = parseInt(String(year), 10) || new Date().getFullYear();
+    const useDateRange = !!from && !!to;
+    const filterClause = useDateRange ? 'payment_date >= $2 AND payment_date <= $3' : 'year = $2';
+    const filterParams: unknown[] = useDateRange ? [tenantId, from, to] : [tenantId, y];
     const byStaff = (
       await pool.query(
-        "SELECT staff_name, SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) as total, COUNT(*) as payments FROM staff_payments WHERE tenant_id = $1 AND year = $2 GROUP BY staff_name ORDER BY total DESC",
-        [tenantId, y],
+        `SELECT staff_name, SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) as total, COUNT(*) as payments
+         FROM staff_payments
+         WHERE tenant_id = $1 AND ${filterClause}
+         GROUP BY staff_name
+         ORDER BY total DESC`,
+        filterParams,
       )
     ).rows as { staff_name: string; total: number; payments: number }[];
     const byMonth = (
       await pool.query(
-        "SELECT month, SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) as total, COUNT(*) as payments FROM staff_payments WHERE tenant_id = $1 AND year = $2 GROUP BY month ORDER BY month",
-        [tenantId, y],
+        `SELECT month, SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) as total, COUNT(*) as payments
+         FROM staff_payments
+         WHERE tenant_id = $1 AND ${filterClause}
+         GROUP BY month
+         ORDER BY month`,
+        filterParams,
       )
     ).rows as { month: string; total: number; payments: number }[];
     const grandTotal = Number(
       (
         await pool.query(
-          "SELECT COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END), 0) as t FROM staff_payments WHERE tenant_id = $1 AND year = $2",
-          [tenantId, y],
+          `SELECT COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END), 0) as t
+           FROM staff_payments
+           WHERE tenant_id = $1 AND ${filterClause}`,
+          filterParams,
         )
       ).rows[0]?.t ?? 0,
     );

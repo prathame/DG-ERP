@@ -24,6 +24,7 @@ Complete test case suite for the Splendor ERP application. Each file covers a sp
 | 18 | [service-cloud.md](service-cloud.md) | Service Cloud Seats (online) | 16 | Critical |
 | 19 | [cloud-mobile.md](cloud-mobile.md) | Cloud mobile UX (phones) | 12 | High |
 | 20 | [desktop-electron.md](desktop-electron.md) | Unified Desktop Electron | 6 | Critical |
+| 21 | [financial-year-global.md](financial-year-global.md) | Global Financial Year Filter | 14 | High |
 
 ---
 
