@@ -34,9 +34,6 @@ export const HORIZONTAL_NAV_GROUPS = [
 
 export type HorizontalNavGroupId = (typeof HORIZONTAL_NAV_GROUPS)[number]['id'];
 
-/** Quick shortcuts shown in the floating dock when the menu is on the bottom. */
-export const HORIZONTAL_DOCK_TAB_IDS = ['verification', 'accounts', 'settings'] as const;
-
 const TAB_TO_GROUP = new Map<string, HorizontalNavGroupId>(
   HORIZONTAL_NAV_GROUPS.flatMap(g => g.tabIds.map(tabId => [tabId, g.id] as const)),
 );

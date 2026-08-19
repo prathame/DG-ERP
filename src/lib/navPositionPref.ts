@@ -56,6 +56,6 @@ export function applyNavChrome(pos: NavPosition, collapsed: boolean): void {
   html.dataset.navPos = pos;
   html.dataset.navCollapsed = collapsed ? '1' : '0';
   html.style.setProperty('--dg-nav-side', collapsed ? '4rem' : '16rem');
-  const bar = isNavHorizontal(pos) ? (collapsed ? '3.5rem' : '7rem') : '4rem';
+  const bar = isNavHorizontal(pos) ? (collapsed ? '3.5rem' : '4rem') : '4rem';
   html.style.setProperty('--dg-nav-bar', bar);
 }
