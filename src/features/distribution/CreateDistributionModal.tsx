@@ -72,6 +72,9 @@ export function CreateDistributionModal({
   const [printing, setPrinting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [quickAdd, setQuickAdd] = useState<{ idx: number; name: string } | null>(null);
+  const [quickAddParty, setQuickAddParty] = useState<{ name: string } | null>(null);
+  const [quickAddPartyPhone, setQuickAddPartyPhone] = useState('');
+  const [quickAddingParty, setQuickAddingParty] = useState(false);
   const headerGstRef = useRef<HTMLInputElement>(null);
 
   useEscapeKey(() => {
@@ -316,6 +319,43 @@ export function CreateDistributionModal({
 
   const printAvail = created ? deliveryPrintAvailability(created.bill) : null;
 
+  const onPartyChange = (nextVendor: string) => {
+    setDistVendorId(nextVendor);
+    distRows.forEach((row, idx) => {
+      if (row.productId && nextVendor && (row.quantity || 0) > 0) {
+        resolveDistRowPrice(idx, row.productId, nextVendor, row.quantity || 1);
+      }
+    });
+  };
+
+  const createPartyFromSale = async () => {
+    if (!quickAddParty) return;
+    const name = quickAddParty.name.trim();
+    if (!name) {
+      toast(isDirectSell ? 'Enter a customer name' : 'Enter a vendor name', 'error');
+      return;
+    }
+    setQuickAddingParty(true);
+    try {
+      const createdParty = await api.vendors.create({
+        name,
+        contactPerson: '',
+        phone: quickAddPartyPhone.trim() || undefined,
+        email: '',
+        address: '',
+      });
+      setVendors(prev => (prev.some(v => v.id === createdParty.id) ? prev : [createdParty, ...prev]));
+      onPartyChange(createdParty.id);
+      setQuickAddParty(null);
+      setQuickAddPartyPhone('');
+      toast(isDirectSell ? 'Customer added' : 'Vendor added', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setQuickAddingParty(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={created ? finishCreated : onClose} />
@@ -429,26 +469,23 @@ export function CreateDistributionModal({
                     <label className="text-xs font-bold text-gray-400 uppercase">
                       {isDirectSell ? 'Customer' : 'Vendor'}
                     </label>
-                    <select
-                      value={distVendorId}
-                      onChange={e => {
-                        const nextVendor = e.target.value;
-                        setDistVendorId(nextVendor);
-                        distRows.forEach((row, idx) => {
-                          if (row.productId && nextVendor && (row.quantity || 0) > 0) {
-                            resolveDistRowPrice(idx, row.productId, nextVendor, row.quantity || 1);
-                          }
-                        });
-                      }}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    >
-                      <option value="">{isDirectSell ? 'Select customer' : 'Select vendor'}</option>
-                      {vendors.map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1">
+                      <SearchSelect
+                        value={distVendorId}
+                        placeholder={isDirectSell ? 'Select customer' : 'Select vendor'}
+                        onCreateNew={typed => setQuickAddParty({ name: typed || '' })}
+                        createNewLabel={isDirectSell ? 'customer' : 'vendor'}
+                        options={vendors
+                          .slice()
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map(v => ({
+                            value: v.id,
+                            label: v.name,
+                            sublabel: v.phone || undefined,
+                          }))}
+                        onChange={onPartyChange}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
@@ -839,6 +876,59 @@ export function CreateDistributionModal({
             setQuickAdd(null);
           }}
         />
+      )}
+      {quickAddParty && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setQuickAddParty(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6"
+          >
+            <h3 className="text-lg font-bold mb-1">{isDirectSell ? 'Add customer' : 'Add vendor'}</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Create a new {isDirectSell ? 'customer' : 'vendor'} without leaving this sale.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Name</label>
+                <input
+                  autoFocus
+                  value={quickAddParty.name}
+                  onChange={e => setQuickAddParty({ name: e.target.value })}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  placeholder={isDirectSell ? 'Customer name' : 'Vendor name'}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Phone (optional)</label>
+                <input
+                  value={quickAddPartyPhone}
+                  onChange={e => setQuickAddPartyPhone(e.target.value)}
+                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  placeholder="10-digit phone"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => setQuickAddParty(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void createPartyFromSale()}
+                disabled={quickAddingParty}
+                className="flex-1 py-2.5 bg-brand text-white rounded-xl text-sm font-bold disabled:opacity-60"
+              >
+                {quickAddingParty ? 'Saving…' : `Save ${isDirectSell ? 'customer' : 'vendor'}`}
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   );
