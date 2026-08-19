@@ -13,6 +13,7 @@ export { NotificationCenter } from './NotificationCenter';
 export { AppModal } from './AppModal';
 export { ModalActions, ModalActionButton } from './ModalActions';
 export { FormSection, FormGrid, FormField, formControlClass } from './FormSection';
+export { BillLineUnitLabel } from './BillLineUnitLabel';
 export { MobileStepper } from './MobileStepper';
 export { LineItemCard, type LineItemCardField } from './LineItemCard';
 export {

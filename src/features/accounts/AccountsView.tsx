@@ -43,6 +43,7 @@ import {
   dateControlClass,
   PeriodPresetChips,
   FinancialYearSelect,
+  BillLineUnitLabel,
 } from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
@@ -1579,7 +1580,7 @@ function NotesView({
         setBillUnits(units);
         setNoteForm(prev => ({
           ...prev,
-          items: prev.items.map(it => ({ ...it, unit: normalizeLineUnit(it.unit, unitDefault) })),
+          items: prev.items.map(it => ({ ...it, unit: unitDefault })),
         }));
       })
       .catch(() => {});
@@ -1595,7 +1596,9 @@ function NotesView({
           ...noteForm,
           referenceType: noteForm.referenceType || undefined,
           referenceId: noteForm.referenceId || undefined,
-          items: noteForm.items.filter(i => i.description && i.price > 0),
+          items: noteForm.items
+            .filter(i => i.description && i.price > 0)
+            .map(i => ({ ...i, unit: defaultBillUnit(billUnits) })),
         }),
       });
       setCreating(false);
@@ -1780,26 +1783,7 @@ function NotesView({
                   className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                   placeholder="Qty"
                 />
-                <select
-                  value={normalizeLineUnit(item.unit, defaultBillUnit(billUnits))}
-                  onChange={e =>
-                    setNoteForm({
-                      ...noteForm,
-                      items: noteForm.items.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)),
-                    })
-                  }
-                  className="w-24 px-1 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  {(() => {
-                    const current = normalizeLineUnit(item.unit, defaultBillUnit(billUnits));
-                    const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-                    return opts.map(u => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ));
-                  })()}
-                </select>
+                <BillLineUnitLabel unit={normalizeLineUnit(item.unit, defaultBillUnit(billUnits))} />
                 <input
                   type="text"
                   inputMode="decimal"

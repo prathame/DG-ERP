@@ -15,7 +15,7 @@ Covers invoice branding (logo, color, tagline), numbering prefix, bank details, 
 | 8 | Hide barcode on invoice | Toggle "Show Barcode" OFF; save | Product barcodes are not printed on invoices |
 | 8b | Show HSN/SAC (Offline default OFF) | Settings → Bill Customization → toggle "Show HSN/SAC" ON; save; open invoice create | HSN/SAC inputs appear on line items; PDF includes HSN/SAC column. With toggle OFF, neither form nor PDF shows HSN/SAC |
 | 8c | GST toggle drives quotation Include GST | Settings → Bill Customization → GST OFF; open New Quotation | No per-line Include GST checkbox; totals show “GST off”; saved quote/PDF has no tax. GST ON → Include GST checked by default and drives tax + PDF (same flag as invoices) |
-| 8d | Sale units list | Settings → Bill Customization → Sale Units: keep Piece, add Kg / Meter / custom; save | New invoice, quotation, and credit/debit note lines show that unit dropdown; qty accepts 2.5; PDF shows `2.5 Kg` |
+| 8d | Sale units list | Settings → Bill Customization → Sale Units: keep Piece, or tap Inch/Cm for plywood; save | New invoice/quotation/note lines show that unit as text (not a dropdown); qty accepts 2.5; PDF shows `2.5 Kg` when Kg is first |
 | 8e | Sale units do not change stock | After changing Sale Units, open Inventory, barcode Sales, Purchases, Dispatch | Still piece/box (or 1 barcode = 1 qty). Settings units are for bills only |
 | 9 | Hide warranty info on invoice | Toggle "Show Warranty" OFF; save | Warranty details are not printed on invoices |
 | 10 | Live preview updates | Change any setting (logo, color, tagline) | Preview panel updates in real time without saving |

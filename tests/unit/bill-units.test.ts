@@ -10,8 +10,9 @@ import {
 
 describe('billUnits', () => {
   it('normalizes defaults when empty', () => {
-    expect(normalizeBillUnits(undefined)).toEqual([...DEFAULT_BILL_UNITS]);
-    expect(normalizeBillUnits([])).toEqual([...DEFAULT_BILL_UNITS]);
+    expect(normalizeBillUnits(undefined)).toEqual(['Piece']);
+    expect(normalizeBillUnits([])).toEqual(['Piece']);
+    expect(DEFAULT_BILL_UNITS).toEqual(['Piece']);
   });
 
   it('dedupes and trims custom units', () => {
