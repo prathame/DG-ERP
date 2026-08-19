@@ -997,15 +997,38 @@ export default function App() {
   }, [visibleNavItems]);
   const horizontalGroups = useMemo(() => visibleHorizontalNavGroups(visibleTabIdSet), [visibleTabIdSet]);
   const [horizontalMenuOpen, setHorizontalMenuOpen] = useState<HorizontalNavGroupId | null>(null);
+  const horizontalNavMenusRef = useRef<HTMLDivElement>(null);
+  const userMenuNavRef = useRef<HTMLDivElement>(null);
+  const userMenuMainRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!navH) setHorizontalMenuOpen(null);
   }, [navH, navPosTick]);
   useEffect(() => {
     if (!horizontalMenuOpen) return;
-    const close = () => setHorizontalMenuOpen(null);
+    const close = (e: PointerEvent) => {
+      if (horizontalNavMenusRef.current?.contains(e.target as Node)) return;
+      setHorizontalMenuOpen(null);
+    };
     window.addEventListener('pointerdown', close);
     return () => window.removeEventListener('pointerdown', close);
   }, [horizontalMenuOpen]);
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const close = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (userMenuNavRef.current?.contains(target) || userMenuMainRef.current?.contains(target)) return;
+      setUserMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [userMenuOpen]);
 
   // Cap OS notification tap → open tab (or just bring app to foreground)
   useEffect(() => {
@@ -1482,7 +1505,10 @@ export default function App() {
             }}
           />
         )}
-        <div className="relative flex items-center gap-2 sm:gap-3 shrink-0">
+        <div
+          ref={inNavBar ? userMenuNavRef : userMenuMainRef}
+          className="relative flex items-center gap-2 sm:gap-3 shrink-0"
+        >
           <button
             type="button"
             onClick={() => setUserMenuOpen(o => !o)}
@@ -1512,21 +1538,11 @@ export default function App() {
           </button>
           {userMenuOpen && (
             <div
-              className="fixed inset-0 z-40"
-              onClick={() => setUserMenuOpen(false)}
-              onKeyDown={e => {
-                if (e.key === 'Escape') setUserMenuOpen(false);
-              }}
-              aria-hidden="true"
-            />
-          )}
-          {userMenuOpen && (
-            <div
               key={`user-menu-${placement}`}
               role="menu"
               aria-labelledby={inNavBar ? 'account-menu-button-nav' : 'account-menu-button'}
               className={cn(
-                'dg-menu-enter absolute right-0 z-[70] w-52 rounded-xl shadow-xl py-1 overflow-hidden',
+                'dg-menu-enter absolute right-0 z-[100] w-52 rounded-xl shadow-xl py-1 overflow-hidden',
                 menuUp ? 'bottom-full mb-2' : 'top-full mt-2',
                 desktopGlass
                   ? 'dg-glass-card border border-[var(--dg-card-border)]'
@@ -1598,6 +1614,7 @@ export default function App() {
           <div
             className={cn(
               'app-shell flex flex-1 min-h-0 font-sans overflow-hidden',
+              navH && 'lg:overflow-visible',
               desktopGlass ? 'dg-desktop-glass' : capGlassHeader ? 'dg-mobile-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
               drawerRight && 'lg:flex-row-reverse',
               navPos === 'top' && 'lg:flex-col',
@@ -1705,7 +1722,10 @@ export default function App() {
                 )}
               >
                 {navH && horizontalGroups.length > 0 && (
-                  <div className="hidden lg:flex lg:items-center lg:gap-1 lg:flex-1 lg:min-w-0">
+                  <div
+                    ref={horizontalNavMenusRef}
+                    className="hidden lg:flex lg:items-center lg:gap-1 lg:flex-1 lg:min-w-0 lg:relative lg:z-[80]"
+                  >
                     {horizontalGroups.map(g => {
                       const groupItems = horizontalNavGroupTabIds(g.id)
                         .map(id => navItemById.get(id))
@@ -1717,7 +1737,6 @@ export default function App() {
                         <div key={g.id} className="relative shrink-0">
                           <button
                             type="button"
-                            onPointerDown={e => e.stopPropagation()}
                             onClick={() => setHorizontalMenuOpen(menuOpen ? null : g.id)}
                             className={cn(
                               'flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors min-h-[36px]',
@@ -1740,9 +1759,8 @@ export default function App() {
                           {menuOpen ? (
                             <div
                               role="menu"
-                              onPointerDown={e => e.stopPropagation()}
                               className={cn(
-                                'absolute left-0 z-[60] min-w-[12rem] rounded-xl border py-1 shadow-lg',
+                                'absolute left-0 z-[100] min-w-[12rem] rounded-xl border py-1 shadow-lg',
                                 navPos === 'bottom' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
                                 desktopGlass
                                   ? 'dg-glass-card border-[var(--dg-card-border)] bg-[var(--dg-sidebar)]'
@@ -1897,7 +1915,7 @@ export default function App() {
                     ? 'border-t border-[var(--dg-card-border)] bg-transparent'
                     : 'border-t border-gray-100 bg-white',
                   navH &&
-                    'lg:flex lg:items-center lg:gap-2 lg:border-t-0 lg:border-l lg:pb-0 lg:pr-3 lg:pl-2 lg:ml-auto lg:shrink-0',
+                    'lg:flex lg:items-center lg:gap-2 lg:border-t-0 lg:border-l lg:pb-0 lg:pr-3 lg:pl-2 lg:ml-auto lg:shrink-0 lg:relative lg:z-[80]',
                 )}
               >
                 {navH && (
@@ -1980,6 +1998,7 @@ export default function App() {
               <header
                 className={cn(
                   'sticky top-0 z-30 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe',
+                  navH && 'lg:hidden',
                   desktopGlass
                     ? 'dg-glass-header'
                     : capGlassHeader

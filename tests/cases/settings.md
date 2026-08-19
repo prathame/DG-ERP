@@ -16,4 +16,4 @@ Covers profile editing, company details, GST configuration, dark mode, language 
 | 10 | Data backup / export | Open Settings > Backup; click "Export Data" | Data export file (CSV/JSON) is downloaded containing tenant data |
 | 11 | Activity log displays | Open Settings > Activity Log | List of recent user actions (login, product added, sale made) with timestamps |
 | 12 | How to use (shop + accountant) | Open Settings → How to use. Switch Shop / Accountant. Open a topic. | Guide lists steps for sales/stock/invoices and for Books receipts/reports |
-| 13 | Menu position | Open Settings → Appearance. Pick Top or Bottom. | Group menus open as dropdowns; search, notifications, and profile sit in the top bar. Settings only from profile menu. Subscription banner above everything |
+| 13 | Menu position | Open Settings → Appearance. Pick Top or Bottom. | Group dropdowns open tabs; search/notifications/profile sit in the nav bar (no second header row). Settings only from profile menu. Subscription banner above everything |
