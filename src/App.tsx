@@ -49,6 +49,12 @@ import { loadLicense } from './platforms/service-mobile/licenseStore';
 import { getTabVisiblePref, TAB_VISIBLE_PREF_CHANGED_EVENT } from './lib/tabVisibilityPrefs';
 import { getChatbotPref, CHATBOT_PREF_CHANGED_EVENT } from './lib/chatbotPref';
 import {
+  getNavPositionPref,
+  isNavHorizontal,
+  applyNavChrome,
+  NAV_POSITION_PREF_CHANGED_EVENT,
+} from './lib/navPositionPref';
+import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
   ServiceCloudConfigRefresh,
@@ -680,6 +686,15 @@ export default function App() {
     window.addEventListener(CHATBOT_PREF_CHANGED_EVENT, onChatbotPref);
     return () => window.removeEventListener(CHATBOT_PREF_CHANGED_EVENT, onChatbotPref);
   }, []);
+  const [navPosTick, setNavPosTick] = useState(0);
+  useEffect(() => {
+    const onNavPos = () => setNavPosTick(n => n + 1);
+    window.addEventListener(NAV_POSITION_PREF_CHANGED_EVENT, onNavPos);
+    return () => window.removeEventListener(NAV_POSITION_PREF_CHANGED_EVENT, onNavPos);
+  }, []);
+  useEffect(() => {
+    applyNavChrome(getNavPositionPref(), !isSidebarOpen);
+  }, [navPosTick, isSidebarOpen]);
   const [user, setUser] = useState<{
     id: string;
     email: string;
@@ -1328,6 +1343,9 @@ export default function App() {
     .filter((n): n is NonNullable<typeof n> => !!n)
     .slice(0, 4);
   const mobileMoreActive = !mobileNavItems.some(i => isNavItemActive(i.id, activeTab)) && activeTab !== 'settings';
+  const navPos = navPosTick >= 0 ? getNavPositionPref() : 'left';
+  const navH = isNavHorizontal(navPos);
+  const drawerRight = navPos === 'right';
 
   return (
     <ToastProvider>
@@ -1347,7 +1365,11 @@ export default function App() {
           className={cn(
             'app-shell flex h-[100dvh] max-h-[100dvh] font-sans overflow-hidden',
             desktopGlass ? 'dg-desktop-glass' : capGlassHeader ? 'dg-mobile-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
+            drawerRight && 'lg:flex-row-reverse',
+            navPos === 'top' && 'lg:flex-col',
+            navPos === 'bottom' && 'lg:flex-col-reverse',
           )}
+          data-nav-pos={navPos}
         >
           {/* Mobile sidebar backdrop */}
           {isSidebarOpen && (
@@ -1357,17 +1379,42 @@ export default function App() {
               aria-hidden="true"
             />
           )}
-          {/* Sidebar — full-height drawer on phone, rail on desktop */}
+          {/* Sidebar — drawer on phone, rail or bar on desktop */}
           <aside
             className={cn(
-              'transition-transform duration-300 flex flex-col z-50',
+              'transition-transform duration-300 z-50 flex flex-col',
+              navH && 'lg:flex-row lg:items-stretch',
               desktopGlass
                 ? 'dg-glass-sidebar shadow-none'
                 : capGlassHeader
-                  ? 'bg-[var(--dg-header)] border-r border-[var(--dg-card-border)] shadow-xl lg:shadow-none'
-                  : 'bg-white border-r border-gray-200 shadow-xl lg:shadow-none',
-              'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
-              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-64' : 'w-16 -translate-x-full lg:translate-x-0',
+                  ? cn(
+                      'bg-[var(--dg-header)] shadow-xl lg:shadow-none',
+                      drawerRight
+                        ? 'border-l border-[var(--dg-card-border)]'
+                        : 'border-r border-[var(--dg-card-border)]',
+                      navH && 'lg:border-l-0 lg:border-r-0',
+                      navPos === 'top' && 'lg:border-b lg:border-[var(--dg-card-border)]',
+                      navPos === 'bottom' && 'lg:border-t lg:border-[var(--dg-card-border)]',
+                    )
+                  : cn(
+                      'bg-white shadow-xl lg:shadow-none',
+                      drawerRight ? 'border-l border-gray-200' : 'border-r border-gray-200',
+                      navH && 'lg:border-l-0 lg:border-r-0',
+                      navPos === 'top' && 'lg:border-b lg:border-gray-200',
+                      navPos === 'bottom' && 'lg:border-t lg:border-gray-200',
+                    ),
+              'fixed lg:relative',
+              drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
+              'h-[100dvh] max-h-[100dvh]',
+              navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
+              navH && (isSidebarOpen ? 'lg:h-16' : 'lg:h-14'),
+              isSidebarOpen
+                ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
+                : cn(
+                    'w-16 lg:translate-x-0',
+                    drawerRight ? 'translate-x-full' : '-translate-x-full',
+                    navH && 'lg:w-full',
+                  ),
             )}
           >
             {/* Sticky brand / profile */}
@@ -1375,6 +1422,7 @@ export default function App() {
               className={cn(
                 'shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0',
                 desktopGlass ? 'border-b border-[var(--dg-card-border)]' : 'border-b border-gray-100',
+                navH && 'lg:border-b-0 lg:border-r lg:h-auto lg:self-stretch lg:max-w-[11rem]',
               )}
             >
               {isSidebarOpen && (
@@ -1413,7 +1461,12 @@ export default function App() {
             </div>
 
             {/* Scrollable menu */}
-            <nav className="flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain">
+            <nav
+              className={cn(
+                'flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain',
+                navH && 'lg:overflow-x-auto lg:overflow-y-hidden lg:flex lg:flex-row lg:items-center lg:gap-1 lg:py-0',
+              )}
+            >
               {navSections.map(section => {
                 // Cap Online companion: same mobile_features filter as bottom nav / command palette
                 const sectionItems = section.items.filter(i => i.show && canAccess(i.id) && companionAllows(i.id));
@@ -1421,12 +1474,21 @@ export default function App() {
                 const isCollapsed = section.label ? collapsedSections.has(section.label) : false;
                 const hasActiveChild = sectionItems.some(i => activeTab === i.id);
                 return (
-                  <div key={section.label || '_top'} className={section.label ? 'mt-2 first:mt-0' : ''}>
+                  <div
+                    key={section.label || '_top'}
+                    className={cn(
+                      section.label ? 'mt-2 first:mt-0' : '',
+                      navH && 'lg:mt-0 lg:flex lg:items-center lg:shrink-0',
+                    )}
+                  >
                     {isSidebarOpen && section.label && (
                       <button
                         type="button"
                         onClick={() => toggleSection(section.label)}
-                        className="w-full flex items-center justify-between px-2.5 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors min-h-9"
+                        className={cn(
+                          'w-full flex items-center justify-between px-2.5 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors min-h-9',
+                          navH && 'lg:hidden',
+                        )}
                       >
                         <span
                           className={cn(
@@ -1442,9 +1504,19 @@ export default function App() {
                         />
                       </button>
                     )}
-                    {!isSidebarOpen && section.label && <div className="my-1.5 mx-2 border-t border-gray-100" />}
-                    {(!isCollapsed || !isSidebarOpen) && (
-                      <div className="space-y-0.5">
+                    {navH && section.label ? (
+                      <div className="hidden lg:block w-px self-stretch min-h-6 bg-gray-200 mx-1 shrink-0" />
+                    ) : null}
+                    {!isSidebarOpen && section.label && (
+                      <div className={cn('my-1.5 mx-2 border-t border-gray-100', navH && 'lg:hidden')} />
+                    )}
+                    {(!isCollapsed || !isSidebarOpen || navH) && (
+                      <div
+                        className={cn(
+                          'space-y-0.5',
+                          navH && 'lg:flex lg:flex-row lg:items-center lg:gap-0.5 lg:space-y-0',
+                        )}
+                      >
                         {sectionItems.map(item => (
                           <button
                             key={item.id}
@@ -1454,11 +1526,16 @@ export default function App() {
                               if (window.innerWidth < 1024) setIsSidebarOpen(false);
                             }}
                             className={cn(
-                              'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
+                              'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
+                              navH ? 'w-full lg:w-auto lg:shrink-0 lg:min-h-0 lg:py-1.5' : 'w-full',
                               isNavItemActive(item.id, activeTab)
                                 ? desktopGlass
                                   ? 'dg-nav-active font-semibold pl-[7px]'
-                                  : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                                  : navH
+                                    ? 'bg-brand/10 text-brand font-semibold'
+                                    : drawerRight
+                                      ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
+                                      : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
                                 : desktopGlass
                                   ? 'dg-muted hover:opacity-100'
                                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -1471,7 +1548,16 @@ export default function App() {
                             />
                             {isSidebarOpen && <span className="truncate">{item.label}</span>}
                             {!isSidebarOpen && (
-                              <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                              <span
+                                className={cn(
+                                  'absolute px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50',
+                                  navH
+                                    ? 'top-full mt-2 left-1/2 -translate-x-1/2'
+                                    : drawerRight
+                                      ? 'right-full mr-2'
+                                      : 'left-full ml-2',
+                                )}
+                              >
                                 {item.label}
                               </span>
                             )}
@@ -1491,6 +1577,7 @@ export default function App() {
                 desktopGlass
                   ? 'border-t border-[var(--dg-card-border)] bg-transparent'
                   : 'border-t border-gray-100 bg-white',
+                navH && 'lg:flex lg:items-center lg:border-t-0 lg:border-l lg:pb-0 lg:pr-2',
               )}
             >
               {!serviceMobile &&
@@ -1525,7 +1612,7 @@ export default function App() {
                 </div>
               )}
               {canAccess('settings') && (
-                <div className="px-2.5 lg:px-3 pt-2">
+                <div className={cn('px-2.5 lg:px-3 pt-2', navH && 'lg:pt-0 lg:px-2')}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1533,11 +1620,16 @@ export default function App() {
                       if (window.innerWidth < 1024) setIsSidebarOpen(false);
                     }}
                     className={cn(
-                      'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
+                      'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
+                      navH ? 'w-full lg:w-auto lg:min-h-0 lg:py-1.5' : 'w-full',
                       activeTab === 'settings'
                         ? desktopGlass
                           ? 'dg-nav-active font-semibold pl-[7px]'
-                          : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                          : navH
+                            ? 'bg-brand/10 text-brand font-semibold'
+                            : drawerRight
+                              ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
+                              : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
                         : desktopGlass
                           ? 'dg-muted hover:opacity-100'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -1549,7 +1641,7 @@ export default function App() {
                 </div>
               )}
               {isSidebarOpen && (
-                <div className="px-3 pt-2 pb-1 text-center">
+                <div className={cn('px-3 pt-2 pb-1 text-center', navH && 'lg:hidden')}>
                   <p className={cn('text-[10px]', desktopGlass ? 'dg-faint' : 'text-gray-400')}>
                     {t('common.poweredBy')}
                   </p>
@@ -1559,7 +1651,7 @@ export default function App() {
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto relative">
+          <main className={cn('flex-1 overflow-y-auto relative', navH && 'lg:min-h-0 min-w-0')}>
             {/* Subscription expiry banner */}
             {(() => {
               const subEnd = (userConfig?.subscriptionEndsAt || userConfig?.trialEndsAt) as string | undefined;

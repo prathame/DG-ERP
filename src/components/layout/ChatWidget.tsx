@@ -5,6 +5,7 @@ import { MessageCircle, X, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { NAV_POSITION_PREF_CHANGED_EVENT } from '../../lib/navPositionPref';
 
 interface Message {
   id: number;
@@ -47,13 +48,19 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     setPortalReady(true);
   }, []);
 
+  useEffect(() => {
+    const reset = () => setPos(null);
+    window.addEventListener(NAV_POSITION_PREF_CHANGED_EVENT, reset);
+    return () => window.removeEventListener(NAV_POSITION_PREF_CHANGED_EVENT, reset);
+  }, []);
+
   const onPointerDown = (e: React.PointerEvent) => {
     dragging.current = false;
     dragStart.current = {
       x: e.clientX,
       y: e.clientY,
-      bx: pos?.x ?? window.innerWidth - 72,
-      by: pos?.y ?? window.innerHeight - 80,
+      bx: pos?.x ?? e.currentTarget.getBoundingClientRect().left,
+      by: pos?.y ?? e.currentTarget.getBoundingClientRect().top,
     };
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - dragStart.current.x;
@@ -169,7 +176,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
         className={cn(
           Z_CHAT,
           'fixed w-14 h-14 rounded-full flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing touch-none',
-          !pos && 'right-5 bottom-6 max-lg:bottom-[calc(4.75rem+var(--safe-bottom,0px))]',
+          !pos && 'dg-chat-fab-default',
           desktopGlass
             ? cn(
                 'shadow-[0_10px_28px_color-mix(in_srgb,var(--dg-primary)_35%,transparent)]',
@@ -224,7 +231,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
             className={cn(
               Z_TIP,
               'fixed px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap pointer-events-none',
-              !pos && 'right-[5.25rem] bottom-8 max-lg:bottom-[calc(5.25rem+var(--safe-bottom,0px))]',
+              !pos && 'dg-chat-tip-default',
               desktopGlass
                 ? 'bg-[var(--dg-chat-surface)] dg-ink border border-[var(--dg-card-border)] shadow-[0_8px_24px_rgba(25,28,30,0.12)]'
                 : 'bg-white border border-gray-200 text-gray-700 shadow-lg',
@@ -247,7 +254,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             className={cn(
               Z_CHAT,
-              'fixed inset-0 lg:inset-auto lg:bottom-24 lg:right-5 lg:w-[400px] lg:h-[min(480px,calc(100vh-8rem))] lg:max-h-[calc(100vh-6rem)] lg:rounded-2xl overflow-hidden flex flex-col pt-[env(safe-area-inset-top,0px)] lg:pt-0',
+              'fixed inset-0 lg:inset-auto dg-chat-panel-default lg:w-[400px] lg:h-[min(480px,calc(100vh-8rem))] lg:max-h-[calc(100vh-6rem)] lg:rounded-2xl overflow-hidden flex flex-col pt-[env(safe-area-inset-top,0px)] lg:pt-0',
               desktopGlass
                 ? 'bg-[var(--dg-chat-panel)] lg:border lg:border-[var(--dg-card-border)] shadow-[0_16px_48px_rgba(25,28,30,0.18)]'
                 : 'bg-white lg:border lg:border-gray-200 shadow-2xl',

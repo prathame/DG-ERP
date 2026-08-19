@@ -2702,7 +2702,7 @@ export function DistributionView({
                     setSelectedBatchId(null);
                   }}
                 />
-                <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] bottom-[max(1rem,env(safe-area-inset-bottom,0px))] left-4 right-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] overflow-y-auto rounded-2xl shadow-2xl bg-[var(--dg-bg)] border border-[var(--dg-card-border)]">
+                <div className="dg-over-nav absolute overflow-y-auto rounded-2xl shadow-2xl bg-[var(--dg-bg)] border border-[var(--dg-card-border)]">
                   {selectedVendorContent}
                 </div>
               </div>
@@ -2831,7 +2831,7 @@ export function DistributionView({
                       setSelectedBatchId(null);
                     }}
                   />
-                  <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] bottom-[max(1rem,env(safe-area-inset-bottom,0px))] left-4 right-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] bg-white overflow-y-auto rounded-2xl shadow-2xl">
+                  <div className="dg-over-nav absolute overflow-y-auto rounded-2xl shadow-2xl bg-white">
                     {selectedVendorContent}
                   </div>
                 </div>
