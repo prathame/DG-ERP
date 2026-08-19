@@ -250,6 +250,7 @@ export function NotificationCenter({ onNavigate, canAccessTab, portaled, openBel
       ref={!portaled ? panelRef : undefined}
       className={cn(
         'w-[min(100vw-2rem,22rem)] bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden',
+        portaled && 'dg-opaque-menu',
         !portaled && 'absolute right-0 mt-2 z-50',
       )}
     >

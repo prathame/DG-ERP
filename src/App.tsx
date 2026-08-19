@@ -2245,7 +2245,7 @@ export default function App() {
             className={cn(
               'min-w-[12rem] rounded-xl border py-1 shadow-lg',
               desktopGlass
-                ? 'dg-glass-card border-[var(--dg-card-border)] bg-[var(--dg-sidebar)]'
+                ? 'dg-glass-card dg-opaque-menu border-[var(--dg-card-border)] bg-[var(--dg-chat-surface)]'
                 : 'bg-white border-gray-200',
             )}
           >
@@ -2286,7 +2286,9 @@ export default function App() {
             aria-labelledby={navH ? 'account-menu-button-nav' : 'account-menu-button'}
             className={cn(
               'dg-menu-enter w-52 rounded-xl shadow-xl py-1 overflow-hidden',
-              desktopGlass ? 'dg-glass-card border border-[var(--dg-card-border)]' : 'bg-white border border-gray-100',
+              desktopGlass
+                ? 'dg-glass-card dg-opaque-menu border border-[var(--dg-card-border)] bg-[var(--dg-chat-surface)]'
+                : 'bg-white border border-gray-100',
             )}
           >
             <div
