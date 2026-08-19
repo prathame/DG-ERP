@@ -434,6 +434,10 @@ html.dg-mobile-dense {
   }
 }
 
+.dg-horizontal-dock {
+  max-width: min(96vw, 36rem);
+}
+
 /*
  * Offline Mobile / Capacitor density — phone-native type + spacing
  * (Bizkit / Invoice Ninja–inspired compact chrome without a new UI kit)

@@ -455,6 +455,9 @@
     "enterpriseResourcePlanning": "एंटरप्राइज रिसोर्स प्लानिंग"
   },
   "navSections": {
+    "home": "एनालिटिक्स",
+    "operations": "ऑपरेशन्स",
+    "financeShort": "वित्त",
     "supplyChain": "सप्लाई चेन",
     "financeReports": "वित्त और रिपोर्ट",
     "transactions": "लेन-देन",

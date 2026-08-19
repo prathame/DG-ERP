@@ -40,6 +40,9 @@
     "bookImport": "Miracle Import"
   },
   "navSections": {
+    "home": "Analytics",
+    "operations": "Operations",
+    "financeShort": "Finance",
     "supplyChain": "Supply Chain",
     "financeReports": "Finance & Reports",
     "transactions": "Transactions",

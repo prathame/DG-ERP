@@ -455,6 +455,9 @@
     "enterpriseResourcePlanning": "એન્ટરપ્રાઈઝ રિસોર્સ પ્લાનિંગ"
   },
   "navSections": {
+    "home": "એનાલિટિક્સ",
+    "operations": "ઓપરેશન્સ",
+    "financeShort": "ફાઇનાન્સ",
     "supplyChain": "સપ્લાય ચેન",
     "financeReports": "ફાઇનાન્સ અને રિપોર્ટ્સ",
     "transactions": "વ્યવહારો",
