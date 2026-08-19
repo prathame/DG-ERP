@@ -358,7 +358,7 @@ export function NotificationCenter({ onNavigate, canAccessTab, portaled, openBel
 
       {open && !portaled ? panel : null}
       {open && portaled && anchor ? (
-        <ShellDropdownPortal anchor={anchor} openBelow={openBelow} align="right" panelRef={panelRef}>
+        <ShellDropdownPortal anchor={anchor} openBelow={openBelow} align="right" panelRef={panelRef} forceOpaque>
           {panel}
         </ShellDropdownPortal>
       ) : null}
