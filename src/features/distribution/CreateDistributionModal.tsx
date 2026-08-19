@@ -322,7 +322,7 @@ export function CreateDistributionModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative bg-white w-full max-w-6xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+        className="relative bg-white w-full max-w-[calc(100vw-2rem)] rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
       >
         {created && printAvail ? (
           <div className="text-center py-6 space-y-4">
@@ -462,11 +462,11 @@ export function CreateDistributionModal({
                 </div>
 
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
-                  <table className="w-full text-left">
+                  <table className="w-full text-left table-fixed min-w-[960px]">
                     <thead>
                       <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
-                        <th className="px-2 py-3 w-8">#</th>
-                        <th className="px-2 py-3 min-w-[200px]">Product</th>
+                        <th className="px-2 py-3 w-[4%]">#</th>
+                        <th className="px-2 py-3 w-[44%]">Product</th>
                         <th className="px-2 py-3 w-24">Qty</th>
                         <th className="px-2 py-3 w-32">Price (₹)</th>
                         <th className="px-2 py-3 w-20">Disc%</th>
@@ -497,7 +497,7 @@ export function CreateDistributionModal({
                         return (
                           <tr key={idx} className="hover:bg-gray-50">
                             <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2 w-[44%] min-w-0">
                               <SearchSelect
                                 value={row.productId}
                                 placeholder="Select product"
