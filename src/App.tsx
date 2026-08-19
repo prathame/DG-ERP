@@ -1396,6 +1396,189 @@ export default function App() {
     );
   })();
 
+  const renderAppHeaderChrome = (placement: 'main' | 'nav') => {
+    const inNavBar = placement === 'nav';
+    const menuUp = inNavBar && navPos === 'bottom';
+    return (
+      <div className={cn('flex items-center gap-0.5 sm:gap-2 shrink-0 min-w-0', inNavBar && 'lg:gap-2')}>
+        {isServiceCloudMobile() && user && !servicePhoneUx && (
+          <ServiceCloudLiveBadge variant="header" userId={user.id} companySessionLock={false} />
+        )}
+        <button
+          type="button"
+          onClick={() => setCmdOpen(true)}
+          className={cn(
+            'sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg',
+            capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100 text-gray-500',
+          )}
+          aria-label="Search"
+        >
+          <Search size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setCmdOpen(true)}
+          className={cn(
+            'hidden sm:flex items-center gap-2 px-3 py-1.5 transition-colors text-sm min-w-0',
+            desktopGlass
+              ? cn(
+                  'rounded-full border border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-muted',
+                  inNavBar ? 'lg:min-w-[10rem] lg:max-w-[14rem]' : 'min-w-[16rem] lg:min-w-[22rem]',
+                )
+              : cn('bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500', inNavBar && 'lg:max-w-[14rem]'),
+          )}
+        >
+          <Search size={15} className="shrink-0" />
+          <span className={cn(desktopGlass && 'flex-1 text-left truncate')}>
+            {desktopGlass ? 'Search across business entities...' : 'Search...'}
+          </span>
+          <kbd
+            className={cn(
+              'text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0',
+              desktopGlass ? 'border-[var(--dg-card-border)] dg-faint' : 'bg-white border-gray-200 text-gray-400',
+              inNavBar && 'lg:hidden',
+            )}
+          >
+            ⌘K
+          </kbd>
+        </button>
+        <div
+          className={cn(
+            'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border shrink-0',
+            desktopGlass
+              ? 'bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] border-[color-mix(in_srgb,var(--dg-primary)_28%,transparent)]'
+              : 'bg-amber-50 border-amber-100',
+          )}
+        >
+          <div
+            className={cn(
+              'w-2 h-2 rounded-full animate-pulse',
+              desktopGlass ? 'bg-[var(--dg-primary)]' : 'bg-amber-400',
+            )}
+          />
+          <span
+            className={cn(
+              'text-[10px] font-bold uppercase tracking-wider whitespace-nowrap',
+              desktopGlass ? 'dg-primary' : 'text-amber-700',
+            )}
+          >
+            {(() => {
+              const raw = String(userConfig?.planName || 'Standard').trim();
+              return /plan$/i.test(raw) ? raw : `${raw} Plan`;
+            })()}
+          </span>
+        </div>
+        <NotificationCenter
+          onNavigate={tab => {
+            if (canAccess(tab)) setActiveTab(tab as Tab);
+          }}
+          canAccessTab={canAccess}
+        />
+        {isServiceCloudMobile() && user && !servicePhoneUx && (
+          <ServiceCloudConfigRefresh
+            userId={user.id}
+            onConfigRefreshed={merged => {
+              setUser(merged as typeof user);
+            }}
+          />
+        )}
+        <div className="relative flex items-center gap-2 sm:gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setUserMenuOpen(o => !o)}
+            className={cn(
+              'flex items-center gap-2 sm:gap-3 rounded-xl p-1 transition-colors',
+              capGlassHeader ? 'hover:bg-[var(--dg-input)]' : 'hover:bg-gray-100',
+            )}
+            aria-label="Account menu"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="menu"
+            id={inNavBar ? 'account-menu-button-nav' : 'account-menu-button'}
+          >
+            <div className={cn('text-right hidden sm:block', inNavBar && 'lg:max-w-[7rem]')}>
+              <p className="text-sm font-semibold truncate">{user?.name ?? 'Guest'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.role ?? 'Not signed in'}</p>
+            </div>
+            <div
+              className={cn(
+                'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-[11px] sm:text-sm shrink-0',
+                desktopGlass || capGlassHeader
+                  ? 'dg-bg-primary border-[var(--dg-card-border)]'
+                  : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
+              )}
+            >
+              {avatarInitials}
+            </div>
+          </button>
+          {userMenuOpen && (
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setUserMenuOpen(false)}
+              onKeyDown={e => {
+                if (e.key === 'Escape') setUserMenuOpen(false);
+              }}
+              aria-hidden="true"
+            />
+          )}
+          {userMenuOpen && (
+            <div
+              key={`user-menu-${placement}`}
+              role="menu"
+              aria-labelledby={inNavBar ? 'account-menu-button-nav' : 'account-menu-button'}
+              className={cn(
+                'dg-menu-enter absolute right-0 z-[70] w-52 rounded-xl shadow-xl py-1 overflow-hidden',
+                menuUp ? 'bottom-full mb-2' : 'top-full mt-2',
+                desktopGlass
+                  ? 'dg-glass-card border border-[var(--dg-card-border)]'
+                  : 'bg-white border border-gray-100',
+              )}
+            >
+              <div
+                className={cn(
+                  'px-4 py-3 border-b',
+                  desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                )}
+              >
+                <p className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}>
+                  {user?.name}
+                </p>
+                <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>{user?.email}</p>
+              </div>
+              <div className="py-1">
+                {canAccess('settings') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('settings');
+                      setUserMenuOpen(false);
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
+                      desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
+                    )}
+                  >
+                    <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
+                    {t('nav.settings')}
+                  </button>
+                )}
+              </div>
+              <div className={cn('border-t py-1', desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100')}>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
+                >
+                  <LogOut size={15} />
+                  {t('common.logout')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <ToastProvider>
       <ServiceCloudGate
@@ -1458,7 +1641,7 @@ export default function App() {
                 drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
                 'h-[100dvh] max-h-[100dvh]',
                 navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
-                navH && 'lg:h-14',
+                navH && 'lg:h-14 lg:overflow-visible',
                 isSidebarOpen
                   ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
                   : cn(
@@ -1706,37 +1889,43 @@ export default function App() {
                 </div>
               </nav>
 
-              {/* Pinned footer: chatbot (cloud), settings, status */}
+              {/* Pinned footer: chatbot (cloud), settings, status — header chrome when horizontal */}
               <div
                 className={cn(
                   'shrink-0 pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2',
                   desktopGlass
                     ? 'border-t border-[var(--dg-card-border)] bg-transparent'
                     : 'border-t border-gray-100 bg-white',
-                  navH && 'lg:flex lg:items-center lg:border-t-0 lg:border-l lg:pb-0 lg:pr-2',
+                  navH &&
+                    'lg:flex lg:items-center lg:gap-2 lg:border-t-0 lg:border-l lg:pb-0 lg:pr-3 lg:pl-2 lg:ml-auto lg:shrink-0',
                 )}
               >
+                {navH && (
+                  <div className="hidden lg:flex lg:items-center lg:min-w-0">{renderAppHeaderChrome('nav')}</div>
+                )}
                 {!serviceMobile &&
                   tv('chatbot') &&
                   getChatbotPref() &&
                   // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
                   // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
                   (!companionFeatures || companionFeatures.chatbot) && (
-                    <Suspense fallback={null}>
-                      <ChatWidget desktopGlass={desktopGlass} />
-                    </Suspense>
+                    <div className={cn(navH && 'lg:hidden')}>
+                      <Suspense fallback={null}>
+                        <ChatWidget desktopGlass={desktopGlass} />
+                      </Suspense>
+                    </div>
                   )}
                 {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
                 {(serviceMobile ||
                   ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
                     ?.deploymentMode === 'onprem') && (
-                  <div className="px-2.5 lg:px-3 pt-2">
+                  <div className={cn('px-2.5 lg:px-3 pt-2', navH && 'lg:hidden')}>
                     <OnlineStatus collapsed={!isSidebarOpen} adapter={serviceMobile ? smOnlineAdapter : undefined} />
                   </div>
                 )}
                 {/* Service Cap Online — Live + Refresh stay in drawer (Emergent chrome). Non-service: App header. */}
                 {isServiceCloudMobile() && user && servicePhoneUx && (
-                  <div className="px-2.5 lg:px-3 pt-2">
+                  <div className={cn('px-2.5 lg:px-3 pt-2', navH && 'lg:hidden')}>
                     <ServiceCloudLiveBadge
                       collapsed={!isSidebarOpen}
                       userId={user.id}
@@ -1829,189 +2018,8 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-0.5 sm:gap-3 shrink-0">
-                  {/* Cap Online non-service: Live → search → notify → refresh → avatar (Accounts mock denser chrome) */}
-                  {isServiceCloudMobile() && user && !servicePhoneUx && (
-                    <ServiceCloudLiveBadge variant="header" userId={user.id} companySessionLock={false} />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setCmdOpen(true)}
-                    className={cn(
-                      'sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg',
-                      capGlassHeader ? 'hover:bg-[var(--dg-input)] dg-m-muted' : 'hover:bg-gray-100 text-gray-500',
-                    )}
-                    aria-label="Search"
-                  >
-                    <Search size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCmdOpen(true)}
-                    className={cn(
-                      'hidden sm:flex items-center gap-2 px-3 py-1.5 transition-colors text-sm',
-                      desktopGlass
-                        ? 'rounded-full border border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-muted min-w-[16rem] lg:min-w-[22rem]'
-                        : 'bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500',
-                    )}
-                  >
-                    <Search size={15} />
-                    <span className={desktopGlass ? 'flex-1 text-left' : undefined}>
-                      {desktopGlass ? 'Search across business entities...' : 'Search...'}
-                    </span>
-                    <kbd
-                      className={cn(
-                        'text-[10px] font-mono px-1.5 py-0.5 rounded border',
-                        desktopGlass
-                          ? 'border-[var(--dg-card-border)] dg-faint'
-                          : 'bg-white border-gray-200 text-gray-400',
-                      )}
-                    >
-                      ⌘K
-                    </kbd>
-                  </button>
-                  <div
-                    className={cn(
-                      'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border',
-                      desktopGlass
-                        ? 'bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] border-[color-mix(in_srgb,var(--dg-primary)_28%,transparent)]'
-                        : 'bg-amber-50 border-amber-100',
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'w-2 h-2 rounded-full animate-pulse',
-                        desktopGlass ? 'bg-[var(--dg-primary)]' : 'bg-amber-400',
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        'text-[10px] font-bold uppercase tracking-wider',
-                        desktopGlass ? 'dg-primary' : 'text-amber-700',
-                      )}
-                    >
-                      {(() => {
-                        const raw = String(userConfig?.planName || 'Standard').trim();
-                        // plans.name is "Basic" / "Trial" — avoid "Basic Plan Plan"
-                        return /plan$/i.test(raw) ? raw : `${raw} Plan`;
-                      })()}
-                    </span>
-                  </div>
-                  <NotificationCenter
-                    onNavigate={tab => {
-                      if (canAccess(tab)) setActiveTab(tab as Tab);
-                    }}
-                    canAccessTab={canAccess}
-                  />
-                  {isServiceCloudMobile() && user && !servicePhoneUx && (
-                    <ServiceCloudConfigRefresh
-                      userId={user.id}
-                      onConfigRefreshed={merged => {
-                        setUser(merged as typeof user);
-                      }}
-                    />
-                  )}
-                  <div className="relative flex items-center gap-2 sm:gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setUserMenuOpen(o => !o)}
-                      className={cn(
-                        'flex items-center gap-3 rounded-xl p-1 transition-colors',
-                        capGlassHeader ? 'hover:bg-[var(--dg-input)]' : 'hover:bg-gray-100',
-                      )}
-                      aria-label="Account menu"
-                      aria-expanded={userMenuOpen}
-                      aria-haspopup="menu"
-                      id="account-menu-button"
-                    >
-                      <div className="text-right hidden sm:block">
-                        <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
-                        <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
-                      </div>
-                      <div
-                        className={cn(
-                          'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-[11px] sm:text-sm',
-                          desktopGlass || capGlassHeader
-                            ? 'dg-bg-primary border-[var(--dg-card-border)]'
-                            : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
-                        )}
-                      >
-                        {avatarInitials}
-                      </div>
-                    </button>
-                    {userMenuOpen && (
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setUserMenuOpen(false)}
-                        onKeyDown={e => {
-                          if (e.key === 'Escape') setUserMenuOpen(false);
-                        }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    {userMenuOpen && (
-                      <div
-                        key="user-menu"
-                        role="menu"
-                        aria-labelledby="account-menu-button"
-                        className={cn(
-                          'dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 rounded-xl shadow-xl py-1 overflow-hidden',
-                          desktopGlass
-                            ? 'dg-glass-card border border-[var(--dg-card-border)]'
-                            : 'bg-white border border-gray-100',
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            'px-4 py-3 border-b',
-                            desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
-                          )}
-                        >
-                          <p
-                            className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}
-                          >
-                            {user?.name}
-                          </p>
-                          <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
-                            {user?.email}
-                          </p>
-                        </div>
-                        <div className="py-1">
-                          {canAccess('settings') && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveTab('settings');
-                                setUserMenuOpen(false);
-                              }}
-                              className={cn(
-                                'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
-                                desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
-                              )}
-                            >
-                              <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
-                              {t('nav.settings')}
-                            </button>
-                          )}
-                        </div>
-                        <div
-                          className={cn(
-                            'border-t py-1',
-                            desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
-                          )}
-                        >
-                          <button
-                            type="button"
-                            onClick={handleLogout}
-                            className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
-                          >
-                            <LogOut size={15} />
-                            {t('common.logout')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                <div className={cn('flex items-center gap-0.5 sm:gap-3 shrink-0', navH && 'lg:hidden')}>
+                  {renderAppHeaderChrome('main')}
                 </div>
               </header>
 
