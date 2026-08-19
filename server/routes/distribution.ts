@@ -28,6 +28,8 @@ router.get('/api/distribution/summary', async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const jwtVendorId = vendorScopeId(req);
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
     if (req.user?.role === 'Vendor' && !jwtVendorId) {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
     }
@@ -37,13 +39,47 @@ router.get('/api/distribution/summary', async (req: AuthRequest, res) => {
       : ((await pool.query('SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1', [tenantId]))
           .rows[0] as { total: number });
 
+    let distWhere = 'WHERE tenant_id = $1';
+    const distParams: (string | number)[] = [tenantId];
+    let distIdx = 1;
+    if (jwtVendorId) {
+      distIdx++;
+      distWhere += ` AND vendor_id = $${distIdx}`;
+      distParams.push(jwtVendorId);
+    }
+    if (from) {
+      distIdx++;
+      distWhere += ` AND distribution_date >= $${distIdx}`;
+      distParams.push(from);
+    }
+    if (to) {
+      distIdx++;
+      distWhere += ` AND distribution_date <= $${distIdx}`;
+      distParams.push(to);
+    }
     const totalDistributed = (
-      await pool.query(
-        `SELECT COUNT(*) as count FROM product_distribution WHERE tenant_id = $1 ${jwtVendorId ? 'AND vendor_id = $2' : ''}`,
-        jwtVendorId ? [tenantId, jwtVendorId] : [tenantId],
-      )
+      await pool.query(`SELECT COUNT(*) as count FROM product_distribution ${distWhere}`, distParams)
     ).rows[0] as { count: number };
 
+    const vendorStatsParams: (string | number)[] = [tenantId];
+    let vendorParamIdx = 1;
+    let joinFilter = '';
+    if (from) {
+      vendorParamIdx++;
+      joinFilter += ` AND pd.distribution_date >= $${vendorParamIdx}`;
+      vendorStatsParams.push(from);
+    }
+    if (to) {
+      vendorParamIdx++;
+      joinFilter += ` AND pd.distribution_date <= $${vendorParamIdx}`;
+      vendorStatsParams.push(to);
+    }
+    let whereFilter = 'WHERE v.tenant_id = $1';
+    if (jwtVendorId) {
+      vendorParamIdx++;
+      whereFilter += ` AND v.id = $${vendorParamIdx}`;
+      vendorStatsParams.push(jwtVendorId);
+    }
     const vendorStats = (
       await pool.query(
         `
@@ -53,11 +89,14 @@ router.get('/api/distribution/summary', async (req: AuthRequest, res) => {
         SUM(CASE WHEN pd.status = 'Replaced' THEN 1 ELSE 0 END) as replaced,
         SUM(CASE WHEN pd.status = 'Damaged' THEN 1 ELSE 0 END) as damaged
       FROM vendors v
-      LEFT JOIN product_distribution pd ON pd.vendor_id = v.id AND pd.tenant_id = $1
-      WHERE v.tenant_id = $1 ${jwtVendorId ? 'AND v.id = $2' : ''}
+      LEFT JOIN product_distribution pd
+        ON pd.vendor_id = v.id
+       AND pd.tenant_id = $1
+       ${joinFilter}
+      ${whereFilter}
       GROUP BY v.id, v.name
     `,
-        jwtVendorId ? [tenantId, jwtVendorId] : [tenantId],
+        vendorStatsParams,
       )
     ).rows as { id: string; name: string; distributed: number; sold: number; replaced: number; damaged: number }[];
 
@@ -88,6 +127,8 @@ router.get('/api/distribution', async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { batchId } = req.query;
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
     const jwtVendorId = vendorScopeId(req);
     if (req.user?.role === 'Vendor' && !jwtVendorId) {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
@@ -113,6 +154,16 @@ router.get('/api/distribution', async (req: AuthRequest, res) => {
       paramIdx++;
       sql += ` AND pd.batch_id = $${paramIdx}`;
       params.push(batchId);
+    }
+    if (from) {
+      paramIdx++;
+      sql += ` AND pd.distribution_date >= $${paramIdx}`;
+      params.push(from);
+    }
+    if (to) {
+      paramIdx++;
+      sql += ` AND pd.distribution_date <= $${paramIdx}`;
+      params.push(to);
     }
     sql += ' ORDER BY pd.distribution_date DESC, pd.id';
     const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
@@ -147,6 +198,8 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
     if (unlinked) return res.status(403).json({ error: unlinked });
 
     const { vendorId } = req.query;
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
     const jwtVendorId = vendorScopeId(req);
     const effectiveVendorId = jwtVendorId || (typeof vendorId === 'string' ? vendorId : undefined);
     let sql = `
@@ -183,6 +236,16 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
       paramIdx++;
       sql += ` AND pd.vendor_id = $${paramIdx}`;
       params.push(effectiveVendorId);
+    }
+    if (from) {
+      paramIdx++;
+      sql += ` AND pd.distribution_date >= $${paramIdx}`;
+      params.push(from);
+    }
+    if (to) {
+      paramIdx++;
+      sql += ` AND pd.distribution_date <= $${paramIdx}`;
+      params.push(to);
     }
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     const offset = Number(req.query.offset) || 0;

@@ -4,6 +4,7 @@ import { clientLogger, ensureCorrelationId } from './lib/logger';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { serviceCloudClientHeader } from './platforms/service-cloud/mode';
 import { appClientHeader } from './lib/deviceId';
+import { defaultDateRangeFromReportingPeriod } from './lib/reportingPeriod';
 
 export interface DistributionRecord {
   id: string;
@@ -19,6 +20,10 @@ export interface DistributionRecord {
   netPrice?: number | null;
   gstApplied?: boolean;
   billedPrice?: number | null;
+}
+
+function globalReportingRange(): { from: string; to: string } {
+  return defaultDateRangeFromReportingPeriod();
 }
 
 export interface DistributionBatch {
@@ -668,19 +673,30 @@ export const api = {
       }>(`/dashboard/vendor/${vendorId}`),
   },
   distribution: {
-    list: (vendorId?: string, batchId?: string) => {
+    list: (vendorId?: string, batchId?: string, from?: string, to?: string) => {
       const q = new URLSearchParams();
       if (vendorId) q.set('vendorId', vendorId);
       if (batchId) q.set('batchId', batchId);
+      const range = globalReportingRange();
+      q.set('from', from || range.from);
+      q.set('to', to || range.to);
       const qs = q.toString();
       return fetchApi<DistributionRecord[]>(`/distribution${qs ? `?${qs}` : ''}`);
     },
-    batches: (vendorId?: string) =>
-      fetchApi<DistributionBatch[]>(
-        `/distribution/batches${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`,
-      ),
-    summary: () =>
-      fetchApi<{
+    batches: (vendorId?: string, from?: string, to?: string) => {
+      const q = new URLSearchParams();
+      if (vendorId) q.set('vendorId', vendorId);
+      const range = globalReportingRange();
+      q.set('from', from || range.from);
+      q.set('to', to || range.to);
+      return fetchApi<DistributionBatch[]>(`/distribution/batches?${q.toString()}`);
+    },
+    summary: (from?: string, to?: string) => {
+      const q = new URLSearchParams();
+      const range = globalReportingRange();
+      q.set('from', from || range.from);
+      q.set('to', to || range.to);
+      return fetchApi<{
         totalBeforeDistribution: number;
         availableInInventory: number;
         totalDistributed: number;
@@ -693,7 +709,8 @@ export const api = {
           damaged: number;
           availableWithVendor: number;
         }[];
-      }>('/distribution/summary'),
+      }>(`/distribution/summary?${q.toString()}`);
+    },
     createBatch: (data: {
       vendorId: string;
       distributionDate?: string;
@@ -786,8 +803,9 @@ export const api = {
       if (params?.vendorId) q.set('vendorId', params.vendorId);
       if (params?.page) q.set('page', String(params.page));
       if (params?.dateRange) q.set('dateRange', params.dateRange);
-      if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
-      if (params?.dateTo) q.set('dateTo', params.dateTo);
+      const range = globalReportingRange();
+      q.set('dateFrom', params?.dateFrom || range.from);
+      q.set('dateTo', params?.dateTo || range.to);
       const qs = q.toString();
       return fetchApi<{ data: SaleRecord[]; total: number; page: number; totalPages: number }>(
         `/sales${qs ? `?${qs}` : ''}`,
@@ -1368,8 +1386,9 @@ export const api = {
     list: (filters?: { category?: string; from?: string; to?: string }) => {
       const q = new URLSearchParams();
       if (filters?.category) q.set('category', filters.category);
-      if (filters?.from) q.set('from', filters.from);
-      if (filters?.to) q.set('to', filters.to);
+      const range = globalReportingRange();
+      q.set('from', filters?.from || range.from);
+      q.set('to', filters?.to || range.to);
       return fetchApi<
         {
           id: string;
@@ -1406,8 +1425,13 @@ export const api = {
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/expenses/${id}`, { method: 'DELETE' }),
   },
   staff: {
-    list: (search?: string) =>
-      fetchApi<
+    list: (search?: string, from?: string, to?: string) => {
+      const q = new URLSearchParams();
+      if (search) q.set('search', search);
+      const range = globalReportingRange();
+      q.set('from', from || range.from);
+      q.set('to', to || range.to);
+      return fetchApi<
         {
           id: string;
           name: string;
@@ -1424,7 +1448,8 @@ export const api = {
           paymentCount: number;
           lastPayment?: string;
         }[]
-      >(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+      >(`/staff?${q.toString()}`);
+    },
     create: (data: {
       name: string;
       phone?: string;
@@ -1442,11 +1467,14 @@ export const api = {
       fetchApi<{ name: string; totalPaid: number; paymentCount: number; lastPayment: string; firstPayment: string }[]>(
         `/payroll/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`,
       ),
-    list: (filters?: { month?: string; year?: number; staffName?: string }) => {
+    list: (filters?: { month?: string; year?: number; staffName?: string; from?: string; to?: string }) => {
       const q = new URLSearchParams();
       if (filters?.month) q.set('month', filters.month);
       if (filters?.year) q.set('year', String(filters.year));
       if (filters?.staffName) q.set('staffName', filters.staffName);
+      const range = globalReportingRange();
+      q.set('from', filters?.from || range.from);
+      q.set('to', filters?.to || range.to);
       return fetchApi<
         {
           id: string;
@@ -1462,14 +1490,20 @@ export const api = {
         }[]
       >(`/payroll?${q}`);
     },
-    summary: (year?: number) =>
-      fetchApi<{
+    summary: (year?: number, from?: string, to?: string) => {
+      const q = new URLSearchParams();
+      const range = globalReportingRange();
+      q.set('from', from || range.from);
+      q.set('to', to || range.to);
+      if (year) q.set('year', String(year));
+      return fetchApi<{
         year: number;
         grandTotal: number;
         advanceOutstanding: number;
         byStaff: { name: string; total: number; payments: number }[];
         byMonth: { month: string; total: number; payments: number }[];
-      }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
+      }>(`/payroll/summary?${q.toString()}`);
+    },
     create: (data: {
       staffName: string;
       amount: number;
