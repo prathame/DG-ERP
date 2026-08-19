@@ -13,6 +13,7 @@ import {
   FormGrid,
   FormField,
   formControlClass,
+  BillLineUnitLabel,
 } from '../../components/ui';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
@@ -217,13 +218,13 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         setRows(prev =>
           prev.map(r =>
             r.productId || r.description.trim()
-              ? { ...r, unit: normalizeLineUnit(r.unit, unitDefault) }
+              ? { ...r, unit: unitDefault }
               : {
                   ...r,
                   withGst: on,
                   gstPercent: on ? r.gstPercent || 18 : 0,
                   hsnSac: on ? r.hsnSac : '',
-                  unit: normalizeLineUnit(r.unit, unitDefault),
+                  unit: unitDefault,
                 },
           ),
         );
@@ -490,7 +491,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
               description: description.trim() || p?.name || 'Item',
               hsnSac: withGst ? hsnSac : '',
               qty,
-              unit: normalizeLineUnit(unit, defaultBillUnit(billUnits)),
+              unit: defaultBillUnit(billUnits),
               rate,
               gstPercent: withGst ? gstPercent : 0,
               discountPercent: discountPercent || 0,
@@ -980,23 +981,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                               />
                             </td>
                             <td className="px-2 py-2">
-                              <select
-                                value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
-                                onChange={e =>
-                                  setRows(prev => prev.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
-                                }
-                                className="w-full min-w-[72px] px-1 py-2 border border-gray-200 rounded-lg text-sm"
-                              >
-                                {(() => {
-                                  const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
-                                  const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-                                  return opts.map(u => (
-                                    <option key={u} value={u}>
-                                      {u}
-                                    </option>
-                                  ));
-                                })()}
-                              </select>
+                              <BillLineUnitLabel unit={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))} />
                             </td>
                             <td className="px-2 py-2">
                               <input

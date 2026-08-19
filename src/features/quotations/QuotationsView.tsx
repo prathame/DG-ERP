@@ -35,6 +35,7 @@ import {
   MobileFab,
   MobileEmptyState,
   MobileListRow,
+  BillLineUnitLabel,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -483,7 +484,7 @@ export function QuotationsView() {
         items: validRows.map(r => ({
           ...(r.productId ? { productId: r.productId } : { description: r.description.trim() }),
           quantity: r.quantity,
-          unit: normalizeLineUnit(r.unit, defaultBillUnit(billUnits)),
+          unit: editingId ? normalizeLineUnit(r.unit, defaultBillUnit(billUnits)) : defaultBillUnit(billUnits),
           customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
           discountPercent: r.discount > 0 ? r.discount : undefined,
           withGst: quotationLineWithGst(gstBilling, !!editingId, r.withGst),
@@ -1295,23 +1296,7 @@ export function QuotationsView() {
                     {
                       key: 'unit',
                       label: 'Unit',
-                      node: (
-                        <select
-                          value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
-                          onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))}
-                          className={formControlClass}
-                        >
-                          {(() => {
-                            const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
-                            const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-                            return opts.map(u => (
-                              <option key={u} value={u}>
-                                {u}
-                              </option>
-                            ));
-                          })()}
-                        </select>
-                      ),
+                      node: <BillLineUnitLabel unit={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))} />,
                     },
                     {
                       key: 'price',
@@ -1468,23 +1453,7 @@ export function QuotationsView() {
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <select
-                              value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
-                              onChange={e =>
-                                setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
-                              }
-                              className="w-full px-1 py-1.5 border border-gray-200 rounded-lg text-sm"
-                            >
-                              {(() => {
-                                const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
-                                const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-                                return opts.map(u => (
-                                  <option key={u} value={u}>
-                                    {u}
-                                  </option>
-                                ));
-                              })()}
-                            </select>
+                            <BillLineUnitLabel unit={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))} />
                           </td>
                           <td className="px-3 py-2">
                             <input

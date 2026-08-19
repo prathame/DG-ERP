@@ -23,6 +23,7 @@ import {
   MobileFab,
   MobileEmptyState,
   QuickAddProductModal,
+  BillLineUnitLabel,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
@@ -1140,7 +1141,7 @@ export function CreateInvoiceModal({
             ...r,
             gstPercent: on ? r.gstPercent || 18 : 0,
             hsnSac: on ? r.hsnSac : '',
-            unit: normalizeLineUnit(r.unit, unitDefault),
+            unit: unitDefault,
           })),
         );
       })
@@ -1370,7 +1371,7 @@ export function CreateInvoiceModal({
             description,
             hsnSac: gstBilling ? hsnSac : '',
             qty,
-            unit: normalizeLineUnit(unit, defaultBillUnit(billUnits)),
+            unit: defaultBillUnit(billUnits),
             rate,
             gstPercent: gstBilling ? gstPercent : 0,
             discountPercent: discountPercent || 0,
@@ -1543,23 +1544,7 @@ export function CreateInvoiceModal({
       {
         key: 'unit',
         label: 'Unit',
-        node: (
-          <select
-            value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
-            onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))}
-            className={formControlClass}
-          >
-            {(() => {
-              const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
-              const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-              return opts.map(u => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ));
-            })()}
-          </select>
-        ),
+        node: <BillLineUnitLabel unit={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))} />,
       },
       {
         key: 'rate',
@@ -1946,23 +1931,7 @@ export function CreateInvoiceModal({
                                 />
                               </td>
                               <td className="px-3 py-2">
-                                <select
-                                  value={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))}
-                                  onChange={e =>
-                                    setRows(rows.map((r, i) => (i === idx ? { ...r, unit: e.target.value } : r)))
-                                  }
-                                  className="w-full px-1 py-1.5 border border-gray-200 rounded-lg text-sm"
-                                >
-                                  {(() => {
-                                    const current = normalizeLineUnit(row.unit, defaultBillUnit(billUnits));
-                                    const opts = billUnits.includes(current) ? billUnits : [current, ...billUnits];
-                                    return opts.map(u => (
-                                      <option key={u} value={u}>
-                                        {u}
-                                      </option>
-                                    ));
-                                  })()}
-                                </select>
+                                <BillLineUnitLabel unit={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))} />
                               </td>
                               <td className="px-3 py-2">
                                 <input

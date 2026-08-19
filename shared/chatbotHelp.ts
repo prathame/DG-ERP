@@ -21,7 +21,7 @@ export const CHATBOT_HELP_ARTICLES: ChatHelpArticle[] = [
       'sell in kg',
       'sell in meter',
     ],
-    body: `*Sale Units*\n\nConfigure once: *Settings → Bill Customization → Sale Units*.\nAdd Piece, Kg, Meter, Cm, Inch, or a custom unit, then Save.\n\nOn *Invoices*, *Quotations*, and *Credit/Debit notes*, pick the unit on each line. Qty can be decimal (e.g. 2.5 Kg). The printed bill shows the unit.\n\n*Inventory, barcode Sales, Purchases, and Dispatch stay piece/box* — those track barcodes, not Kg stock.`,
+    body: `*Sale Units*\n\nSet them only in *Settings → Bill Customization → Sale Units* — not on the invoice.\nElectrical shops use Piece. Plywood can use Inch or Cm. Measured goods use Kg or Meter.\nTap a unit so it is first — every new bill line uses that unit. Qty can be decimal (e.g. 2.5 Kg).\n\n*Inventory, barcode Sales, Purchases, and Dispatch stay piece/box* — those track barcodes, not Kg stock.`,
   },
   {
     id: 'bill-settings',
@@ -47,13 +47,13 @@ export const CHATBOT_HELP_ARTICLES: ChatHelpArticle[] = [
     id: 'invoices',
     title: 'Create an invoice',
     keywords: ['create invoice', 'new invoice', 'make a bill', 'how to invoice', 'standalone invoice'],
-    body: `*Create an invoice*\n\nOpen *Invoices* → New.\nAdd party name, then lines (catalog item or custom description).\nPick *Qty* and *Unit* from Bill Settings, set Rate, then Save as draft or send.\nPrint or WhatsApp uses your Bill Customization template.\n\nAsk me *"unpaid invoices"* or *"invoices today"* for live totals.`,
+    body: `*Create an invoice*\n\nOpen *Invoices* → New.\nAdd party name, then lines (catalog item or custom description).\nQty uses your sale unit from Bill Settings. Set Rate, then Save as draft or send.\nPrint or WhatsApp uses your Bill Customization template.\n\nAsk me *"unpaid invoices"* or *"invoices today"* for live totals.`,
   },
   {
     id: 'quotations',
     title: 'Quotations',
     keywords: ['quotation', 'quote', 'convert quote', 'how to quote'],
-    body: `*Quotations*\n\nOpen *Quotations* → New. Add lines with qty, unit, and price.\nStatuses: Draft → Sent → Accepted, then *Convert* to an invoice (service) or dispatch (goods).\nPartial convert is allowed until remaining qty is 0.\n\nAsk me *"quotations"* for a live count.`,
+    body: `*Quotations*\n\nOpen *Quotations* → New. Add lines with qty and price. Unit comes from Bill Settings.\nStatuses: Draft → Sent → Accepted, then *Convert* to an invoice (service) or dispatch (goods).\nPartial convert is allowed until remaining qty is 0.\n\nAsk me *"quotations"* for a live count.`,
   },
   {
     id: 'inventory',
@@ -65,7 +65,7 @@ export const CHATBOT_HELP_ARTICLES: ChatHelpArticle[] = [
     id: 'sales',
     title: 'Record a sale',
     keywords: ['how to sell', 'counter sale', 'barcode sale', 'sales entry'],
-    body: `*Sales (barcode)*\n\nOpen *Sales* → scan or enter a barcode that is InStock (or Distributed to you).\nThat records 1 piece sold, and can create warranty/rewards when those modules are on.\n\nFor Kg/Meter billing without barcodes, use *Invoices* and pick a sale unit.\n\nAsk me *"sales today"* or *"recent sales"*.`,
+    body: `*Sales (barcode)*\n\nOpen *Sales* → scan or enter a barcode that is InStock (or Distributed to you).\nThat records 1 piece sold, and can create warranty/rewards when those modules are on.\n\nFor Kg/Meter billing without barcodes, set the unit in *Settings → Bill Customization*, then use *Invoices*.\n\nAsk me *"sales today"* or *"recent sales"*.`,
   },
   {
     id: 'dispatch',
