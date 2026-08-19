@@ -1,6 +1,9 @@
-/** Bill sale units — configured once in Bill Settings, picked on invoice/quote lines. */
+/** Bill sale units — configured only in Bill Settings; bill lines use the first unit. */
 
-export const DEFAULT_BILL_UNITS = ['Piece', 'Kg', 'Meter', 'Cm', 'Inch'] as const;
+export const BILL_UNIT_PRESETS = ['Piece', 'Kg', 'Meter', 'Cm', 'Inch'] as const;
+
+/** New / empty tenant list. Electrical default; plywood adds Inch or Cm in Settings. */
+export const DEFAULT_BILL_UNITS = ['Piece'] as const;
 
 export const DEFAULT_BILL_UNIT = 'Piece';
 

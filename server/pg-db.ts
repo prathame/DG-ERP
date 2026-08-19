@@ -598,10 +598,11 @@ export async function initSchema() {
     // Hotel guest bills: GST optional (off by default for small restaurants)
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS hosp_charge_gst BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS fssai_license TEXT`);
-    // Sale units for invoices/quotations (Piece, Kg, Meter, …) — JSON array of labels
+    // Sale units for invoices/quotations — first label is used on every new bill line
     await client.query(
-      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS bill_units JSONB DEFAULT '["Piece","Kg","Meter","Cm","Inch"]'::jsonb`,
+      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS bill_units JSONB DEFAULT '["Piece"]'::jsonb`,
     );
+    await client.query(`ALTER TABLE bill_settings ALTER COLUMN bill_units SET DEFAULT '["Piece"]'::jsonb`);
 
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');

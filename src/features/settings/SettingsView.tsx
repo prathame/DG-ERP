@@ -28,7 +28,7 @@ import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../
 import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
-import { DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../../shared/billUnits';
+import { BILL_UNIT_PRESETS, DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../../shared/billUnits';
 import { useTranslation, LANGUAGES } from '../../i18n';
 import { useToast, LoadingSpinner, PercentProgressBar } from '../../components/ui';
 import { session } from '../../lib/session';
@@ -834,17 +834,38 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Sale units — one place for Kg / Meter / Piece / custom */}
+        {/* Sale units — Settings only; first unit is used on every bill line */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">{st('settings.billUnits')}</p>
           <p className="text-xs text-gray-500 mb-3">{st('settings.billUnitsDesc')}</p>
           <div className="flex flex-wrap gap-2 mb-3">
-            {normalizeBillUnits(form.billUnits).map(unit => (
+            {normalizeBillUnits(form.billUnits).map((unit, unitIdx) => (
               <span
                 key={unit}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-medium text-gray-800"
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium',
+                  unitIdx === 0 ? 'bg-brand/10 text-brand ring-1 ring-brand/30' : 'bg-gray-100 text-gray-800',
+                )}
               >
-                {unit}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm(p => {
+                      const list = normalizeBillUnits(p.billUnits);
+                      if (list[0] === unit) return p;
+                      return { ...p, billUnits: [unit, ...list.filter(u => u !== unit)] };
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5"
+                  title={st('settings.billUnitsDesc')}
+                >
+                  {unit}
+                  {unitIdx === 0 ? (
+                    <span className="text-[10px] font-bold uppercase tracking-wide opacity-80">
+                      {st('settings.billUnitsOnBills')}
+                    </span>
+                  ) : null}
+                </button>
                 <button
                   type="button"
                   aria-label={`Remove ${unit}`}
@@ -862,7 +883,7 @@ function BillCustomizationSection() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2 mb-2">
-            {DEFAULT_BILL_UNITS.filter(
+            {BILL_UNIT_PRESETS.filter(
               u => !normalizeBillUnits(form.billUnits).some(x => x.toLowerCase() === u.toLowerCase()),
             ).map(preset => (
               <button
