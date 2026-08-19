@@ -16,6 +16,9 @@ describe('chatbotHelp', () => {
 
     const inv = matchChatbotHelp('how to create invoice');
     expect(inv).toMatch(/Invoices/);
+
+    const guide = matchChatbotHelp('how to use the app');
+    expect(guide).toMatch(/Settings → How to use/);
   });
 
   it('treats help with as how-to', () => {

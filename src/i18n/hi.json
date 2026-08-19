@@ -419,6 +419,11 @@
     "invoiceStyling": "इनवॉइस स्टाइलिंग",
     "dataResilience": "डेटा रेज़िलिएंस",
     "preferences": "प्राथमिकताएँ",
+    "howToGuide": "कैसे इस्तेमाल करें",
+    "howToGuideLead": "दुकान और अकाउंटेंट के लिए छोटे चरण। सेक्शन चुनें, फिर विषय खोलें।",
+    "howToShop": "दुकान",
+    "howToAccountant": "अकाउंटेंट",
+    "howToGuideFooter": "चैटबॉट “how to…” भी बता सकता है। अकाउंट्स स्क्रीन पर Help बटन है।",
     "users": "उपयोगकर्ता",
     "defaultGstRatePct": "डिफ़ॉल्ट जीएसटी दर (%)",
     "gstSplitHint": "CGST + SGST समान रूप से बंटेंगे (जैसे 18% = 9% + 9%)",
@@ -430,6 +435,7 @@
     "blurbBill": "रंग, लोगो, दृश्यता",
     "blurbData": "बैकअप, एक्सपोर्ट, क्लाउड",
     "blurbPreferences": "भाषा, रिमाइंडर, दिखावट",
+    "blurbGuide": "दुकान और अकाउंट्स कैसे चलाएँ",
     "blurbUsers": "भूमिकाएँ और पहुँच"
   },
   "auth": {

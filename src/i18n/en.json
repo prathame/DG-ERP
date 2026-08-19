@@ -399,6 +399,11 @@
     "invoiceStyling": "Invoice Styling",
     "dataResilience": "Data Resilience",
     "preferences": "Preferences",
+    "howToGuide": "How to use",
+    "howToGuideLead": "Short steps for shop staff and for accountants. Pick a section, then tap a topic.",
+    "howToShop": "Shop",
+    "howToAccountant": "Accountant",
+    "howToGuideFooter": "The chatbot can also answer “how to…” questions. Accounts has a Help button on each report.",
     "users": "Users",
     "companyName": "Company / Business Name",
     "gstNumber": "GST Number (GSTIN)",
@@ -470,6 +475,7 @@
     "blurbBill": "Colors, Logos, Visibility",
     "blurbData": "Backups, Exports, Cloud",
     "blurbPreferences": "Language, reminders, appearance",
+    "blurbGuide": "How shop and accounts staff use Dhandho",
     "blurbUsers": "Roles and access"
   },
   "business": {
