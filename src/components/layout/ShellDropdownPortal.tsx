@@ -19,6 +19,7 @@ type Props = {
   panelRef?: React.RefObject<HTMLDivElement | null>;
   role?: string;
   'aria-labelledby'?: string;
+  forceOpaque?: boolean;
 };
 
 /** Portals shell dropdowns above page content (glass cards, period filters, etc.). */
@@ -31,6 +32,7 @@ export function ShellDropdownPortal({
   panelRef,
   role = 'menu',
   'aria-labelledby': ariaLabelledBy,
+  forceOpaque = false,
 }: Props) {
   return createPortal(
     <div
@@ -42,6 +44,14 @@ export function ShellDropdownPortal({
         zIndex: 500,
         ...(align === 'right' ? { right: window.innerWidth - anchor.right } : { left: anchor.left }),
         ...(openBelow ? { top: anchor.bottom + 6 } : { bottom: window.innerHeight - anchor.top + 6 }),
+        ...(forceOpaque
+          ? {
+              backgroundColor: 'var(--dg-chat-surface)',
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
+              opacity: 1,
+            }
+          : {}),
       }}
       className={cn('dg-shell-dropdown', className)}
     >

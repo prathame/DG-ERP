@@ -2242,6 +2242,7 @@ export default function App() {
             anchor={horizontalMenuAnchor}
             openBelow={navPos !== 'bottom'}
             panelRef={horizontalMenuPanelRef}
+            forceOpaque={desktopGlass}
             className={cn(
               'min-w-[12rem] rounded-xl border py-1 shadow-lg',
               desktopGlass
@@ -2283,6 +2284,7 @@ export default function App() {
             openBelow={!navH || navPos !== 'bottom'}
             align="right"
             panelRef={userMenuPanelRef}
+            forceOpaque={desktopGlass}
             aria-labelledby={navH ? 'account-menu-button-nav' : 'account-menu-button'}
             className={cn(
               'dg-menu-enter w-52 rounded-xl shadow-xl py-1 overflow-hidden',
