@@ -420,10 +420,12 @@
     "dataResilience": "ડેટા રેઝિલિયન્સ",
     "preferences": "પસંદગીઓ",
     "howToGuide": "કેવી રીતે વાપરવું",
-    "howToGuideLead": "દુકાન અને એકાઉન્ટન્ટ માટે ટૂંકા પગલાં. વિભાગ પસંદ કરો, પછી વિષય ખોલો.",
+    "howToGuideLead": "ફક્ત Super Admin અને તમે ચાલુ કરેલી ટૅબના વિષયો. દુકાન કે એકાઉન્ટન્ટ પસંદ કરો, પછી વિષય ખોલો.",
     "howToShop": "દુકાન",
     "howToAccountant": "એકાઉન્ટન્ટ",
+    "howToGuideEmpty": "તમારી હાલની ટૅબ માટે કંઈ નથી. Preferencesમાં મોડ્યૂલ ચાલુ કરો, અથવા Super Adminને કહો.",
     "howToGuideFooter": "ચેટબોટ “how to…” પણ જવાબ આપે. Accounts પર Help બટન છે.",
+    "howToGuideFooterNoChat": "Accounts પર દરેક રિપોર્ટ માટે Help બટન છે.",
     "users": "વપરાશકર્તાઓ",
     "defaultGstRatePct": "ડિફૉલ્ટ GST દર (%)",
     "gstSplitHint": "CGST + SGST સમાન રીતે વહેંચાશે (e.g. 18% = 9% + 9%)",
@@ -513,5 +515,150 @@
     "revenue": "આવક",
     "distributionRegister": "વિતરણ રજિસ્ટર",
     "salesRegister": "વેચાણ રજિસ્ટર"
+  },
+  "userGuide": {
+    "tap": "ખોલો",
+    "shopIntro": "રોજની વેચાણ અને સ્ટોક માટે આ પગલાં જુઓ. તમારી ટૅબનું નામ Sales કે Dispatch હોઈ શકે.",
+    "accIntro": "Booksમાં લેજર અને વાઉચર નાખો. Accountsમાં P&L, ટ્રાયલ બેલેન્સ, GST અને રજિસ્ટર છપાય. દરેક રિપોર્ટ માટે તે સ્ક્રીન પર Accounts → Help ખોલો.",
+    "shop": {
+      "shop-start": {
+        "title": "રોજનું કામ",
+        "steps": [
+          "નવો ગ્રાહક / વેન્ડર હોય તો Mastersમાં ઉમેરો કે શોધો.",
+          "Salesમાં બારકોડ સ્કેન કરો, અથવા Record Saleમાં પ્રોડક્ટ અને જથ્થો પસંદ કરો.",
+          "બારકોડ વગર GST બિલ માટે Invoices → New ખોલો.",
+          "બિલ પ્રિન્ટ કરો કે WhatsApp કરો. પૈસા આવે ત્યારે Finance / Outstandingથી લો."
+        ]
+      },
+      "shop-masters": {
+        "title": "ગ્રાહક અને વેન્ડર",
+        "steps": [
+          "Masters ખોલો.",
+          "ગ્રાહક (જે તમારી પાસેથી ખરીદે) કે વેન્ડર (જેને વેચો / જેમાંથી ખરીદો) ઉમેરો.",
+          "ફોન, GSTIN અને સરનામું સેવ કરો — બિલ આપમેળે ભરાશે."
+        ]
+      },
+      "shop-stock": {
+        "title": "ઇન્વેન્ટરી અને બારકોડ",
+        "steps": [
+          "Inventory ખોલો. પ્રોડક્ટ ઉમેરો (નામ, ભાવ, GST, ફોટો જો વાપરતા હો).",
+          "સ્ટોક ઉમેરો — એપ બારકોડ બનાવે (એક પીસ, અથવા બોક્સ જો પૅક સાઇઝ સેટ હોય).",
+          "Purchasesથી સપ્લાયર બિલ પર પણ સ્ટોક અને બારકોડ બને."
+        ]
+      },
+      "shop-sale": {
+        "title": "વેચાણ નોંધો (કાઉન્ટર / બારકોડ)",
+        "steps": [
+          "Sales ખોલો અને InStock બારકોડ સ્કેન કે ટાઇપ કરો — 1 પીસ વેચાય.",
+          "અથવા Record Sale ખોલો, ગ્રાહક પસંદ કરો, પ્રોડક્ટ, જથ્થો, GST નાખો, સેવ કરો.",
+          "Tax Invoice / Bill of Supply પ્રિન્ટ કરો, કે PDF WhatsApp કરો."
+        ]
+      },
+      "shop-invoice": {
+        "title": "અલગ ઇન્વૉઇસ",
+        "steps": [
+          "Invoices → New ખોલો.",
+          "પાર્ટીનું નામ લખો (મેચ પસંદ કરો કે નવું નામ રાખો).",
+          "લાઇન ઉમેરો: પ્રોડક્ટ કે કસ્ટમ આઇટમ, જથ્થો, રેટ. યુનિટ Bill Customizationથી આવે — આ સ્ક્રીનથી નહીં.",
+          "Draft સેવ કરો કે Create & Send કરો. પ્રિન્ટ / WhatsApp તમારા બિલ ટેમ્પલેટથી થાય."
+        ]
+      },
+      "shop-quote": {
+        "title": "ક્વોટેશન",
+        "steps": [
+          "Quotations → New ખોલો. લાઇન અને ભાવ ઉમેરો.",
+          "પાર્ટીને મોકલો. સ્વીકાર પછી Convert કરીને ઇન્વૉઇસ કે ડિસ્પેચ બનાવો."
+        ]
+      },
+      "shop-dispatch": {
+        "title": "વેન્ડરને ડિસ્પેચ",
+        "steps": [
+          "Dispatch ખોલો (અથવા Sales, જો ટૅબનું નામ એ હોય).",
+          "વેન્ડર પસંદ કરો, પ્રોડક્ટ અને જથ્થો ઉમેરો, દરેક લાઇન પર GST સેટ કરો, સેવ કરો.",
+          "ચલણ પ્રિન્ટ કરો. પૈસા પછીથી Financeથી લો."
+        ]
+      },
+      "shop-bills": {
+        "title": "બિલ કેવું દેખાય (લોગો, GST, યુનિટ)",
+        "steps": [
+          "એડમિન: Settings → Bill Customization.",
+          "લોગો, રંગ, ઇન્વૉઇસ પ્રિફિક્સ, બેંક/UPI, શરતો, અને GST ચાલુ/બંધ સેટ કરો.",
+          "વેચાણ યુનિટ: ઇલેક્ટ્રિક માલ Piece; પ્લાયવુડ Inch કે Cm; વજનવાળો માલ Kg કે Meter. બિલ પર એ જ યુનિટ માટે તેના પર ટૅપ કરો. સેવ કરો.",
+          "ઇન્વેન્ટરી અને બારકોડ વેચાણ piece/box રહે — Kg/Inch નહીં."
+        ]
+      },
+      "shop-backup": {
+        "title": "બેકઅપ",
+        "steps": [
+          "એડમિન: Settings → Data Management → બેકઅપ ડાઉનલોડ કે સેવ કરો.",
+          "ફોન પર બેકઅપ ડિવાઇસ પર રાખો (જોઈએ તો ઈમેલ પણ કરો)."
+        ]
+      }
+    },
+    "accountant": {
+      "acc-books": {
+        "title": "Booksથી શરૂ કરો",
+        "steps": [
+          "Books ખોલો (અથવા Accounts, જેમાં Books હોઈ શકે).",
+          "પહેલા COA — લેજર ગ્રુપ અને લેજર બનાવો (Cash, Bank, પાર્ટી, વેચાણ, ખરીદી). અથવા Miracleથી ઇમ્પોર્ટ કરો.",
+          "પછી વાઉચર નાખો. લેજર અને વાઉચર વગર રિપોર્ટ ખાલી રહે."
+        ]
+      },
+      "acc-receipt": {
+        "title": "રસીદ (પૈસા અંદર)",
+        "steps": [
+          "Books → Vouchers → નવી Receipt (અથવા Cash Bookથી ઝડપી એન્ટ્રી).",
+          "Debit Cash કે Bank, ક્રેડિટ પાર્ટી (કે આવક). વિગત અને તારીખ લખો.",
+          "ફોર્મમાં against-ref હોય તો ઇન્વૉઇસ / બાકીથી લિંક કરી શકો.",
+          "સેવ કરો. Cash Book કે પાર્ટી લેજર જુઓ."
+        ]
+      },
+      "acc-payment": {
+        "title": "પેમેન્ટ (પૈસા બહાર)",
+        "steps": [
+          "Books → Vouchers → નવી Payment.",
+          "Credit Cash કે Bank, ડેબિટ સપ્લાયર / ખર્ચ.",
+          "સેવ કરો. Bank Book કે Outstanding જુઓ."
+        ]
+      },
+      "acc-sales-purchase": {
+        "title": "સેલ અને પરચેઝ વાઉચર",
+        "steps": [
+          "Booksમાં બુક કરતી વખતે Vouchers ડેસ્ક પર Sales / Purchase ટાઇપ પસંદ કરો (બારકોડ સ્ટોક નહીં).",
+          "દુકાનના રોજના બિલ Invoices / Record Saleથી આવે — તે ફાઇનાન્સ અને GST રજિસ્ટરમાં જાય."
+        ]
+      },
+      "acc-reports": {
+        "title": "એકાઉન્ટન્ટની સામાન્ય રિપોર્ટ",
+        "steps": [
+          "Day Book — તે દિવસ કે અવધિની દરેક એન્ટ્રી.",
+          "Trial Balance — ડેબિટ અને ક્રેડિટ બરાબર હોવા જોઈએ.",
+          "Profit & Loss અને Balance Sheet — From / To સેટ કરો (બેલેન્સ શીટમાં To = તે તારીખ સુધી).",
+          "Cash Book / Bank Book — ચાલુ બેલેન્સ; બેંક સ્ટેટમેન્ટ મેળવવા Bank Recon.",
+          "GST Summary, GSTR-2B / 3B, Sales Register — Accounts (Compliance)માં. તારીખ કે મહિનો સેટ કરો, Generate દબાવો."
+        ]
+      },
+      "acc-outstanding": {
+        "title": "કોનું નાણું બાકી છે",
+        "steps": [
+          "Accounts → Outstanding (અથવા Books outstanding).",
+          "પાર્ટી કે બિલ ખોલો અને Collect કરો. Payment history પહેલાં મળેલા પૈસા છે."
+        ]
+      },
+      "acc-lock": {
+        "title": "બહી બંધ / નાણાકીય વર્ષ",
+        "steps": [
+          "પાછલું FY કે ત્રિમાસિક જોઈએ તો Accounts પર નાણાકીય વર્ષ પસંદ કરો.",
+          "Books period lock પસંદ તારીખ સુધી વાઉચર રોકે, જેથી જૂના મહિના બંધ રહે."
+        ]
+      },
+      "acc-notes": {
+        "title": "ક્રેડિટ અને ડેબિટ નોટ",
+        "steps": [
+          "Accounts → Notes → New Note.",
+          "વિગત, જથ્થો, યુનિટ (Bill Settingsથી), ભાવ. જરૂર હોય તો ઇન્વૉઇસ id લિંક કરો."
+        ]
+      }
+    }
   }
 }

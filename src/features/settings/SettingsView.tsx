@@ -3191,7 +3191,7 @@ export function SettingsView({
                       {st('settings.howToGuide')}
                     </h3>
                   </div>
-                  <UserGuidePanel />
+                  <UserGuidePanel tabConfig={filledTabConfig} isAdmin={isAdmin} />
                 </div>
               )}
 

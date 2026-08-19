@@ -27,12 +27,14 @@ interface LangContextValue {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: string) => string;
+  dict: Translations;
 }
 
 const LangContext = createContext<LangContextValue>({
   lang: 'en',
   setLang: () => {},
   t: key => key,
+  dict: en,
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
@@ -76,7 +78,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback((key: string): string => lookup(dict, key), [dict]);
 
-  return <LangContext.Provider value={{ lang, setLang, t }}>{children}</LangContext.Provider>;
+  return <LangContext.Provider value={{ lang, setLang, t, dict }}>{children}</LangContext.Provider>;
 }
 
 export function useTranslation() {
