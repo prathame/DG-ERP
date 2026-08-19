@@ -34,6 +34,16 @@ export function ShellDropdownPortal({
   'aria-labelledby': ariaLabelledBy,
   forceOpaque = false,
 }: Props) {
+  const opaqueBg = (() => {
+    if (!forceOpaque) return undefined;
+    // Dropdowns are portaled to document.body, so glass CSS vars scoped on
+    // `.dg-desktop-glass` may not resolve here. Read the computed token directly.
+    const scope =
+      typeof document !== 'undefined' ? (document.querySelector('.dg-desktop-glass') as HTMLElement | null) : null;
+    const token = scope ? getComputedStyle(scope).getPropertyValue('--dg-chat-surface').trim() : '';
+    return token || '#ffffff';
+  })();
+
   return createPortal(
     <div
       ref={panelRef}
@@ -46,7 +56,7 @@ export function ShellDropdownPortal({
         ...(openBelow ? { top: anchor.bottom + 6 } : { bottom: window.innerHeight - anchor.top + 6 }),
         ...(forceOpaque
           ? {
-              backgroundColor: 'var(--dg-chat-surface)',
+              backgroundColor: opaqueBg,
               backdropFilter: 'none',
               WebkitBackdropFilter: 'none',
               opacity: 1,

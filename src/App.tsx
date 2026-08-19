@@ -2245,9 +2245,7 @@ export default function App() {
             forceOpaque={desktopGlass}
             className={cn(
               'min-w-[12rem] rounded-xl border py-1 shadow-lg',
-              desktopGlass
-                ? 'dg-glass-card dg-opaque-menu border-[var(--dg-card-border)] bg-[var(--dg-chat-surface)]'
-                : 'bg-white border-gray-200',
+              desktopGlass ? 'dg-glass-card dg-opaque-menu border-[var(--dg-card-border)]' : 'bg-white border-gray-200',
             )}
           >
             {horizontalMenuOpenItems.map(item => (
@@ -2289,7 +2287,7 @@ export default function App() {
             className={cn(
               'dg-menu-enter w-52 rounded-xl shadow-xl py-1 overflow-hidden',
               desktopGlass
-                ? 'dg-glass-card dg-opaque-menu border border-[var(--dg-card-border)] bg-[var(--dg-chat-surface)]'
+                ? 'dg-glass-card dg-opaque-menu border border-[var(--dg-card-border)]'
                 : 'bg-white border border-gray-100',
             )}
           >
