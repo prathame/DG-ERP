@@ -3,6 +3,7 @@ import { Bell, Volume2, VolumeX, CheckCheck, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { fetchApi } from '../../api';
 import { session } from '../../lib/session';
+import { ShellDropdownPortal, shellDropdownAnchor, type ShellDropdownAnchor } from '../layout/ShellDropdownPortal';
 
 export type NotificationItem = {
   id: string;
@@ -97,15 +98,21 @@ function highFingerprint(items: NotificationItem[]): string {
 type Props = {
   onNavigate: (tab: string) => void;
   canAccessTab?: (tab: string) => boolean;
+  /** Portals the panel above page content (horizontal nav bar). */
+  portaled?: boolean;
+  /** When portaled, open below (top nav) or above (bottom nav) the trigger. */
+  openBelow?: boolean;
 };
 
-export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
+export function NotificationCenter({ onNavigate, canAccessTab, portaled, openBelow = true }: Props) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(() => loadDismissed());
   const [muted, setMutedState] = useState(() => isMuted());
   const [loading, setLoading] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<ShellDropdownAnchor | null>(null);
   const knownFp = useRef<string>('');
 
   const visible = items.filter(i => {
@@ -165,12 +172,22 @@ export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
   }, [load]);
 
   useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
+    if (!open) {
+      setAnchor(null);
+      return;
+    }
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+      setAnchor(null);
     };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    const timer = window.setTimeout(() => window.addEventListener('click', close), 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', close);
+    };
   }, [open]);
 
   const markAdminRead = async (id: string) => {
@@ -228,13 +245,103 @@ export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
 
   const badge = unread.length;
 
+  const panel = (
+    <div
+      ref={!portaled ? panelRef : undefined}
+      className={cn(
+        'w-[min(100vw-2rem,22rem)] bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden',
+        !portaled && 'absolute right-0 mt-2 z-50',
+      )}
+    >
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-bold text-gray-900">Notifications</p>
+          <p className="text-[11px] text-gray-400">{loading ? 'Refreshing…' : 'Important alerts only'}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+            title={muted ? 'Unmute sound' : 'Mute sound'}
+            aria-label={muted ? 'Unmute notification sound' : 'Mute notification sound'}
+          >
+            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+          <button
+            type="button"
+            onClick={markAllRead}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+            title="Mark all read"
+            aria-label="Mark all notifications read"
+          >
+            <CheckCheck size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 sm:hidden"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+
+      <div className="max-h-[70vh] overflow-y-auto">
+        {visible.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-gray-400">You’re all caught up</div>
+        ) : (
+          <ul className="divide-y divide-gray-50">
+            {visible.map(item => {
+              const isAdmin = item.kind === 'admin_message';
+              const isUnread = isAdmin ? !item.read : !dismissed.has(item.id);
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => onClickItem(item)}
+                    className={cn(
+                      'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors',
+                      isUnread && 'bg-amber-50/40',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        {isAdmin && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-brand">
+                            From Dhandho
+                          </span>
+                        )}
+                        <p className="text-sm font-semibold text-gray-900 truncate">{item.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-3">{item.body}</p>
+                      </div>
+                      {isUnread && <span className="mt-1 w-2 h-2 rounded-full bg-brand shrink-0" />}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative" ref={triggerRef}>
       <button
         type="button"
-        onClick={() => {
-          setOpen(o => !o);
-          if (!open) load();
+        onClick={e => {
+          e.stopPropagation();
+          if (open) {
+            setOpen(false);
+            setAnchor(null);
+            return;
+          }
+          setOpen(true);
+          if (portaled && triggerRef.current) setAnchor(shellDropdownAnchor(triggerRef.current));
+          load();
         }}
         className="relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors text-gray-500 hover:text-gray-700"
         aria-label="Notifications"
@@ -248,82 +355,12 @@ export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 mt-2 w-[min(100vw-2rem,22rem)] bg-white rounded-2xl border border-gray-200 shadow-lg z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-bold text-gray-900">Notifications</p>
-              <p className="text-[11px] text-gray-400">{loading ? 'Refreshing…' : 'Important alerts only'}</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={toggleMute}
-                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
-                title={muted ? 'Unmute sound' : 'Mute sound'}
-                aria-label={muted ? 'Unmute notification sound' : 'Mute notification sound'}
-              >
-                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
-              <button
-                type="button"
-                onClick={markAllRead}
-                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
-                title="Mark all read"
-                aria-label="Mark all notifications read"
-              >
-                <CheckCheck size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 sm:hidden"
-                aria-label="Close"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div className="max-h-[70vh] overflow-y-auto">
-            {visible.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-gray-400">You’re all caught up</div>
-            ) : (
-              <ul className="divide-y divide-gray-50">
-                {visible.map(item => {
-                  const isAdmin = item.kind === 'admin_message';
-                  const isUnread = isAdmin ? !item.read : !dismissed.has(item.id);
-                  return (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        onClick={() => onClickItem(item)}
-                        className={cn(
-                          'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors',
-                          isUnread && 'bg-amber-50/40',
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            {isAdmin && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-brand">
-                                From Dhandho
-                              </span>
-                            )}
-                            <p className="text-sm font-semibold text-gray-900 truncate">{item.title}</p>
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-3">{item.body}</p>
-                          </div>
-                          {isUnread && <span className="mt-1 w-2 h-2 rounded-full bg-brand shrink-0" />}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
+      {open && !portaled ? panel : null}
+      {open && portaled && anchor ? (
+        <ShellDropdownPortal anchor={anchor} openBelow={openBelow} align="right" panelRef={panelRef}>
+          {panel}
+        </ShellDropdownPortal>
+      ) : null}
     </div>
   );
 }
