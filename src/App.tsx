@@ -55,8 +55,6 @@ import {
   NAV_POSITION_PREF_CHANGED_EVENT,
 } from './lib/navPositionPref';
 import {
-  HORIZONTAL_DOCK_TAB_IDS,
-  horizontalNavGroupForTab,
   horizontalNavGroupTabIds,
   visibleHorizontalNavGroups,
   type HorizontalNavGroupId,
@@ -998,25 +996,16 @@ export default function App() {
     return map;
   }, [visibleNavItems]);
   const horizontalGroups = useMemo(() => visibleHorizontalNavGroups(visibleTabIdSet), [visibleTabIdSet]);
-  const [horizontalGroup, setHorizontalGroup] = useState<HorizontalNavGroupId>('analytics');
+  const [horizontalMenuOpen, setHorizontalMenuOpen] = useState<HorizontalNavGroupId | null>(null);
   useEffect(() => {
-    if (navH) setHorizontalGroup(horizontalNavGroupForTab(activeTab));
-  }, [activeTab, navH]);
-  const horizontalGroupItems = useMemo(() => {
-    if (!navH) return [];
-    return horizontalNavGroupTabIds(horizontalGroup)
-      .map(id => navItemById.get(id))
-      .filter((item): item is NonNullable<typeof item> => !!item);
-  }, [navH, horizontalGroup, navItemById]);
-  const horizontalDockItems = useMemo(() => {
-    if (!navH || navPos !== 'bottom') return [];
-    return HORIZONTAL_DOCK_TAB_IDS.map(id => {
-      if (id === 'settings') {
-        return canAccess('settings') ? { id: 'settings' as const, label: t('nav.settings'), icon: Settings } : null;
-      }
-      return navItemById.get(id) ?? null;
-    }).filter((item): item is NonNullable<typeof item> => !!item);
-  }, [navH, navPos, navItemById, canAccess, t]);
+    if (!navH) setHorizontalMenuOpen(null);
+  }, [navH, navPosTick]);
+  useEffect(() => {
+    if (!horizontalMenuOpen) return;
+    const close = () => setHorizontalMenuOpen(null);
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [horizontalMenuOpen]);
 
   // Cap OS notification tap → open tab (or just bring app to foreground)
   useEffect(() => {
@@ -1469,7 +1458,7 @@ export default function App() {
                 drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
                 'h-[100dvh] max-h-[100dvh]',
                 navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
-                navH && (isSidebarOpen ? 'lg:h-[var(--dg-nav-bar,7rem)]' : 'lg:h-14'),
+                navH && 'lg:h-14',
                 isSidebarOpen
                   ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
                   : cn(
@@ -1487,8 +1476,8 @@ export default function App() {
                   navH && 'lg:border-b-0 lg:border-r lg:h-auto lg:self-stretch lg:max-w-[11rem]',
                 )}
               >
-                {isSidebarOpen && (
-                  <div className="flex items-center gap-2.5 min-w-0">
+                {((isSidebarOpen && !navH) || navH) && (
+                  <div className={cn('flex items-center gap-2.5 min-w-0', !isSidebarOpen && navH && 'max-lg:hidden')}>
                     <div
                       className={cn(
                         'lg:hidden w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
@@ -1515,7 +1504,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500 shrink-0"
+                  className={cn(
+                    'p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500 shrink-0',
+                    navH && 'lg:hidden',
+                  )}
                   aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
                 >
                   {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
@@ -1526,61 +1518,87 @@ export default function App() {
               <nav
                 className={cn(
                   'flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain',
-                  navH &&
-                    'lg:overflow-hidden lg:flex lg:flex-col lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-1 lg:py-1 lg:px-2',
+                  navH && 'lg:overflow-visible lg:flex lg:flex-row lg:items-center lg:gap-1 lg:py-0 lg:px-2',
                 )}
               >
                 {navH && horizontalGroups.length > 0 && (
-                  <div className="hidden lg:flex lg:flex-col lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-1.5">
-                    <div className="flex items-center gap-1 overflow-x-auto shrink-0 pb-0.5">
-                      {horizontalGroups.map(g => (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => setHorizontalGroup(g.id)}
-                          className={cn(
-                            'shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
-                            horizontalGroup === g.id
-                              ? desktopGlass
-                                ? 'dg-bg-primary shadow-sm'
-                                : 'bg-brand text-white shadow-sm'
-                              : desktopGlass
-                                ? 'dg-muted hover:opacity-100'
-                                : 'text-gray-600 hover:bg-gray-100',
-                          )}
-                        >
-                          {t(g.labelKey)}
-                        </button>
-                      ))}
-                    </div>
-                    {isSidebarOpen && (
-                      <div className="flex items-center gap-0.5 overflow-x-auto min-h-0">
-                        {horizontalGroupItems.map(item => (
+                  <div className="hidden lg:flex lg:items-center lg:gap-1 lg:flex-1 lg:min-w-0">
+                    {horizontalGroups.map(g => {
+                      const groupItems = horizontalNavGroupTabIds(g.id)
+                        .map(id => navItemById.get(id))
+                        .filter((item): item is NonNullable<typeof item> => !!item);
+                      if (!groupItems.length) return null;
+                      const menuOpen = horizontalMenuOpen === g.id;
+                      const groupActive = groupItems.some(item => isNavItemActive(item.id, activeTab));
+                      return (
+                        <div key={g.id} className="relative shrink-0">
                           <button
-                            key={item.id}
                             type="button"
-                            onClick={() => setActiveTab(item.id as Tab)}
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={() => setHorizontalMenuOpen(menuOpen ? null : g.id)}
                             className={cn(
-                              'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] shrink-0 transition-all',
-                              isNavItemActive(item.id, activeTab)
+                              'flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors min-h-[36px]',
+                              groupActive || menuOpen
                                 ? desktopGlass
-                                  ? 'dg-nav-active font-semibold'
-                                  : 'bg-brand/10 text-brand font-semibold'
+                                  ? 'dg-bg-primary shadow-sm'
+                                  : 'bg-brand text-white shadow-sm'
                                 : desktopGlass
                                   ? 'dg-muted hover:opacity-100'
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                  : 'text-gray-600 hover:bg-gray-100',
                             )}
+                            aria-expanded={menuOpen}
                           >
-                            <item.icon
-                              size={16}
-                              strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
-                              className="shrink-0"
+                            <span>{t(g.labelKey)}</span>
+                            <ChevronDown
+                              size={14}
+                              className={cn('shrink-0 transition-transform', menuOpen && 'rotate-180')}
                             />
-                            <span className="truncate">{item.label}</span>
                           </button>
-                        ))}
-                      </div>
-                    )}
+                          {menuOpen ? (
+                            <div
+                              role="menu"
+                              onPointerDown={e => e.stopPropagation()}
+                              className={cn(
+                                'absolute left-0 z-[60] min-w-[12rem] rounded-xl border py-1 shadow-lg',
+                                navPos === 'bottom' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+                                desktopGlass
+                                  ? 'dg-glass-card border-[var(--dg-card-border)] bg-[var(--dg-sidebar)]'
+                                  : 'bg-white border-gray-200',
+                              )}
+                            >
+                              {groupItems.map(item => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setActiveTab(item.id as Tab);
+                                    setHorizontalMenuOpen(null);
+                                  }}
+                                  className={cn(
+                                    'w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors',
+                                    isNavItemActive(item.id, activeTab)
+                                      ? desktopGlass
+                                        ? 'dg-nav-active font-semibold'
+                                        : 'bg-brand/10 text-brand font-semibold'
+                                      : desktopGlass
+                                        ? 'dg-muted hover:opacity-100'
+                                        : 'text-gray-700 hover:bg-gray-50',
+                                  )}
+                                >
+                                  <item.icon
+                                    size={16}
+                                    strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
+                                    className="shrink-0"
+                                  />
+                                  <span className="truncate">{item.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div className={cn(navH && 'lg:hidden')}>
@@ -1729,7 +1747,7 @@ export default function App() {
                     />
                   </div>
                 )}
-                {canAccess('settings') && !(navH && navPos === 'bottom') && (
+                {canAccess('settings') && !navH && (
                   <div className={cn('px-2.5 lg:px-3 pt-2', navH && 'lg:pt-0 lg:px-2')}>
                     <button
                       type="button"
@@ -2087,39 +2105,6 @@ export default function App() {
                 </ErrorBoundary>
               </div>
             </main>
-            {horizontalDockItems.length > 0 && (
-              <nav
-                aria-label="Shortcuts"
-                className={cn(
-                  'dg-horizontal-dock hidden lg:flex fixed left-1/2 -translate-x-1/2 z-[45] items-center gap-1 px-2 py-1.5 rounded-2xl shadow-lg border',
-                  desktopGlass
-                    ? 'dg-glass-card border-[var(--dg-card-border)]'
-                    : 'bg-white/95 border-gray-200 backdrop-blur-md',
-                )}
-                style={{ bottom: 'calc(var(--dg-nav-bar, 7rem) + 1rem)' }}
-              >
-                {horizontalDockItems.map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveTab(item.id as Tab)}
-                    className={cn(
-                      'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors min-h-[44px]',
-                      activeTab === item.id
-                        ? desktopGlass
-                          ? 'dg-nav-active'
-                          : 'bg-brand/10 text-brand'
-                        : desktopGlass
-                          ? 'dg-muted hover:opacity-100'
-                          : 'text-gray-600 hover:bg-gray-50',
-                    )}
-                  >
-                    <item.icon size={16} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                    <span className="truncate max-w-[7rem]">{item.label}</span>
-                  </button>
-                ))}
-              </nav>
-            )}
             {/* Mobile bottom nav — primary destinations + More drawer */}
             <nav
               className={cn(
