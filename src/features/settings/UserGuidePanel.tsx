@@ -63,7 +63,9 @@ export function UserGuidePanel() {
       <p className="text-sm text-gray-600 leading-relaxed">{intro}</p>
       <div className="space-y-2">
         {topics.map(topic => (
-          <TopicCard key={topic.id} topic={topic} />
+          <React.Fragment key={topic.id}>
+            <TopicCard topic={topic} />
+          </React.Fragment>
         ))}
       </div>
       <p className="text-xs text-gray-400 leading-relaxed">{st('settings.howToGuideFooter')}</p>
