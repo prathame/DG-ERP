@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef, lazy, Suspense, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import {
+  ShellDropdownPortal,
+  shellDropdownAnchor,
+  type ShellDropdownAnchor,
+} from './components/layout/ShellDropdownPortal';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -998,21 +1002,13 @@ export default function App() {
   }, [visibleNavItems]);
   const horizontalGroups = useMemo(() => visibleHorizontalNavGroups(visibleTabIdSet), [visibleTabIdSet]);
   const [horizontalMenuOpen, setHorizontalMenuOpen] = useState<HorizontalNavGroupId | null>(null);
-  const [horizontalMenuAnchor, setHorizontalMenuAnchor] = useState<{
-    top: number;
-    left: number;
-    bottom: number;
-  } | null>(null);
+  const [horizontalMenuAnchor, setHorizontalMenuAnchor] = useState<ShellDropdownAnchor | null>(null);
   const horizontalNavMenusRef = useRef<HTMLDivElement>(null);
   const horizontalMenuPanelRef = useRef<HTMLDivElement>(null);
   const userMenuNavRef = useRef<HTMLDivElement>(null);
   const userMenuMainRef = useRef<HTMLDivElement>(null);
-  const userMenuNavPanelRef = useRef<HTMLDivElement>(null);
-  const [userMenuNavAnchor, setUserMenuNavAnchor] = useState<{
-    top: number;
-    bottom: number;
-    right: number;
-  } | null>(null);
+  const userMenuPanelRef = useRef<HTMLDivElement>(null);
+  const [userMenuAnchor, setUserMenuAnchor] = useState<ShellDropdownAnchor | null>(null);
   const horizontalMenuOpenItems = useMemo(() => {
     if (!horizontalMenuOpen) return [];
     return horizontalNavGroupTabIds(horizontalMenuOpen)
@@ -1047,14 +1043,14 @@ export default function App() {
     };
   }, [horizontalMenuOpen]);
   useEffect(() => {
-    if (!userMenuOpen) setUserMenuNavAnchor(null);
+    if (!userMenuOpen) setUserMenuAnchor(null);
   }, [userMenuOpen]);
   useEffect(() => {
     if (!userMenuOpen) return;
     const close = (e: MouseEvent) => {
       const target = e.target as Node;
       if (userMenuNavRef.current?.contains(target) || userMenuMainRef.current?.contains(target)) return;
-      if (userMenuNavPanelRef.current?.contains(target)) return;
+      if (userMenuPanelRef.current?.contains(target)) return;
       setUserMenuOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -1531,6 +1527,8 @@ export default function App() {
           </span>
         </div>
         <NotificationCenter
+          portaled={inNavBar && navH}
+          openBelow={navPos !== 'bottom'}
           onNavigate={tab => {
             if (canAccess(tab)) setActiveTab(tab as Tab);
           }}
@@ -1552,18 +1550,15 @@ export default function App() {
             type="button"
             onClick={e => {
               e.stopPropagation();
-              if (inNavBar && navH) {
-                if (userMenuOpen) {
-                  setUserMenuOpen(false);
-                  setUserMenuNavAnchor(null);
-                  return;
-                }
-                const rect = e.currentTarget.getBoundingClientRect();
-                setUserMenuOpen(true);
-                setUserMenuNavAnchor({ top: rect.top, bottom: rect.bottom, right: rect.right });
+              if (userMenuOpen) {
+                setUserMenuOpen(false);
+                setUserMenuAnchor(null);
                 return;
               }
-              setUserMenuOpen(o => !o);
+              setUserMenuOpen(true);
+              if ((inNavBar && navH) || window.matchMedia('(min-width: 1024px)').matches) {
+                setUserMenuAnchor(shellDropdownAnchor(e.currentTarget));
+              }
             }}
             className={cn(
               'flex items-center gap-2 sm:gap-3 rounded-xl p-1 transition-colors',
@@ -1589,7 +1584,7 @@ export default function App() {
               {avatarInitials}
             </div>
           </button>
-          {userMenuOpen && !(inNavBar && navH) && (
+          {userMenuOpen && !userMenuAnchor && (
             <div
               key={`user-menu-${placement}`}
               role="menu"
@@ -1797,13 +1792,8 @@ export default function App() {
                                 setHorizontalMenuAnchor(null);
                                 return;
                               }
-                              const rect = e.currentTarget.getBoundingClientRect();
                               setHorizontalMenuOpen(g.id);
-                              setHorizontalMenuAnchor({
-                                top: rect.top,
-                                left: rect.left,
-                                bottom: rect.bottom,
-                              });
+                              setHorizontalMenuAnchor(shellDropdownAnchor(e.currentTarget));
                             }}
                             className={cn(
                               'flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors min-h-[36px]',
@@ -2247,129 +2237,100 @@ export default function App() {
             />
           </Suspense>
         )}
-        {navH &&
-          horizontalMenuOpen &&
-          horizontalMenuAnchor &&
-          horizontalMenuOpenItems.length > 0 &&
-          createPortal(
-            <div
-              ref={horizontalMenuPanelRef}
-              role="menu"
-              style={{
-                position: 'fixed',
-                left: horizontalMenuAnchor.left,
-                top: navPos === 'bottom' ? undefined : horizontalMenuAnchor.bottom + 6,
-                bottom: navPos === 'bottom' ? window.innerHeight - horizontalMenuAnchor.top + 6 : undefined,
-                zIndex: 200,
-              }}
-              className={cn(
-                'min-w-[12rem] rounded-xl border py-1 shadow-lg',
-                desktopGlass
-                  ? 'dg-glass-card border-[var(--dg-card-border)] bg-[var(--dg-sidebar)]'
-                  : 'bg-white border-gray-200',
-              )}
-            >
-              {horizontalMenuOpenItems.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={e => {
-                    e.stopPropagation();
-                    setActiveTab(item.id as Tab);
-                    setHorizontalMenuOpen(null);
-                    setHorizontalMenuAnchor(null);
-                  }}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors',
-                    isNavItemActive(item.id, activeTab)
-                      ? desktopGlass
-                        ? 'dg-nav-active font-semibold'
-                        : 'bg-brand/10 text-brand font-semibold'
-                      : desktopGlass
-                        ? 'dg-muted hover:opacity-100'
-                        : 'text-gray-700 hover:bg-gray-50',
-                  )}
-                >
-                  <item.icon
-                    size={16}
-                    strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2}
-                    className="shrink-0"
-                  />
-                  <span className="truncate">{item.label}</span>
-                </button>
-              ))}
-            </div>,
-            document.body,
-          )}
-        {navH &&
-          userMenuOpen &&
-          userMenuNavAnchor &&
-          createPortal(
-            <div
-              ref={userMenuNavPanelRef}
-              role="menu"
-              aria-labelledby="account-menu-button-nav"
-              style={{
-                position: 'fixed',
-                right: window.innerWidth - userMenuNavAnchor.right,
-                top: navPos === 'bottom' ? undefined : userMenuNavAnchor.bottom + 8,
-                bottom: navPos === 'bottom' ? window.innerHeight - userMenuNavAnchor.top + 8 : undefined,
-                zIndex: 200,
-              }}
-              className={cn(
-                'dg-menu-enter w-52 rounded-xl shadow-xl py-1 overflow-hidden',
-                desktopGlass
-                  ? 'dg-glass-card border border-[var(--dg-card-border)]'
-                  : 'bg-white border border-gray-100',
-              )}
-            >
-              <div
+        {navH && horizontalMenuOpen && horizontalMenuAnchor && horizontalMenuOpenItems.length > 0 && (
+          <ShellDropdownPortal
+            anchor={horizontalMenuAnchor}
+            openBelow={navPos !== 'bottom'}
+            panelRef={horizontalMenuPanelRef}
+            className={cn(
+              'min-w-[12rem] rounded-xl border py-1 shadow-lg',
+              desktopGlass
+                ? 'dg-glass-card border-[var(--dg-card-border)] bg-[var(--dg-sidebar)]'
+                : 'bg-white border-gray-200',
+            )}
+          >
+            {horizontalMenuOpenItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                onClick={e => {
+                  e.stopPropagation();
+                  setActiveTab(item.id as Tab);
+                  setHorizontalMenuOpen(null);
+                  setHorizontalMenuAnchor(null);
+                }}
                 className={cn(
-                  'px-4 py-3 border-b',
-                  desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                  'w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors',
+                  isNavItemActive(item.id, activeTab)
+                    ? desktopGlass
+                      ? 'dg-nav-active font-semibold'
+                      : 'bg-brand/10 text-brand font-semibold'
+                    : desktopGlass
+                      ? 'dg-muted hover:opacity-100'
+                      : 'text-gray-700 hover:bg-gray-50',
                 )}
               >
-                <p className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}>
-                  {user?.name}
-                </p>
-                <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>{user?.email}</p>
-              </div>
-              <div className="py-1">
-                {canAccess('settings') && (
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setActiveTab('settings');
-                      setUserMenuOpen(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
-                      desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
-                    )}
-                  >
-                    <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
-                    {t('nav.settings')}
-                  </button>
-                )}
-              </div>
-              <div className={cn('border-t py-1', desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100')}>
+                <item.icon size={16} strokeWidth={isNavItemActive(item.id, activeTab) ? 2.5 : 2} className="shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </button>
+            ))}
+          </ShellDropdownPortal>
+        )}
+        {userMenuOpen && userMenuAnchor && (
+          <ShellDropdownPortal
+            anchor={userMenuAnchor}
+            openBelow={!navH || navPos !== 'bottom'}
+            align="right"
+            panelRef={userMenuPanelRef}
+            aria-labelledby={navH ? 'account-menu-button-nav' : 'account-menu-button'}
+            className={cn(
+              'dg-menu-enter w-52 rounded-xl shadow-xl py-1 overflow-hidden',
+              desktopGlass ? 'dg-glass-card border border-[var(--dg-card-border)]' : 'bg-white border border-gray-100',
+            )}
+          >
+            <div
+              className={cn('px-4 py-3 border-b', desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100')}
+            >
+              <p className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}>
+                {user?.name}
+              </p>
+              <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>{user?.email}</p>
+            </div>
+            <div className="py-1">
+              {canAccess('settings') && (
                 <button
                   type="button"
                   onClick={e => {
                     e.stopPropagation();
-                    handleLogout();
+                    setActiveTab('settings');
+                    setUserMenuOpen(false);
                   }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
+                    desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
+                  )}
                 >
-                  <LogOut size={15} />
-                  {t('common.logout')}
+                  <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
+                  {t('nav.settings')}
                 </button>
-              </div>
-            </div>,
-            document.body,
-          )}
+              )}
+            </div>
+            <div className={cn('border-t py-1', desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100')}>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  handleLogout();
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
+              >
+                <LogOut size={15} />
+                {t('common.logout')}
+              </button>
+            </div>
+          </ShellDropdownPortal>
+        )}
         <PwaInstallPrompt />
       </ServiceCloudGate>
     </ToastProvider>
