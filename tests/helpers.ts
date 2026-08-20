@@ -32,6 +32,7 @@ export async function cleanupTestData(tenantId: string) {
     'tenant_invoices',
     'password_reset_tokens',
     'bill_settings',
+    'barcode_label_templates',
     'credit_debit_notes',
     'product_replacements',
     'rewards',

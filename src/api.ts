@@ -1571,6 +1571,40 @@ export const api = {
     updateBillSettings: (data: Partial<import('./types').BillSettings>) =>
       fetchApi<import('./types').BillSettings>('/settings/bill', { method: 'PUT', body: JSON.stringify(data) }),
   },
+  barcodeLabelTemplates: {
+    list: (includeArchived?: boolean) =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate[]>(
+        `/barcode-label-templates${includeArchived ? '?includeArchived=true' : ''}`,
+      ),
+    get: (id: string) =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate>(
+        `/barcode-label-templates/${encodeURIComponent(id)}`,
+      ),
+    getDefault: () =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate>('/barcode-label-templates/default'),
+    create: (data: Record<string, unknown>) =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate>('/barcode-label-templates', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Record<string, unknown>) =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate>(
+        `/barcode-label-templates/${encodeURIComponent(id)}`,
+        { method: 'PUT', body: JSON.stringify(data) },
+      ),
+    duplicate: (id: string) =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate>(
+        `/barcode-label-templates/${encodeURIComponent(id)}/duplicate`,
+        { method: 'POST' },
+      ),
+    setDefault: (id: string) =>
+      fetchApi<import('../shared/barcodeLabelTemplate').BarcodeLabelTemplate>(
+        `/barcode-label-templates/${encodeURIComponent(id)}/default`,
+        { method: 'PUT' },
+      ),
+    archive: (id: string) =>
+      fetchApi<{ ok: boolean }>(`/barcode-label-templates/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
   admin: {
     listUsers: (adminUserId: string) =>
       fetchApi<{

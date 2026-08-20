@@ -55,6 +55,7 @@ flowchart TB
 | `chatbot.ts` | `/api/chatbot` | `dashboard` | Rule-based NLQ; 30/min limiter |
 | `whatsapp.ts` | `/api/whatsapp/send` | *(auth only — unmapped)* | Optional Meta Cloud API text send; see [WhatsApp Business](/api/whatsapp-business) |
 | `bill-settings.ts` | `/api/settings/bill` | `settings` | Bill branding |
+| `barcode-label-templates.ts` | `/api/barcode-label-templates` | `settings` | Tenant label templates (CRUD, default, duplicate) |
 | `reports.ts` | `/api/reports/*` | `accounts` | Registers + GSTR-1; `blockVendors` |
 | `purchases.ts` | `/api/purchases`, `/api/suppliers`, `/api/supplier-finance` | `purchases` | Stock-creating purchase batches |
 | `quotations.ts` | `/api/quotations` | `quotations` | Status machine + convert |
@@ -62,7 +63,7 @@ flowchart TB
 | `price-lists.ts` | `/api/price-lists` | `inventory` | Slabs + `/resolve` + `/bulk` name import |
 | `accounts.ts` | `/api/accounts/*`, `/api/gstr3b`, `/api/gstr2b` | `accounts` | P&L, BS, CF, ledger; `blockVendors` |
 
-**Count:** 35 routers imported in `app.ts` (matches the table).
+**Count:** 36 routers imported in `app.ts` (matches the table).
 
 ## Public paths (bypass global JWT)
 

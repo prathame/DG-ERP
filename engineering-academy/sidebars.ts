@@ -72,6 +72,7 @@ const sidebars: SidebarsConfig = {
         'frontend/i18n',
         'frontend/ui-kit',
         'frontend/patterns',
+        'frontend/barcode-label-templates',
       ],
     },
     {
