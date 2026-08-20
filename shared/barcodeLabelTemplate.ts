@@ -892,3 +892,123 @@ export const LABEL_SAMPLE_TEMPLATES: LabelSampleTemplate[] = [
 export function getLabelSampleTemplate(id: string): LabelSampleTemplate | undefined {
   return LABEL_SAMPLE_TEMPLATES.find(s => s.id === id);
 }
+
+/** JSON file wrapper version for import/export between tenants or backups. */
+export const LABEL_TEMPLATE_FILE_FORMAT = 'dhandho-barcode-label' as const;
+export const LABEL_TEMPLATE_FILE_VERSION = 1;
+export const MAX_LABEL_TEMPLATE_IMPORT_BYTES = 500_000;
+
+export const BARCODE_SYMBOLOGY_OPTIONS: { value: BarcodeSymbology; label: string; hint: string }[] = [
+  { value: 'CODE128', label: 'CODE 128', hint: 'Alphanumeric stock codes (e.g. BAY250001)' },
+  { value: 'EAN13', label: 'EAN-13', hint: '13-digit retail barcodes' },
+  { value: 'EAN8', label: 'EAN-8', hint: '8-digit compact retail barcodes' },
+  { value: 'CODE39', label: 'CODE 39', hint: 'Letters, digits, and - . $ / + %' },
+  { value: 'UPC', label: 'UPC-A', hint: '12-digit US retail barcodes' },
+  { value: 'UPCE', label: 'UPC-E', hint: '6-digit compressed UPC' },
+];
+
+export type LabelTemplateImportPayload = Omit<BarcodeLabelTemplate, 'id' | 'tenantId'>;
+
+export type LabelTemplateFile = {
+  format: typeof LABEL_TEMPLATE_FILE_FORMAT;
+  version: number;
+  exportedAt?: string;
+  template: {
+    name: string;
+    description?: string | null;
+    widthMm: number;
+    heightMm: number;
+    orientation?: 'landscape' | 'portrait';
+    elements: unknown[];
+  };
+};
+
+function normalizeImportedElements(elements: unknown[]): LabelElement[] {
+  return elements.map((el, i) => normalizeLabelElement(el, i)).filter((el): el is LabelElement => el != null);
+}
+
+function extractTemplateBody(raw: Record<string, unknown>): Record<string, unknown> | null {
+  if (raw.format === LABEL_TEMPLATE_FILE_FORMAT && raw.template && typeof raw.template === 'object') {
+    return raw.template as Record<string, unknown>;
+  }
+  if (typeof raw.name === 'string' && Array.isArray(raw.elements)) {
+    return raw;
+  }
+  return null;
+}
+
+export function serializeLabelTemplateExport(
+  template: Pick<BarcodeLabelTemplate, 'name' | 'description' | 'widthMm' | 'heightMm' | 'orientation' | 'elements'>,
+): string {
+  const payload: LabelTemplateFile = {
+    format: LABEL_TEMPLATE_FILE_FORMAT,
+    version: LABEL_TEMPLATE_FILE_VERSION,
+    exportedAt: new Date().toISOString(),
+    template: {
+      name: template.name,
+      description: template.description ?? null,
+      widthMm: template.widthMm,
+      heightMm: template.heightMm,
+      orientation: template.orientation,
+      elements: template.elements,
+    },
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+export function parseImportedLabelTemplate(
+  raw: unknown,
+): { ok: true; template: LabelTemplateImportPayload } | { ok: false; error: string } {
+  if (!raw || typeof raw !== 'object') return { ok: false, error: 'Invalid JSON — expected a label template object' };
+  const body = extractTemplateBody(raw as Record<string, unknown>);
+  if (!body) {
+    return {
+      ok: false,
+      error: `Unsupported file. Upload a .json export from Dhandho (${LABEL_TEMPLATE_FILE_FORMAT} v${LABEL_TEMPLATE_FILE_VERSION}).`,
+    };
+  }
+  const version = (raw as Record<string, unknown>).version;
+  if (version != null && Number(version) > LABEL_TEMPLATE_FILE_VERSION) {
+    return {
+      ok: false,
+      error: 'This template file was exported from a newer app version. Update Dhandho and try again.',
+    };
+  }
+  const name = String(body.name || '').trim() || 'Imported label';
+  const widthMm = Number(body.widthMm);
+  const heightMm = Number(body.heightMm);
+  const elements = normalizeImportedElements(Array.isArray(body.elements) ? body.elements : []);
+  if (elements.length === 0) return { ok: false, error: 'Template has no valid elements' };
+  const err = validateLabelTemplateInput({ name, widthMm, heightMm, elements });
+  if (err) return { ok: false, error: err };
+  return {
+    ok: true,
+    template: {
+      name: name.slice(0, 120),
+      description: body.description != null ? String(body.description).trim() || null : null,
+      widthMm,
+      heightMm,
+      orientation: body.orientation === 'portrait' ? 'portrait' : 'landscape',
+      status: 'draft',
+      isDefault: false,
+      version: 1,
+      elements,
+    },
+  };
+}
+
+export function downloadLabelTemplateFile(template: BarcodeLabelTemplate): void {
+  const json = serializeLabelTemplateExport(template);
+  const slug = template.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `label-template-${slug || 'export'}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

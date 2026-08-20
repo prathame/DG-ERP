@@ -18,6 +18,9 @@ import {
   LABEL_SAMPLE_TEMPLATES,
   getLabelSampleTemplate,
   templateHasScannableCode,
+  serializeLabelTemplateExport,
+  parseImportedLabelTemplate,
+  LABEL_TEMPLATE_FILE_FORMAT,
   type LabelElement,
 } from '../../shared/barcodeLabelTemplate';
 
@@ -249,6 +252,29 @@ describe('barcode label template validation', () => {
     expect(templateHasScannableCode(withBarcode)).toBe(true);
     expect(templateHasScannableCode(textOnly)).toBe(false);
     expect(templateHasScannableCode(defaultStarterTemplate().elements)).toBe(true);
+  });
+
+  it('round-trips label template JSON import/export', () => {
+    const starter = defaultStarterTemplate('Export test');
+    const json = serializeLabelTemplateExport(starter);
+    const parsed = JSON.parse(json);
+    expect(parsed.format).toBe(LABEL_TEMPLATE_FILE_FORMAT);
+    const imported = parseImportedLabelTemplate(parsed);
+    expect(imported.ok).toBe(true);
+    if (imported.ok) {
+      expect(imported.template.name).toBe('Export test');
+      expect(imported.template.elements.some(el => el.type === 'barcode')).toBe(true);
+      expect(imported.template.isDefault).toBe(false);
+    }
+    const bare = parseImportedLabelTemplate({
+      name: 'Bare import',
+      widthMm: 38,
+      heightMm: 25,
+      elements: starter.elements,
+    });
+    expect(bare.ok).toBe(true);
+    const bad = parseImportedLabelTemplate({ foo: 'bar' });
+    expect(bad.ok).toBe(false);
   });
 
   it('exposes built-in sample templates', () => {

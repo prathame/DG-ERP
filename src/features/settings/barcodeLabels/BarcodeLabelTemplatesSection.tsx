@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Copy, Edit3, LayoutTemplate, Plus, Printer, Star, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Copy, Download, Edit3, LayoutTemplate, Plus, Printer, Star, Trash2, Upload } from 'lucide-react';
 import { api } from '../../../api';
 import { useToast, LoadingSpinner } from '../../../components/ui';
 import type { BarcodeLabelTemplate } from '../../../../shared/barcodeLabelTemplate';
@@ -8,6 +8,10 @@ import {
   SAMPLE_LABEL_CONTEXT,
   defaultStarterTemplate,
   templateHasScannableCode,
+  BARCODE_SYMBOLOGY_OPTIONS,
+  MAX_LABEL_TEMPLATE_IMPORT_BYTES,
+  parseImportedLabelTemplate,
+  downloadLabelTemplateFile,
 } from '../../../../shared/barcodeLabelTemplate';
 import { renderLabelHtml } from '../../../lib/barcodeLabelRender';
 import { openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED, cn } from '../../../lib/utils';
@@ -27,6 +31,8 @@ export function BarcodeLabelTemplatesSection() {
   const [designerOpen, setDesignerOpen] = useState(false);
   const [samplePickerOpen, setSamplePickerOpen] = useState(false);
   const [installingSamples, setInstallingSamples] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -81,6 +87,34 @@ export function BarcodeLabelTemplatesSection() {
       load();
     } catch (e) {
       toast((e as Error).message, 'error');
+    }
+  };
+
+  const importTemplateFile = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      toast('Upload a .json label template file', 'error');
+      return;
+    }
+    if (file.size > MAX_LABEL_TEMPLATE_IMPORT_BYTES) {
+      toast(`File too large — max ${Math.round(MAX_LABEL_TEMPLATE_IMPORT_BYTES / 1024)} KB`, 'error');
+      return;
+    }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = parseImportedLabelTemplate(JSON.parse(text));
+      if (!parsed.ok) {
+        toast(parsed.error, 'error');
+        return;
+      }
+      await api.barcodeLabelTemplates.create(parsed.template);
+      toast(`Imported “${parsed.template.name}”`, 'success');
+      load();
+    } catch (e) {
+      toast(e instanceof SyntaxError ? 'Invalid JSON file' : (e as Error).message, 'error');
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
 
@@ -182,6 +216,24 @@ export function BarcodeLabelTemplatesSection() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) void importTemplateFile(file);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            disabled={importing}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border hover:bg-gray-50 disabled:opacity-60"
+          >
+            <Upload size={16} /> {importing ? 'Importing…' : 'Import template'}
+          </button>
           {templates.length > 0 && (
             <button
               type="button"
@@ -229,6 +281,14 @@ export function BarcodeLabelTemplatesSection() {
               className="px-4 py-2 rounded-xl border text-sm font-bold disabled:opacity-60"
             >
               {installingSamples ? 'Adding samples…' : 'Add all sample templates'}
+            </button>
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+              className="px-4 py-2 rounded-xl border text-sm font-bold disabled:opacity-60"
+            >
+              {importing ? 'Importing…' : 'Import .json template'}
             </button>
           </div>
         </div>
@@ -280,6 +340,13 @@ export function BarcodeLabelTemplatesSection() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => downloadLabelTemplateFile(t)}
+                  className="px-3 py-1.5 rounded-lg border text-xs font-semibold hover:bg-gray-50"
+                >
+                  <Download size={14} className="inline mr-1" /> Export
+                </button>
+                <button
+                  type="button"
                   onClick={() => void duplicate(t.id)}
                   className="px-3 py-1.5 rounded-lg border text-xs font-semibold hover:bg-gray-50"
                 >
@@ -309,7 +376,15 @@ export function BarcodeLabelTemplatesSection() {
 
       <p className="text-xs text-gray-400">
         Template editing is optimized for desktop. Use <strong>Company logo</strong> for Bill Settings branding, or{' '}
-        <strong>Custom image</strong> to upload a picture stored inside the template.
+        <strong>Custom image</strong> to upload a picture stored inside the template. Import/export uses{' '}
+        <strong>.json</strong> files (Dhandho label template format). Barcode symbologies supported in layouts:{' '}
+        {BARCODE_SYMBOLOGY_OPTIONS.map((o, i) => (
+          <span key={o.value}>
+            {i > 0 ? ', ' : ''}
+            {o.label}
+          </span>
+        ))}
+        , plus <strong>QR code</strong> elements.
       </p>
     </div>
   );
