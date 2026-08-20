@@ -78,7 +78,9 @@ QR codes: `qrcode` npm package (real encoding, not CSS placeholder).
 - `tests/unit/barcode-label-template.test.ts` — validation, EAN checksum, dynamic fields
 - `tests/api/http-barcode-label-templates.test.ts` — CRUD, default, cross-tenant
 
-**Last run:** `npm run typecheck` ✓ · unit + API tests: **9 passed**
+**Last run:** `npm run typecheck` ✓ · unit + API tests: **28 passed** (11 unit + 1 render + 16 API)
+
+Optional Playwright (manual): `npm run test:e2e:barcode-labels` (requires dev server + test tenant)
 
 ## Known limitations
 

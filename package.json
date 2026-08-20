@@ -23,6 +23,7 @@
     "test:e2e:service-api": "python3 tests/e2e_by_type.py --types service",
     "test:e2e:service-mobile": "playwright test tests/e2e/service-mobile-smoke.spec.ts",
     "test:e2e:service-mobile:ci": "npm run build:service-mobile && playwright test tests/e2e/service-mobile-smoke.spec.ts",
+    "test:e2e:barcode-labels": "playwright test -c playwright.barcode-label.config.ts",
     "analyze": "vite build --mode analyze",
     "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit'})}catch(e){process.exit(0)}\"",
     "electron:desktop:dev": "npm run tsc:electron && electron electron/desktop/main.js",
