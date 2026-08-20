@@ -112,32 +112,119 @@ async function renderElementHtml(el: LabelElement, ctx: LabelPrintContext, scale
   return `<div style="${base}font-size:${size}pt;font-weight:${weight};font-style:${style};text-decoration:${deco};text-align:${align};color:${esc(color)};line-height:${lh};white-space:${wrap};word-break:break-word;">${esc(text)}</div>`;
 }
 
+export type LabelPrintMode = 'a4-sheet' | 'thermal';
+
+export type A4LabelGrid = {
+  cols: number;
+  rows: number;
+  perPage: number;
+  pageWidthMm: number;
+  pageHeightMm: number;
+  marginMm: number;
+};
+
+const A4_WIDTH_MM = 210;
+const A4_HEIGHT_MM = 297;
+const DEFAULT_A4_MARGIN_MM = 5;
+
+export function computeA4LabelGrid(
+  labelWidthMm: number,
+  labelHeightMm: number,
+  opts?: { pageWidthMm?: number; pageHeightMm?: number; marginMm?: number },
+): A4LabelGrid {
+  const pageWidthMm = opts?.pageWidthMm ?? A4_WIDTH_MM;
+  const pageHeightMm = opts?.pageHeightMm ?? A4_HEIGHT_MM;
+  const marginMm = opts?.marginMm ?? DEFAULT_A4_MARGIN_MM;
+  const usableW = pageWidthMm - marginMm * 2;
+  const usableH = pageHeightMm - marginMm * 2;
+  const cols = Math.max(1, Math.floor(usableW / labelWidthMm));
+  const rows = Math.max(1, Math.floor(usableH / labelHeightMm));
+  return { cols, rows, perPage: cols * rows, pageWidthMm, pageHeightMm, marginMm };
+}
+
+export async function renderLabelInnerHtml(
+  template: Pick<BarcodeLabelTemplate, 'widthMm' | 'heightMm' | 'elements'>,
+  ctx: LabelPrintContext,
+  scale = 1,
+): Promise<string> {
+  const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
+  const inner = await Promise.all(sorted.map(el => renderElementHtml(el, ctx, scale)));
+  return `<div class="label-sheet" style="position:relative;width:100%;height:100%;background:#fff;box-sizing:border-box;">${inner.join('')}</div>`;
+}
+
+function labelPrintHead(title: string, pageCss: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="dg-print-mode" content="labels" /><title>${esc(title)}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  ${pageCss}
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#f3f4f6; }
+  .label-sheet { break-inside:avoid; page-break-inside:avoid; }
+  @media print {
+    body { background:#fff; }
+    .dg-label-cell .label-sheet { border:none; }
+    .no-print { display:none !important; }
+  }
+</style></head><body>`;
+}
+
+export async function renderLabelsPrintHtml(
+  template: Pick<BarcodeLabelTemplate, 'widthMm' | 'heightMm' | 'elements'>,
+  contexts: LabelPrintContext[],
+  mode: LabelPrintMode = 'a4-sheet',
+): Promise<string> {
+  if (contexts.length === 0) {
+    return labelPrintHead('Labels', '@page { size: A4; margin: 5mm; }') + '</body></html>';
+  }
+
+  if (mode === 'thermal') {
+    const sheets = await Promise.all(contexts.map(ctx => renderLabelInnerHtml(template, ctx, 1)));
+    const pageCss = `@page { size: ${template.widthMm}mm ${template.heightMm}mm; margin: 0; }
+  .thermal-page { width:${template.widthMm}mm; height:${template.heightMm}mm; overflow:hidden; break-after:page; page-break-after:always; }
+  .thermal-page:last-child { break-after:auto; page-break-after:auto; }`;
+    const body = sheets.map(s => `<div class="thermal-page">${s}</div>`).join('');
+    return `${labelPrintHead('Labels', pageCss)}${body}</body></html>`;
+  }
+
+  const grid = computeA4LabelGrid(template.widthMm, template.heightMm);
+  const pageCss = `@page { size: A4; margin: ${grid.marginMm}mm; }
+  .dg-a4-page {
+    display:grid;
+    grid-template-columns:repeat(${grid.cols}, ${template.widthMm}mm);
+    grid-auto-rows:${template.heightMm}mm;
+    width:${grid.pageWidthMm}mm;
+    min-height:${grid.pageHeightMm}mm;
+    margin:0 auto;
+    break-after:page;
+    page-break-after:always;
+  }
+  .dg-a4-page:last-child { break-after:auto; page-break-after:auto; }
+  .dg-label-cell {
+    width:${template.widthMm}mm;
+    height:${template.heightMm}mm;
+    overflow:hidden;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }`;
+
+  const innerSheets = await Promise.all(contexts.map(ctx => renderLabelInnerHtml(template, ctx, 1)));
+  const pages: string[] = [];
+  for (let i = 0; i < innerSheets.length; i += grid.perPage) {
+    const chunk = innerSheets.slice(i, i + grid.perPage);
+    const cells = chunk.map(s => `<div class="dg-label-cell">${s}</div>`).join('');
+    pages.push(`<div class="dg-a4-page">${cells}</div>`);
+  }
+
+  return `${labelPrintHead('Labels', pageCss)}${pages.join('')}</body></html>`;
+}
+
 export async function renderLabelHtml(
   template: Pick<BarcodeLabelTemplate, 'widthMm' | 'heightMm' | 'elements'>,
   ctx: LabelPrintContext,
   opts?: { scale?: number; copies?: number },
 ): Promise<string> {
-  const scale = opts?.scale ?? 1;
   const copies = Math.max(1, Math.min(500, opts?.copies ?? 1));
-  const sorted = [...template.elements].sort((a, b) => a.zIndex - b.zIndex);
-  const inner = await Promise.all(sorted.map(el => renderElementHtml(el, ctx, scale)));
-  const labelBody = `<div class="label-sheet" style="position:relative;width:${mmToPx(template.widthMm, scale)}px;height:${mmToPx(template.heightMm, scale)}px;background:#fff;box-sizing:border-box;">${inner.join('')}</div>`;
-  const labels = Array.from({ length: copies }, () => labelBody).join('');
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Label Print</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  @page { size: ${template.widthMm}mm ${template.heightMm}mm; margin: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background:#f3f4f6; }
-  .print-grid { display:flex; flex-wrap:wrap; gap:0; }
-  .label-sheet { page-break-inside:avoid; border:0.2mm solid #e5e7eb; margin:0; }
-  @media print {
-    body { background:#fff; }
-    .label-sheet { border:none; }
-    .no-print { display:none !important; }
-  }
-</style></head><body>
-<div class="print-grid">${labels}</div>
-</body></html>`;
+  const contexts = Array.from({ length: copies }, () => ctx);
+  return renderLabelsPrintHtml(template, contexts, 'thermal');
 }
 
 export async function renderLabelPreviewDataUrl(

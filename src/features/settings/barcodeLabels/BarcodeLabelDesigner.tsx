@@ -22,7 +22,8 @@ import {
   generateBarcodeImageDataUrl,
   generateQrImageDataUrl,
   mmToPx,
-  renderLabelHtml,
+  computeA4LabelGrid,
+  renderLabelsPrintHtml,
 } from '../../../lib/barcodeLabelRender';
 import { session } from '../../../lib/session';
 import { useEscapeKey } from '../../../lib/useEscapeKey';
@@ -490,13 +491,16 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
   };
 
   const printTest = async () => {
-    const html = await renderLabelHtml(state.template, previewContext, { copies: 1 });
+    const grid = computeA4LabelGrid(state.template.widthMm, state.template.heightMm);
+    const sampleCount = Math.min(grid.cols * 2, grid.perPage);
+    const contexts = Array.from({ length: sampleCount }, () => previewContext);
+    const html = await renderLabelsPrintHtml(state.template, contexts, 'a4-sheet');
     const win = openPrintWindow('Preparing test label…');
     if (!win) {
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
     }
-    printBillInWindow(win, html, 'Test label');
+    printBillInWindow(win, html, 'Test label', { autoPrint: false });
   };
 
   const onPointerMove = useCallback(

@@ -952,9 +952,33 @@ const PRINT_PAGINATION_CSS = `
 }
 `;
 
+const LABEL_PRINT_PAGINATION_CSS = `
+@media screen {
+  html, body { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
+@media print {
+  html, body { height: auto !important; overflow: visible !important; width: 100% !important; }
+  .dg-label-cell, .label-sheet, .thermal-page {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .dg-a4-page {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+  .dg-a4-page:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+  .no-print { display: none !important; }
+}
+`;
+
 export function withPrintPagination(html: string): string {
   if (!html || html.includes('id="dg-print-pagination"')) return html;
-  const style = `<style id="dg-print-pagination">${PRINT_PAGINATION_CSS}</style>`;
+  const isLabelPrint = /name="dg-print-mode"\s+content="labels"/i.test(html);
+  const paginationCss = isLabelPrint ? LABEL_PRINT_PAGINATION_CSS : PRINT_PAGINATION_CSS;
+  const style = `<style id="dg-print-pagination">${paginationCss}</style>`;
   if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${style}</head>`);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, m => `${m}<head>${style}</head>`);
   return `${style}${html}`;
