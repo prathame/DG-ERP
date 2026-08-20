@@ -9,11 +9,22 @@ import {
   type BarcodeLabelTemplate,
   type LabelElement,
   type LabelElementType,
+  type LabelPrintContext,
   SAMPLE_LABEL_CONTEXT,
   defaultStarterTemplate,
+  jsBarcodeFormat,
+  resolveBarcodeValue,
+  resolveElementText,
   roundMm,
+  validateBarcodeValue,
 } from '../../../../shared/barcodeLabelTemplate';
-import { mmToPx, renderLabelHtml } from '../../../lib/barcodeLabelRender';
+import {
+  generateBarcodeImageDataUrl,
+  generateQrImageDataUrl,
+  mmToPx,
+  renderLabelHtml,
+} from '../../../lib/barcodeLabelRender';
+import { session } from '../../../lib/session';
 import { useEscapeKey } from '../../../lib/useEscapeKey';
 
 const CANVAS_SCALE = 4;
@@ -106,7 +117,7 @@ function newElement(type: LabelElementType, z: number): LabelElement {
       ...base,
       heightMm: 12,
       widthMm: 34,
-      properties: { barcodeType: 'EAN13', barcodeValueSource: 'product.barcode', showHumanReadable: true },
+      properties: { barcodeType: 'CODE128', barcodeValueSource: 'product.barcode', showHumanReadable: true },
     };
   if (type === 'qr') return { ...base, widthMm: 12, heightMm: 12, properties: {} };
   if (type === 'logo') return { ...base, type: 'logo', widthMm: 10, heightMm: 8, properties: { fit: 'contain' } };
@@ -201,7 +212,112 @@ function QrCanvasPlaceholder() {
   );
 }
 
-function CanvasElementPreview({ el, companyLogo }: { el: LabelElement; companyLogo: string | null }) {
+function fieldPreviewStyle(el: LabelElement, canvasScale: number): React.CSSProperties {
+  const p = el.properties || {};
+  const sizePt = (p.fontSizePt || 8) * canvasScale;
+  return {
+    fontSize: `${sizePt}pt`,
+    fontWeight: p.fontWeight === 'bold' ? 'bold' : 'normal',
+    fontStyle: p.fontStyle === 'italic' ? 'italic' : 'normal',
+    textDecoration: p.textDecoration === 'underline' ? 'underline' : 'none',
+    textAlign: p.textAlign || 'left',
+    lineHeight: p.lineHeight || 1.2,
+    whiteSpace: p.wrap ? 'normal' : 'nowrap',
+    wordBreak: p.wrap ? 'break-word' : 'normal',
+    color: p.color || '#111827',
+    width: '100%',
+  };
+}
+
+function BarcodeLivePreview({
+  el,
+  ctx,
+  canvasScale,
+}: {
+  el: LabelElement;
+  ctx: LabelPrintContext;
+  canvasScale: number;
+}) {
+  const [src, setSrc] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const p = el.properties || {};
+    let barcodeType = p.barcodeType || 'CODE128';
+    const value = resolveBarcodeValue(el, ctx);
+    let err = validateBarcodeValue(barcodeType, value);
+    if (err && barcodeType !== 'CODE128') {
+      barcodeType = 'CODE128';
+      err = validateBarcodeValue(barcodeType, value);
+    }
+    if (err) {
+      setSrc('');
+      setError(err);
+      return;
+    }
+    setError(null);
+    void generateBarcodeImageDataUrl(
+      value,
+      jsBarcodeFormat(barcodeType),
+      2,
+      mmToPx(el.heightMm * 0.7, canvasScale),
+    ).then(url => {
+      if (!cancelled) setSrc(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [el, ctx, canvasScale]);
+
+  if (error) {
+    return <span className="text-[9px] text-rose-600 text-center leading-tight px-0.5">{error}</span>;
+  }
+  if (!src) return <BarcodeCanvasPlaceholder />;
+  const value = resolveBarcodeValue(el, ctx);
+  const showHr = el.properties.showHumanReadable !== false;
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-white">
+      <img src={src} alt="" className="max-w-full max-h-[75%] object-contain" />
+      {showHr && (
+        <span
+          className="font-mono text-center truncate w-full"
+          style={{ fontSize: `${(el.properties.humanReadableFontSizePt || 6) * canvasScale * 0.85}pt` }}
+        >
+          {value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function QrLivePreview({ el, ctx, canvasScale }: { el: LabelElement; ctx: LabelPrintContext; canvasScale: number }) {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    const value = resolveBarcodeValue(el, ctx) || ctx.product.barcode || ctx.product.name;
+    void generateQrImageDataUrl(value, Math.round(mmToPx(Math.min(el.widthMm, el.heightMm), canvasScale))).then(url => {
+      if (!cancelled) setSrc(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [el, ctx, canvasScale]);
+  if (!src) return <QrCanvasPlaceholder />;
+  return <img src={src} alt="" className="w-full h-full object-contain bg-white" />;
+}
+
+function CanvasElementPreview({
+  el,
+  companyLogo,
+  previewContext,
+  canvasScale,
+}: {
+  el: LabelElement;
+  companyLogo: string | null;
+  previewContext: LabelPrintContext;
+  canvasScale: number;
+}) {
   const imgSrc = el.type === 'logo' || el.type === 'image' ? resolveCanvasImageSrc(el, companyLogo) : null;
 
   if (imgSrc) {
@@ -216,19 +332,11 @@ function CanvasElementPreview({ el, companyLogo }: { el: LabelElement; companyLo
   }
 
   if (el.type === 'barcode') {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-white p-0.5">
-        <BarcodeCanvasPlaceholder />
-      </div>
-    );
+    return <BarcodeLivePreview el={el} ctx={previewContext} canvasScale={canvasScale} />;
   }
 
   if (el.type === 'qr') {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-white p-0.5">
-        <QrCanvasPlaceholder />
-      </div>
-    );
+    return <QrLivePreview el={el} ctx={previewContext} canvasScale={canvasScale} />;
   }
 
   if (el.type === 'logo') {
@@ -240,20 +348,17 @@ function CanvasElementPreview({ el, companyLogo }: { el: LabelElement; companyLo
   }
 
   if (el.type === 'field') {
-    const label = LABEL_DYNAMIC_FIELDS.find(f => f.key === el.properties.fieldKey)?.label || 'Field';
     return (
-      <span className="text-[7px] text-gray-700 px-0.5 truncate w-full text-left">
-        {el.properties.prefix}
-        {label}
-        {el.properties.suffix}
+      <span className="block px-0.5 truncate" style={fieldPreviewStyle(el, canvasScale)}>
+        {resolveElementText(el, previewContext)}
       </span>
     );
   }
 
   if (el.type === 'text') {
     return (
-      <span className="text-[7px] text-gray-700 px-0.5 truncate w-full text-left">
-        {el.properties.staticText || 'Text'}
+      <span className="block px-0.5 truncate" style={fieldPreviewStyle(el, canvasScale)}>
+        {resolveElementText(el, previewContext)}
       </span>
     );
   }
@@ -309,15 +414,28 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
     future: [],
   });
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [previewContext, setPreviewContext] = useState<LabelPrintContext>(SAMPLE_LABEL_CONTEXT);
   const [zoom, setZoom] = useState(1);
   const [saving, setSaving] = useState(false);
   const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
 
   useEffect(() => {
+    const user = (session.getUser() || {}) as { companyName?: string; gstNumber?: string };
     api.settings
       .getBillSettings()
-      .then(s => setCompanyLogo(s?.logoBase64 || null))
+      .then(s => {
+        setCompanyLogo(s?.logoBase64 || null);
+        setPreviewContext(ctx => ({
+          ...ctx,
+          company: {
+            ...ctx.company,
+            name: user.companyName?.trim() || ctx.company.name,
+            logo: s?.logoBase64 || ctx.company.logo,
+            gstin: user.gstNumber?.trim() || ctx.company.gstin,
+          },
+        }));
+      })
       .catch(() => setCompanyLogo(null));
   }, []);
 
@@ -372,7 +490,7 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
   };
 
   const printTest = async () => {
-    const html = await renderLabelHtml(state.template, SAMPLE_LABEL_CONTEXT, { scale: CANVAS_SCALE, copies: 1 });
+    const html = await renderLabelHtml(state.template, previewContext, { copies: 1 });
     const win = openPrintWindow('Preparing test label…');
     if (!win) {
       toast(PRINT_POPUP_BLOCKED, 'error');
@@ -446,6 +564,7 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
 
   const canvasW = mmToPx(state.template.widthMm, CANVAS_SCALE * zoom);
   const canvasH = mmToPx(state.template.heightMm, CANVAS_SCALE * zoom);
+  const canvasScale = CANVAS_SCALE * zoom;
 
   return (
     <div className="fixed inset-0 z-[120] flex flex-col bg-[#0f1419] text-white">
@@ -600,8 +719,13 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
                     )}
                     style={{ left, top, width: w, height: h, zIndex: el.zIndex }}
                   >
-                    <div className="w-full h-full overflow-hidden text-[8px] p-0.5 flex items-center justify-center text-center pointer-events-none">
-                      <CanvasElementPreview el={el} companyLogo={companyLogo} />
+                    <div className="w-full h-full overflow-hidden pointer-events-none">
+                      <CanvasElementPreview
+                        el={el}
+                        companyLogo={companyLogo}
+                        previewContext={previewContext}
+                        canvasScale={canvasScale}
+                      />
                     </div>
                     {active && (
                       <span
@@ -768,8 +892,8 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
               )}
               {selected.type === 'qr' && (
                 <p className="text-[11px] text-white/60 leading-snug">
-                  QR encodes the product barcode at print time. Resize the square on the canvas — preview shows a
-                  placeholder pattern only.
+                  QR encodes the product barcode at print time. The canvas shows a live sample using your company and
+                  sample product data.
                 </p>
               )}
               {(selected.type === 'logo' || selected.type === 'image') && (

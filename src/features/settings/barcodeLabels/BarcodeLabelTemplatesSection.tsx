@@ -14,6 +14,7 @@ import {
   downloadLabelTemplateFile,
 } from '../../../../shared/barcodeLabelTemplate';
 import { renderLabelHtml } from '../../../lib/barcodeLabelRender';
+import { session } from '../../../lib/session';
 import { openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED, cn } from '../../../lib/utils';
 import { BarcodeLabelDesigner } from './BarcodeLabelDesigner';
 import { isDesktopGlassUi } from '../../../lib/desktopGlass';
@@ -33,6 +34,7 @@ export function BarcodeLabelTemplatesSection() {
   const [installingSamples, setInstallingSamples] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [printContext, setPrintContext] = useState(SAMPLE_LABEL_CONTEXT);
 
   const load = () => {
     setLoading(true);
@@ -45,8 +47,26 @@ export function BarcodeLabelTemplatesSection() {
 
   useEffect(load, []);
 
+  useEffect(() => {
+    const user = (session.getUser() || {}) as { companyName?: string; gstNumber?: string };
+    api.settings
+      .getBillSettings()
+      .then(s =>
+        setPrintContext(ctx => ({
+          ...ctx,
+          company: {
+            ...ctx.company,
+            name: user.companyName?.trim() || ctx.company.name,
+            logo: s?.logoBase64 || ctx.company.logo,
+            gstin: user.gstNumber?.trim() || ctx.company.gstin,
+          },
+        })),
+      )
+      .catch(() => undefined);
+  }, []);
+
   const printTest = async (t: BarcodeLabelTemplate) => {
-    const html = await renderLabelHtml(t, SAMPLE_LABEL_CONTEXT, { copies: 1 });
+    const html = await renderLabelHtml(t, printContext, { copies: 1 });
     const win = openPrintWindow('Preparing test label…');
     if (!win) {
       toast(PRINT_POPUP_BLOCKED, 'error');
