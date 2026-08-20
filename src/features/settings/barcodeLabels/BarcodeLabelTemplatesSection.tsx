@@ -14,6 +14,7 @@ import {
   downloadLabelTemplateFile,
 } from '../../../../shared/barcodeLabelTemplate';
 import { renderLabelHtml } from '../../../lib/barcodeLabelRender';
+import { session } from '../../../lib/session';
 import { openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED, cn } from '../../../lib/utils';
 import { BarcodeLabelDesigner } from './BarcodeLabelDesigner';
 import { isDesktopGlassUi } from '../../../lib/desktopGlass';
@@ -47,6 +48,7 @@ export function BarcodeLabelTemplatesSection() {
   useEffect(load, []);
 
   useEffect(() => {
+    const user = (session.getUser() || {}) as { companyName?: string; gstNumber?: string };
     api.settings
       .getBillSettings()
       .then(s =>
@@ -54,9 +56,9 @@ export function BarcodeLabelTemplatesSection() {
           ...ctx,
           company: {
             ...ctx.company,
-            name: s?.companyName?.trim() || ctx.company.name,
+            name: user.companyName?.trim() || ctx.company.name,
             logo: s?.logoBase64 || ctx.company.logo,
-            gstin: s?.gstin?.trim() || ctx.company.gstin,
+            gstin: user.gstNumber?.trim() || ctx.company.gstin,
           },
         })),
       )

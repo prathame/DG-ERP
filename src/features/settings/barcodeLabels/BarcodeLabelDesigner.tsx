@@ -24,6 +24,7 @@ import {
   mmToPx,
   renderLabelHtml,
 } from '../../../lib/barcodeLabelRender';
+import { session } from '../../../lib/session';
 import { useEscapeKey } from '../../../lib/useEscapeKey';
 
 const CANVAS_SCALE = 4;
@@ -420,6 +421,7 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
   const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
 
   useEffect(() => {
+    const user = (session.getUser() || {}) as { companyName?: string; gstNumber?: string };
     api.settings
       .getBillSettings()
       .then(s => {
@@ -428,9 +430,9 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
           ...ctx,
           company: {
             ...ctx.company,
-            name: s?.companyName?.trim() || ctx.company.name,
+            name: user.companyName?.trim() || ctx.company.name,
             logo: s?.logoBase64 || ctx.company.logo,
-            gstin: s?.gstin?.trim() || ctx.company.gstin,
+            gstin: user.gstNumber?.trim() || ctx.company.gstin,
           },
         }));
       })
