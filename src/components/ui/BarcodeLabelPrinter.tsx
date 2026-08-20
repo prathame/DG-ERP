@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Printer, QrCode } from 'lucide-react';
 import { api } from '../../api';
 import { LoadingSpinner, useToast } from './index';
@@ -6,7 +6,7 @@ import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../
 import { session } from '../../lib/session';
 import { esc } from '../../lib/billTemplates';
 import { renderLabelHtml } from '../../lib/barcodeLabelRender';
-import type { LabelPrintContext } from '../../../shared/barcodeLabelTemplate';
+import type { BarcodeLabelTemplate, LabelPrintContext } from '../../../shared/barcodeLabelTemplate';
 
 type LabelBarcode = {
   barcode: string;
@@ -96,6 +96,8 @@ export function BarcodeLabelPrinter({
   const [showPrice, setShowPrice] = useState(!jewelleryMode);
   const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
   const [previewSrc, setPreviewSrc] = useState('');
+  const [defaultTemplate, setDefaultTemplate] = useState<BarcodeLabelTemplate | null>(null);
+  const usesCustomTemplate = Boolean(defaultTemplate?.elements?.length);
   const companyName = (() => {
     try {
       return (session.getUser() || {}).companyName || '';
@@ -103,6 +105,13 @@ export function BarcodeLabelPrinter({
       return '';
     }
   })();
+
+  useEffect(() => {
+    api.barcodeLabelTemplates
+      .getDefault()
+      .then(t => setDefaultTemplate(t))
+      .catch(() => setDefaultTemplate(null));
+  }, []);
 
   useEffect(() => {
     api.products
@@ -299,83 +308,92 @@ export function BarcodeLabelPrinter({
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Format */}
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Label Format</p>
-            <div className="flex gap-2">
-              {(
-                [
-                  ['a4-24', 'A4 — 24 labels (63×33mm)'],
-                  ['a4-40', 'A4 — 40 labels (48×25mm)'],
-                  ['single', 'Single (80×40mm)'],
-                ] as const
-              ).map(([val, label]) => (
+          {usesCustomTemplate ? (
+            <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Label template</p>
+              <p className="text-sm font-bold text-gray-900">{defaultTemplate!.name}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {defaultTemplate!.widthMm}×{defaultTemplate!.heightMm} mm — layout from Settings → Bill Customization
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Label Format</p>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      ['a4-24', 'A4 — 24 labels (63×33mm)'],
+                      ['a4-40', 'A4 — 40 labels (48×25mm)'],
+                      ['single', 'Single (80×40mm)'],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setFormat(val)}
+                      className={cn(
+                        'flex-1 py-2.5 rounded-xl text-xs font-bold border transition-colors',
+                        format === val
+                          ? 'bg-brand text-white border-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Code Type</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCodeType('barcode')}
+                    className={cn(
+                      'flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors',
+                      codeType === 'barcode'
+                        ? 'bg-brand text-white border-brand'
+                        : 'border-gray-200 text-gray-600 hover:border-brand',
+                    )}
+                  >
+                    ||||| Barcode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCodeType('qr')}
+                    className={cn(
+                      'flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors',
+                      codeType === 'qr'
+                        ? 'bg-brand text-white border-brand'
+                        : 'border-gray-200 text-gray-600 hover:border-brand',
+                    )}
+                  >
+                    <QrCode size={16} /> QR Code
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Show Price on Label</span>
                 <button
-                  key={val}
-                  onClick={() => setFormat(val)}
+                  type="button"
+                  onClick={() => setShowPrice(!showPrice)}
                   className={cn(
-                    'flex-1 py-2.5 rounded-xl text-xs font-bold border transition-colors',
-                    format === val
-                      ? 'bg-brand text-white border-brand'
-                      : 'border-gray-200 text-gray-600 hover:border-brand',
+                    'relative w-12 h-7 rounded-full transition-colors',
+                    showPrice ? 'bg-green-500' : 'bg-gray-300',
                   )}
                 >
-                  {label}
+                  <span
+                    className={cn(
+                      'absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform',
+                      showPrice ? 'translate-x-5' : 'translate-x-0.5',
+                    )}
+                  />
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Code Type */}
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Code Type</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setCodeType('barcode')}
-                className={cn(
-                  'flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors',
-                  codeType === 'barcode'
-                    ? 'bg-brand text-white border-brand'
-                    : 'border-gray-200 text-gray-600 hover:border-brand',
-                )}
-              >
-                ||||| Barcode
-              </button>
-              <button
-                type="button"
-                onClick={() => setCodeType('qr')}
-                className={cn(
-                  'flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors',
-                  codeType === 'qr'
-                    ? 'bg-brand text-white border-brand'
-                    : 'border-gray-200 text-gray-600 hover:border-brand',
-                )}
-              >
-                <QrCode size={16} /> QR Code
-              </button>
-            </div>
-          </div>
-
-          {/* Options */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Show Price on Label</span>
-            <button
-              type="button"
-              onClick={() => setShowPrice(!showPrice)}
-              className={cn(
-                'relative w-12 h-7 rounded-full transition-colors',
-                showPrice ? 'bg-green-500' : 'bg-gray-300',
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform',
-                  showPrice ? 'translate-x-5' : 'translate-x-0.5',
-                )}
-              />
-            </button>
-          </div>
+              </div>
+            </>
+          )}
 
           {/* Select barcodes */}
           <div>
@@ -421,38 +439,41 @@ export function BarcodeLabelPrinter({
             </div>
           </div>
 
-          {/* Preview */}
-          <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Label Preview</p>
-            <div className="flex items-center justify-center">
-              <div className="border border-gray-300 bg-white p-3 text-center" style={{ width: '180px' }}>
-                {companyName && <p style={{ fontSize: '8px', fontWeight: 700, color: '#666' }}>{companyName}</p>}
-                <p style={{ fontSize: '9px', fontWeight: 600 }}>{product?.name}</p>
-                {barcodes[0] && previewSrc && (
-                  <img
-                    src={previewSrc}
-                    alt={codeType === 'barcode' ? 'barcode' : 'qr'}
-                    style={{ height: codeType === 'barcode' ? '30px' : '50px', margin: '4px auto' }}
-                  />
-                )}
-                <p style={{ fontSize: '8px', fontFamily: 'monospace', letterSpacing: '1px' }}>{barcodes[0]?.barcode}</p>
-                {jewelleryMode && barcodes[0]?.netWeight != null && (
-                  <p style={{ fontSize: '8px', fontWeight: 600 }}>
-                    {barcodes[0].netWeight}g{barcodes[0].purity != null ? ` · ${barcodes[0].purity}‰` : ''}
-                    {barcodes[0].fineWeight != null ? ` · F ${barcodes[0].fineWeight}g` : ''}
+          {!usesCustomTemplate && (
+            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Label Preview</p>
+              <div className="flex items-center justify-center">
+                <div className="border border-gray-300 bg-white p-3 text-center" style={{ width: '180px' }}>
+                  {companyName && <p style={{ fontSize: '8px', fontWeight: 700, color: '#666' }}>{companyName}</p>}
+                  <p style={{ fontSize: '9px', fontWeight: 600 }}>{product?.name}</p>
+                  {barcodes[0] && previewSrc && (
+                    <img
+                      src={previewSrc}
+                      alt={codeType === 'barcode' ? 'barcode' : 'qr'}
+                      style={{ height: codeType === 'barcode' ? '30px' : '50px', margin: '4px auto' }}
+                    />
+                  )}
+                  <p style={{ fontSize: '8px', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                    {barcodes[0]?.barcode}
                   </p>
-                )}
-                {jewelleryMode && barcodes[0]?.huid && (
-                  <p style={{ fontSize: '7px', fontFamily: 'monospace' }}>HUID {barcodes[0].huid}</p>
-                )}
-                {showPrice && (
-                  <p style={{ fontSize: '10px', fontWeight: 700 }}>
-                    ₹{Number(product?.price || 0).toLocaleString('en-IN')}
-                  </p>
-                )}
+                  {jewelleryMode && barcodes[0]?.netWeight != null && (
+                    <p style={{ fontSize: '8px', fontWeight: 600 }}>
+                      {barcodes[0].netWeight}g{barcodes[0].purity != null ? ` · ${barcodes[0].purity}‰` : ''}
+                      {barcodes[0].fineWeight != null ? ` · F ${barcodes[0].fineWeight}g` : ''}
+                    </p>
+                  )}
+                  {jewelleryMode && barcodes[0]?.huid && (
+                    <p style={{ fontSize: '7px', fontFamily: 'monospace' }}>HUID {barcodes[0].huid}</p>
+                  )}
+                  {showPrice && (
+                    <p style={{ fontSize: '10px', fontWeight: 700 }}>
+                      ₹{Number(product?.price || 0).toLocaleString('en-IN')}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Print */}
           <button
