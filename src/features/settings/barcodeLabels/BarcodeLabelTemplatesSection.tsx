@@ -33,6 +33,7 @@ export function BarcodeLabelTemplatesSection() {
   const [installingSamples, setInstallingSamples] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [printContext, setPrintContext] = useState(SAMPLE_LABEL_CONTEXT);
 
   const load = () => {
     setLoading(true);
@@ -45,8 +46,25 @@ export function BarcodeLabelTemplatesSection() {
 
   useEffect(load, []);
 
+  useEffect(() => {
+    api.settings
+      .getBillSettings()
+      .then(s =>
+        setPrintContext(ctx => ({
+          ...ctx,
+          company: {
+            ...ctx.company,
+            name: s?.companyName?.trim() || ctx.company.name,
+            logo: s?.logoBase64 || ctx.company.logo,
+            gstin: s?.gstin?.trim() || ctx.company.gstin,
+          },
+        })),
+      )
+      .catch(() => undefined);
+  }, []);
+
   const printTest = async (t: BarcodeLabelTemplate) => {
-    const html = await renderLabelHtml(t, SAMPLE_LABEL_CONTEXT, { copies: 1 });
+    const html = await renderLabelHtml(t, printContext, { copies: 1 });
     const win = openPrintWindow('Preparing test label…');
     if (!win) {
       toast(PRINT_POPUP_BLOCKED, 'error');
