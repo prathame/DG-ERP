@@ -73,17 +73,23 @@ async function renderElementHtml(el: LabelElement, ctx: LabelPrintContext, scale
     return `<div style="${base}"><img src="${esc(String(src))}" alt="" style="width:100%;height:100%;object-fit:${fit};" /></div>`;
   }
   if (el.type === 'barcode') {
-    const sym = jsBarcodeFormat(p.barcodeType || 'CODE128');
+    let barcodeType = p.barcodeType || 'CODE128';
     const value = resolveBarcodeValue(el, ctx);
-    const err = validateBarcodeValue(p.barcodeType || 'CODE128', value);
+    let err = validateBarcodeValue(barcodeType, value);
+    // Stock codes are internal alphanumeric (e.g. BAY250001) — fall back when retail symbology fails.
+    if (err && barcodeType !== 'CODE128') {
+      barcodeType = 'CODE128';
+      err = validateBarcodeValue(barcodeType, value);
+    }
     if (err) {
       return `<div style="${base}color:#b91c1c;font-size:8px;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px;">${esc(err)}</div>`;
     }
+    const sym = jsBarcodeFormat(barcodeType);
     const img = await generateBarcodeImageDataUrl(value, sym, 2, mmToPx(el.heightMm * 0.7, scale));
     if (!img) return '';
     const hr =
       p.showHumanReadable !== false
-        ? `<div style="font-size:${p.humanReadableFontSizePt || 6}pt;font-family:monospace;text-align:center;letter-spacing:1px;">${esc(value)}</div>`
+        ? `<div style="font-size:${p.humanReadableFontSizePt || 6}pt;font-family:monospace;text-align:center;">${esc(value)}</div>`
         : '';
     return `<div style="${base}display:flex;flex-direction:column;align-items:center;justify-content:center;"><img src="${img}" alt="${esc(value)}" style="max-width:100%;max-height:75%;object-fit:contain;" />${hr}</div>`;
   }

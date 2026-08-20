@@ -130,7 +130,7 @@ export type LabelPrintContext = {
 export const SAMPLE_LABEL_CONTEXT: LabelPrintContext = {
   product: {
     name: 'DG-Product-Alpha',
-    barcode: '8901234567890',
+    barcode: 'DG-SAMPLE01',
     price: 999,
     hsn: '8471',
     gstRate: 18,
@@ -378,7 +378,7 @@ export function defaultStarterTemplate(name = 'Product Label 38×25mm'): Omit<Ba
         zIndex: 5,
         visible: true,
         properties: {
-          barcodeType: 'EAN13',
+          barcodeType: 'CODE128',
           barcodeValueSource: 'product.barcode',
           showHumanReadable: true,
           humanReadableFontSizePt: 6,
@@ -400,7 +400,7 @@ export const LABEL_SAMPLE_TEMPLATES: LabelSampleTemplate[] = [
   {
     id: 'product-38x25',
     name: 'Product label 38×25 mm',
-    description: 'Logo, company name, MRP, product name, and EAN-13 barcode.',
+    description: 'Logo, company name, MRP, product name, and CODE-128 barcode.',
     template: defaultStarterTemplate('Product Label 38×25mm'),
   },
   {
@@ -582,7 +582,7 @@ export const LABEL_SAMPLE_TEMPLATES: LabelSampleTemplate[] = [
           zIndex: 7,
           visible: true,
           properties: {
-            barcodeType: 'EAN13',
+            barcodeType: 'CODE128',
             barcodeValueSource: 'product.barcode',
             showHumanReadable: true,
             humanReadableFontSizePt: 8,
