@@ -146,6 +146,145 @@ function readImageFile(file: File, onLoad: (dataUrl: string) => void, onError: (
   reader.readAsDataURL(file);
 }
 
+function BarcodeCanvasPlaceholder() {
+  const bars = [3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3, 2, 4, 1, 2, 3];
+  let x = 3;
+  return (
+    <svg viewBox="0 0 88 40" className="w-full h-full block" aria-hidden>
+      {bars.map((bw, i) => {
+        const rect = <rect key={i} x={x} y={6} width={bw} height={24} fill="#111827" />;
+        x += bw + 1.2;
+        return rect;
+      })}
+      <text x="44" y="38" textAnchor="middle" fontSize="5" fill="#6b7280">
+        barcode
+      </text>
+    </svg>
+  );
+}
+
+function QrCanvasPlaceholder() {
+  const modules = [
+    '11110111',
+    '10100101',
+    '10111101',
+    '10100101',
+    '11110111',
+    '00000000',
+    '11010011',
+    '01011010',
+    '11001101',
+  ];
+  return (
+    <svg viewBox="0 0 48 48" className="w-full h-full block" aria-hidden>
+      <rect x="1" y="1" width="46" height="46" fill="#fff" stroke="#e5e7eb" strokeWidth="0.5" />
+      {[
+        [2, 2],
+        [32, 2],
+        [2, 32],
+      ].map(([ox, oy], i) => (
+        <g key={i}>
+          <rect x={ox} y={oy} width={14} height={14} fill="none" stroke="#111827" strokeWidth="2" />
+          <rect x={ox + 3} y={oy + 3} width={8} height={8} fill="#111827" />
+        </g>
+      ))}
+      {modules.map((row, y) =>
+        row
+          .split('')
+          .map((cell, x) =>
+            cell === '1' ? (
+              <rect key={`${y}-${x}`} x={18 + x * 2.2} y={18 + y * 2.2} width={1.8} height={1.8} fill="#111827" />
+            ) : null,
+          ),
+      )}
+    </svg>
+  );
+}
+
+function CanvasElementPreview({ el, companyLogo }: { el: LabelElement; companyLogo: string | null }) {
+  const imgSrc = el.type === 'logo' || el.type === 'image' ? resolveCanvasImageSrc(el, companyLogo) : null;
+
+  if (imgSrc) {
+    return (
+      <img
+        src={imgSrc}
+        alt=""
+        className="w-full h-full"
+        style={{ objectFit: el.properties.fit === 'cover' ? 'cover' : 'contain' }}
+      />
+    );
+  }
+
+  if (el.type === 'barcode') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-white p-0.5">
+        <BarcodeCanvasPlaceholder />
+      </div>
+    );
+  }
+
+  if (el.type === 'qr') {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-white p-0.5">
+        <QrCanvasPlaceholder />
+      </div>
+    );
+  }
+
+  if (el.type === 'logo') {
+    return <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">Logo</span>;
+  }
+
+  if (el.type === 'image') {
+    return <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">Image</span>;
+  }
+
+  if (el.type === 'field') {
+    const label = LABEL_DYNAMIC_FIELDS.find(f => f.key === el.properties.fieldKey)?.label || 'Field';
+    return (
+      <span className="text-[7px] text-gray-700 px-0.5 truncate w-full text-left">
+        {el.properties.prefix}
+        {label}
+        {el.properties.suffix}
+      </span>
+    );
+  }
+
+  if (el.type === 'text') {
+    return (
+      <span className="text-[7px] text-gray-700 px-0.5 truncate w-full text-left">
+        {el.properties.staticText || 'Text'}
+      </span>
+    );
+  }
+
+  if (el.type === 'rect') {
+    return <div className="w-full h-full border border-gray-800 bg-gray-50" />;
+  }
+
+  if (el.type === 'line') {
+    return (
+      <div className="w-full h-full flex items-center">
+        <div className="w-full border-t-2 border-gray-800" />
+      </div>
+    );
+  }
+
+  return <span className="text-[8px] text-gray-500">{el.type}</span>;
+}
+
+function layerLabel(el: LabelElement): string {
+  if (el.type === 'qr') return 'QR code';
+  if (el.type === 'barcode') return `Barcode (${el.properties.barcodeType || 'CODE128'})`;
+  if (el.type === 'field') {
+    return LABEL_DYNAMIC_FIELDS.find(f => f.key === el.properties.fieldKey)?.label || 'Field';
+  }
+  if (el.type === 'text') return el.properties.staticText || 'Text';
+  if (el.type === 'logo') return 'Company logo';
+  if (el.type === 'image') return 'Custom image';
+  return el.type;
+}
+
 export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props) {
   const { toast } = useToast();
   const [state, dispatch] = useReducer(reducer, {
@@ -437,8 +576,6 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
                 const top = mmToPx(el.yMm, CANVAS_SCALE * zoom);
                 const w = mmToPx(el.widthMm, CANVAS_SCALE * zoom);
                 const h = mmToPx(el.heightMm, CANVAS_SCALE * zoom);
-                const imgSrc =
-                  el.type === 'logo' || el.type === 'image' ? resolveCanvasImageSrc(el, companyLogo) : null;
                 return (
                   <div
                     key={el.id}
@@ -464,24 +601,7 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
                     style={{ left, top, width: w, height: h, zIndex: el.zIndex }}
                   >
                     <div className="w-full h-full overflow-hidden text-[8px] p-0.5 flex items-center justify-center text-center pointer-events-none">
-                      {imgSrc ? (
-                        <img
-                          src={imgSrc}
-                          alt=""
-                          className="w-full h-full object-contain"
-                          style={{ objectFit: el.properties.fit === 'cover' ? 'cover' : 'contain' }}
-                        />
-                      ) : el.type === 'barcode' ? (
-                        '▮▮▮ barcode'
-                      ) : el.type === 'logo' ? (
-                        'LOGO'
-                      ) : el.type === 'image' ? (
-                        'IMAGE'
-                      ) : el.type === 'qr' ? (
-                        'QR'
-                      ) : (
-                        el.type
-                      )}
+                      <CanvasElementPreview el={el} companyLogo={companyLogo} />
                     </div>
                     {active && (
                       <span
@@ -646,6 +766,12 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
                   ))}
                 </select>
               )}
+              {selected.type === 'qr' && (
+                <p className="text-[11px] text-white/60 leading-snug">
+                  QR encodes the product barcode at print time. Resize the square on the canvas — preview shows a
+                  placeholder pattern only.
+                </p>
+              )}
               {(selected.type === 'logo' || selected.type === 'image') && (
                 <div className="space-y-2">
                   {selected.type === 'logo' && (
@@ -730,7 +856,7 @@ export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props
                     el.id === state.selectedId ? 'border-brand bg-brand/10' : 'border-white/10',
                   )}
                 >
-                  {el.type} {!el.visible && '(hidden)'}
+                  {layerLabel(el)} {!el.visible && '(hidden)'}
                 </button>
               ))}
             </div>
