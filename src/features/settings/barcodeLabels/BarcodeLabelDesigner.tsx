@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Layers, Plus, Printer, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, Layers, Plus, Printer, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
 import { api } from '../../../api';
 import { useToast } from '../../../components/ui';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../../lib/utils';
@@ -110,6 +110,7 @@ function newElement(type: LabelElementType, z: number): LabelElement {
     };
   if (type === 'qr') return { ...base, widthMm: 12, heightMm: 12, properties: {} };
   if (type === 'logo') return { ...base, type: 'logo', widthMm: 10, heightMm: 8, properties: { fit: 'contain' } };
+  if (type === 'image') return { ...base, type: 'image', widthMm: 12, heightMm: 12, properties: { fit: 'contain' } };
   if (type === 'field') return { ...base, type: 'field', properties: { fieldKey: 'product.name', fontSizePt: 8 } };
   if (type === 'text') return { ...base, type: 'text', properties: { staticText: 'Text', fontSizePt: 8 } };
   return base;
@@ -117,22 +118,222 @@ function newElement(type: LabelElementType, z: number): LabelElement {
 
 type Props = {
   initial: BarcodeLabelTemplate | null;
+  /** Unsaved layout from sample picker or blank start. */
+  draft?: Omit<BarcodeLabelTemplate, 'id' | 'tenantId'> | null;
   onClose: () => void;
   onSaved: () => void;
 };
 
-export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
+function resolveCanvasImageSrc(el: LabelElement, companyLogo: string | null): string | null {
+  const custom = el.properties.imageBase64;
+  if (custom && String(custom).startsWith('data:image/')) return String(custom);
+  if (el.type === 'logo' && companyLogo?.startsWith('data:image/')) return companyLogo;
+  return null;
+}
+
+function readImageFile(file: File, onLoad: (dataUrl: string) => void, onError: (msg: string) => void) {
+  if (file.size > 500 * 1024) {
+    onError('Image must be under 500KB');
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    onError('Please select an image file');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => onLoad(String(reader.result || ''));
+  reader.onerror = () => onError('Could not read image');
+  reader.readAsDataURL(file);
+}
+
+function BarcodeCanvasPlaceholder() {
+  const bars = [3, 1, 2, 1, 4, 1, 2, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3, 2, 4, 1, 2, 3];
+  let x = 3;
+  return (
+    <svg viewBox="0 0 88 40" className="w-full h-full block" aria-hidden>
+      {bars.map((bw, i) => {
+        const rect = <rect key={i} x={x} y={6} width={bw} height={24} fill="#111827" />;
+        x += bw + 1.2;
+        return rect;
+      })}
+      <text x="44" y="38" textAnchor="middle" fontSize="5" fill="#6b7280">
+        barcode
+      </text>
+    </svg>
+  );
+}
+
+function QrCanvasPlaceholder() {
+  const modules = [
+    '11110111',
+    '10100101',
+    '10111101',
+    '10100101',
+    '11110111',
+    '00000000',
+    '11010011',
+    '01011010',
+    '11001101',
+  ];
+  return (
+    <svg viewBox="0 0 48 48" className="w-full h-full block" aria-hidden>
+      <rect x="1" y="1" width="46" height="46" fill="#fff" stroke="#e5e7eb" strokeWidth="0.5" />
+      {[
+        [2, 2],
+        [32, 2],
+        [2, 32],
+      ].map(([ox, oy], i) => (
+        <g key={i}>
+          <rect x={ox} y={oy} width={14} height={14} fill="none" stroke="#111827" strokeWidth="2" />
+          <rect x={ox + 3} y={oy + 3} width={8} height={8} fill="#111827" />
+        </g>
+      ))}
+      {modules.map((row, y) =>
+        row
+          .split('')
+          .map((cell, x) =>
+            cell === '1' ? (
+              <rect key={`${y}-${x}`} x={18 + x * 2.2} y={18 + y * 2.2} width={1.8} height={1.8} fill="#111827" />
+            ) : null,
+          ),
+      )}
+    </svg>
+  );
+}
+
+function CanvasElementPreview({ el, companyLogo }: { el: LabelElement; companyLogo: string | null }) {
+  const imgSrc = el.type === 'logo' || el.type === 'image' ? resolveCanvasImageSrc(el, companyLogo) : null;
+
+  if (imgSrc) {
+    return (
+      <img
+        src={imgSrc}
+        alt=""
+        className="w-full h-full"
+        style={{ objectFit: el.properties.fit === 'cover' ? 'cover' : 'contain' }}
+      />
+    );
+  }
+
+  if (el.type === 'barcode') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-white p-0.5">
+        <BarcodeCanvasPlaceholder />
+      </div>
+    );
+  }
+
+  if (el.type === 'qr') {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-white p-0.5">
+        <QrCanvasPlaceholder />
+      </div>
+    );
+  }
+
+  if (el.type === 'logo') {
+    return <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">Logo</span>;
+  }
+
+  if (el.type === 'image') {
+    return <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">Image</span>;
+  }
+
+  if (el.type === 'field') {
+    const label = LABEL_DYNAMIC_FIELDS.find(f => f.key === el.properties.fieldKey)?.label || 'Field';
+    return (
+      <span className="text-[7px] text-gray-700 px-0.5 truncate w-full text-left">
+        {el.properties.prefix}
+        {label}
+        {el.properties.suffix}
+      </span>
+    );
+  }
+
+  if (el.type === 'text') {
+    return (
+      <span className="text-[7px] text-gray-700 px-0.5 truncate w-full text-left">
+        {el.properties.staticText || 'Text'}
+      </span>
+    );
+  }
+
+  if (el.type === 'rect') {
+    return <div className="w-full h-full border border-gray-800 bg-gray-50" />;
+  }
+
+  if (el.type === 'line') {
+    return (
+      <div className="w-full h-full flex items-center">
+        <div className="w-full border-t-2 border-gray-800" />
+      </div>
+    );
+  }
+
+  return <span className="text-[8px] text-gray-500">{el.type}</span>;
+}
+
+function layerLabel(el: LabelElement): string {
+  if (el.type === 'qr') return 'QR code';
+  if (el.type === 'barcode') return `Barcode (${el.properties.barcodeType || 'CODE128'})`;
+  if (el.type === 'field') {
+    return LABEL_DYNAMIC_FIELDS.find(f => f.key === el.properties.fieldKey)?.label || 'Field';
+  }
+  if (el.type === 'text') return el.properties.staticText || 'Text';
+  if (el.type === 'logo') return 'Company logo';
+  if (el.type === 'image') return 'Custom image';
+  return el.type;
+}
+
+export function BarcodeLabelDesigner({ initial, draft, onClose, onSaved }: Props) {
   const { toast } = useToast();
   const [state, dispatch] = useReducer(reducer, {
-    template: initial || { id: '', ...defaultStarterTemplate('New label'), createdAt: undefined, updatedAt: undefined },
+    template: initial
+      ? {
+          id: initial.id,
+          name: initial.name,
+          description: initial.description,
+          widthMm: initial.widthMm,
+          heightMm: initial.heightMm,
+          orientation: initial.orientation,
+          status: initial.status,
+          isDefault: initial.isDefault,
+          version: initial.version,
+          elements: initial.elements,
+          createdAt: initial.createdAt,
+          updatedAt: initial.updatedAt,
+        }
+      : { id: '', ...(draft || defaultStarterTemplate('New label')), createdAt: undefined, updatedAt: undefined },
     selectedId: null,
     past: [],
     future: [],
   });
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [saving, setSaving] = useState(false);
   const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
+
+  useEffect(() => {
+    api.settings
+      .getBillSettings()
+      .then(s => setCompanyLogo(s?.logoBase64 || null))
+      .catch(() => setCompanyLogo(null));
+  }, []);
+
+  const attachImage = (elId: string, file: File) => {
+    readImageFile(
+      file,
+      dataUrl => {
+        dispatch({
+          type: 'updateElement',
+          id: elId,
+          patch: { properties: { imageBase64: dataUrl } },
+        });
+      },
+      msg => toast(msg, 'error'),
+    );
+  };
 
   const selected = state.template.elements.find(el => el.id === state.selectedId) || null;
   const sorted = useMemo(
@@ -249,6 +450,14 @@ export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
   return (
     <div className="fixed inset-0 z-[120] flex flex-col bg-[#0f1419] text-white">
       <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/20 text-sm font-semibold hover:bg-white/5 shrink-0"
+        >
+          <ArrowLeft size={16} />
+          <span className="hidden sm:inline">Back to templates</span>
+        </button>
         <input
           value={state.template.name}
           onChange={e => dispatch({ type: 'patch', patch: { name: e.target.value } })}
@@ -303,10 +512,19 @@ export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
         >
           <Save size={16} className="inline mr-1" /> {saving ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" onClick={onClose} className="px-3 py-2 rounded-xl border border-white/20 text-sm">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-2 rounded-xl border border-white/20 text-sm font-semibold hover:bg-white/5 sm:hidden"
+        >
           Close
         </button>
       </header>
+      <p className="px-4 py-1.5 text-[11px] text-white/45 border-b border-white/5 shrink-0">
+        Full-screen editor — use <strong className="font-semibold text-white/60">Back to templates</strong> or press{' '}
+        <kbd className="px-1 rounded bg-white/10">Esc</kbd> to return to Bill Settings. Save before leaving if you
+        changed the layout.
+      </p>
 
       <div className="flex flex-1 min-h-0">
         <aside className="w-56 border-r border-white/10 p-3 space-y-2 overflow-y-auto shrink-0">
@@ -318,6 +536,7 @@ export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
               ['barcode', 'Barcode'],
               ['qr', 'QR code'],
               ['logo', 'Company logo'],
+              ['image', 'Custom image'],
               ['rect', 'Rectangle'],
               ['line', 'Line'],
             ] as const
@@ -382,7 +601,7 @@ export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
                     style={{ left, top, width: w, height: h, zIndex: el.zIndex }}
                   >
                     <div className="w-full h-full overflow-hidden text-[8px] p-0.5 flex items-center justify-center text-center pointer-events-none">
-                      {el.type === 'barcode' ? '▮▮▮ barcode' : el.type === 'logo' ? 'LOGO' : el.type}
+                      <CanvasElementPreview el={el} companyLogo={companyLogo} />
                     </div>
                     {active && (
                       <span
@@ -547,6 +766,67 @@ export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
                   ))}
                 </select>
               )}
+              {selected.type === 'qr' && (
+                <p className="text-[11px] text-white/60 leading-snug">
+                  QR encodes the product barcode at print time. Resize the square on the canvas — preview shows a
+                  placeholder pattern only.
+                </p>
+              )}
+              {(selected.type === 'logo' || selected.type === 'image') && (
+                <div className="space-y-2">
+                  {selected.type === 'logo' && (
+                    <p className="text-[11px] text-white/60 leading-snug">
+                      Uses your Bill Settings company logo at print time. Upload below only if you want a custom logo on
+                      this template.
+                    </p>
+                  )}
+                  <label className="block text-xs text-white/70">
+                    Upload image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="mt-1 block w-full text-xs text-white/80"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) attachImage(selected.id, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {selected.properties.imageBase64 && (
+                    <button
+                      type="button"
+                      className="text-xs text-rose-300 underline"
+                      onClick={() =>
+                        dispatch({
+                          type: 'updateElement',
+                          id: selected.id,
+                          patch: { properties: { imageBase64: undefined } },
+                        })
+                      }
+                    >
+                      Remove uploaded image
+                    </button>
+                  )}
+                  <label className="block text-xs text-white/70">
+                    Fit
+                    <select
+                      value={selected.properties.fit || 'contain'}
+                      onChange={e =>
+                        dispatch({
+                          type: 'updateElement',
+                          id: selected.id,
+                          patch: { properties: { fit: e.target.value as 'contain' | 'cover' } },
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                    >
+                      <option value="contain">Contain</option>
+                      <option value="cover">Cover</option>
+                    </select>
+                  </label>
+                </div>
+              )}
               <div className="flex gap-1">
                 <button
                   type="button"
@@ -576,7 +856,7 @@ export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
                     el.id === state.selectedId ? 'border-brand bg-brand/10' : 'border-white/10',
                   )}
                 >
-                  {el.type} {!el.visible && '(hidden)'}
+                  {layerLabel(el)} {!el.visible && '(hidden)'}
                 </button>
               ))}
             </div>
