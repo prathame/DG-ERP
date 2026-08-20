@@ -194,7 +194,7 @@ describe('barcode label template validation', () => {
       ...dynamic,
       properties: { barcodeValueSource: 'custom', customBarcodeValue: ' 123456789012 ' },
     };
-    expect(resolveBarcodeValue(dynamic, SAMPLE_LABEL_CONTEXT)).toBe('8901234567890');
+    expect(resolveBarcodeValue(dynamic, SAMPLE_LABEL_CONTEXT)).toBe('DG-SAMPLE01');
     expect(resolveBarcodeValue(custom, SAMPLE_LABEL_CONTEXT)).toBe('123456789012');
   });
 
@@ -205,6 +205,8 @@ describe('barcode label template validation', () => {
     expect(starter.elements.length).toBeGreaterThanOrEqual(5);
     expect(starter.elements.some(el => el.type === 'barcode')).toBe(true);
     expect(starter.elements.some(el => el.type === 'logo')).toBe(true);
+    const barcode = starter.elements.find(el => el.type === 'barcode');
+    expect(barcode?.properties.barcodeType).toBe('CODE128');
     expect(validateLabelTemplateInput(starter)).toBeNull();
   });
 
