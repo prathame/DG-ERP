@@ -103,7 +103,7 @@ export function BarcodeLabelTemplatesSection() {
     try {
       const text = await file.text();
       const parsed = parseImportedLabelTemplate(JSON.parse(text));
-      if (!parsed.ok) {
+      if (parsed.ok === false) {
         toast(parsed.error, 'error');
         return;
       }
