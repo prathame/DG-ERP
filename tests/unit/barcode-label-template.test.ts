@@ -15,6 +15,8 @@ import {
   MAX_ELEMENTS,
   MAX_LABEL_HEIGHT_MM,
   MAX_LABEL_WIDTH_MM,
+  LABEL_SAMPLE_TEMPLATES,
+  getLabelSampleTemplate,
   type LabelElement,
 } from '../../shared/barcodeLabelTemplate';
 
@@ -196,8 +198,17 @@ describe('barcode label template validation', () => {
     const starter = defaultStarterTemplate('My Label');
     expect(starter.name).toBe('My Label');
     expect(starter.widthMm).toBe(38);
-    expect(starter.elements.length).toBeGreaterThanOrEqual(4);
+    expect(starter.elements.length).toBeGreaterThanOrEqual(5);
     expect(starter.elements.some(el => el.type === 'barcode')).toBe(true);
+    expect(starter.elements.some(el => el.type === 'logo')).toBe(true);
     expect(validateLabelTemplateInput(starter)).toBeNull();
+  });
+
+  it('exposes built-in sample templates', () => {
+    expect(LABEL_SAMPLE_TEMPLATES.length).toBeGreaterThanOrEqual(4);
+    expect(getLabelSampleTemplate('product-38x25')?.name).toMatch(/38/);
+    for (const sample of LABEL_SAMPLE_TEMPLATES) {
+      expect(validateLabelTemplateInput(sample.template)).toBeNull();
+    }
   });
 });
