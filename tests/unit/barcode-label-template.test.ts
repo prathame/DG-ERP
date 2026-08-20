@@ -17,6 +17,7 @@ import {
   MAX_LABEL_WIDTH_MM,
   LABEL_SAMPLE_TEMPLATES,
   getLabelSampleTemplate,
+  templateHasScannableCode,
   type LabelElement,
 } from '../../shared/barcodeLabelTemplate';
 
@@ -202,6 +203,52 @@ describe('barcode label template validation', () => {
     expect(starter.elements.some(el => el.type === 'barcode')).toBe(true);
     expect(starter.elements.some(el => el.type === 'logo')).toBe(true);
     expect(validateLabelTemplateInput(starter)).toBeNull();
+  });
+
+  it('detects scannable barcode or QR elements', () => {
+    const withBarcode: LabelElement[] = [
+      {
+        id: '1',
+        type: 'field',
+        xMm: 0,
+        yMm: 0,
+        widthMm: 10,
+        heightMm: 5,
+        rotation: 0,
+        zIndex: 0,
+        visible: true,
+        properties: {},
+      },
+      {
+        id: '2',
+        type: 'barcode',
+        xMm: 0,
+        yMm: 5,
+        widthMm: 30,
+        heightMm: 10,
+        rotation: 0,
+        zIndex: 1,
+        visible: true,
+        properties: {},
+      },
+    ];
+    const textOnly: LabelElement[] = [
+      {
+        id: '1',
+        type: 'field',
+        xMm: 0,
+        yMm: 0,
+        widthMm: 10,
+        heightMm: 5,
+        rotation: 0,
+        zIndex: 0,
+        visible: true,
+        properties: {},
+      },
+    ];
+    expect(templateHasScannableCode(withBarcode)).toBe(true);
+    expect(templateHasScannableCode(textOnly)).toBe(false);
+    expect(templateHasScannableCode(defaultStarterTemplate().elements)).toBe(true);
   });
 
   it('exposes built-in sample templates', () => {

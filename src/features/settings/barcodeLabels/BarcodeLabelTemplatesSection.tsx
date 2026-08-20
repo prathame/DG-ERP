@@ -7,6 +7,7 @@ import {
   LABEL_SAMPLE_TEMPLATES,
   SAMPLE_LABEL_CONTEXT,
   defaultStarterTemplate,
+  templateHasScannableCode,
 } from '../../../../shared/barcodeLabelTemplate';
 import { renderLabelHtml } from '../../../lib/barcodeLabelRender';
 import { openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED, cn } from '../../../lib/utils';
@@ -49,6 +50,11 @@ export function BarcodeLabelTemplatesSection() {
   };
 
   const setDefault = async (id: string) => {
+    const t = templates.find(row => row.id === id);
+    if (t && !templateHasScannableCode(t.elements)) {
+      toast('This template has no barcode or QR — labels will not be scannable', 'error');
+      return;
+    }
     try {
       await api.barcodeLabelTemplates.setDefault(id);
       toast('Default template updated', 'success');
@@ -251,6 +257,11 @@ export function BarcodeLabelTemplatesSection() {
                 <p className="text-xs text-gray-500 mt-1">
                   {t.widthMm}×{t.heightMm} mm · {t.elements?.length || 0} elements · v{t.version}
                 </p>
+                {!templateHasScannableCode(t.elements) && (
+                  <p className="text-xs text-amber-700 mt-1 font-medium">
+                    No barcode or QR — add one before using this as your default print layout.
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 <button

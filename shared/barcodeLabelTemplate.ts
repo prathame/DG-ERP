@@ -245,6 +245,11 @@ export function resolveBarcodeValue(el: LabelElement, ctx: LabelPrintContext): s
   return ctx.product.barcode || '';
 }
 
+/** True when the template includes a visible linear barcode or QR element for scanning. */
+export function templateHasScannableCode(elements: LabelElement[] | undefined): boolean {
+  return (elements || []).some(el => el.visible !== false && (el.type === 'barcode' || el.type === 'qr'));
+}
+
 export function normalizeLabelElement(raw: unknown, index: number): LabelElement | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;

@@ -286,13 +286,18 @@ router.put('/api/barcode-label-templates/:id/default', authMiddleware, blockVend
     if (!role || !['Admin', 'Super Admin', 'super_admin'].includes(role)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
-    const { rowCount } = await pool.query(
+    const exists = await pool.query('SELECT id FROM barcode_label_templates WHERE id = $1 AND tenant_id = $2', [
+      req.params.id,
+      tenantId,
+    ]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Template not found' });
+    // Clear other defaults first — unique index allows only one active default per tenant.
+    await clearOtherDefaults(tenantId, req.params.id);
+    await pool.query(
       `UPDATE barcode_label_templates SET is_default = true, status = 'active', updated_at = NOW()
        WHERE id = $1 AND tenant_id = $2`,
       [req.params.id, tenantId],
     );
-    if (!rowCount) return res.status(404).json({ error: 'Template not found' });
-    await clearOtherDefaults(tenantId, req.params.id);
     const { rows } = await pool.query('SELECT * FROM barcode_label_templates WHERE id = $1 AND tenant_id = $2', [
       req.params.id,
       tenantId,
