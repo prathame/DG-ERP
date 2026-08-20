@@ -205,12 +205,14 @@ describe('barcode label template validation', () => {
   });
 
   it('exposes built-in sample templates', () => {
-    expect(LABEL_SAMPLE_TEMPLATES.length).toBeGreaterThanOrEqual(8);
+    expect(LABEL_SAMPLE_TEMPLATES.length).toBeGreaterThanOrEqual(7);
     expect(getLabelSampleTemplate('product-38x25')?.name).toMatch(/38/);
     expect(getLabelSampleTemplate('qr-product-50x25')?.template.elements.some(el => el.type === 'qr')).toBe(true);
-    expect(getLabelSampleTemplate('qr-dual-38x25')?.template.elements.some(el => el.type === 'qr')).toBe(true);
-    expect(getLabelSampleTemplate('qr-dual-38x25')?.template.elements.some(el => el.type === 'barcode')).toBe(true);
+    expect(getLabelSampleTemplate('product-38x25')?.template.elements.some(el => el.type === 'barcode')).toBe(true);
     for (const sample of LABEL_SAMPLE_TEMPLATES) {
+      const hasBarcode = sample.template.elements.some(el => el.type === 'barcode');
+      const hasQr = sample.template.elements.some(el => el.type === 'qr');
+      expect(hasBarcode && hasQr).toBe(false);
       expect(validateLabelTemplateInput(sample.template)).toBeNull();
     }
   });
