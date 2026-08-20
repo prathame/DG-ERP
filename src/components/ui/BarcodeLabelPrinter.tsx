@@ -5,8 +5,8 @@ import { LoadingSpinner, useToast } from './index';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { session } from '../../lib/session';
 import { esc } from '../../lib/billTemplates';
-import { renderLabelHtml } from '../../lib/barcodeLabelRender';
-import type { BarcodeLabelTemplate, LabelPrintContext } from '../../../shared/barcodeLabelTemplate';
+import { computeA4LabelGrid, renderLabelsPrintHtml, type LabelPrintMode } from '../../lib/barcodeLabelRender';
+import type { BarcodeLabelTemplate } from '../../../shared/barcodeLabelTemplate';
 
 type LabelBarcode = {
   barcode: string;
@@ -97,6 +97,8 @@ export function BarcodeLabelPrinter({
   const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
   const [previewSrc, setPreviewSrc] = useState('');
   const [defaultTemplate, setDefaultTemplate] = useState<BarcodeLabelTemplate | null>(null);
+  const [labelPrintMode, setLabelPrintMode] = useState<LabelPrintMode>('a4-sheet');
+  const [sheetPreviewHtml, setSheetPreviewHtml] = useState('');
   const usesCustomTemplate = Boolean(defaultTemplate?.elements?.length);
   const companyName = (() => {
     try {
@@ -152,6 +154,50 @@ export function BarcodeLabelPrinter({
     };
   }, [barcodes, codeType]);
 
+  const buildLabelContexts = (selected: LabelBarcode[], billSettings: { logoBase64?: string | null } | null) => {
+    const user = session.getUser() as {
+      companyName?: string;
+      gstNumber?: string;
+      phone?: string;
+      address?: string;
+    };
+    return selected.map(b => ({
+      product: {
+        name: product!.name,
+        barcode: b.barcode,
+        price: product!.price,
+        hsn: undefined,
+        gstRate: undefined,
+        batchNumber: undefined,
+      },
+      company: {
+        name: user?.companyName || companyName,
+        logo: billSettings?.logoBase64 || null,
+        gstin: user?.gstNumber || null,
+        phone: user?.phone || null,
+        address: user?.address || null,
+      },
+    }));
+  };
+
+  useEffect(() => {
+    if (!usesCustomTemplate || !defaultTemplate || !product || selectedBarcodes.size === 0) {
+      setSheetPreviewHtml('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [billSettings] = await Promise.all([api.settings.getBillSettings().catch(() => null)]);
+      const selected = barcodes.filter(b => selectedBarcodes.has(b.barcode)).slice(0, 10);
+      const contexts = buildLabelContexts(selected, billSettings);
+      const html = await renderLabelsPrintHtml(defaultTemplate, contexts, 'a4-sheet');
+      if (!cancelled) setSheetPreviewHtml(html);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [usesCustomTemplate, defaultTemplate, product, barcodes, selectedBarcodes, companyName]);
+
   const toggleBarcode = (bc: string) => {
     setSelectedBarcodes(prev => {
       const next = new Set(prev);
@@ -175,44 +221,8 @@ export function BarcodeLabelPrinter({
         api.barcodeLabelTemplates.getDefault().catch(() => null),
       ]);
       if (defaultTemplate?.elements?.length) {
-        const user = session.getUser() as {
-          companyName?: string;
-          gstNumber?: string;
-          phone?: string;
-          address?: string;
-        };
-        const labelsHtml = await Promise.all(
-          selected.map(async b => {
-            const ctx: LabelPrintContext = {
-              product: {
-                name: product.name,
-                barcode: b.barcode,
-                price: product.price,
-                hsn: undefined,
-                gstRate: undefined,
-                batchNumber: undefined,
-              },
-              company: {
-                name: user?.companyName || companyName,
-                logo: billSettings?.logoBase64 || null,
-                gstin: user?.gstNumber || null,
-                phone: user?.phone || null,
-                address: user?.address || null,
-              },
-            };
-            return renderLabelHtml(defaultTemplate, ctx, { copies: 1 });
-          }),
-        );
-        const combined = labelsHtml
-          .map(h => {
-            const m = h.match(/<div class="label-sheet"[\s\S]*?<\/div>\s*(?=<\/div>\s*<\/body>)/);
-            return m ? m[0] : '';
-          })
-          .filter(Boolean)
-          .join('');
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Labels</title>
-<style>*{margin:0;padding:0;box-sizing:border-box;} @page{margin:0;} body{font-family:'Segoe UI',Arial,sans-serif;} .print-grid{display:flex;flex-wrap:wrap;}</style></head>
-<body><div class="print-grid">${combined}</div></body></html>`;
+        const contexts = buildLabelContexts(selected, billSettings);
+        const html = await renderLabelsPrintHtml(defaultTemplate, contexts, labelPrintMode);
         const win = openPrintWindow('Preparing labels…');
         if (!win) {
           toast(PRINT_POPUP_BLOCKED, 'error');
@@ -309,13 +319,46 @@ export function BarcodeLabelPrinter({
 
         <div className="p-6 space-y-5">
           {usesCustomTemplate ? (
-            <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
-              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Label template</p>
-              <p className="text-sm font-bold text-gray-900">{defaultTemplate!.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {defaultTemplate!.widthMm}×{defaultTemplate!.heightMm} mm — layout from Settings → Bill Customization
-              </p>
-            </div>
+            <>
+              <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Label template</p>
+                <p className="text-sm font-bold text-gray-900">{defaultTemplate!.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {defaultTemplate!.widthMm}×{defaultTemplate!.heightMm} mm — layout from Settings → Bill Customization
+                </p>
+                {defaultTemplate && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    A4 sheet fits ~{computeA4LabelGrid(defaultTemplate.widthMm, defaultTemplate.heightMm).perPage}{' '}
+                    labels per page
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Print target</p>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      ['a4-sheet', 'A4 sticker sheet'],
+                      ['thermal', 'Thermal roll (1 label/page)'],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setLabelPrintMode(val)}
+                      className={cn(
+                        'flex-1 py-2.5 rounded-xl text-xs font-bold border transition-colors',
+                        labelPrintMode === val
+                          ? 'bg-brand text-white border-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : (
             <>
               <div>
@@ -439,7 +482,35 @@ export function BarcodeLabelPrinter({
             </div>
           </div>
 
-          {!usesCustomTemplate && (
+          {usesCustomTemplate && sheetPreviewHtml ? (
+            <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-2">A4 sheet preview</p>
+              <div className="overflow-auto max-h-64 border border-gray-200 rounded-lg bg-white">
+                <iframe
+                  title="Label sheet preview"
+                  srcDoc={sheetPreviewHtml}
+                  className="w-full border-0"
+                  style={{ height: '240px', minWidth: '280px' }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const win = openPrintWindow('Preparing preview…');
+                  if (!win) {
+                    toast(PRINT_POPUP_BLOCKED, 'error');
+                    return;
+                  }
+                  printBillInWindow(win, sheetPreviewHtml, `Preview-${product?.name || 'labels'}`, {
+                    autoPrint: false,
+                  });
+                }}
+                className="mt-2 text-xs font-semibold text-brand hover:underline"
+              >
+                Open full-page preview
+              </button>
+            </div>
+          ) : !usesCustomTemplate ? (
             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
               <p className="text-xs font-bold text-gray-400 uppercase mb-2">Label Preview</p>
               <div className="flex items-center justify-center">
@@ -473,7 +544,7 @@ export function BarcodeLabelPrinter({
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Print */}
           <button

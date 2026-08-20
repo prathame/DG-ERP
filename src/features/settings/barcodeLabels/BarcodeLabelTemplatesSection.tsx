@@ -13,7 +13,7 @@ import {
   parseImportedLabelTemplate,
   downloadLabelTemplateFile,
 } from '../../../../shared/barcodeLabelTemplate';
-import { renderLabelHtml } from '../../../lib/barcodeLabelRender';
+import { computeA4LabelGrid, renderLabelsPrintHtml } from '../../../lib/barcodeLabelRender';
 import { session } from '../../../lib/session';
 import { openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED, cn } from '../../../lib/utils';
 import { BarcodeLabelDesigner } from './BarcodeLabelDesigner';
@@ -66,13 +66,16 @@ export function BarcodeLabelTemplatesSection() {
   }, []);
 
   const printTest = async (t: BarcodeLabelTemplate) => {
-    const html = await renderLabelHtml(t, printContext, { copies: 1 });
+    const grid = computeA4LabelGrid(t.widthMm, t.heightMm);
+    const sampleCount = Math.min(grid.cols * 2, grid.perPage);
+    const contexts = Array.from({ length: sampleCount }, () => printContext);
+    const html = await renderLabelsPrintHtml(t, contexts, 'a4-sheet');
     const win = openPrintWindow('Preparing test label…');
     if (!win) {
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
     }
-    printBillInWindow(win, html, `Test-${t.name}`);
+    printBillInWindow(win, html, `Test-${t.name}`, { autoPrint: false });
   };
 
   const setDefault = async (id: string) => {
