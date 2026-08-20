@@ -5,6 +5,8 @@ import { LoadingSpinner, useToast } from './index';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { session } from '../../lib/session';
 import { esc } from '../../lib/billTemplates';
+import { renderLabelHtml } from '../../lib/barcodeLabelRender';
+import type { LabelPrintContext } from '../../../shared/barcodeLabelTemplate';
 
 type LabelBarcode = {
   barcode: string;
@@ -157,6 +159,62 @@ export function BarcodeLabelPrinter({
     if (!product) return;
     const selected = barcodes.filter(b => selectedBarcodes.has(b.barcode));
     if (selected.length === 0) return;
+
+    try {
+      const [billSettings, defaultTemplate] = await Promise.all([
+        api.settings.getBillSettings().catch(() => null),
+        api.barcodeLabelTemplates.getDefault().catch(() => null),
+      ]);
+      if (defaultTemplate?.elements?.length) {
+        const user = session.getUser() as {
+          companyName?: string;
+          gstNumber?: string;
+          phone?: string;
+          address?: string;
+        };
+        const labelsHtml = await Promise.all(
+          selected.map(async b => {
+            const ctx: LabelPrintContext = {
+              product: {
+                name: product.name,
+                barcode: b.barcode,
+                price: product.price,
+                hsn: undefined,
+                gstRate: undefined,
+                batchNumber: undefined,
+              },
+              company: {
+                name: user?.companyName || companyName,
+                logo: billSettings?.logoBase64 || null,
+                gstin: user?.gstNumber || null,
+                phone: user?.phone || null,
+                address: user?.address || null,
+              },
+            };
+            return renderLabelHtml(defaultTemplate, ctx, { copies: 1 });
+          }),
+        );
+        const combined = labelsHtml
+          .map(h => {
+            const m = h.match(/<div class="label-sheet"[\s\S]*?<\/div>\s*(?=<\/div>\s*<\/body>)/);
+            return m ? m[0] : '';
+          })
+          .filter(Boolean)
+          .join('');
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Labels</title>
+<style>*{margin:0;padding:0;box-sizing:border-box;} @page{margin:0;} body{font-family:'Segoe UI',Arial,sans-serif;} .print-grid{display:flex;flex-wrap:wrap;}</style></head>
+<body><div class="print-grid">${combined}</div></body></html>`;
+        const win = openPrintWindow('Preparing labels…');
+        if (!win) {
+          toast(PRINT_POPUP_BLOCKED, 'error');
+          return;
+        }
+        printBillInWindow(win, html, `Labels-${product.name}`);
+        return;
+      }
+    } catch {
+      /* fall back to legacy layout */
+    }
 
     const labelWidth = format === 'a4-24' ? '63mm' : format === 'a4-40' ? '48mm' : '80mm';
     const labelHeight = format === 'a4-24' ? '33mm' : format === 'a4-40' ? '25mm' : '40mm';

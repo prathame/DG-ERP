@@ -79,6 +79,7 @@ import {
 } from '../../lib/paymentReminders';
 import { DesktopSettingsTabNav, type DesktopSettingsTab, type DesktopSettingsTabId } from './DesktopSettingsPanel';
 import { MobileSettingsHub, MobileSettingsSheetChrome, moduleBlurb } from './MobileSettingsHub';
+import { BarcodeLabelTemplatesSection } from './barcodeLabels/BarcodeLabelTemplatesSection';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
@@ -2478,8 +2479,16 @@ export function SettingsView({
 
               {/* Bill Customization */}
               {isAdmin && (
-                <div className={cn(!showTab('bill') && 'hidden')}>
+                <div className={cn(!showTab('bill') && 'hidden', 'space-y-8')}>
                   <BillCustomizationSection />
+                  <div className={cn(settingsPanel())}>
+                    <div className={settingsPanelHead()}>
+                      <h3 className="font-bold text-lg">Barcode &amp; Label Templates</h3>
+                    </div>
+                    <div className="p-4 sm:p-6">
+                      <BarcodeLabelTemplatesSection />
+                    </div>
+                  </div>
                 </div>
               )}
 

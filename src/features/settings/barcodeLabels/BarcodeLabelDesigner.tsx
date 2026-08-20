@@ -1,0 +1,588 @@
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Layers, Plus, Printer, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
+import { api } from '../../../api';
+import { useToast } from '../../../components/ui';
+import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../../lib/utils';
+import {
+  LABEL_DYNAMIC_FIELDS,
+  LABEL_SIZE_PRESETS,
+  type BarcodeLabelTemplate,
+  type LabelElement,
+  type LabelElementType,
+  SAMPLE_LABEL_CONTEXT,
+  defaultStarterTemplate,
+  roundMm,
+} from '../../../../shared/barcodeLabelTemplate';
+import { mmToPx, renderLabelHtml } from '../../../lib/barcodeLabelRender';
+import { useEscapeKey } from '../../../lib/useEscapeKey';
+
+const CANVAS_SCALE = 4;
+
+type EditorState = {
+  template: Omit<BarcodeLabelTemplate, 'tenantId'>;
+  selectedId: string | null;
+  past: Omit<BarcodeLabelTemplate, 'tenantId'>[];
+  future: Omit<BarcodeLabelTemplate, 'tenantId'>[];
+};
+
+type EditorAction =
+  | { type: 'patch'; patch: Partial<Omit<BarcodeLabelTemplate, 'tenantId'>> }
+  | { type: 'select'; id: string | null }
+  | { type: 'updateElement'; id: string; patch: Partial<LabelElement> }
+  | { type: 'addElement'; element: LabelElement }
+  | { type: 'deleteSelected' }
+  | { type: 'undo' }
+  | { type: 'redo' }
+  | { type: 'replace'; template: Omit<BarcodeLabelTemplate, 'tenantId'> };
+
+function reducer(state: EditorState, action: EditorAction): EditorState {
+  const pushPast = (next: Omit<BarcodeLabelTemplate, 'tenantId'>) => ({
+    template: next,
+    selectedId: state.selectedId,
+    past: [...state.past, state.template].slice(-40),
+    future: [],
+  });
+  switch (action.type) {
+    case 'patch':
+      return pushPast({ ...state.template, ...action.patch });
+    case 'select':
+      return { ...state, selectedId: action.id };
+    case 'updateElement':
+      return pushPast({
+        ...state.template,
+        elements: state.template.elements.map(el =>
+          el.id === action.id
+            ? { ...el, ...action.patch, properties: { ...el.properties, ...action.patch.properties } }
+            : el,
+        ),
+      });
+    case 'addElement':
+      return pushPast({ ...state.template, elements: [...state.template.elements, action.element] });
+    case 'deleteSelected':
+      if (!state.selectedId) return state;
+      return pushPast({
+        ...state.template,
+        elements: state.template.elements.filter(el => el.id !== state.selectedId),
+      });
+    case 'undo':
+      if (!state.past.length) return state;
+      return {
+        template: state.past[state.past.length - 1],
+        selectedId: state.selectedId,
+        past: state.past.slice(0, -1),
+        future: [state.template, ...state.future].slice(0, 40),
+      };
+    case 'redo':
+      if (!state.future.length) return state;
+      return {
+        template: state.future[0],
+        selectedId: state.selectedId,
+        past: [...state.past, state.template],
+        future: state.future.slice(1),
+      };
+    case 'replace':
+      return { template: action.template, selectedId: null, past: [], future: [] };
+    default:
+      return state;
+  }
+}
+
+function newElement(type: LabelElementType, z: number): LabelElement {
+  const id = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const base = {
+    id,
+    type,
+    xMm: 2,
+    yMm: 2,
+    widthMm: 20,
+    heightMm: 6,
+    rotation: 0,
+    zIndex: z,
+    visible: true,
+    properties: {},
+  };
+  if (type === 'barcode')
+    return {
+      ...base,
+      heightMm: 12,
+      widthMm: 34,
+      properties: { barcodeType: 'EAN13', barcodeValueSource: 'product.barcode', showHumanReadable: true },
+    };
+  if (type === 'qr') return { ...base, widthMm: 12, heightMm: 12, properties: {} };
+  if (type === 'logo') return { ...base, type: 'logo', widthMm: 10, heightMm: 8, properties: { fit: 'contain' } };
+  if (type === 'field') return { ...base, type: 'field', properties: { fieldKey: 'product.name', fontSizePt: 8 } };
+  if (type === 'text') return { ...base, type: 'text', properties: { staticText: 'Text', fontSizePt: 8 } };
+  return base;
+}
+
+type Props = {
+  initial: BarcodeLabelTemplate | null;
+  onClose: () => void;
+  onSaved: () => void;
+};
+
+export function BarcodeLabelDesigner({ initial, onClose, onSaved }: Props) {
+  const { toast } = useToast();
+  const [state, dispatch] = useReducer(reducer, {
+    template: initial || { id: '', ...defaultStarterTemplate('New label'), createdAt: undefined, updatedAt: undefined },
+    selectedId: null,
+    past: [],
+    future: [],
+  });
+  const [zoom, setZoom] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
+
+  const selected = state.template.elements.find(el => el.id === state.selectedId) || null;
+  const sorted = useMemo(
+    () => [...state.template.elements].sort((a, b) => a.zIndex - b.zIndex),
+    [state.template.elements],
+  );
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        name: state.template.name,
+        description: state.template.description,
+        widthMm: state.template.widthMm,
+        heightMm: state.template.heightMm,
+        orientation: state.template.orientation,
+        status: state.template.status,
+        isDefault: state.template.isDefault,
+        elements: state.template.elements,
+      };
+      if (state.template.id) {
+        await api.barcodeLabelTemplates.update(state.template.id, payload);
+        toast('Template saved', 'success');
+      } else {
+        const created = await api.barcodeLabelTemplates.create(payload);
+        const { tenantId: _t, ...rest } = created;
+        dispatch({ type: 'replace', template: rest });
+        toast('Template created', 'success');
+      }
+      onSaved();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const printTest = async () => {
+    const html = await renderLabelHtml(state.template, SAMPLE_LABEL_CONTEXT, { scale: CANVAS_SCALE, copies: 1 });
+    const win = openPrintWindow('Preparing test label…');
+    if (!win) {
+      toast(PRINT_POPUP_BLOCKED, 'error');
+      return;
+    }
+    printBillInWindow(win, html, 'Test label');
+  };
+
+  const onPointerMove = useCallback(
+    (e: PointerEvent) => {
+      if (dragRef.current) {
+        const d = dragRef.current;
+        const dx = (e.clientX - d.startX) / (CANVAS_SCALE * zoom * 3.7795275591);
+        const dy = (e.clientY - d.startY) / (CANVAS_SCALE * zoom * 3.7795275591);
+        dispatch({
+          type: 'updateElement',
+          id: d.id,
+          patch: { xMm: roundMm(Math.max(0, d.origX + dx)), yMm: roundMm(Math.max(0, d.origY + dy)) },
+        });
+      }
+      if (resizeRef.current) {
+        const r = resizeRef.current;
+        const dw = (e.clientX - r.startX) / (CANVAS_SCALE * zoom * 3.7795275591);
+        const dh = (e.clientY - r.startY) / (CANVAS_SCALE * zoom * 3.7795275591);
+        dispatch({
+          type: 'updateElement',
+          id: r.id,
+          patch: {
+            widthMm: roundMm(Math.max(2, r.origW + dw)),
+            heightMm: roundMm(Math.max(2, r.origH + dh)),
+          },
+        });
+      }
+    },
+    [zoom],
+  );
+
+  const onPointerUp = useCallback(() => {
+    dragRef.current = null;
+    resizeRef.current = null;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+  }, [onPointerMove]);
+
+  useEffect(() => () => onPointerUp(), [onPointerUp]);
+
+  useEscapeKey(() => {
+    onClose();
+    return true;
+  });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        dispatch({ type: 'undo' });
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        dispatch({ type: 'redo' });
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        void save();
+      }
+      if (e.key === 'Delete' && state.selectedId) dispatch({ type: 'deleteSelected' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const canvasW = mmToPx(state.template.widthMm, CANVAS_SCALE * zoom);
+  const canvasH = mmToPx(state.template.heightMm, CANVAS_SCALE * zoom);
+
+  return (
+    <div className="fixed inset-0 z-[120] flex flex-col bg-[#0f1419] text-white">
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-white/10 shrink-0">
+        <input
+          value={state.template.name}
+          onChange={e => dispatch({ type: 'patch', patch: { name: e.target.value } })}
+          className="bg-transparent text-lg font-bold outline-none min-w-0 flex-1"
+          aria-label="Template name"
+        />
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'undo' })}
+          className="p-2 rounded-lg hover:bg-white/10"
+          aria-label="Undo"
+        >
+          <Undo2 size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'redo' })}
+          className="p-2 rounded-lg hover:bg-white/10"
+          aria-label="Redo"
+        >
+          <Redo2 size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
+          className="p-2 rounded-lg hover:bg-white/10"
+          aria-label="Zoom out"
+        >
+          <ZoomOut size={18} />
+        </button>
+        <span className="text-xs tabular-nums w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button
+          type="button"
+          onClick={() => setZoom(z => Math.min(2, z + 0.1))}
+          className="p-2 rounded-lg hover:bg-white/10"
+          aria-label="Zoom in"
+        >
+          <ZoomIn size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={printTest}
+          className="px-3 py-2 rounded-xl border border-white/20 text-sm font-semibold hover:bg-white/5"
+        >
+          <Printer size={16} className="inline mr-1" /> Print test
+        </button>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-bold disabled:opacity-60"
+        >
+          <Save size={16} className="inline mr-1" /> {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" onClick={onClose} className="px-3 py-2 rounded-xl border border-white/20 text-sm">
+          Close
+        </button>
+      </header>
+
+      <div className="flex flex-1 min-h-0">
+        <aside className="w-56 border-r border-white/10 p-3 space-y-2 overflow-y-auto shrink-0">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Elements</p>
+          {(
+            [
+              ['field', 'Dynamic field'],
+              ['text', 'Custom text'],
+              ['barcode', 'Barcode'],
+              ['qr', 'QR code'],
+              ['logo', 'Company logo'],
+              ['rect', 'Rectangle'],
+              ['line', 'Line'],
+            ] as const
+          ).map(([type, label]) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() =>
+                dispatch({
+                  type: 'addElement',
+                  element: newElement(type, state.template.elements.length + 1),
+                })
+              }
+              className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-white/10 border border-white/10"
+            >
+              + {label}
+            </button>
+          ))}
+        </aside>
+
+        <main className="flex-1 overflow-auto p-8 flex items-center justify-center bg-[#1a2028]">
+          <div
+            className="relative shadow-2xl"
+            style={{
+              width: canvasW,
+              height: canvasH,
+              backgroundImage:
+                'linear-gradient(#ffffff12 1px, transparent 1px), linear-gradient(90deg, #ffffff12 1px, transparent 1px)',
+              backgroundSize: `${mmToPx(5, CANVAS_SCALE * zoom)}px ${mmToPx(5, CANVAS_SCALE * zoom)}px`,
+            }}
+          >
+            <div className="absolute inset-0 bg-white text-black" style={{ width: canvasW, height: canvasH }}>
+              {sorted.map(el => {
+                if (!el.visible) return null;
+                const active = el.id === state.selectedId;
+                const left = mmToPx(el.xMm, CANVAS_SCALE * zoom);
+                const top = mmToPx(el.yMm, CANVAS_SCALE * zoom);
+                const w = mmToPx(el.widthMm, CANVAS_SCALE * zoom);
+                const h = mmToPx(el.heightMm, CANVAS_SCALE * zoom);
+                return (
+                  <div
+                    key={el.id}
+                    role="button"
+                    tabIndex={0}
+                    onPointerDown={e => {
+                      e.stopPropagation();
+                      dispatch({ type: 'select', id: el.id });
+                      dragRef.current = {
+                        id: el.id,
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        origX: el.xMm,
+                        origY: el.yMm,
+                      };
+                      window.addEventListener('pointermove', onPointerMove);
+                      window.addEventListener('pointerup', onPointerUp);
+                    }}
+                    className={cn(
+                      'absolute border cursor-move select-none',
+                      active ? 'border-brand ring-1 ring-brand' : 'border-transparent hover:border-brand/40',
+                    )}
+                    style={{ left, top, width: w, height: h, zIndex: el.zIndex }}
+                  >
+                    <div className="w-full h-full overflow-hidden text-[8px] p-0.5 flex items-center justify-center text-center pointer-events-none">
+                      {el.type === 'barcode' ? '▮▮▮ barcode' : el.type === 'logo' ? 'LOGO' : el.type}
+                    </div>
+                    {active && (
+                      <span
+                        className="absolute -bottom-1 -right-1 w-3 h-3 bg-brand rounded-sm cursor-se-resize"
+                        onPointerDown={e => {
+                          e.stopPropagation();
+                          resizeRef.current = {
+                            id: el.id,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            origW: el.widthMm,
+                            origH: el.heightMm,
+                          };
+                          window.addEventListener('pointermove', onPointerMove);
+                          window.addEventListener('pointerup', onPointerUp);
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </main>
+
+        <aside className="w-72 border-l border-white/10 p-4 space-y-4 overflow-y-auto shrink-0">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/50 mb-2">Label size (mm)</p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                step="0.1"
+                value={state.template.widthMm}
+                onChange={e => dispatch({ type: 'patch', patch: { widthMm: Number(e.target.value) } })}
+                className="w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                aria-label="Width mm"
+              />
+              <input
+                type="number"
+                step="0.1"
+                value={state.template.heightMm}
+                onChange={e => dispatch({ type: 'patch', patch: { heightMm: Number(e.target.value) } })}
+                className="w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                aria-label="Height mm"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {LABEL_SIZE_PRESETS.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => dispatch({ type: 'patch', patch: { widthMm: p.widthMm, heightMm: p.heightMm } })}
+                  className="text-[10px] px-2 py-1 rounded-full border border-white/20 hover:bg-white/10"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selected ? (
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Element</p>
+              <label className="flex items-center justify-between text-sm">
+                Visible
+                <input
+                  type="checkbox"
+                  checked={selected.visible}
+                  onChange={e =>
+                    dispatch({ type: 'updateElement', id: selected.id, patch: { visible: e.target.checked } })
+                  }
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['xMm', 'yMm', 'widthMm', 'heightMm'] as const).map(k => (
+                  <label key={k} className="text-xs">
+                    {k}
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={selected[k]}
+                      onChange={e =>
+                        dispatch({
+                          type: 'updateElement',
+                          id: selected.id,
+                          patch: { [k]: Number(e.target.value) } as Partial<LabelElement>,
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg bg-white/10 px-2 py-1"
+                    />
+                  </label>
+                ))}
+              </div>
+              {(selected.type === 'text' || selected.type === 'field') && (
+                <>
+                  {selected.type === 'text' && (
+                    <input
+                      value={selected.properties.staticText || ''}
+                      onChange={e =>
+                        dispatch({
+                          type: 'updateElement',
+                          id: selected.id,
+                          patch: { properties: { staticText: e.target.value } },
+                        })
+                      }
+                      placeholder="Static text"
+                      className="w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                    />
+                  )}
+                  {selected.type === 'field' && (
+                    <select
+                      value={selected.properties.fieldKey || 'product.name'}
+                      onChange={e =>
+                        dispatch({
+                          type: 'updateElement',
+                          id: selected.id,
+                          patch: { properties: { fieldKey: e.target.value as LabelElement['properties']['fieldKey'] } },
+                        })
+                      }
+                      className="w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                    >
+                      {LABEL_DYNAMIC_FIELDS.map(f => (
+                        <option key={f.key} value={f.key}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <input
+                    type="number"
+                    value={selected.properties.fontSizePt || 8}
+                    onChange={e =>
+                      dispatch({
+                        type: 'updateElement',
+                        id: selected.id,
+                        patch: { properties: { fontSizePt: Number(e.target.value) } },
+                      })
+                    }
+                    className="w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                    aria-label="Font size pt"
+                  />
+                </>
+              )}
+              {selected.type === 'barcode' && (
+                <select
+                  value={selected.properties.barcodeType || 'CODE128'}
+                  onChange={e =>
+                    dispatch({
+                      type: 'updateElement',
+                      id: selected.id,
+                      patch: {
+                        properties: { barcodeType: e.target.value as LabelElement['properties']['barcodeType'] },
+                      },
+                    })
+                  }
+                  className="w-full rounded-lg bg-white/10 px-2 py-1.5 text-sm"
+                >
+                  {['EAN13', 'EAN8', 'CODE128', 'CODE39', 'UPC'].map(t => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'deleteSelected' })}
+                  className="flex-1 py-2 rounded-lg border border-rose-400/40 text-rose-300 text-xs"
+                >
+                  <Trash2 size={14} className="inline" /> Delete
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-white/50">Select an element on the canvas.</p>
+          )}
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/50 mb-2 flex items-center gap-1">
+              <Layers size={12} /> Layers
+            </p>
+            <div className="space-y-1">
+              {[...sorted].reverse().map(el => (
+                <button
+                  key={el.id}
+                  type="button"
+                  onClick={() => dispatch({ type: 'select', id: el.id })}
+                  className={cn(
+                    'w-full text-left px-2 py-1.5 rounded text-xs border',
+                    el.id === state.selectedId ? 'border-brand bg-brand/10' : 'border-white/10',
+                  )}
+                >
+                  {el.type} {!el.visible && '(hidden)'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}

@@ -57,6 +57,7 @@ import mappingRouter from './routes/mapping';
 import auditRouter from './routes/audit';
 import chatbotRouter from './routes/chatbot';
 import billSettingsRouter from './routes/bill-settings';
+import barcodeLabelTemplatesRouter from './routes/barcode-label-templates';
 import payrollRouter from './routes/payroll';
 import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
@@ -695,6 +696,7 @@ export function createApp(): express.Application {
   app.use(invoicesRouter);
   app.use(chatbotRouter);
   app.use(billSettingsRouter);
+  app.use(barcodeLabelTemplatesRouter);
   // Before reports/accounts — those routers use router.use(blockVendors) and would
   // intercept /api/notifications for Vendor users before this router runs.
   app.use(notificationsRouter);

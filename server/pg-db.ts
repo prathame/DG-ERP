@@ -604,6 +604,30 @@ export async function initSchema() {
     );
     await client.query(`ALTER TABLE bill_settings ALTER COLUMN bill_units SET DEFAULT '["Piece"]'::jsonb`);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS barcode_label_templates (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        width_mm NUMERIC(8,2) NOT NULL DEFAULT 38,
+        height_mm NUMERIC(8,2) NOT NULL DEFAULT 25,
+        orientation TEXT NOT NULL DEFAULT 'landscape',
+        status TEXT NOT NULL DEFAULT 'draft',
+        is_default BOOLEAN NOT NULL DEFAULT false,
+        version INTEGER NOT NULL DEFAULT 1,
+        elements JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_by TEXT,
+        updated_by TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_barcode_label_templates_tenant ON barcode_label_templates(tenant_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_barcode_label_templates_default
+        ON barcode_label_templates(tenant_id) WHERE is_default = true AND status = 'active';
+    `);
+
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ');
@@ -1936,6 +1960,7 @@ export async function initSchema() {
       'audit_log',
       'categories',
       'bill_settings',
+      'barcode_label_templates',
       'credit_debit_notes',
       'price_lists',
       'quotations',
