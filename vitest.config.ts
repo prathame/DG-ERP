@@ -16,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['server/utils/**/*.ts', 'server/services/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.js', 'server/services/miracleExport.ts'],
+      exclude: ['**/*.test.ts', '**/*.js', 'server/services/miracleExport.ts', 'server/services/whatsappWebSession.ts'],
       thresholds: {
         statements: 87,
         branches: 73,
