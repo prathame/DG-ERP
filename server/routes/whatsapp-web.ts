@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { requireAdmin, AuthRequest } from '../middleware/auth';
 import { handleApiError } from '../utils/http-error';
+import { pool } from '../pg-db';
 import {
   connectSession,
   disconnectSession,
@@ -82,6 +83,21 @@ router.post('/api/whatsapp-web/send-text', requireAdmin, async (req: AuthRequest
     if (!phone || !message) return res.status(400).json({ error: 'phone and message required' });
     await sendTextViaWeb(tenantId, phone, message);
     res.json({ ok: true });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/whatsapp/reminders', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { rows } = await pool.query(
+      `SELECT id, vendor_name, phone, balance, status, error_message, sent_at
+       FROM whatsapp_reminder_log WHERE tenant_id = $1 ORDER BY sent_at DESC LIMIT 50`,
+      [tenantId],
+    );
+    res.json(rows);
   } catch (err) {
     return handleApiError(req, res, err);
   }

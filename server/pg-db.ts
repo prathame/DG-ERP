@@ -1054,6 +1054,37 @@ export async function initSchema() {
         PRIMARY KEY (id, tenant_id)
       )
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_broadcast_recipients (
+        id TEXT NOT NULL,
+        broadcast_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error_message TEXT,
+        sent_at TIMESTAMPTZ,
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_wbr_broadcast ON whatsapp_broadcast_recipients(broadcast_id, tenant_id)',
+    );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_reminder_log (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        vendor_id TEXT,
+        vendor_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        balance NUMERIC(12,2),
+        status TEXT NOT NULL DEFAULT 'sent',
+        error_message TEXT,
+        sent_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wrl_tenant ON whatsapp_reminder_log(tenant_id, sent_at DESC)');
     await client.query('ALTER TABLE product_purchases ALTER COLUMN barcode DROP NOT NULL');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');

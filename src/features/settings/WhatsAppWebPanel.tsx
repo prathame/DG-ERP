@@ -13,13 +13,75 @@ interface SessionState {
   phoneNumber: string | null;
 }
 
+interface ReminderLog {
+  id: string;
+  vendor_name: string;
+  phone: string;
+  balance: string | null;
+  status: string;
+  error_message: string | null;
+  sent_at: string;
+}
+
+function ReminderLogTab() {
+  const [rows, setRows] = useState<ReminderLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchApi<ReminderLog[]>('/whatsapp/reminders')
+      .then(setRows)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-xs text-gray-400 py-4 text-center">Loading…</p>;
+  if (!rows.length) return <p className="text-xs text-gray-400 py-4 text-center">No reminders sent yet.</p>;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-gray-400 border-b border-gray-100">
+            <th className="pb-2 pr-3 font-medium">Vendor</th>
+            <th className="pb-2 pr-3 font-medium">Phone</th>
+            <th className="pb-2 pr-3 font-medium">Balance</th>
+            <th className="pb-2 pr-3 font-medium">Status</th>
+            <th className="pb-2 font-medium">Sent At</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {rows.map(r => (
+            <tr key={r.id} className="text-gray-700">
+              <td className="py-1.5 pr-3 font-medium">{r.vendor_name}</td>
+              <td className="py-1.5 pr-3 text-gray-500">{r.phone}</td>
+              <td className="py-1.5 pr-3">
+                {r.balance != null ? `₹${Number(r.balance).toLocaleString('en-IN')}` : '—'}
+              </td>
+              <td className="py-1.5 pr-3">
+                {r.status === 'sent' ? (
+                  <span className="text-green-600">✅ Sent</span>
+                ) : (
+                  <span className="text-red-500" title={r.error_message ?? undefined}>
+                    ❌ Failed
+                  </span>
+                )}
+              </td>
+              <td className="py-1.5 text-gray-400">{new Date(r.sent_at).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function WhatsAppWebPanel() {
   const [state, setState] = useState<SessionState>({ status: 'disconnected', qrDataUrl: null, phoneNumber: null });
   const [loading, setLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [template, setTemplate] = useState<string | null>(null);
   const [templateSaving, setTemplateSaving] = useState(false);
-  const [activeSection, setActiveSection] = useState<'connect' | 'template' | 'broadcast'>('connect');
+  const [activeSection, setActiveSection] = useState<'connect' | 'template' | 'broadcast' | 'reminders'>('connect');
 
   useEffect(() => {
     api.settings
@@ -104,6 +166,7 @@ export function WhatsAppWebPanel() {
             ['connect', 'Connect'],
             ['template', 'Message'],
             ['broadcast', 'Broadcast'],
+            ['reminders', 'Reminders'],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -191,6 +254,9 @@ export function WhatsAppWebPanel() {
 
       {/* Broadcast tab */}
       {activeSection === 'broadcast' && <WhatsAppBroadcastPanel />}
+
+      {/* Reminders tab */}
+      {activeSection === 'reminders' && <ReminderLogTab />}
     </div>
   );
 }

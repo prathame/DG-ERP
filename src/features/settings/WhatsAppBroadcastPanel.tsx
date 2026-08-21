@@ -5,6 +5,15 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { fetchApi } from '../../api';
 
+interface BroadcastRecipient {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  error_message: string | null;
+  sent_at: string | null;
+}
+
 type RecipientType = 'all_customers' | 'selected_customers' | 'all_vendors' | 'selected_vendors';
 
 interface Recipient {
@@ -40,6 +49,8 @@ export function WhatsAppBroadcastPanel() {
   const [activeBroadcast, setActiveBroadcast] = useState<BroadcastStatus | null>(null);
   const [recentBroadcasts, setRecentBroadcasts] = useState<BroadcastStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [expandedBroadcast, setExpandedBroadcast] = useState<string | null>(null);
+  const [broadcastRecipients, setBroadcastRecipients] = useState<Record<string, BroadcastRecipient[]>>({});
 
   // Recipient selection
   const [allCustomers, setAllCustomers] = useState<Recipient[]>([]);
@@ -205,6 +216,22 @@ export function WhatsAppBroadcastPanel() {
   };
 
   const isConnected = waStatus?.status === 'connected';
+
+  const toggleRecipients = async (broadcastId: string) => {
+    if (expandedBroadcast === broadcastId) {
+      setExpandedBroadcast(null);
+      return;
+    }
+    setExpandedBroadcast(broadcastId);
+    if (!broadcastRecipients[broadcastId]) {
+      try {
+        const rows = await fetchApi<BroadcastRecipient[]>(`/whatsapp/broadcast/${broadcastId}/recipients`);
+        setBroadcastRecipients(prev => ({ ...prev, [broadcastId]: rows }));
+      } catch {
+        /* ignore */
+      }
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -435,14 +462,62 @@ export function WhatsAppBroadcastPanel() {
           <p className="text-xs font-medium text-gray-500 mb-2">Recent broadcasts</p>
           <div className="space-y-1.5">
             {recentBroadcasts.slice(0, 5).map(b => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2"
-              >
-                <span className="truncate max-w-[200px]">{b.message}</span>
-                <span className="shrink-0 ml-2">
-                  {b.sentCount}/{b.totalRecipients} · {b.status}
-                </span>
+              <div key={b.id} className="text-xs text-gray-600 bg-gray-50 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="truncate max-w-[200px]">{b.message}</span>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span>
+                      {b.sentCount}/{b.totalRecipients} · {b.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleRecipients(b.id)}
+                      className="text-orange-600 hover:text-orange-800 font-medium"
+                    >
+                      {expandedBroadcast === b.id ? 'Hide' : 'View recipients'}
+                    </button>
+                  </div>
+                </div>
+                {expandedBroadcast === b.id && (
+                  <div className="border-t border-gray-100 px-3 py-2">
+                    {!broadcastRecipients[b.id] ? (
+                      <p className="text-gray-400">Loading…</p>
+                    ) : broadcastRecipients[b.id].length === 0 ? (
+                      <p className="text-gray-400">No recipient data recorded.</p>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-gray-400 text-left">
+                            <th className="pb-1 pr-2 font-medium">Name</th>
+                            <th className="pb-1 pr-2 font-medium">Phone</th>
+                            <th className="pb-1 pr-2 font-medium">Status</th>
+                            <th className="pb-1 font-medium">Sent At</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {broadcastRecipients[b.id].map(r => (
+                            <tr key={r.id}>
+                              <td className="py-1 pr-2">{r.name}</td>
+                              <td className="py-1 pr-2 text-gray-400">{r.phone}</td>
+                              <td className="py-1 pr-2">
+                                {r.status === 'sent' ? (
+                                  <span className="text-green-600">✅</span>
+                                ) : (
+                                  <span className="text-red-500" title={r.error_message ?? undefined}>
+                                    ❌
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-1 text-gray-400">
+                                {r.sent_at ? new Date(r.sent_at).toLocaleTimeString() : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

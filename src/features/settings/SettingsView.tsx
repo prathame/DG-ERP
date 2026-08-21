@@ -1584,6 +1584,7 @@ export function SettingsView({
     // GST tab has no non-admin content (identity form + WhatsApp GST API are both Admin-only).
     { id: 'gst', label: st('settings.gstSettings'), icon: FileCheck, hidden: !user || !isAdmin || hideGstModule },
     { id: 'bill', label: st('settings.billCustomization'), icon: FileText, hidden: !user || !isAdmin },
+    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, hidden: !user || !isAdmin },
     { id: 'data', label: st('settings.dataManagement'), icon: HardDrive, hidden: !user || !isAdmin },
     { id: 'preferences', label: st('settings.preferences'), icon: Bell, hidden: !user },
     { id: 'guide', label: st('settings.howToGuide'), icon: BookOpen, hidden: !user },
@@ -2723,6 +2724,21 @@ export function SettingsView({
                 </div>
               )}
 
+              {/* WhatsApp - Admin only */}
+              {isAdmin && (
+                <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <MessageCircle size={16} className="shrink-0 text-gray-500" />
+                      WhatsApp
+                    </h3>
+                  </div>
+                  <div className="p-4 sm:p-6">
+                    <WhatsAppWebPanel />
+                  </div>
+                </div>
+              )}
+
               {/* Data Management - Admin only */}
               {isAdmin && (
                 <div className={cn(settingsPanel(), !showTab('data') && 'hidden')}>
@@ -2733,7 +2749,6 @@ export function SettingsView({
                     </h3>
                   </div>
                   <div className="p-4 sm:p-6 space-y-3">
-                    {!mobileApp && <WhatsAppWebPanel />}
                     {mobileApp && (
                       <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
                         {serviceMobile ? (

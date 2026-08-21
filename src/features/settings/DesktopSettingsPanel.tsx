@@ -7,7 +7,8 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../i18n';
 
-export type DesktopSettingsTabId = 'personal' | 'company' | 'gst' | 'bill' | 'data' | 'preferences' | 'guide' | 'users';
+export type DesktopSettingsTabId =
+  'personal' | 'company' | 'gst' | 'bill' | 'whatsapp' | 'data' | 'preferences' | 'guide' | 'users';
 
 export type DesktopSettingsTab = {
   id: DesktopSettingsTabId;
