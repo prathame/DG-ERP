@@ -98,6 +98,7 @@ function makeTempAuthDir(tenantId: string): string {
 /** Connect (or reconnect) a tenant's WhatsApp session. */
 export async function connectSession(tenantId: string): Promise<void> {
   const session = sessionFor(tenantId);
+  logger.info('WA connect start', { tenantId });
 
   // Close existing socket if any
   if (session.socket) {
@@ -115,25 +116,79 @@ export async function connectSession(tenantId: string): Promise<void> {
   const authDir = session.authDir || makeTempAuthDir(tenantId);
   session.authDir = authDir;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { state, saveCreds } = await useMultiFileAuthState(authDir);
-  const { version } = await fetchLatestBaileysVersion();
+  let state: Awaited<ReturnType<typeof useMultiFileAuthState>>['state'];
+  let saveCreds: Awaited<ReturnType<typeof useMultiFileAuthState>>['saveCreds'];
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- Baileys API, not a React hook
+    const result = await useMultiFileAuthState(authDir);
+    state = result.state;
+    saveCreds = result.saveCreds;
+    logger.info('WA auth state loaded', { tenantId, authDir, hasCreds: !!result.state.creds.me });
+  } catch (err) {
+    logger.error('WA auth state load failed', {
+      tenantId,
+      authDir,
+      alert: 'wa_auth_load_failed',
+      error: err instanceof Error ? err.message : String(err),
+    });
+    session.status = 'disconnected';
+    return;
+  }
+
+  // Fetch latest WA version with a 10s timeout — fallback to a known-good version
+  // to avoid hanging on Render's network during boot.
+  let version: [number, number, number] = [2, 3000, 1015901307];
+  try {
+    const result = (await Promise.race([
+      fetchLatestBaileysVersion(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 10_000)),
+    ])) as { version: [number, number, number] };
+    version = result.version;
+  } catch {
+    logger.warn('WA fetchLatestBaileysVersion timed out — using pinned version', { tenantId, version });
+  }
+
+  // No-op pino-compatible logger for Baileys internals
+  const noop = () => {};
+  const silentLogger = {
+    level: 'silent',
+    trace: noop,
+    debug: noop,
+    info: noop,
+    warn: noop,
+    error: noop,
+    fatal: noop,
+    child: () => silentLogger,
+  } as unknown as Parameters<typeof makeWASocket>[0]['logger'];
 
   const sock = makeWASocket({
     version,
     auth: {
       creds: state.creds,
-      keys: makeCacheableSignalKeyStore(
-        state.keys,
-        undefined as unknown as Parameters<typeof makeCacheableSignalKeyStore>[1],
-      ),
+      keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
     },
     printQRInTerminal: false,
-    logger: { level: 'silent' } as unknown as Parameters<typeof makeWASocket>[0]['logger'],
+    logger: silentLogger,
     browser: ['Dhandho ERP', 'Chrome', '1.0'],
     generateHighQualityLinkPreview: false,
     getMessage: async () => undefined,
+    connectTimeoutMs: 30_000,
+    keepAliveIntervalMs: 15_000,
   });
+
+  // Safety timeout — if QR never arrives in 45s, reset to disconnected so user can retry
+  const qrTimeout = setTimeout(() => {
+    if (sessions.get(tenantId)?.status === 'connecting') {
+      logger.warn('WA QR timeout — no QR received in 45s, resetting', { tenantId });
+      session.status = 'disconnected';
+      session.qrDataUrl = null;
+      try {
+        sock.end(undefined);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 45_000);
 
   session.socket = sock;
   sessions.set(tenantId, session);
@@ -147,6 +202,7 @@ export async function connectSession(tenantId: string): Promise<void> {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
+      clearTimeout(qrTimeout);
       try {
         const dataUrl = await QRCode.toDataURL(qr, { width: 256, margin: 2 });
         session.qrDataUrl = dataUrl;
@@ -158,6 +214,7 @@ export async function connectSession(tenantId: string): Promise<void> {
     }
 
     if (connection === 'open') {
+      clearTimeout(qrTimeout);
       session.status = 'connected';
       session.qrDataUrl = null;
       const jid = sock.user?.id || '';
@@ -168,9 +225,16 @@ export async function connectSession(tenantId: string): Promise<void> {
     }
 
     if (connection === 'close') {
-      const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const boom = lastDisconnect?.error as Boom | undefined;
+      const reason = boom?.output?.statusCode;
       const loggedOut = reason === DisconnectReason.loggedOut;
-      logger.info('WA disconnected', { tenantId, reason, loggedOut });
+      logger.warn('WA connection closed', {
+        tenantId,
+        reason,
+        loggedOut,
+        errorMessage: boom?.message || (lastDisconnect?.error as Error)?.message || 'unknown',
+        alert: loggedOut ? undefined : 'wa_connection_dropped',
+      });
 
       if (loggedOut) {
         session.status = 'disconnected';
