@@ -64,6 +64,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => cleanup?.();
   }, [toast]);
 
+  // Global toast bridge — lets non-React code (utils.ts) show toasts via CustomEvent
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { message, type } = (e as CustomEvent<{ message: string; type?: ToastType }>).detail;
+      toast(message, type || 'info');
+    };
+    window.addEventListener('dg-toast', handler);
+    return () => window.removeEventListener('dg-toast', handler);
+  }, [toast]);
+
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}

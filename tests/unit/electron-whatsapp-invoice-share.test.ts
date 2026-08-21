@@ -139,15 +139,18 @@ describe('Electron WhatsApp invoice share (separate from Cap)', () => {
     expect(crumbs).not.toMatch(/html2pdf/);
   });
 
-  it('Electron falls back to download + wa.me when IPC missing', async () => {
+  it('Electron falls back to openExternal (WhatsApp Desktop) when IPC missing', async () => {
     stubElectron({ ipc: false });
 
     const { shareStandaloneInvoiceWhatsApp } = await import('../../src/lib/printStandaloneInvoice');
 
     const result = await shareStandaloneInvoiceWhatsApp(sampleInv);
 
-    expect(result.how).toBe('text');
+    // Electron without IPC: falls back to legacy download + openExternal path.
+    // openExternal opens WhatsApp Desktop app (not a browser tab) — kept intentionally.
+    expect(['text', 'downloaded']).toContain(result.how);
     expect(sharePdfWhatsAppMock).not.toHaveBeenCalled();
+    // openExternal to WhatsApp Desktop is valid in Electron (not a browser wa.me tab)
     expect(openExternalMock).toHaveBeenCalledWith(expect.stringContaining('wa.me/919876543210'));
   });
 

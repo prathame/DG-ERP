@@ -470,22 +470,50 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
 }): Promise<'summary' | 'cancelled'> {
   const ctx = { path: 'text', ...opts.logCtx, correlationId: ensureCorrelationId() };
   const phone = (opts.phone || '').trim();
-  // Prefer WhatsApp-targeted wa.me — Cap Share.share is a generic chooser (often surfaces Gmail).
+
   if (phone) {
+    // 1. Try Baileys (WhatsApp Web session on server)
+    const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
+    if (user?.tenantId) {
+      try {
+        const r = await fetch('/api/whatsapp-web/send-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-id': user.tenantId,
+            'x-dg-client': 'web',
+            Authorization: `Bearer ${user.accessToken || ''}`,
+          },
+          body: JSON.stringify({ phone, message: opts.message }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) {
+          waShareLog('info', 'WhatsApp text share via Baileys', { ...ctx, shareMode: 'baileys' });
+          return 'summary';
+        }
+      } catch {
+        /* not connected — fall through */
+      }
+    }
+
+    // 2. Meta Cloud API
     if (canUseWhatsAppBusinessApi() && (await trySendWhatsAppBusiness(phone, opts.message))) {
       waShareLog('info', 'WhatsApp text share via Cloud API', { ...ctx, shareMode: 'cloud-api' });
       return 'summary';
     }
-    openPersonalWhatsApp(phone, opts.message);
-    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me' });
+
+    // 3. Not connected — show toast
+    toastNotConnected();
+    waShareLog('info', 'WhatsApp not connected — showed toast', { ...ctx, shareMode: 'not_connected' });
     return 'summary';
   }
   try {
-    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
-    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me-open' });
+    // No phone number and not connected
+    toastNotConnected();
+    waShareLog('info', 'WhatsApp not connected — showed toast (no phone)', { ...ctx, shareMode: 'not_connected' });
     return 'summary';
   } catch (err) {
-    waShareLog('warn', 'WhatsApp wa.me open fail — Share sheet fallback', {
+    waShareLog('warn', 'WhatsApp toast dispatch failed', {
       ...ctx,
       shareMode: 'text-only',
       errorMessage: truncateShareError(err),
@@ -590,8 +618,7 @@ export async function shareHtmlPdfViaWhatsApp(opts: {
     return 'text';
   }
 
-  window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
-  await deliverPdfBlob(blob, safeName);
+  toastNotConnected();
   return 'downloaded';
 }
 
@@ -1164,26 +1191,66 @@ export async function saveBillAsPdf(html: string, filename?: string, win?: Windo
   return true;
 }
 
-/** Personal WhatsApp (wa.me) — no Business API. */
-export function openPersonalWhatsApp(phone: string, message: string) {
-  let p = phone.replace(/[\s\-().+]/g, '');
-  if (p.length === 10 && /^\d+$/.test(p)) p = '91' + p;
-  if (p.startsWith('0')) p = '91' + p.slice(1);
-  window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, '_blank');
+/** Show a toast via the global CustomEvent bridge (works outside React components). */
+function toastNotConnected() {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(
+      new CustomEvent('dg-toast', {
+        detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+      }),
+    );
+  }
+}
+
+/** @deprecated wa.me removed — kept only as emergency reference, not called */
+export function openPersonalWhatsApp(_phone: string, _message: string) {
+  toastNotConnected();
 }
 
 /**
- * Prefer Meta Cloud API when tenant Business is ON + user eligible; else personal wa.me.
- * Business OFF / ineligible stays synchronous (wa.me). Business ON is async with personal fallback.
+ * Send WhatsApp message — priority order:
+ *   1. Baileys (WhatsApp Web session) — direct, no popup
+ *   2. Meta Cloud API — if tenant Business ON
+ *   3. Toast: "WhatsApp not connected — go to Settings to connect"
  */
 export function shareViaWhatsApp(phone: string, message: string) {
-  if (!canUseWhatsAppBusinessApi()) {
-    openPersonalWhatsApp(phone, message);
+  const p = (phone || '').replace(/[\s\-().+]/g, '');
+  if (!p) {
+    toastNotConnected();
     return;
   }
+
+  const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
+  const tenantId = user?.tenantId || '';
+
   void (async () => {
-    if (await trySendWhatsAppBusiness(phone, message)) return;
-    openPersonalWhatsApp(phone, message);
+    // 1. Try Baileys direct send
+    if (tenantId) {
+      try {
+        const r = await fetch('/api/whatsapp-web/send-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-id': tenantId,
+            Authorization: `Bearer ${(session.getUser() as { accessToken?: string } | null)?.accessToken || ''}`,
+            'x-dg-client': 'web',
+          },
+          body: JSON.stringify({ phone, message }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) return; // sent via Baileys — done
+      } catch {
+        /* not connected or timed out — fall through */
+      }
+    }
+
+    // 2. Meta Cloud API
+    if (canUseWhatsAppBusinessApi()) {
+      if (await trySendWhatsAppBusiness(phone, message)) return;
+    }
+
+    // 3. Not connected — show toast instead of wa.me
+    toastNotConnected();
   })();
 }
 
