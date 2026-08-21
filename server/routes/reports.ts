@@ -558,6 +558,31 @@ router.get('/api/reports/outstanding', async (req, res) => {
       },
       { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
     );
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        [
+          'Vendor / Party',
+          'Total Billed',
+          'Total Paid',
+          'Balance',
+          '0-30 Days',
+          '31-60 Days',
+          '61-90 Days',
+          '90+ Days',
+        ],
+        rows.map(r => [
+          r.vendorName as string,
+          r.totalBilled.toFixed(2),
+          r.totalPaid.toFixed(2),
+          r.balance.toFixed(2),
+          r.d0_30.toFixed(2),
+          r.d31_60.toFixed(2),
+          r.d61_90.toFixed(2),
+          r.d90plus.toFixed(2),
+        ]),
+      );
+      return sendCsv(res, `outstanding-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    }
     res.json({
       rows,
       bills,
@@ -689,6 +714,33 @@ router.get('/api/reports/stock-summary', async (req, res) => {
       },
       { totalInventory: 0, inStock: 0, withVendors: 0, sold: 0, closingStock: 0, stockValue: 0 },
     );
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        [
+          'Product',
+          'HSN',
+          'Unit Price',
+          'Total Inventory',
+          'In Stock',
+          'With Vendors',
+          'Sold',
+          'Closing Stock',
+          'Stock Value',
+        ],
+        mapped.map(r => [
+          r.name as string,
+          r.hsnCode,
+          r.unitPrice.toFixed(2),
+          r.totalInventory,
+          r.inStock,
+          r.withVendors,
+          r.sold,
+          r.closingStock,
+          r.stockValue.toFixed(2),
+        ]),
+      );
+      return sendCsv(res, `stock-summary-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    }
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -857,6 +909,30 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       }
     }
 
+    if (req.query.format === 'csv') {
+      const b2bRows = Object.values(b2b).map(v => [
+        'B2B',
+        v.vendorName,
+        v.gstin,
+        v.taxable.toFixed(2),
+        v.cgst.toFixed(2),
+        v.sgst.toFixed(2),
+        v.total.toFixed(2),
+      ]);
+      const b2cRow = [
+        [
+          'B2C',
+          'Unregistered Buyers',
+          '',
+          b2cTaxable.toFixed(2),
+          b2cCgst.toFixed(2),
+          b2cSgst.toFixed(2),
+          b2cTotal.toFixed(2),
+        ],
+      ];
+      const csv = toCsv(['Type', 'Party', 'GSTIN', 'Taxable Value', 'CGST', 'SGST', 'Total'], [...b2bRows, ...b2cRow]);
+      return sendCsv(res, `gst-summary-${String(m).padStart(2, '0')}${y}.csv`, csv);
+    }
     res.json({
       period: `${String(m).padStart(2, '0')}/${y}`,
       b2b: Object.values(b2b),

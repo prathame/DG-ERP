@@ -418,6 +418,7 @@ router.get('/api/purchases/batches', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    // CSV handled after data is fetched — falls through to shared logic below
     const { supplierId } = req.query;
     let sql = `
       SELECT pp.batch_id, pp.supplier_id, s.name as supplier_name, MIN(pp.purchase_date) as purchase_date,
@@ -452,25 +453,51 @@ router.get('/api/purchases/batches', async (req, res) => {
       for (const pr of payRows) paymentMap[pr.batch_id] = Number(pr.total_paid);
     }
 
-    res.json(
-      rows.map(r => {
-        const paid = paymentMap[r.batch_id as string] ?? 0;
-        const billVal = Number(r.bill_value);
-        return {
-          batchId: r.batch_id,
-          supplierId: r.supplier_id,
-          supplierName: r.supplier_name,
-          purchaseDate: r.purchase_date,
-          productNames: ((r.product_names as string) || '').split(',').filter(Boolean),
-          total: Number(r.total),
-          billValue: billVal,
-          amountPaid: paid,
-          balanceRemaining: billVal - paid,
-          isRcm: !!r.is_rcm,
-          invoiceNumber: (r.invoice_number as string) || null,
-        };
-      }),
-    );
+    const mapped = rows.map(r => {
+      const paid = paymentMap[r.batch_id as string] ?? 0;
+      const billVal = Number(r.bill_value);
+      return {
+        batchId: r.batch_id,
+        supplierId: r.supplier_id,
+        supplierName: r.supplier_name,
+        purchaseDate: r.purchase_date,
+        productNames: ((r.product_names as string) || '').split(',').filter(Boolean),
+        total: Number(r.total),
+        billValue: billVal,
+        amountPaid: paid,
+        balanceRemaining: billVal - paid,
+        isRcm: !!r.is_rcm,
+        invoiceNumber: (r.invoice_number as string) || null,
+      };
+    });
+
+    if (req.query.format === 'csv') {
+      const csvStr = [
+        'Date,Supplier,Invoice No,Products,Bill Value,Amount Paid,Balance,RCM',
+        ...mapped.map(r =>
+          [
+            r.purchaseDate,
+            r.supplierName,
+            r.invoiceNumber || '',
+            r.productNames.join('; '),
+            r.billValue.toFixed(2),
+            r.amountPaid.toFixed(2),
+            r.balanceRemaining.toFixed(2),
+            r.isRcm ? 'Yes' : 'No',
+          ]
+            .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`)
+            .join(','),
+        ),
+      ].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="purchase-register-${new Date().toISOString().slice(0, 10)}.csv"`,
+      );
+      return res.send('﻿' + csvStr);
+    }
+
+    res.json(mapped);
   } catch (err) {
     return handleApiError(req, res, err);
   }

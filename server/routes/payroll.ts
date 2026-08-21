@@ -281,6 +281,49 @@ router.get('/api/payroll', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    if (req.query.format === 'csv') {
+      let sql =
+        'SELECT payment_date, staff_name, amount, payment_type, payment_method, reference_number, month, year, notes FROM staff_payments WHERE tenant_id = $1';
+      const params: unknown[] = [tenantId];
+      let idx = 2;
+      if (req.query.from) {
+        sql += ` AND payment_date >= $${idx++}`;
+        params.push(req.query.from);
+      }
+      if (req.query.to) {
+        sql += ` AND payment_date <= $${idx++}`;
+        params.push(req.query.to);
+      }
+      if (req.query.staffName) {
+        sql += ` AND staff_name ILIKE $${idx++}`;
+        params.push(`%${req.query.staffName}%`);
+      }
+      sql += ' ORDER BY payment_date DESC';
+      const { rows } = await pool.query(sql, params);
+      const csvStr = [
+        'Date,Staff Name,Amount,Type,Method,Reference,Month,Year,Notes',
+        ...rows.map((r: Record<string, unknown>) =>
+          [
+            r.payment_date,
+            r.staff_name,
+            Number(r.amount).toFixed(2),
+            r.payment_type,
+            r.payment_method,
+            r.reference_number || '',
+            r.month || '',
+            r.year || '',
+            r.notes || '',
+          ]
+            .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`)
+            .join(','),
+        ),
+      ].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="payroll-${req.query.from || 'all'}.csv"`);
+      return res.send('﻿' + csvStr);
+    }
+
     await ensureBooksSalaryMirrored(tenantId);
     const { month, year, staffName } = req.query;
     const from = typeof req.query.from === 'string' ? req.query.from : '';
