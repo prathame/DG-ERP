@@ -11,6 +11,8 @@ import { pool, setTenantContext } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { computeMetalSalePrice } from '../../shared/metal';
+import { postSaleToBooks } from '../services/opsToBooks';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -358,6 +360,37 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
       throw e;
     } finally {
       client.release();
+    }
+
+    // Best-effort Books dual-write — never blocks the sale
+    const saleAmt = Number(salePrice) || 0;
+    if (saleAmt > 0) {
+      pool
+        .connect()
+        .then(async bClient => {
+          try {
+            await bClient.query('BEGIN');
+            await setTenantContext(bClient, tenantId);
+            await postSaleToBooks(bClient, tenantId, {
+              id,
+              amount: saleAmt,
+              saleDate: date,
+              customerName: customerName || null,
+            });
+            await bClient.query('COMMIT');
+          } catch (err) {
+            await bClient.query('ROLLBACK').catch(() => {});
+            logger.warn('Sale Books dual-write failed', {
+              alert: 'books_dual_write_failure',
+              saleId: id,
+              tenantId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          } finally {
+            bClient.release();
+          }
+        })
+        .catch(() => {});
     }
 
     await logAudit(
