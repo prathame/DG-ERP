@@ -2616,7 +2616,7 @@ export function SettingsView({
                 </div>
               </div>
 
-              <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+              <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
                 <div className={settingsPanelHead('', true)}>
                   <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                     <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
@@ -3120,7 +3120,7 @@ export function SettingsView({
 
               {/* Payment reminders — non-service Distribution / Vendor Finance only */}
               {isAdmin && showVendorReminders && reminderSettings && (
-                <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+                <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
                   <div className={settingsPanelHead('', true)}>
                     <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                       <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
