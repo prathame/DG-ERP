@@ -1185,6 +1185,7 @@ export function SettingsView({
     role?: string;
     companyName?: string;
     autoWhatsapp?: boolean;
+    waAutoSettings?: { sale: boolean; salary: boolean; payment: boolean };
     businessType?: string;
     tabConfig?: Record<string, { label?: string; visible?: boolean }> | null;
   } | null;
@@ -1437,6 +1438,8 @@ export function SettingsView({
         companyName: r.companyName,
         vendorId: r.vendorId,
         autoWhatsapp: r.autoWhatsapp,
+        waAutoSettings: (r as { waAutoSettings?: { sale: boolean; salary: boolean; payment: boolean } })
+          .waAutoSettings ?? { sale: !!r.autoWhatsapp, salary: false, payment: false },
         barcodeSystemEnabled: extra.barcodeSystemEnabled,
         multiLanguageEnabled: extra.multiLanguageEnabled,
         vendorPortalEnabled: extra.vendorPortalEnabled,
@@ -1584,6 +1587,7 @@ export function SettingsView({
     // GST tab has no non-admin content (identity form + WhatsApp GST API are both Admin-only).
     { id: 'gst', label: st('settings.gstSettings'), icon: FileCheck, hidden: !user || !isAdmin || hideGstModule },
     { id: 'bill', label: st('settings.billCustomization'), icon: FileText, hidden: !user || !isAdmin },
+    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, hidden: !user || !isAdmin },
     { id: 'data', label: st('settings.dataManagement'), icon: HardDrive, hidden: !user || !isAdmin },
     { id: 'preferences', label: st('settings.preferences'), icon: Bell, hidden: !user },
     { id: 'guide', label: st('settings.howToGuide'), icon: BookOpen, hidden: !user },
@@ -2615,57 +2619,85 @@ export function SettingsView({
                 </div>
               </div>
 
-              <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+              <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
                 <div className={settingsPanelHead('', true)}>
                   <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                     <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
                     {st('settings.whatsappAutoSend')}
                   </h3>
                 </div>
-                <div className="p-4 sm:p-6 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm">Auto-send bills</p>
-                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                        Opens WhatsApp with the bill after each sale, including a shareable link for the customer.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={Boolean(user?.autoWhatsapp)}
-                      aria-label="WhatsApp auto-send"
-                      onClick={() => {
-                        if (!user) return;
-                        const newVal = !user.autoWhatsapp;
-                        api.settings
-                          .updateProfile(user.id, { autoWhatsapp: newVal } as Record<string, unknown>)
-                          .then(u => {
-                            const updated = { ...user, ...u, autoWhatsapp: newVal };
-                            session.setUser(updated);
-                            onUserChange(updated);
-                            toast(newVal ? 'Auto WhatsApp enabled' : 'Auto WhatsApp disabled', 'success');
-                          })
-                          .catch(err => toast(err instanceof Error ? err.message : 'Failed', 'error'));
-                      }}
-                      className={cn(
-                        'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
-                        user?.autoWhatsapp ? 'bg-brand' : 'bg-gray-300',
-                      )}
-                    >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                          user?.autoWhatsapp ? 'translate-x-5' : 'translate-x-0',
-                        )}
-                        style={{ backgroundColor: '#FFFFFF' }}
-                      />
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-gray-400">
-                    {user?.autoWhatsapp ? 'ON — bills open in WhatsApp automatically' : 'OFF — send manually'}
+                <div className="p-4 sm:p-6 space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Automatically sends a WhatsApp message via your connected session after each event. Requires
+                    WhatsApp to be connected (Connect tab).
                   </p>
+                  {(
+                    [
+                      ['sale', 'After sale', 'Sends invoice PDF to the customer when a sale is recorded'],
+                      ['salary', 'After salary payment', "Sends a salary slip message to the staff member's WhatsApp"],
+                      [
+                        'payment',
+                        'After vendor payment',
+                        'Sends a payment receipt to the vendor when a payment is recorded',
+                      ],
+                    ] as [keyof NonNullable<typeof user>['waAutoSettings'] & string, string, string][]
+                  ).map(([key, label, description]) => {
+                    const enabled =
+                      user?.waAutoSettings?.[key as 'sale' | 'salary' | 'payment'] ??
+                      (key === 'sale' ? !!user?.autoWhatsapp : false);
+                    return (
+                      <div key={key} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm">{label}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={enabled}
+                          aria-label={label}
+                          onClick={() => {
+                            if (!user) return;
+                            const current = user.waAutoSettings ?? {
+                              sale: !!user.autoWhatsapp,
+                              salary: false,
+                              payment: false,
+                            };
+                            const next = { ...current, [key]: !enabled };
+                            const updated = {
+                              ...user,
+                              waAutoSettings: next,
+                              ...(key === 'sale' ? { autoWhatsapp: !enabled } : {}),
+                            };
+                            api.settings
+                              .updateProfile(user.id, {
+                                waAutoSettings: next,
+                                ...(key === 'sale' ? { autoWhatsapp: !enabled } : {}),
+                              } as Record<string, unknown>)
+                              .then(u => {
+                                session.setUser({ ...updated, ...u });
+                                onUserChange({ ...updated, ...u });
+                                toast(`${label} auto-send ${!enabled ? 'enabled' : 'disabled'}`, 'success');
+                              })
+                              .catch(err => toast(err instanceof Error ? err.message : 'Failed', 'error'));
+                          }}
+                          className={cn(
+                            'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                            enabled ? 'bg-brand' : 'bg-gray-300',
+                          )}
+                        >
+                          <span
+                            aria-hidden
+                            className={cn(
+                              'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                              enabled ? 'translate-x-5' : 'translate-x-0',
+                            )}
+                            style={{ backgroundColor: '#FFFFFF' }}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2723,6 +2755,21 @@ export function SettingsView({
                 </div>
               )}
 
+              {/* WhatsApp - Admin only */}
+              {isAdmin && (
+                <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <MessageCircle size={16} className="shrink-0 text-gray-500" />
+                      WhatsApp
+                    </h3>
+                  </div>
+                  <div className="p-4 sm:p-6">
+                    <WhatsAppWebPanel />
+                  </div>
+                </div>
+              )}
+
               {/* Data Management - Admin only */}
               {isAdmin && (
                 <div className={cn(settingsPanel(), !showTab('data') && 'hidden')}>
@@ -2733,7 +2780,6 @@ export function SettingsView({
                     </h3>
                   </div>
                   <div className="p-4 sm:p-6 space-y-3">
-                    {!mobileApp && <WhatsAppWebPanel />}
                     {mobileApp && (
                       <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
                         {serviceMobile ? (
@@ -3105,7 +3151,7 @@ export function SettingsView({
 
               {/* Payment reminders — non-service Distribution / Vendor Finance only */}
               {isAdmin && showVendorReminders && reminderSettings && (
-                <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+                <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
                   <div className={settingsPanelHead('', true)}>
                     <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                       <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />

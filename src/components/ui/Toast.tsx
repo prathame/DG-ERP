@@ -1,9 +1,9 @@
 import React, { useState, createContext, useContext, useCallback, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, X, Info } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, X, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { initAndroidBackButton } from '../../lib/androidBackButton';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'warn';
 type Toast = { id: number; message: string; type: ToastType };
 
 /** Keep in sync with `.dg-toast-progress` animation in index.css */
@@ -20,11 +20,13 @@ function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () 
         t.type === 'success' && 'bg-emerald-50 border-emerald-200 text-emerald-800',
         t.type === 'error' && 'bg-rose-50 border-rose-200 text-rose-800',
         t.type === 'info' && 'bg-blue-50 border-blue-200 text-blue-800',
+        t.type === 'warn' && 'bg-amber-50 border-amber-200 text-amber-800',
       )}
     >
       {t.type === 'success' && <CheckCircle2 size={18} className="shrink-0" />}
       {t.type === 'error' && <AlertCircle size={18} className="shrink-0" />}
       {t.type === 'info' && <Info size={18} className="shrink-0" />}
+      {t.type === 'warn' && <AlertTriangle size={18} className="shrink-0" />}
       <span className="flex-1">{t.message}</span>
       <button
         type="button"
@@ -40,6 +42,7 @@ function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () 
           t.type === 'success' && 'bg-emerald-400',
           t.type === 'error' && 'bg-rose-400',
           t.type === 'info' && 'bg-blue-400',
+          t.type === 'warn' && 'bg-amber-400',
         )}
       />
     </div>

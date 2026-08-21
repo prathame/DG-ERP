@@ -3,10 +3,11 @@
  */
 import type { PoolClient } from 'pg';
 import { pool } from '../pg-db';
-import { DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
+import { DISTRIBUTION_BILL_UNIT_SQL, uid } from '../utils/helpers';
 import { decryptSecret } from '../utils/secret-crypto';
 import { callMetaSendText, normalizeWhatsAppTo, resolveWhatsAppCreds } from '../utils/whatsappBusiness';
 import { logger } from '../utils/logger';
+import { sendTextViaWeb, isConnected } from './whatsappWebSession';
 
 export type ReminderDueRow = {
   vendorId: string;
@@ -229,9 +230,49 @@ export async function runAutoWhatsAppReminders(
         vendorId: row.vendorId,
         error: result.error,
       });
+      // Try Baileys fallback if Meta send failed
+      let baileysSent = false;
+      if (isConnected(tenantId)) {
+        try {
+          await sendTextViaWeb(tenantId, row.vendorPhone, body);
+          baileysSent = true;
+        } catch (baileyErr) {
+          logger.warn('Auto reminder Baileys fallback also failed', {
+            tenantId,
+            vendorId: row.vendorId,
+            error: baileyErr instanceof Error ? baileyErr.message : String(baileyErr),
+          });
+        }
+      }
+      const logStatus = baileysSent ? 'sent' : 'failed';
+      const logError = baileysSent ? null : result.error;
+      pool
+        .query(
+          `INSERT INTO whatsapp_reminder_log (id, tenant_id, vendor_id, vendor_name, phone, balance, status, error_message)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [uid('WRL'), tenantId, row.vendorId, row.vendorName, row.vendorPhone, row.balance, logStatus, logError],
+        )
+        .catch(() => {});
+      if (baileysSent) {
+        await markReminderSentDate(tenantId, row.vendorId);
+        sent++;
+        // remove the failed entry we just added
+        failed.pop();
+      }
     } else {
       await markReminderSentDate(tenantId, row.vendorId);
       sent++;
+      pool
+        .query(
+          `INSERT INTO whatsapp_reminder_log (id, tenant_id, vendor_id, vendor_name, phone, balance, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'sent')`,
+          [uid('WRL'), tenantId, row.vendorId, row.vendorName, row.vendorPhone, row.balance],
+        )
+        .catch(() => {});
+      // Also try Baileys alongside Meta (belt + suspenders)
+      if (isConnected(tenantId)) {
+        sendTextViaWeb(tenantId, row.vendorPhone, body).catch(() => {});
+      }
     }
     if (delayMs > 0 && i < batch.length - 1) await sleep(delayMs);
   }
