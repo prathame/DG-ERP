@@ -470,12 +470,39 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
 }): Promise<'summary' | 'cancelled'> {
   const ctx = { path: 'text', ...opts.logCtx, correlationId: ensureCorrelationId() };
   const phone = (opts.phone || '').trim();
-  // Prefer WhatsApp-targeted wa.me — Cap Share.share is a generic chooser (often surfaces Gmail).
+
   if (phone) {
+    // 1. Try Baileys (WhatsApp Web session on server)
+    const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
+    if (user?.tenantId) {
+      try {
+        const r = await fetch('/api/whatsapp-web/send-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-id': user.tenantId,
+            'x-dg-client': 'web',
+            Authorization: `Bearer ${user.accessToken || ''}`,
+          },
+          body: JSON.stringify({ phone, message: opts.message }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) {
+          waShareLog('info', 'WhatsApp text share via Baileys', { ...ctx, shareMode: 'baileys' });
+          return 'summary';
+        }
+      } catch {
+        /* not connected — fall through */
+      }
+    }
+
+    // 2. Meta Cloud API
     if (canUseWhatsAppBusinessApi() && (await trySendWhatsAppBusiness(phone, opts.message))) {
       waShareLog('info', 'WhatsApp text share via Cloud API', { ...ctx, shareMode: 'cloud-api' });
       return 'summary';
     }
+
+    // 3. wa.me
     openPersonalWhatsApp(phone, opts.message);
     waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me' });
     return 'summary';
@@ -1173,16 +1200,45 @@ export function openPersonalWhatsApp(phone: string, message: string) {
 }
 
 /**
- * Prefer Meta Cloud API when tenant Business is ON + user eligible; else personal wa.me.
- * Business OFF / ineligible stays synchronous (wa.me). Business ON is async with personal fallback.
+ * Send WhatsApp message — priority order:
+ *   1. Baileys (WhatsApp Web session) — direct, no popup
+ *   2. Meta Cloud API — if tenant Business ON
+ *   3. wa.me — fallback (opens browser tab)
  */
 export function shareViaWhatsApp(phone: string, message: string) {
-  if (!canUseWhatsAppBusinessApi()) {
-    openPersonalWhatsApp(phone, message);
-    return;
-  }
+  const p = (phone || '').replace(/[\s\-().+]/g, '');
+  if (!p) return;
+
+  const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
+  const tenantId = user?.tenantId || '';
+
   void (async () => {
-    if (await trySendWhatsAppBusiness(phone, message)) return;
+    // 1. Try Baileys direct send
+    if (tenantId) {
+      try {
+        const r = await fetch('/api/whatsapp-web/send-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-id': tenantId,
+            Authorization: `Bearer ${(session.getUser() as { accessToken?: string } | null)?.accessToken || ''}`,
+            'x-dg-client': 'web',
+          },
+          body: JSON.stringify({ phone, message }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) return; // sent via Baileys — done
+      } catch {
+        /* not connected or failed — fall through */
+      }
+    }
+
+    // 2. Meta Cloud API
+    if (canUseWhatsAppBusinessApi()) {
+      if (await trySendWhatsAppBusiness(phone, message)) return;
+    }
+
+    // 3. wa.me fallback
     openPersonalWhatsApp(phone, message);
   })();
 }
