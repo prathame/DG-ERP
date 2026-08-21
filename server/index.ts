@@ -21,6 +21,7 @@ import { initDatabase, pool } from './pg-db';
 import { createApp } from './app';
 import { logger } from './utils/logger';
 import { reconnectAllSavedSessions } from './services/whatsappWebSession';
+import { runScheduledBackups } from './routes/audit';
 
 const app = createApp();
 const PORT = process.env.PORT || 3001;
@@ -96,6 +97,9 @@ initDatabase()
     });
     // Reconnect WhatsApp Web sessions in background (non-blocking)
     reconnectAllSavedSessions(pool).catch(() => {});
+    // Scheduled backup check — runs every 6 hours
+    runScheduledBackups().catch(() => {});
+    setInterval(() => runScheduledBackups().catch(() => {}), 6 * 60 * 60 * 1000);
   })
   .catch(err => {
     logger.fatal('Failed to start server', {

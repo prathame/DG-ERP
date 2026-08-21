@@ -2974,6 +2974,70 @@ export function SettingsView({
                       </p>
                     )}
 
+                    {/* Email Backup Now */}
+                    {!mobileApp && (
+                      <div className="border-t border-gray-100 pt-3 space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email Backup</p>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="email"
+                            placeholder={backupSettings?.email || 'your@email.com'}
+                            className="flex-1 h-10 px-3 border border-gray-200 rounded-xl text-sm"
+                            id="backup-email-input"
+                          />
+                          <button
+                            type="button"
+                            disabled={backupBusy}
+                            onClick={async () => {
+                              const emailInput = document.getElementById('backup-email-input') as HTMLInputElement;
+                              const emailVal = emailInput?.value?.trim() || backupSettings?.email || '';
+                              if (!emailVal) {
+                                toast('Enter an email address', 'error');
+                                return;
+                              }
+                              setBackupBusy(true);
+                              try {
+                                const r = await fetch('/api/backup/email', {
+                                  method: 'POST',
+                                  headers: {
+                                    Authorization: `Bearer ${session.getToken()}`,
+                                    'x-tenant-id': session.getTenantId() || '',
+                                    'x-dg-client': 'web',
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({ email: emailVal }),
+                                });
+                                const result = await r.json();
+                                if (!r.ok) throw new Error(result.error || 'Email failed');
+                                toast(`Backup sent to ${result.sentTo}`, 'success');
+                                // Save email to backup settings
+                                if (emailVal !== backupSettings?.email) {
+                                  await api.backup.updateSettings({
+                                    enabled: backupSettings?.enabled ?? false,
+                                    frequency: backupSettings?.frequency || 'weekly',
+                                    intervalDays: backupSettings?.intervalDays || 7,
+                                    email: emailVal,
+                                  });
+                                  setBackupSettings(prev => (prev ? { ...prev, email: emailVal } : prev));
+                                }
+                              } catch (err) {
+                                toast((err as Error).message, 'error');
+                              } finally {
+                                setBackupBusy(false);
+                              }
+                            }}
+                            className="dg-compact h-10 px-4 rounded-xl text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 shrink-0"
+                          >
+                            {backupBusy ? 'Sending…' : 'Send Now'}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Sends a copy of your data as a JSON attachment. Auto-schedule below to receive it regularly.
+                          {backupSettings?.email && ` Auto-backup will also send here.`}
+                        </p>
+                      </div>
+                    )}
+
                     {/* CA Exports — Tally, Miracle */}
                     {!mobileApp && (
                       <div className="border-t border-gray-100 pt-3 space-y-2">
@@ -3059,10 +3123,8 @@ export function SettingsView({
                             </p>
                           ) : (
                             <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                              Preference only for now — the cloud server does not run a scheduled backup job yet. Use{' '}
-                              <strong className="font-semibold text-gray-500">Export now</strong> for a tenant JSON
-                              copy; database backups come from your host (Render Postgres) when you upgrade off the free
-                              plan.
+                              When enabled, the server emails your backup automatically based on the frequency below.
+                              Set a backup email above and configure SMTP in Settings → Communication → Email first.
                             </p>
                           )}
                         </div>

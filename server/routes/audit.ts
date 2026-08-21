@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
-import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
+import { parsePagination, applyDateFilter, logAudit, uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { logger } from '../utils/logger';
+import nodemailer from 'nodemailer';
+import { decryptSecret } from '../utils/secret-crypto';
 
 const router = Router();
 
@@ -749,8 +751,12 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>`);
       lines.push(`<VOUCHERNUMBER>${esc(row.id)}</VOUCHERNUMBER>`);
       lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${Number(row.sale_price || 0).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${Number(row.sale_price || 0).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${Number(row.sale_price || 0).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${Number(row.sale_price || 0).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
@@ -763,8 +769,12 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>`);
       lines.push(`<VOUCHERNUMBER>${esc(row.invoice_number || row.id)}</VOUCHERNUMBER>`);
       lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Purchase</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>Purchase</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
@@ -775,8 +785,12 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<DATE>${fmtDate(row.expense_date)}</DATE>`);
       lines.push(`<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>`);
       lines.push(`<NARRATION>${esc(row.description || row.category)}</NARRATION>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${esc(row.category || 'Expenses')}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${esc(row.category || 'Expenses')}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
@@ -790,8 +804,12 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<VOUCHERNUMBER>${esc(row.invoice_number)}</VOUCHERNUMBER>`);
       lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
       lines.push(`<NARRATION>${esc(row.notes)}</NARRATION>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
@@ -803,8 +821,12 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<DATE>${fmtDate(row.payment_date)}</DATE>`);
       lines.push(`<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>`);
       lines.push(`<NARRATION>${esc(row.notes || row.reference_number)}</NARRATION>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
+      lines.push(
+        `<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`,
+      );
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
@@ -827,8 +849,7 @@ router.get('/api/backup/miracle', requireAdmin, async (req: AuthRequest, res) =>
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     const { buildMiracleExportZip } = await import('../services/miracleExport');
     const zipBuf = await buildMiracleExportZip(pool, tenantId);
@@ -907,5 +928,128 @@ router.put('/api/settings/reminders', requireAdmin, async (req: AuthRequest, res
     return handleApiError(req, res, err);
   }
 });
+
+// ── Shared backup generator ───────────────────────────────────────────────────
+
+export async function generateBackupJson(
+  tenantId: string,
+): Promise<{ json: string; filename: string; totalRecords: number }> {
+  const tables = Object.keys(BACKUP_COLUMN_ALLOWLIST);
+  const backup: Record<string, unknown[]> = {};
+  const counts: Record<string, number> = {};
+  await Promise.all(
+    tables.map(async table => {
+      try {
+        const { rows } = await pool.query(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+        backup[table] = rows;
+        counts[table] = rows.length;
+      } catch {
+        backup[table] = [];
+        counts[table] = 0;
+      }
+    }),
+  );
+  const tenant = (await pool.query('SELECT company_name, slug, admin_email FROM tenants WHERE id = $1', [tenantId]))
+    .rows[0] as Record<string, unknown> | undefined;
+  const users = (
+    await pool.query('SELECT id, email, name, role, phone, address FROM users WHERE tenant_id = $1', [tenantId])
+  ).rows;
+  const totalRecords = Object.values(counts).reduce((s, c) => s + c, 0);
+  const data = {
+    _meta: {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      tenantId,
+      companyName: tenant?.company_name || '',
+      slug: tenant?.slug || '',
+      adminEmail: tenant?.admin_email || '',
+      tableCounts: counts,
+      totalRecords,
+    },
+    users,
+    ...backup,
+  };
+  const filename = `backup-${tenant?.slug || tenantId}-${new Date().toISOString().slice(0, 10)}.json`;
+  return { json: JSON.stringify(data, null, 2), filename, totalRecords };
+}
+
+// ── Email backup (manual + scheduled) ────────────────────────────────────────
+
+/** Send backup JSON as email attachment using tenant's configured SMTP. */
+export async function sendBackupEmail(tenantId: string, toEmail: string): Promise<void> {
+  const emailRow = (await pool.query('SELECT * FROM email_settings WHERE tenant_id = $1', [tenantId])).rows[0] as
+    Record<string, unknown> | undefined;
+  if (!emailRow?.smtp_user || !emailRow?.smtp_password)
+    throw new Error('Email SMTP not configured. Go to Settings → Communication → Email first.');
+  const password = decryptSecret(emailRow.smtp_password as string);
+  const transporter = nodemailer.createTransport({
+    host: (emailRow.smtp_host as string) || 'smtp.gmail.com',
+    port: Number(emailRow.smtp_port) || 587,
+    secure: emailRow.use_ssl === true,
+    auth: { user: emailRow.smtp_user as string, pass: password },
+  });
+  const tenant = (await pool.query('SELECT company_name FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+    { company_name?: string } | undefined;
+  const { json, filename, totalRecords } = await generateBackupJson(tenantId);
+  await transporter.sendMail({
+    from: emailRow.from_name
+      ? `"${emailRow.from_name}" <${emailRow.from_email}>`
+      : String(emailRow.from_email || emailRow.smtp_user),
+    to: toEmail,
+    subject: `Dhandho Backup — ${tenant?.company_name || tenantId} — ${new Date().toLocaleDateString('en-IN')}`,
+    text: `Please find your Dhandho data backup attached.\n\nRecords: ${totalRecords}\nDate: ${new Date().toLocaleString('en-IN')}\n\nKeep this file safe — it can be used to restore your data.`,
+    attachments: [{ filename, content: Buffer.from(json, 'utf-8'), contentType: 'application/json' }],
+  });
+  await pool.query('UPDATE tenants SET backup_last_at = NOW() WHERE id = $1', [tenantId]);
+  logger.info('Backup emailed', { tenantId, toEmail, records: totalRecords });
+}
+
+router.post('/api/backup/email', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { email } = req.body as { email?: string };
+    // Use provided email or fall back to backup_email setting
+    const toEmail =
+      email || (await pool.query('SELECT backup_email FROM tenants WHERE id = $1', [tenantId])).rows[0]?.backup_email;
+    if (!toEmail) return res.status(400).json({ error: 'No email address. Provide one or set it in backup settings.' });
+    await sendBackupEmail(tenantId, toEmail);
+    res.json({ ok: true, sentTo: toEmail });
+  } catch (err) {
+    return handleApiError(req, res, err, 'Backup email failed');
+  }
+});
+
+// ── Scheduled backup check (called by server cron) ───────────────────────────
+
+export async function runScheduledBackups(): Promise<void> {
+  try {
+    const { rows } = await pool.query(`
+      SELECT t.id as tenant_id, t.backup_email, t.backup_interval_days, t.backup_last_at
+      FROM tenants t
+      WHERE t.backup_enabled = true
+        AND t.backup_email IS NOT NULL AND t.backup_email != ''
+        AND (
+          t.backup_last_at IS NULL
+          OR t.backup_last_at < NOW() - (t.backup_interval_days || ' days')::INTERVAL
+        )
+    `);
+    if (rows.length === 0) return;
+    logger.info('Scheduled backup: processing', { count: rows.length });
+    for (const row of rows as { tenant_id: string; backup_email: string }[]) {
+      try {
+        await sendBackupEmail(row.tenant_id, row.backup_email);
+        logger.info('Scheduled backup sent', { tenantId: row.tenant_id, to: row.backup_email });
+      } catch (err) {
+        logger.warn('Scheduled backup failed', {
+          tenantId: row.tenant_id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  } catch (err) {
+    logger.warn('Scheduled backup runner failed', { error: err instanceof Error ? err.message : String(err) });
+  }
+}
 
 export default router;
