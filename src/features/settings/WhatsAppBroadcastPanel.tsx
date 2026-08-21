@@ -7,6 +7,11 @@ import { fetchApi } from '../../api';
 
 type RecipientType = 'all_customers' | 'selected_customers' | 'all_vendors' | 'selected_vendors';
 
+interface Recipient {
+  id: string;
+  name: string;
+  phone: string;
+}
 interface BroadcastStatus {
   id: string;
   message: string;
@@ -18,7 +23,6 @@ interface BroadcastStatus {
   createdAt: string;
   completedAt: string | null;
 }
-
 interface WaStatus {
   status: 'connected' | 'qr_pending' | 'connecting' | 'disconnected';
   phoneNumber: string | null;
@@ -36,6 +40,14 @@ export function WhatsAppBroadcastPanel() {
   const [activeBroadcast, setActiveBroadcast] = useState<BroadcastStatus | null>(null);
   const [recentBroadcasts, setRecentBroadcasts] = useState<BroadcastStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Recipient selection
+  const [allCustomers, setAllCustomers] = useState<Recipient[]>([]);
+  const [allVendors, setAllVendors] = useState<Recipient[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [loadingList, setLoadingList] = useState(false);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,6 +59,47 @@ export function WhatsAppBroadcastPanel() {
       .then(setRecentBroadcasts)
       .catch(() => {});
   }, []);
+
+  // Load list when switching to "selected" mode
+  const isCustomerMode = recipientType === 'all_customers' || recipientType === 'selected_customers';
+  const isSelectedMode = recipientType === 'selected_customers' || recipientType === 'selected_vendors';
+  const list = isCustomerMode ? allCustomers : allVendors;
+
+  useEffect(() => {
+    if (!isSelectedMode) return;
+    setLoadingList(true);
+    const endpoint = isCustomerMode ? '/customers?limit=500' : '/vendors?limit=500';
+    fetchApi<{ data?: Recipient[]; rows?: Recipient[] } | Recipient[]>(endpoint)
+      .then(res => {
+        const rows = Array.isArray(res)
+          ? res
+          : ((res as { data?: Recipient[]; rows?: Recipient[] }).data ?? (res as { rows?: Recipient[] }).rows ?? []);
+        const withPhone = rows.filter(r => r.phone);
+        if (isCustomerMode) setAllCustomers(withPhone);
+        else setAllVendors(withPhone);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingList(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipientType]);
+
+  const filteredList = list.filter(
+    r => r.name.toLowerCase().includes(search.toLowerCase()) || r.phone.includes(search),
+  );
+
+  const toggleId = (id: string) =>
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handleTypeClick = (type: RecipientType) => {
+    setRecipientType(type);
+    setSelectedIds(new Set());
+    setSearch('');
+  };
 
   const startPoll = (broadcastId: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -105,6 +158,10 @@ export function WhatsAppBroadcastPanel() {
       setError('Please enter a message');
       return;
     }
+    if (isSelectedMode && selectedIds.size === 0) {
+      setError('Select at least one recipient');
+      return;
+    }
     setError(null);
     setSending(true);
     try {
@@ -119,12 +176,10 @@ export function WhatsAppBroadcastPanel() {
         });
         imageMimetype = imageFile.type;
       }
+      const recipientIds = isSelectedMode ? [...selectedIds] : [];
       const result = await fetchApi<{ ok: boolean; broadcastId: string; totalRecipients: number }>(
         '/whatsapp/broadcast',
-        {
-          method: 'POST',
-          body: JSON.stringify({ message, imageBase64, imageMimetype, recipientType }),
-        },
+        { method: 'POST', body: JSON.stringify({ message, imageBase64, imageMimetype, recipientType, recipientIds }) },
       );
       setActiveBroadcast({
         id: result.broadcastId,
@@ -141,6 +196,7 @@ export function WhatsAppBroadcastPanel() {
       setMessage('');
       setImageFile(null);
       setImagePreview(null);
+      setSelectedIds(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start broadcast');
     } finally {
@@ -151,17 +207,15 @@ export function WhatsAppBroadcastPanel() {
   const isConnected = waStatus?.status === 'connected';
 
   return (
-    <div className="space-y-5">
-      {/* Connection warning */}
+    <div className="space-y-4">
       {!isConnected && (
         <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
           ⚠️ WhatsApp not connected. Connect above to send broadcasts.
         </div>
       )}
 
-      {/* Compose */}
       <div className={`space-y-4 ${!isConnected ? 'opacity-50 pointer-events-none' : ''}`}>
-        {/* Recipient type */}
+        {/* Recipient type — 4 options */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Send to</label>
           <div className="grid grid-cols-2 gap-2">
@@ -169,19 +223,87 @@ export function WhatsAppBroadcastPanel() {
               [
                 ['all_customers', 'All Customers'],
                 ['all_vendors', 'All Vendors'],
+                ['selected_customers', 'Select Customers'],
+                ['selected_vendors', 'Select Vendors'],
               ] as [RecipientType, string][]
             ).map(([v, label]) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => setRecipientType(v)}
-                className={`py-2 rounded-lg text-sm font-medium border ${recipientType === v ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-700 border-gray-300 hover:border-orange-300'}`}
+                onClick={() => handleTypeClick(v)}
+                className={`py-2 rounded-lg text-sm font-medium border transition-colors ${recipientType === v ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-700 border-gray-300 hover:border-orange-300'}`}
               >
                 {label}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Selection dropdown when specific mode */}
+        {isSelectedMode && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                {selectedIds.size > 0
+                  ? `${selectedIds.size} selected`
+                  : `Select ${isCustomerMode ? 'customers' : 'vendors'}`}
+              </span>
+              {selectedIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Search ${isCustomerMode ? 'customers' : 'vendors'}…`}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+              {loadingList ? (
+                <p className="text-xs text-gray-400 p-3">Loading…</p>
+              ) : filteredList.length === 0 ? (
+                <p className="text-xs text-gray-400 p-3">
+                  No {isCustomerMode ? 'customers' : 'vendors'} with phone numbers found
+                </p>
+              ) : (
+                <>
+                  {/* Select all shortcut */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedIds.size === filteredList.length) setSelectedIds(new Set());
+                      else setSelectedIds(new Set(filteredList.map(r => r.id)));
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-orange-600 hover:bg-orange-50 border-b border-gray-100 font-medium"
+                  >
+                    {selectedIds.size === filteredList.length ? 'Deselect all' : `Select all ${filteredList.length}`}
+                  </button>
+                  {filteredList.map(r => (
+                    <label key={r.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(r.id)}
+                        onChange={() => toggleId(r.id)}
+                        className="accent-orange-500"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800 truncate">{r.name}</p>
+                        <p className="text-xs text-gray-400">{r.phone}</p>
+                      </div>
+                    </label>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Message */}
         <div>
@@ -259,10 +381,14 @@ export function WhatsAppBroadcastPanel() {
         <button
           type="button"
           onClick={handleSend}
-          disabled={sending || !message.trim()}
+          disabled={sending || !message.trim() || (isSelectedMode && selectedIds.size === 0)}
           className="w-full py-2.5 rounded-lg bg-[#25D366] text-white font-semibold text-sm hover:bg-[#1ebe5d] disabled:opacity-50"
         >
-          {sending ? 'Starting…' : `Send Broadcast`}
+          {sending
+            ? 'Starting…'
+            : isSelectedMode && selectedIds.size > 0
+              ? `Send to ${selectedIds.size} ${isCustomerMode ? 'customers' : 'vendors'}`
+              : 'Send Broadcast'}
         </button>
       </div>
 
@@ -290,7 +416,6 @@ export function WhatsAppBroadcastPanel() {
         </div>
       )}
 
-      {/* Completed broadcast */}
       {activeBroadcast && activeBroadcast.status !== 'running' && (
         <div
           className={`rounded-xl border p-4 ${activeBroadcast.status === 'completed' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}
@@ -305,18 +430,17 @@ export function WhatsAppBroadcastPanel() {
         </div>
       )}
 
-      {/* Recent broadcasts */}
       {recentBroadcasts.length > 0 && (
         <div>
           <p className="text-xs font-medium text-gray-500 mb-2">Recent broadcasts</p>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {recentBroadcasts.slice(0, 5).map(b => (
               <div
                 key={b.id}
                 className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2"
               >
                 <span className="truncate max-w-[200px]">{b.message}</span>
-                <span>
+                <span className="shrink-0 ml-2">
                   {b.sentCount}/{b.totalRecipients} · {b.status}
                 </span>
               </div>
