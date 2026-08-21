@@ -2973,6 +2973,81 @@ export function SettingsView({
                         Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
                       </p>
                     )}
+
+                    {/* CA Exports — Tally, Miracle */}
+                    {!mobileApp && (
+                      <div className="border-t border-gray-100 pt-3 space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Export for CA / Accountant
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <a
+                            href={`/api/backup/tally?_t=${Date.now()}`}
+                            download
+                            className="dg-compact h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-gray-700 text-white hover:bg-gray-800"
+                            onClick={e => {
+                              const a = e.currentTarget;
+                              a.href = `/api/backup/tally?_t=${Date.now()}`;
+                              const headers: Record<string, string> = {
+                                Authorization: `Bearer ${session.getToken()}`,
+                                'x-tenant-id': session.getTenantId() || '',
+                                'x-dg-client': 'web',
+                              };
+                              e.preventDefault();
+                              fetch('/api/backup/tally', { headers })
+                                .then(r => r.blob())
+                                .then(blob => {
+                                  const url = URL.createObjectURL(blob);
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = `tally-${new Date().toISOString().slice(0, 10)}.xml`;
+                                  link.click();
+                                  URL.revokeObjectURL(url);
+                                  toast('Tally XML downloaded', 'success');
+                                })
+                                .catch(() => toast('Tally export failed', 'error'));
+                            }}
+                          >
+                            <Download size={14} className="shrink-0" />
+                            Export for Tally
+                          </a>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                toast('Preparing Miracle export…', 'info');
+                                const r = await fetch('/api/backup/miracle', {
+                                  headers: {
+                                    Authorization: `Bearer ${session.getToken()}`,
+                                    'x-tenant-id': session.getTenantId() || '',
+                                    'x-dg-client': 'web',
+                                  },
+                                });
+                                if (!r.ok) throw new Error('Export failed');
+                                const blob = await r.blob();
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `miracle-${new Date().toISOString().slice(0, 10)}.zip`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                                toast('Miracle ZIP downloaded', 'success');
+                              } catch {
+                                toast('Miracle export failed', 'error');
+                              }
+                            }}
+                            className="dg-compact h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700"
+                          >
+                            <Download size={14} className="shrink-0" />
+                            Export for Miracle
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Tally: Import → Vouchers → select XML. Miracle: File → Restore → select ZIP.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="border-t border-gray-100 pt-3 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
