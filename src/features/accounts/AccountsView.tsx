@@ -487,15 +487,76 @@ export function AccountsView({
     setData(null);
   };
 
+  const downloadCsv = async (url: string, filename: string) => {
+    try {
+      const { session } = await import('../../lib/session');
+      const r = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session.getToken()}`,
+          'x-tenant-id': session.getTenantId() || '',
+          'x-dg-client': 'web',
+        },
+      });
+      if (!r.ok) throw new Error('Download failed');
+      const blob = await r.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch {
+      toast('CSV download failed', 'error');
+    }
+  };
+
   const exportRows = () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const qs = from && to ? `from=${from}&to=${to}` : '';
+    const gstQ = `month=${gstMonth}&year=${gstYear}`;
+    if (tab === 'pnl') return downloadCsv(`/api/accounts/profit-loss?format=csv&${qs}`, `profit-loss-${date}.csv`);
+    if (tab === 'balance')
+      return downloadCsv(`/api/accounts/balance-sheet?format=csv&asOf=${to || date}`, `balance-sheet-${date}.csv`);
+    if (tab === 'cashflow') return downloadCsv(`/api/accounts/cash-flow?format=csv&${qs}`, `cash-flow-${date}.csv`);
+    if (tab === 'ledger')
+      return downloadCsv(
+        `/api/accounts/ledger?format=csv&${qs}&type=${ledgerFilter}`,
+        `ledger-${ledgerFilter}-${date}.csv`,
+      );
+    if (tab === 'daybook')
+      return downloadCsv(`/api/accounts/day-book?format=csv&date=${from}`, `day-book-${from || date}.csv`);
+    if (tab === 'gstr3b')
+      return downloadCsv(`/api/gstr3b/compute?format=csv&${gstQ}`, `GSTR3B-${gstMonth}-${gstYear}.csv`);
+    if (tab === 'gst')
+      return downloadCsv(`/api/reports/gst-summary?format=csv&${gstQ}`, `gst-summary-${gstMonth}-${gstYear}.csv`);
+    if (tab === 'sales')
+      return downloadCsv(`/api/reports/sales-register?format=csv&${qs}`, `sales-register-${date}.csv`);
+    if (tab === 'distribution')
+      return downloadCsv(`/api/reports/distribution-register?format=csv&${qs}`, `distribution-register-${date}.csv`);
+    if (tab === 'outstanding') return downloadCsv(`/api/reports/outstanding?format=csv`, `outstanding-${date}.csv`);
+    if (tab === 'payments')
+      return downloadCsv(`/api/reports/payment-register?format=csv&${qs}`, `payment-register-${date}.csv`);
+    if (tab === 'stock') return downloadCsv(`/api/reports/stock-summary?format=csv`, `stock-summary-${date}.csv`);
+    // fallback for rows/entries
     if (!data) return;
     const rows = (data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows;
     if (Array.isArray(rows)) exportToCsv(rows as Record<string, unknown>[], tab);
   };
-  const canExport = Boolean(
-    data &&
-    (Array.isArray((data as Record<string, unknown>).entries) || Array.isArray((data as Record<string, unknown>).rows)),
-  );
+
+  const CSV_TABS = new Set([
+    'pnl',
+    'balance',
+    'cashflow',
+    'ledger',
+    'daybook',
+    'gstr3b',
+    'gst',
+    'sales',
+    'distribution',
+    'outstanding',
+    'payments',
+    'stock',
+  ]);
+  const canExport = CSV_TABS.has(tab) && !booksSelfContained;
 
   const booksBody = booksSelfContained ? (
     <div id="accounts-content" className="space-y-3">
