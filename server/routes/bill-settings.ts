@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../pg-db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../shared/billUnits';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -105,7 +106,7 @@ router.get('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     }
     res.json(payload);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to load bill settings' });
+    return handleApiError(req, res, err, 'Failed to load bill settings');
   }
 });
 
@@ -227,7 +228,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
 
     res.json(rowToResponse(rows[0]));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to save bill settings' });
+    return handleApiError(req, res, err, 'Failed to save bill settings');
   }
 });
 
