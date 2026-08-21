@@ -288,6 +288,27 @@ router.get('/api/accounts/ledger', async (req, res) => {
       debit: entries.reduce((s, e) => s + e.debit, 0),
       credit: entries.reduce((s, e) => s + e.credit, 0),
     };
+    if (req.query.format === 'csv') {
+      const csv = (
+        entries as { date: string; type: string; particulars: string; refId: string; debit: number; credit: number }[]
+      ).map(e => [
+        e.date,
+        e.type,
+        e.particulars,
+        e.debit > 0 ? e.debit.toFixed(2) : '',
+        e.credit > 0 ? e.credit.toFixed(2) : '',
+      ]);
+      const csvStr = [
+        'Date,Type,Particulars,Debit,Credit',
+        ...csv.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')),
+      ].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="ledger-${req.query.type || 'all'}-${req.query.from || 'all'}.csv"`,
+      );
+      return res.send('﻿' + csvStr);
+    }
     res.json({ entries: withBalance, totals, count: entries.length });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -413,6 +434,26 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
     const grossProfit = netRevenue - purchaseCost;
     const netProfit = netRevenue - totalExpenses;
 
+    if (req.query.format === 'csv') {
+      const r2 = (n: number) => n.toFixed(2);
+      const rows = [
+        ['Revenue', 'Distribution Revenue', r2(distRevenue)],
+        ['Revenue', 'Sales Revenue', r2(salesRevenue)],
+        ['Revenue', 'Invoice Revenue', r2(invoiceRevenue)],
+        ['Revenue', 'Credit Notes (deducted)', r2(-creditNotes)],
+        ['Revenue', 'Net Revenue', r2(netRevenue)],
+        ['Expenses', 'Cost of Goods Sold', r2(purchaseCost)],
+        ['Expenses', 'Staff Payments', r2(staffCost)],
+        ['Expenses', 'Other Expenses', r2(expenseCost)],
+        ['Expenses', 'Total Expenses', r2(totalExpenses)],
+        ['Profit', 'Gross Profit', r2(grossProfit)],
+        ['Profit', 'Net Profit', r2(netProfit)],
+      ];
+      const csvStr = ['Category,Description,Amount (₹)', ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="profit-loss-${from}-to-${to}.csv"`);
+      return res.send('﻿' + csvStr);
+    }
     res.json({
       period: { from, to },
       basis: 'tax_exclusive',
@@ -534,6 +575,26 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
     const totalLiabilities = Math.max(0, payables) + gstPayable;
     const netWorth = totalAssets - totalLiabilities;
 
+    if (req.query.format === 'csv') {
+      const r2 = (n: number) => n.toFixed(2);
+      const rows = [
+        ['Assets', 'Inventory (at cost)', r2(inventoryValue)],
+        ['Assets', 'Distribution Receivables', r2(Math.max(0, distributionReceivables))],
+        ['Assets', 'Invoice Receivables', r2(Math.max(0, invoiceReceivables))],
+        ['Assets', 'Staff Advances', r2(staffAdvanceBalance)],
+        ['Assets', 'Cash & Bank', r2(Math.max(0, cashBank))],
+        ['Assets', 'GST Credit', r2(gstCredit)],
+        ['Assets', 'Total Assets', r2(totalAssets)],
+        ['Liabilities', 'Payables to Vendors', r2(Math.max(0, payables))],
+        ['Liabilities', 'GST Payable', r2(gstPayable)],
+        ['Liabilities', 'Total Liabilities', r2(totalLiabilities)],
+        ['Net Worth', 'Net Worth', r2(netWorth)],
+      ];
+      const csvStr = ['Category,Description,Amount (₹)', ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="balance-sheet-${asOf}.csv"`);
+      return res.send('﻿' + csvStr);
+    }
     res.json({
       asOf,
       valuation: 'inventory_at_avg_cost',
@@ -685,6 +746,32 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
         (expMap[m] || 0),
     }));
 
+    if (req.query.format === 'csv') {
+      const r2 = (n: number) => n.toFixed(2);
+      const csvStr = [
+        'Month,Vendor Payments In,Invoice Payments In,Retail Sales In,Total Inflow,Supplier Payments Out,Staff Payments Out,Expenses Out,Total Outflow,Net',
+        ...monthly.map(m =>
+          [
+            m.month,
+            r2(m.vendorPayments),
+            r2(m.invoicePayments),
+            r2(m.retailSales),
+            r2(m.inflow),
+            r2(m.supplierPayments),
+            r2(m.staffPayments),
+            r2(m.expenses),
+            r2(m.outflow),
+            r2(m.net),
+          ]
+            .map(v => `"${v}"`)
+            .join(','),
+        ),
+        `"TOTAL","${r2(vendorPayments)}","${r2(invoicePaid)}","${r2(ownerSalesCash)}","${r2(totalInflow)}","${r2(supplierPayments)}","${r2(staffPayments)}","${r2(expenseTotal)}","${r2(totalOutflow)}","${r2(totalInflow - totalOutflow)}"`,
+      ].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="cash-flow-${from}-to-${to}.csv"`);
+      return res.send('﻿' + csvStr);
+    }
     res.json({
       period: { from, to },
       inflows: { vendorPayments, invoicePayments: invoicePaid, retailSales: ownerSalesCash, total: totalInflow },
@@ -1071,6 +1158,23 @@ router.get('/api/accounts/day-book', async (req, res) => {
     const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
     const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
 
+    if (req.query.format === 'csv') {
+      const csvStr = [
+        'Type,Particulars,Debit,Credit',
+        ...(entries as unknown as { type: string; particulars: string; debit: number; credit: number }[]).map(e =>
+          [
+            `"${e.type}"`,
+            `"${(e.particulars || '').replace(/"/g, '""')}"`,
+            `"${e.debit > 0 ? e.debit.toFixed(2) : ''}"`,
+            `"${e.credit > 0 ? e.credit.toFixed(2) : ''}"`,
+          ].join(','),
+        ),
+        `"TOTAL","",` + `"${totalDebit.toFixed(2)}","${totalCredit.toFixed(2)}"`,
+      ].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="day-book-${date}.csv"`);
+      return res.send('﻿' + csvStr);
+    }
     res.json({ date, entries, totalDebit, totalCredit, netFlow: totalDebit - totalCredit });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -1275,7 +1379,7 @@ router.get('/api/gstr3b/compute', async (req, res) => {
     const liabilitySgst = outSgst + rcmSgst;
     const liabilityIgst = outIgst + rcmIgst;
 
-    res.json({
+    const gstr3bPayload = {
       period: { month: m, year: y },
       disclaimer: 'Internal estimate only — verify against books and GST portal before filing.',
       output: {
@@ -1310,7 +1414,52 @@ router.get('/api/gstr3b/compute', async (req, res) => {
         igst: Math.round(liabilityIgst * 100) / 100,
         total: Math.round(netPayable * 100) / 100,
       },
-    });
+    };
+
+    if (req.query.format === 'csv') {
+      const p = gstr3bPayload;
+      const r2 = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+      const rows: (string | number)[][] = [
+        ['Table', 'Description', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'CESS'],
+        [
+          '3.1(a)',
+          'Outward taxable supplies (other than zero rated, nil and exempted)',
+          r2(p.output.taxableValue),
+          r2(p.output.igst),
+          r2(p.output.cgst),
+          r2(p.output.sgst),
+          '0.00',
+        ],
+        ['3.1(c)', 'Other outward supplies (nil rated, exempted)', '0.00', '0.00', '0.00', '0.00', '0.00'],
+        [
+          '3.1(d)',
+          'Inward supplies (liable to reverse charge)',
+          r2(p.reverseCharge.taxableValue),
+          r2(p.reverseCharge.igst),
+          r2(p.reverseCharge.cgst),
+          r2(p.reverseCharge.sgst),
+          '0.00',
+        ],
+        [
+          '4(A)(5)',
+          'All other ITC (inputs, input services, capital goods)',
+          r2(p.itc.total),
+          r2(p.itc.igst),
+          r2(p.itc.cgst),
+          r2(p.itc.sgst),
+          '0.00',
+        ],
+        ['6.1', 'Net GST Payable', '', r2(p.netPayable.igst), r2(p.netPayable.cgst), r2(p.netPayable.sgst), '0.00'],
+        ['', 'Total Net Payable', '', '', '', '', r2(p.netPayable.total)],
+      ];
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const filename = `GSTR3B-${m < 10 ? '0' : ''}${m}${y}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send('﻿' + csv);
+    }
+
+    res.json(gstr3bPayload);
   } catch (err) {
     return handleApiError(req, res, err);
   }

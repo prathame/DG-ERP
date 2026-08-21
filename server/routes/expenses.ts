@@ -51,6 +51,48 @@ router.get('/api/expenses', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { category, from, to } = req.query;
+
+    // CSV export — direct ops query, no pagination
+    if (req.query.format === 'csv') {
+      let sql =
+        'SELECT expense_date, category, description, amount, payment_method, reference_number, notes FROM expenses WHERE tenant_id = $1';
+      const params: unknown[] = [tenantId];
+      let idx = 2;
+      if (typeof category === 'string' && category) {
+        sql += ` AND category = $${idx++}`;
+        params.push(category);
+      }
+      if (typeof from === 'string' && from) {
+        sql += ` AND expense_date >= $${idx++}`;
+        params.push(from);
+      }
+      if (typeof to === 'string' && to) {
+        sql += ` AND expense_date <= $${idx++}`;
+        params.push(to);
+      }
+      sql += ' ORDER BY expense_date DESC';
+      const { rows } = await pool.query(sql, params);
+      const csvStr = [
+        'Date,Category,Description,Amount,Method,Reference,Notes',
+        ...rows.map((r: Record<string, unknown>) =>
+          [
+            r.expense_date,
+            r.category,
+            r.description,
+            Number(r.amount).toFixed(2),
+            r.payment_method,
+            r.reference_number || '',
+            r.notes || '',
+          ]
+            .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`)
+            .join(','),
+        ),
+      ].join('\r\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="expenses-${from || 'all'}.csv"`);
+      return res.send('﻿' + csvStr);
+    }
+
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
     const useBooks = await booksDeskHasData(pool, tenantId);
 

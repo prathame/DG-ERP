@@ -10,6 +10,18 @@ const router = Router();
 // Reports are staff-only — Vendors must not see full-tenant registers
 router.use(blockVendors);
 
+function toCsv(headers: string[], rows: unknown[][]): string {
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  return [headers, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sendCsv(res: any, filename: string, csv: string): void {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send('﻿' + csv); // BOM for Excel UTF-8 detection
+}
+
 type OutstandingAgeBucket = '0-30' | '31-60' | '61-90' | '90+';
 
 type OutstandingBillRow = {
@@ -110,6 +122,37 @@ router.get('/api/reports/sales-register', async (req, res) => {
       },
       { taxableValue: 0, cgst: 0, sgst: 0, total: 0 },
     );
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        [
+          'Date',
+          'Customer Name',
+          'Phone',
+          'Vendor',
+          'Product',
+          'HSN',
+          'GST%',
+          'Taxable Value',
+          'CGST',
+          'SGST',
+          'Total',
+        ],
+        mapped.map(r => [
+          r.date as string,
+          r.customerName as string,
+          r.customerPhone as string,
+          r.vendorName as string,
+          r.productName as string,
+          r.hsnCode,
+          r.gstRate,
+          r.taxableValue.toFixed(2),
+          r.cgst.toFixed(2),
+          r.sgst.toFixed(2),
+          r.total.toFixed(2),
+        ]),
+      );
+      return sendCsv(res, `sales-register-${req.query.from || 'all'}.csv`, csv);
+    }
     res.json({ rows: mapped, totals, count: mapped.length, pricing: 'exclusive' });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -189,6 +232,41 @@ router.get('/api/reports/distribution-register', async (req, res) => {
       },
       { taxableValue: 0, cgst: 0, sgst: 0, total: 0 },
     );
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        [
+          'Date',
+          'Batch ID',
+          'Barcode',
+          'Vendor',
+          'Vendor GSTIN',
+          'Product',
+          'HSN',
+          'GST%',
+          'Taxable Value',
+          'CGST',
+          'SGST',
+          'Total',
+          'Status',
+        ],
+        mapped.map(r => [
+          r.date as string,
+          r.batchId as string,
+          r.barcode as string,
+          r.vendorName as string,
+          r.vendorGstin,
+          r.productName as string,
+          r.hsnCode,
+          r.gstRate,
+          r.taxableValue.toFixed(2),
+          r.cgst.toFixed(2),
+          r.sgst.toFixed(2),
+          r.total.toFixed(2),
+          r.status as string,
+        ]),
+      );
+      return sendCsv(res, `distribution-register-${req.query.from || 'all'}.csv`, csv);
+    }
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -480,6 +558,31 @@ router.get('/api/reports/outstanding', async (req, res) => {
       },
       { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
     );
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        [
+          'Vendor / Party',
+          'Total Billed',
+          'Total Paid',
+          'Balance',
+          '0-30 Days',
+          '31-60 Days',
+          '61-90 Days',
+          '90+ Days',
+        ],
+        rows.map(r => [
+          r.vendorName as string,
+          r.totalBilled.toFixed(2),
+          r.totalPaid.toFixed(2),
+          r.balance.toFixed(2),
+          r.d0_30.toFixed(2),
+          r.d31_60.toFixed(2),
+          r.d61_90.toFixed(2),
+          r.d90plus.toFixed(2),
+        ]),
+      );
+      return sendCsv(res, `outstanding-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    }
     res.json({
       rows,
       bills,
@@ -541,6 +644,21 @@ router.get('/api/reports/payment-register', async (req, res) => {
       notes: r.notes || '',
     }));
     const totals = { amount: mapped.reduce((s, r) => s + r.amount, 0) };
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        ['Date', 'Vendor', 'Amount', 'Method', 'Reference', 'Batch ID', 'Notes'],
+        mapped.map(r => [
+          r.date as string,
+          r.vendorName,
+          r.amount.toFixed(2),
+          r.method as string,
+          r.reference,
+          r.batchId,
+          r.notes,
+        ]),
+      );
+      return sendCsv(res, `payment-register-${req.query.from || 'all'}.csv`, csv);
+    }
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -596,6 +714,33 @@ router.get('/api/reports/stock-summary', async (req, res) => {
       },
       { totalInventory: 0, inStock: 0, withVendors: 0, sold: 0, closingStock: 0, stockValue: 0 },
     );
+    if (req.query.format === 'csv') {
+      const csv = toCsv(
+        [
+          'Product',
+          'HSN',
+          'Unit Price',
+          'Total Inventory',
+          'In Stock',
+          'With Vendors',
+          'Sold',
+          'Closing Stock',
+          'Stock Value',
+        ],
+        mapped.map(r => [
+          r.name as string,
+          r.hsnCode,
+          r.unitPrice.toFixed(2),
+          r.totalInventory,
+          r.inStock,
+          r.withVendors,
+          r.sold,
+          r.closingStock,
+          r.stockValue.toFixed(2),
+        ]),
+      );
+      return sendCsv(res, `stock-summary-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    }
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -764,6 +909,30 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       }
     }
 
+    if (req.query.format === 'csv') {
+      const b2bRows = Object.values(b2b).map(v => [
+        'B2B',
+        v.vendorName,
+        v.gstin,
+        v.taxable.toFixed(2),
+        v.cgst.toFixed(2),
+        v.sgst.toFixed(2),
+        v.total.toFixed(2),
+      ]);
+      const b2cRow = [
+        [
+          'B2C',
+          'Unregistered Buyers',
+          '',
+          b2cTaxable.toFixed(2),
+          b2cCgst.toFixed(2),
+          b2cSgst.toFixed(2),
+          b2cTotal.toFixed(2),
+        ],
+      ];
+      const csv = toCsv(['Type', 'Party', 'GSTIN', 'Taxable Value', 'CGST', 'SGST', 'Total'], [...b2bRows, ...b2cRow]);
+      return sendCsv(res, `gst-summary-${String(m).padStart(2, '0')}${y}.csv`, csv);
+    }
     res.json({
       period: `${String(m).padStart(2, '0')}/${y}`,
       b2b: Object.values(b2b),
@@ -1149,6 +1318,14 @@ router.get('/api/reports/gstr1', async (req, res) => {
       },
     };
 
+    if (req.query.download === '1') {
+      // NIC-compliant JSON — remove internal disclaimer before sending
+      const { disclaimer: _d, ...nicJson } = gstr1;
+      const filename = `GSTR1-${sellerGstin || tenantId}-${period}.json`;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(JSON.stringify(nicJson, null, 2));
+    }
     res.json(gstr1);
   } catch (err) {
     return handleApiError(req, res, err);
