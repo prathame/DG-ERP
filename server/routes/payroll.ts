@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { syncBooksSalaryToStaff } from '../services/booksSalaryToStaff';
 import { postStaffPaymentToBooks } from '../services/opsToBooks';
 import { logger } from '../utils/logger';
+import { sendTextViaWeb } from '../services/whatsappWebSession';
 
 const router = Router();
 
@@ -569,6 +570,33 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
           ],
         )
         .catch(() => {}); // best-effort — don't fail payment if expense insert fails
+    }
+
+    // Auto-send WhatsApp salary slip if wa_auto_settings.salary is ON
+    if (pType !== 'deduction') {
+      const userRow = (
+        await pool
+          .query('SELECT wa_auto_settings, phone FROM users WHERE tenant_id = $1 AND id = $2', [
+            tenantId,
+            req.user?.userId,
+          ])
+          .catch(() => ({ rows: [] }))
+      ).rows[0] as { wa_auto_settings?: { salary?: boolean }; phone?: string } | undefined;
+      const staffRow2 = (
+        await pool
+          .query('SELECT phone FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1', [
+            tenantId,
+            staffName.trim(),
+          ])
+          .catch(() => ({ rows: [] }))
+      ).rows[0] as { phone?: string } | undefined;
+      const staffPhone = staffRow2?.phone;
+      if (userRow?.wa_auto_settings?.salary && staffPhone) {
+        const typeLabel2 =
+          { salary: 'Salary', advance: 'Advance', bonus: 'Bonus', advance_repay: 'Advance Repaid' }[pType] || pType;
+        const msg = `${typeLabel2} of ₹${parsedAmount.toLocaleString('en-IN')} paid to ${staffName.trim()} on ${date}. Thank you!`;
+        sendTextViaWeb(tenantId, staffPhone, msg).catch(() => {});
+      }
     }
 
     res.status(201).json({

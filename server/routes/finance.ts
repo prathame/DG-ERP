@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { postVendorPaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { listRemindersDue, markReminderSentDate, runAutoWhatsAppReminders } from '../services/paymentReminderOps';
+import { sendTextViaWeb, isConnected } from '../services/whatsappWebSession';
 
 const router = Router();
 
@@ -499,6 +500,24 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         req.user?.userId,
         req.user?.name,
       );
+    }
+
+    // Auto-send WhatsApp payment receipt if wa_auto_settings.payment is ON
+    {
+      const userRow = (
+        await pool
+          .query('SELECT wa_auto_settings FROM users WHERE tenant_id = $1 AND id = $2', [tenantId, req.user?.userId])
+          .catch(() => ({ rows: [] }))
+      ).rows[0] as { wa_auto_settings?: { payment?: boolean } } | undefined;
+      const vendorRow = (
+        await pool
+          .query('SELECT phone FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])
+          .catch(() => ({ rows: [] }))
+      ).rows[0] as { phone?: string } | undefined;
+      if (userRow?.wa_auto_settings?.payment && vendorRow?.phone && isConnected(tenantId)) {
+        const msg = `Payment of ₹${parsedAmount.toLocaleString('en-IN')} recorded for ${vendorName} on ${pDate}. Thank you!`;
+        sendTextViaWeb(tenantId, vendorRow.phone, msg).catch(() => {});
+      }
     }
 
     res.status(201).json({

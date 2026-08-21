@@ -175,12 +175,13 @@ export function SalesEntryView({
         });
         loadSales(salesPage);
         toast('Sale completed successfully', 'success');
-        if (user?.autoWhatsapp && savedPhone && saleResult?.id) {
+        // Auto-send WhatsApp — check granular wa_auto_settings.sale (falls back to legacy autoWhatsapp)
+        const waSettings = (user as { waAutoSettings?: { sale?: boolean } } | null)?.waAutoSettings;
+        const autoSale = waSettings?.sale ?? user?.autoWhatsapp;
+        if (autoSale && savedPhone && saleResult?.id) {
           api.sales
             .getBill(saleResult.id)
-            .then(bill => {
-              shareViaWhatsApp(savedPhone, formatSalesInvoiceText(bill));
-            })
+            .then(bill => shareViaWhatsApp(savedPhone, formatSalesInvoiceText(bill)))
             .catch(() => {});
         }
       })

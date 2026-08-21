@@ -77,7 +77,7 @@ router.post('/api/auth/login', async (req, res) => {
       await pool.query(
         `
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
-             u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
+             u.permissions, u.vendor_id, u.auto_whatsapp, u.wa_auto_settings, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
              u.password_hash, u.tenant_id, u.whatsapp_api_allowed,
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
@@ -221,6 +221,7 @@ router.post('/api/auth/login', async (req, res) => {
       })(),
       vendorId: row.vendor_id ?? null,
       autoWhatsapp: !!row.auto_whatsapp,
+      waAutoSettings: row.wa_auto_settings ?? { sale: true, salary: false, payment: false },
       defaultGstRate: Number(row.default_gst_rate) || 18,
       vendorPortalEnabled: row.vendor_portal_enabled !== false,
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
@@ -286,7 +287,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
     const row = (
       await pool.query(
         `SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id,
-                u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
+                u.auto_whatsapp, u.wa_auto_settings, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
                 u.whatsapp_api_allowed,
                 t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
                 t.tab_config, t.business_type, t.client_access_mode, t.mobile_features,
@@ -333,6 +334,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       permissions: normalizedPerms,
       vendorId: row.vendor_id ?? null,
       autoWhatsapp: !!row.auto_whatsapp,
+      waAutoSettings: row.wa_auto_settings ?? { sale: true, salary: false, payment: false },
       defaultGstRate: Number(row.default_gst_rate) || 18,
       gstNumber: row.gst_number ?? null,
       businessType: (row.business_type as string) || 'manufacturer',
@@ -375,7 +377,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
   try {
     const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { userId, name, phone, address, companyName, autoWhatsapp, gstNumber } = req.body;
+    const { userId, name, phone, address, companyName, autoWhatsapp, gstNumber, waAutoSettings } = req.body;
     if (!userId || userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
 
     await pool.query(
@@ -399,6 +401,13 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
         tenantId,
       ]);
     }
+    if (waAutoSettings !== undefined && typeof waAutoSettings === 'object') {
+      await pool.query('UPDATE users SET wa_auto_settings = $1::jsonb WHERE id = $2 AND tenant_id = $3', [
+        JSON.stringify(waAutoSettings),
+        userId,
+        tenantId,
+      ]);
+    }
     const { defaultGstRate } = req.body;
     if (defaultGstRate !== undefined) {
       await pool.query('UPDATE users SET default_gst_rate = $1 WHERE id = $2 AND tenant_id = $3', [
@@ -410,7 +419,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
 
     const row = (
       await pool.query(
-        'SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2',
+        'SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.auto_whatsapp, u.wa_auto_settings, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2',
         [userId, tenantId],
       )
     ).rows[0] as Record<string, unknown> | undefined;
@@ -425,6 +434,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       role: row.role,
       companyName: row.company_name,
       autoWhatsapp: !!row.auto_whatsapp,
+      waAutoSettings: row.wa_auto_settings ?? { sale: true, salary: false, payment: false },
       defaultGstRate: Number(row.default_gst_rate) || 18,
       gstNumber: row.gst_number ?? null,
       vendorPortalEnabled: row.vendor_portal_enabled !== false,

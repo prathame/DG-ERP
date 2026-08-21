@@ -1733,6 +1733,9 @@ export async function initSchema() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_api_allowed BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_access_token TEXT`);
+    await client.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS wa_auto_settings JSONB DEFAULT '{"sale":true,"salary":false,"payment":false}'::jsonb`,
+    );
 
     // One active login session per tenant user (desktop/mobile single-device auth)
     await client.query(`
