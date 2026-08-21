@@ -1275,7 +1275,7 @@ router.get('/api/gstr3b/compute', async (req, res) => {
     const liabilitySgst = outSgst + rcmSgst;
     const liabilityIgst = outIgst + rcmIgst;
 
-    res.json({
+    const gstr3bPayload = {
       period: { month: m, year: y },
       disclaimer: 'Internal estimate only — verify against books and GST portal before filing.',
       output: {
@@ -1310,7 +1310,52 @@ router.get('/api/gstr3b/compute', async (req, res) => {
         igst: Math.round(liabilityIgst * 100) / 100,
         total: Math.round(netPayable * 100) / 100,
       },
-    });
+    };
+
+    if (req.query.format === 'csv') {
+      const p = gstr3bPayload;
+      const r2 = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+      const rows: (string | number)[][] = [
+        ['Table', 'Description', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'CESS'],
+        [
+          '3.1(a)',
+          'Outward taxable supplies (other than zero rated, nil and exempted)',
+          r2(p.output.taxableValue),
+          r2(p.output.igst),
+          r2(p.output.cgst),
+          r2(p.output.sgst),
+          '0.00',
+        ],
+        ['3.1(c)', 'Other outward supplies (nil rated, exempted)', '0.00', '0.00', '0.00', '0.00', '0.00'],
+        [
+          '3.1(d)',
+          'Inward supplies (liable to reverse charge)',
+          r2(p.reverseCharge.taxableValue),
+          r2(p.reverseCharge.igst),
+          r2(p.reverseCharge.cgst),
+          r2(p.reverseCharge.sgst),
+          '0.00',
+        ],
+        [
+          '4(A)(5)',
+          'All other ITC (inputs, input services, capital goods)',
+          r2(p.itc.total),
+          r2(p.itc.igst),
+          r2(p.itc.cgst),
+          r2(p.itc.sgst),
+          '0.00',
+        ],
+        ['6.1', 'Net GST Payable', '', r2(p.netPayable.igst), r2(p.netPayable.cgst), r2(p.netPayable.sgst), '0.00'],
+        ['', 'Total Net Payable', '', '', '', '', r2(p.netPayable.total)],
+      ];
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const filename = `GSTR3B-${m < 10 ? '0' : ''}${m}${y}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send('﻿' + csv);
+    }
+
+    res.json(gstr3bPayload);
   } catch (err) {
     return handleApiError(req, res, err);
   }
