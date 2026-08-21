@@ -741,7 +741,6 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
     lines.push(`<STATICVARIABLES><SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY></STATICVARIABLES>`);
     lines.push(`</REQUESTDESC><REQUESTDATA>`);
 
-    // Sales vouchers
     for (const row of sales.rows as Record<string, unknown>[]) {
       const party = esc(row.customer_name || vendorMap[row.vendor_id as string] || 'Cash');
       lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
@@ -750,20 +749,11 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>`);
       lines.push(`<VOUCHERNUMBER>${esc(row.id)}</VOUCHERNUMBER>`);
       lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>-${Number(row.sale_price || 0).toFixed(2)}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>Sales</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>${Number(row.sale_price || 0).toFixed(2)}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${Number(row.sale_price || 0).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${Number(row.sale_price || 0).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
-    // Purchase vouchers
     for (const row of purchases.rows as Record<string, unknown>[]) {
       const party = esc(supplierMap[row.supplier_id as string] || 'Cash');
       const amt = Number(row.billed_price || row.cost_price || 0).toFixed(2);
@@ -773,20 +763,11 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>`);
       lines.push(`<VOUCHERNUMBER>${esc(row.invoice_number || row.id)}</VOUCHERNUMBER>`);
       lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>Purchase</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Purchase</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
-    // Expense vouchers
     for (const row of expenses.rows as Record<string, unknown>[]) {
       const amt = Number(row.amount || 0).toFixed(2);
       lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
@@ -794,20 +775,11 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<DATE>${fmtDate(row.expense_date)}</DATE>`);
       lines.push(`<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>`);
       lines.push(`<NARRATION>${esc(row.description || row.category)}</NARRATION>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>${esc(row.category || 'Expenses')}</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>Cash</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${esc(row.category || 'Expenses')}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
-    // Standalone invoices as Sales vouchers
     for (const row of invoices.rows as Record<string, unknown>[]) {
       const party = esc(row.customer_name || 'Cash');
       const amt = Number(row.grand_total || 0).toFixed(2);
@@ -818,20 +790,11 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<VOUCHERNUMBER>${esc(row.invoice_number)}</VOUCHERNUMBER>`);
       lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
       lines.push(`<NARRATION>${esc(row.notes)}</NARRATION>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>Sales</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
-    // Vendor payments as Payment vouchers
     for (const row of payments.rows as Record<string, unknown>[]) {
       const party = esc(vendorMap[row.vendor_id as string] || 'Vendor');
       const amt = Number(row.amount || 0).toFixed(2);
@@ -840,16 +803,8 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
       lines.push(`<DATE>${fmtDate(row.payment_date)}</DATE>`);
       lines.push(`<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>`);
       lines.push(`<NARRATION>${esc(row.notes || row.reference_number)}</NARRATION>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<ALLLEDGERENTRIES.LIST>`);
-      lines.push(`<LEDGERNAME>Cash</LEDGERNAME>`);
-      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
-      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
-      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>${party}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-${amt}</AMOUNT></ALLLEDGERENTRIES.LIST>`);
       lines.push(`</VOUCHER></TALLYMESSAGE>`);
     }
 
@@ -860,6 +815,28 @@ router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
     res.setHeader('Content-Type', 'application/xml');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(xml);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// ── Miracle DBF export ───────────────────────────────────────────────────────
+router.get('/api/backup/miracle', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+      | Record<string, unknown>
+      | undefined;
+
+    const { buildMiracleExportZip } = await import('../services/miracleExport');
+    const zipBuf = await buildMiracleExportZip(pool, tenantId);
+
+    const filename = `miracle-${tenant?.slug || tenantId}-${new Date().toISOString().slice(0, 10)}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(zipBuf);
   } catch (err) {
     return handleApiError(req, res, err);
   }
