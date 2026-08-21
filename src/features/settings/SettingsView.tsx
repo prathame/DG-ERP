@@ -57,6 +57,7 @@ import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPre
 import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
 import { NAV_POSITIONS, getNavPositionPref, setNavPositionPref } from '../../lib/navPositionPref';
 import { UserGuidePanel } from './UserGuidePanel';
+import { WhatsAppWebPanel } from './WhatsAppWebPanel';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
@@ -2732,6 +2733,7 @@ export function SettingsView({
                     </h3>
                   </div>
                   <div className="p-4 sm:p-6 space-y-3">
+                    {!mobileApp && <WhatsAppWebPanel />}
                     {mobileApp && (
                       <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
                         {serviceMobile ? (

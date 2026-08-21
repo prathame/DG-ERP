@@ -20,6 +20,7 @@ assertCriticalEnv();
 import { initDatabase, pool } from './pg-db';
 import { createApp } from './app';
 import { logger } from './utils/logger';
+import { reconnectAllSavedSessions } from './services/whatsappWebSession';
 
 const app = createApp();
 const PORT = process.env.PORT || 3001;
@@ -93,6 +94,8 @@ initDatabase()
         db: 'postgresql',
       });
     });
+    // Reconnect WhatsApp Web sessions in background (non-blocking)
+    reconnectAllSavedSessions(pool).catch(() => {});
   })
   .catch(err => {
     logger.fatal('Failed to start server', {

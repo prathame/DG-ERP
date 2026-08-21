@@ -121,4 +121,18 @@ export const migrations: Migration[] = [
         ON vendor_payments(tenant_id, payment_date);
     `,
   },
+
+  {
+    id: '0004_whatsapp_web_sessions',
+    up: `
+      CREATE TABLE IF NOT EXISTS whatsapp_web_sessions (
+        tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+        auth_state JSONB NOT NULL DEFAULT '{}',
+        phone_number TEXT,
+        connected_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `,
+  },
 ];

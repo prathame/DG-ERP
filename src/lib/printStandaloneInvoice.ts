@@ -419,6 +419,33 @@ export async function shareStandaloneInvoiceWhatsApp(
       pdfOpts,
     );
 
+    const phone = (shareInv.customerPhone || '').trim();
+
+    // Try Baileys (WhatsApp Web session) first — sends PDF directly, no link needed
+    if (phone) {
+      try {
+        const pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        await fetchApi('/whatsapp-web/send-pdf', {
+          method: 'POST',
+          body: JSON.stringify({ phone, filename, caption: message, pdfBase64 }),
+        });
+        waLog('info', 'WhatsApp web Baileys PDF sent', { ...ctx, path: 'pdf' });
+        return { how: 'shared' };
+      } catch (baileysErr) {
+        // Not connected or failed — fall through to wa.me
+        waLog('info', 'WhatsApp Baileys not connected, falling back to wa.me', {
+          ...ctx,
+          path: 'pdf',
+          errorMessage: (baileysErr as Error)?.message,
+        });
+      }
+    }
+
     // Web Share API (mobile browsers with file-share support)
     if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
       try {
@@ -439,7 +466,7 @@ export async function shareStandaloneInvoiceWhatsApp(
       }
     }
 
-    // Download PDF + open WhatsApp with text
+    // Download PDF + open WhatsApp with text (wa.me fallback)
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -449,7 +476,6 @@ export async function shareStandaloneInvoiceWhatsApp(
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    const phone = (shareInv.customerPhone || '').trim();
     if (phone) {
       window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
       return { how: 'text' };

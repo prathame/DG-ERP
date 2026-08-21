@@ -64,6 +64,7 @@ import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
 import notificationsRouter from './routes/notifications';
 import whatsappRouter from './routes/whatsapp';
+import whatsappWebRouter from './routes/whatsapp-web';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
@@ -701,6 +702,7 @@ export function createApp(): express.Application {
   // intercept /api/notifications for Vendor users before this router runs.
   app.use(notificationsRouter);
   app.use(whatsappRouter);
+  app.use(whatsappWebRouter);
   app.use(reportsRouter);
   app.use(purchasesRouter);
   app.use(quotationsRouter);
