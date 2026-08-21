@@ -67,6 +67,7 @@ import whatsappRouter from './routes/whatsapp';
 import whatsappWebRouter from './routes/whatsapp-web';
 import whatsappBroadcastRouter from './routes/whatsapp-broadcast';
 import emailRouter from './routes/email';
+import jobWorkRouter from './routes/job-work';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
@@ -707,6 +708,7 @@ export function createApp(): express.Application {
   app.use(whatsappWebRouter);
   app.use(whatsappBroadcastRouter);
   app.use(emailRouter);
+  app.use(jobWorkRouter);
   app.use(reportsRouter);
   app.use(purchasesRouter);
   app.use(quotationsRouter);
