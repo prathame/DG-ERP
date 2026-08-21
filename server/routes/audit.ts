@@ -1016,6 +1016,8 @@ router.post('/api/backup/email', requireAdmin, async (req: AuthRequest, res) => 
     await sendBackupEmail(tenantId, toEmail);
     res.json({ ok: true, sentTo: toEmail });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/not configured/i.test(msg)) return res.status(500).json({ error: msg });
     return handleApiError(req, res, err, 'Backup email failed');
   }
 });
