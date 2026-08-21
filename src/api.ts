@@ -1519,6 +1519,72 @@ export const api = {
       ),
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/payroll/${id}`, { method: 'DELETE' }),
   },
+  jobWork: {
+    list: (filters?: { status?: string; clientName?: string; from?: string; to?: string }) => {
+      const q = new URLSearchParams();
+      if (filters?.status) q.set('status', filters.status);
+      if (filters?.clientName) q.set('clientName', filters.clientName);
+      if (filters?.from) q.set('from', filters.from);
+      if (filters?.to) q.set('to', filters.to);
+      return fetchApi<
+        {
+          id: string;
+          jobNumber: string;
+          clientName: string;
+          clientPhone?: string | null;
+          description: string;
+          material?: string | null;
+          status: string;
+          receivedDate: string;
+          promisedDate?: string | null;
+          completedDate?: string | null;
+          deliveredDate?: string | null;
+          estimatedAmount?: number | null;
+          finalAmount?: number | null;
+          gstRate: number;
+          invoiceId?: string | null;
+          notes?: string | null;
+        }[]
+      >(`/job-work?${q}`);
+    },
+    summary: () =>
+      fetchApi<{
+        received: number;
+        inProcess: number;
+        completed: number;
+        delivered: number;
+        invoiced: number;
+        overdueCount: number;
+        totalRevenue: number;
+      }>('/job-work/summary'),
+    get: (id: string) => fetchApi<{ id: string; jobNumber: string; clientName: string }>(`/job-work/${id}`),
+    create: (data: {
+      clientName: string;
+      clientPhone?: string;
+      description: string;
+      material?: string;
+      materialQty?: number;
+      materialUnit?: string;
+      receivedDate?: string;
+      promisedDate?: string;
+      estimatedAmount?: number;
+      gstRate?: number;
+      notes?: string;
+    }) => fetchApi<{ id: string; jobNumber: string }>('/job-work', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, unknown>) =>
+      fetchApi<{ id: string }>(`/job-work/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    updateStatus: (id: string, status: string) =>
+      fetchApi<{ id: string; status: string }>(`/job-work/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    delete: (id: string) => fetchApi<{ ok: boolean }>(`/job-work/${id}`, { method: 'DELETE' }),
+    generateInvoice: (id: string, finalAmount?: number) =>
+      fetchApi<{ invoiceId: string; invoiceNumber: string; grandTotal: number }>(`/job-work/${id}/invoice`, {
+        method: 'POST',
+        body: JSON.stringify({ finalAmount }),
+      }),
+  },
   settings: {
     getProfile: (userId: string) =>
       fetchApi<{

@@ -135,4 +135,37 @@ export const migrations: Migration[] = [
       );
     `,
   },
+
+  {
+    id: '0005_job_orders',
+    up: `
+      CREATE TABLE IF NOT EXISTS job_orders (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        job_number TEXT NOT NULL,
+        client_name TEXT NOT NULL,
+        client_phone TEXT,
+        client_id TEXT,
+        description TEXT NOT NULL,
+        material TEXT,
+        material_qty NUMERIC(10,2) DEFAULT 1,
+        material_unit TEXT DEFAULT 'pcs',
+        status TEXT NOT NULL DEFAULT 'received',
+        received_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        promised_date DATE,
+        completed_date DATE,
+        delivered_date DATE,
+        estimated_amount NUMERIC(12,2),
+        final_amount NUMERIC(12,2),
+        gst_rate NUMERIC(5,2) DEFAULT 18,
+        invoice_id TEXT,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_orders_tenant ON job_orders(tenant_id, status);
+      CREATE INDEX IF NOT EXISTS idx_job_orders_client ON job_orders(tenant_id, client_name);
+    `,
+  },
 ];

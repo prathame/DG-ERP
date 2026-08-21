@@ -28,7 +28,8 @@ export type Tab =
   | 'book_ledgers'
   | 'book_vouchers'
   | 'book_products'
-  | 'book_import';
+  | 'book_import'
+  | 'job_work';
 
 export interface Product {
   id: string;

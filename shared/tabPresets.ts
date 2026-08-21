@@ -41,6 +41,8 @@ const baseAllVisible = (overrides: Partial<TabConfig> = {}): TabConfig => ({
   hosp_menu: { label: 'Menu & Tables', visible: false },
   hosp_parcels: { label: 'Parcels', visible: false },
   hosp_members: { label: 'Members', visible: false },
+  // Job Work — VMC / die-making factory job tracking; off by default, on for manufacturer
+  job_work: { label: 'Job Work', visible: false },
   // Ledgers/vouchers / Miracle — off in base; BOOKS_ON enables under Accounts for every named type
   // Device Settings collapses the family to one `books` toggle; book_* remain for SA / deep links
   books: { label: 'Ledgers & vouchers', visible: false },
@@ -63,6 +65,7 @@ const BOOKS_ON: Partial<TabConfig> = {
 export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   /** Die / job-work / manufacturing — Miracle CMP import available for onboarding */
   manufacturer: baseAllVisible({
+    job_work: { label: 'Job Work', visible: true },
     ...BOOKS_ON,
   }),
   dealer: baseAllVisible({
