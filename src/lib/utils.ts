@@ -1193,11 +1193,13 @@ export async function saveBillAsPdf(html: string, filename?: string, win?: Windo
 
 /** Show a toast via the global CustomEvent bridge (works outside React components). */
 function toastNotConnected() {
-  window.dispatchEvent(
-    new CustomEvent('dg-toast', {
-      detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
-    }),
-  );
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(
+      new CustomEvent('dg-toast', {
+        detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+      }),
+    );
+  }
 }
 
 /** @deprecated wa.me removed — kept only as emergency reference, not called */

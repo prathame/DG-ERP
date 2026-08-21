@@ -443,11 +443,12 @@ export async function shareStandaloneInvoiceWhatsApp(
           path: 'pdf',
           errorMessage: (baileysErr as Error)?.message,
         });
-        window.dispatchEvent(
-          new CustomEvent('dg-toast', {
-            detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
-          }),
-        );
+        if (typeof window !== 'undefined')
+          window.dispatchEvent(
+            new CustomEvent('dg-toast', {
+              detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+            }),
+          );
         return { how: 'cancelled' };
       }
     }
@@ -473,11 +474,12 @@ export async function shareStandaloneInvoiceWhatsApp(
     }
 
     // No phone and no Baileys session
-    window.dispatchEvent(
-      new CustomEvent('dg-toast', {
-        detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
-      }),
-    );
+    if (typeof window !== 'undefined')
+      window.dispatchEvent(
+        new CustomEvent('dg-toast', {
+          detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+        }),
+      );
     return { how: 'cancelled' };
   } catch (err) {
     // ponytail: html2canvas fallback only if jsPDF itself fails (rare)
