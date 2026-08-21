@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, FileCheck, Truck, QrCode } from 'lucide-react';
+import {
+  Plus,
+  FileText,
+  Trash2,
+  Send,
+  Check,
+  X,
+  Printer,
+  MessageCircle,
+  FileCheck,
+  Truck,
+  QrCode,
+  Mail,
+} from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel, resolveIrnQrPayload } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -65,6 +78,7 @@ type Invoice = {
   customerGstin?: string;
   customerAddress?: string;
   customerPhone?: string;
+  customerEmail?: string;
   items: LineItem[];
   subtotal: number;
   taxTotal: number;
@@ -527,6 +541,59 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
     }
   };
 
+  const [emailBusyId, setEmailBusyId] = useState<string | null>(null);
+
+  const shareInvoiceEmail = async (inv: Invoice) => {
+    if (emailBusyId) return;
+    const email = inv.customerEmail;
+    if (!email) {
+      toast('Customer email not set on this invoice', 'warn' as never);
+      return;
+    }
+    setEmailBusyId(inv.id);
+    toast('Preparing email…', 'info');
+    try {
+      const { buildStandaloneInvoicePdfBlob } = await import('../../lib/standaloneInvoicePdf');
+      const { standaloneInvoicePdfBasename } = await import('../../lib/printStandaloneInvoice');
+      const bs = billSettings ?? {};
+      const user = (await import('../../lib/session')).session.getUser() as {
+        companyName?: string;
+        address?: string;
+        phone?: string;
+        email?: string;
+        gstNumber?: string;
+      } | null;
+      const blob = await buildStandaloneInvoicePdfBlob(
+        inv,
+        {
+          companyName: user?.companyName,
+          address: user?.address,
+          phone: user?.phone,
+          email: user?.email,
+          gstNumber: user?.gstNumber,
+        },
+        { hasGst: !!(inv as unknown as { taxTotal?: number }).taxTotal, billSettings: bs },
+      );
+      const filename = standaloneInvoicePdfBasename(inv.customerName) + '.pdf';
+      const pdfBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const { fetchApi } = await import('../../api');
+      await fetchApi('/email/send-invoice', {
+        method: 'POST',
+        body: JSON.stringify({ toEmail: email, toName: inv.customerName, invoiceId: inv.id, pdfBase64, filename }),
+      });
+      toast('Email sent ✅', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Email failed', 'error');
+    } finally {
+      setEmailBusyId(null);
+    }
+  };
+
   if (loading)
     return (
       <div className="py-20">
@@ -691,6 +758,16 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                       aria-label="Share invoice on WhatsApp"
                     >
                       <MessageCircle size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={emailBusyId === inv.id}
+                      onClick={() => shareInvoiceEmail(inv)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50"
+                      title="Send by Email"
+                      aria-label="Send invoice by email"
+                    >
+                      <Mail size={14} />
                     </button>
                     {inv.status === 'draft' && (
                       <button

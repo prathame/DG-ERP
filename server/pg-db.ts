@@ -1085,6 +1085,39 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_wrl_tenant ON whatsapp_reminder_log(tenant_id, sent_at DESC)');
+
+    // Email settings + log
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_settings (
+        tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+        smtp_host TEXT DEFAULT 'smtp.gmail.com',
+        smtp_port INTEGER DEFAULT 587,
+        smtp_user TEXT,
+        smtp_password TEXT,
+        from_name TEXT,
+        from_email TEXT,
+        use_ssl BOOLEAN DEFAULT false,
+        invoice_subject TEXT DEFAULT 'Invoice {invoiceNumber} from {businessName}',
+        invoice_template TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_log (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        to_email TEXT NOT NULL,
+        to_name TEXT,
+        subject TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'sent',
+        error_message TEXT,
+        invoice_id TEXT,
+        sent_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_email_log_tenant ON email_log(tenant_id, sent_at DESC)');
+
     await client.query('ALTER TABLE product_purchases ALTER COLUMN barcode DROP NOT NULL');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');

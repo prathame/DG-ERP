@@ -24,6 +24,7 @@ import {
   Bell,
   Type,
   BookOpen,
+  Mail,
 } from 'lucide-react';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
@@ -58,6 +59,7 @@ import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
 import { NAV_POSITIONS, getNavPositionPref, setNavPositionPref } from '../../lib/navPositionPref';
 import { UserGuidePanel } from './UserGuidePanel';
 import { WhatsAppWebPanel } from './WhatsAppWebPanel';
+import { EmailSettingsPanel } from './EmailSettingsPanel';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
@@ -1587,7 +1589,7 @@ export function SettingsView({
     // GST tab has no non-admin content (identity form + WhatsApp GST API are both Admin-only).
     { id: 'gst', label: st('settings.gstSettings'), icon: FileCheck, hidden: !user || !isAdmin || hideGstModule },
     { id: 'bill', label: st('settings.billCustomization'), icon: FileText, hidden: !user || !isAdmin },
-    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, hidden: !user || !isAdmin },
+    { id: 'whatsapp', label: 'Communication', icon: MessageCircle, hidden: !user || !isAdmin },
     { id: 'data', label: st('settings.dataManagement'), icon: HardDrive, hidden: !user || !isAdmin },
     { id: 'preferences', label: st('settings.preferences'), icon: Bell, hidden: !user },
     { id: 'guide', label: st('settings.howToGuide'), icon: BookOpen, hidden: !user },
@@ -2755,19 +2757,32 @@ export function SettingsView({
                 </div>
               )}
 
-              {/* WhatsApp - Admin only */}
+              {/* Communication (WhatsApp + Email) - Admin only */}
               {isAdmin && (
-                <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
-                  <div className={settingsPanelHead('', true)}>
-                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
-                      <MessageCircle size={16} className="shrink-0 text-gray-500" />
-                      WhatsApp
-                    </h3>
+                <>
+                  <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
+                    <div className={settingsPanelHead('', true)}>
+                      <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                        <MessageCircle size={16} className="shrink-0 text-gray-500" />
+                        WhatsApp
+                      </h3>
+                    </div>
+                    <div className="p-4 sm:p-6">
+                      <WhatsAppWebPanel />
+                    </div>
                   </div>
-                  <div className="p-4 sm:p-6">
-                    <WhatsAppWebPanel />
+                  <div className={cn(settingsPanel(), !showTab('whatsapp') && 'hidden')}>
+                    <div className={settingsPanelHead('', true)}>
+                      <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                        <Mail size={16} className="shrink-0 text-gray-500" />
+                        Email
+                      </h3>
+                    </div>
+                    <div className="p-4 sm:p-6">
+                      <EmailSettingsPanel />
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               {/* Data Management - Admin only */}
