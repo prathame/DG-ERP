@@ -973,3 +973,76 @@ export async function postVendorPaymentToBooks(
     ],
   });
 }
+
+/** Barcode sale → Dr Cash, Cr Sales Income. */
+export async function postSaleToBooks(
+  client: PoolClient,
+  tenantId: string,
+  sale: {
+    id: string;
+    amount: number;
+    saleDate: string;
+    customerName?: string | null;
+    paymentMethod?: string | null;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const amt = round2(sale.amount);
+  if (!(amt > 0)) return null;
+  const cashLedgerId = await resolveCashBankLedger(client, tenantId, sale.paymentMethod || 'Cash');
+  const salesLedgerId = await resolveSalesIncomeLedger(client, tenantId);
+  return insertVoucher(client, tenantId, {
+    voucherType: 'sales',
+    voucherDate: sale.saleDate,
+    voucherNumber: null,
+    partyLedgerId: cashLedgerId,
+    contraLedgerId: salesLedgerId,
+    amount: amt,
+    narration: sale.customerName ? `Sale — ${sale.customerName}` : `Ops sale ${sale.id}`,
+    externalRef: `ops:sale:${sale.id}`,
+    entries: [
+      { ledgerId: cashLedgerId, debit: amt, credit: 0 },
+      { ledgerId: salesLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}
+
+/** Staff payment → Dr Salary/Expense ledger, Cr Cash. */
+export async function postStaffPaymentToBooks(
+  client: PoolClient,
+  tenantId: string,
+  payment: {
+    id: string;
+    amount: number;
+    paymentDate: string;
+    staffName: string;
+    paymentType: string;
+    paymentMethod?: string | null;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const amt = round2(Math.abs(payment.amount));
+  if (!(amt > 0)) return null;
+  const category =
+    payment.paymentType === 'advance'
+      ? 'Staff Advance'
+      : payment.paymentType === 'bonus'
+        ? 'Staff Bonus'
+        : 'Staff Salary';
+  const expenseLedgerId = await resolveExpenseLedger(client, tenantId, category);
+  const cashLedgerId = await resolveCashBankLedger(client, tenantId, payment.paymentMethod || 'Cash');
+  return insertVoucher(client, tenantId, {
+    voucherType: 'payment',
+    voucherDate: payment.paymentDate,
+    voucherNumber: null,
+    partyLedgerId: expenseLedgerId,
+    contraLedgerId: cashLedgerId,
+    amount: amt,
+    narration: `${category} — ${payment.staffName}`,
+    externalRef: `ops:sp:${payment.id}`,
+    entries: [
+      { ledgerId: expenseLedgerId, debit: amt, credit: 0 },
+      { ledgerId: cashLedgerId, debit: 0, credit: amt },
+    ],
+  });
+}

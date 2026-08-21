@@ -4,6 +4,8 @@ import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit, isValidPhone } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { syncBooksSalaryToStaff } from '../services/booksSalaryToStaff';
+import { postStaffPaymentToBooks } from '../services/opsToBooks';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -434,6 +436,38 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
         y,
       ],
     );
+    // Best-effort Books dual-write — never blocks the payment
+    if (pType !== 'deduction' && pType !== 'advance_repay') {
+      pool
+        .connect()
+        .then(async bClient => {
+          try {
+            await bClient.query('BEGIN');
+            await setTenantContext(bClient, tenantId);
+            await postStaffPaymentToBooks(bClient, tenantId, {
+              id,
+              amount: parsedAmount,
+              paymentDate: date,
+              staffName: staffName.trim(),
+              paymentType: pType,
+              paymentMethod: paymentMethod || 'Cash',
+            });
+            await bClient.query('COMMIT');
+          } catch (err) {
+            await bClient.query('ROLLBACK').catch(() => {});
+            logger.warn('Staff payment Books dual-write failed', {
+              alert: 'books_dual_write_failure',
+              paymentId: id,
+              tenantId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          } finally {
+            bClient.release();
+          }
+        })
+        .catch(() => {});
+    }
+
     const typeLabel =
       {
         salary: 'Salary',

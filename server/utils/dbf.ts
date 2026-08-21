@@ -215,6 +215,96 @@ export function pickLineAmount(qty: number, rate: number, explicit: number): num
   return product;
 }
 
+// ── DBF Writer ────────────────────────────────────────────────────────────────
+
+export interface DbfWriteField {
+  name: string;
+  type: 'C' | 'N' | 'D' | 'L';
+  length: number;
+  decimals?: number;
+}
+
+/**
+ * Write a dBase III DBF file buffer from field definitions + rows.
+ * Field names are uppercased and truncated to 10 chars (dBase III limit).
+ * Values are looked up by field name (case-insensitive fallback).
+ */
+export function writeDbf(fields: DbfWriteField[], rows: Record<string, unknown>[]): Buffer {
+  const now = new Date();
+  const headerDescSize = fields.length * 32 + 1; // +1 for 0x0D terminator
+  const headerSize = 32 + headerDescSize;
+  const recordSize = 1 + fields.reduce((s, f) => s + f.length, 0);
+
+  const header = Buffer.alloc(headerSize, 0);
+  header[0] = 0x03; // dBase III
+  header[1] = now.getFullYear() % 100;
+  header[2] = now.getMonth() + 1;
+  header[3] = now.getDate();
+  header.writeUInt32LE(rows.length, 4);
+  header.writeUInt16LE(headerSize, 8);
+  header.writeUInt16LE(recordSize, 10);
+
+  let off = 32;
+  for (const f of fields) {
+    const nameBuf = Buffer.alloc(11, 0);
+    Buffer.from(f.name.slice(0, 10).toUpperCase(), 'ascii').copy(nameBuf);
+    nameBuf.copy(header, off);
+    header[off + 11] = f.type.charCodeAt(0);
+    header[off + 16] = f.length;
+    header[off + 17] = f.decimals ?? 0;
+    off += 32;
+  }
+  header[off] = 0x0d;
+
+  const recs = Buffer.alloc(rows.length * recordSize, 0x20);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    let pos = i * recordSize;
+    recs[pos++] = 0x20; // not deleted
+    for (const f of fields) {
+      const key = Object.prototype.hasOwnProperty.call(row, f.name)
+        ? f.name
+        : Object.prototype.hasOwnProperty.call(row, f.name.toLowerCase())
+          ? f.name.toLowerCase()
+          : null;
+      const val = key != null ? row[key] : undefined;
+      const cell = Buffer.alloc(f.length, 0x20);
+      switch (f.type) {
+        case 'C': {
+          const s = Buffer.from(String(val ?? '').slice(0, f.length), 'latin1');
+          s.copy(cell);
+          break;
+        }
+        case 'N': {
+          const n = Number(val) || 0;
+          const dec = f.decimals ?? 0;
+          const s = dec > 0 ? n.toFixed(dec) : String(Math.round(n));
+          const trimmed = s.slice(-f.length).padStart(f.length, ' ');
+          Buffer.from(trimmed, 'ascii').copy(cell);
+          break;
+        }
+        case 'D': {
+          let ds = '';
+          if (val instanceof Date && !isNaN(val.getTime())) {
+            ds = `${val.getFullYear()}${String(val.getMonth() + 1).padStart(2, '0')}${String(val.getDate()).padStart(2, '0')}`;
+          } else if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+            ds = val.slice(0, 10).replace(/-/g, '');
+          }
+          Buffer.from(ds.padEnd(8).slice(0, 8), 'ascii').copy(cell);
+          break;
+        }
+        case 'L':
+          cell[0] = val ? 0x54 : 0x46; // T or F
+          break;
+      }
+      cell.copy(recs, pos);
+      pos += f.length;
+    }
+  }
+
+  return Buffer.concat([header, recs, Buffer.from([0x1a])]);
+}
+
 export function dateStr(v: DbfValue | undefined): string | null {
   if (v == null || v === '') return null;
   if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
