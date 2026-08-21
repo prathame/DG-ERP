@@ -16,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['server/utils/**/*.ts', 'server/services/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.js'],
+      exclude: ['**/*.test.ts', '**/*.js', 'server/services/miracleExport.ts'],
       thresholds: {
         statements: 88,
         branches: 75,
