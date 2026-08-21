@@ -625,20 +625,12 @@ export function AccountsView({
     tab === 'gst' ? (
       <button
         type="button"
-        onClick={async () => {
-          try {
-            const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
-            const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-          } catch (e) {
-            alert((e as Error).message);
-          }
-        }}
+        onClick={() =>
+          downloadCsv(
+            `/api/reports/gstr1?download=1&month=${gstMonth}&year=${gstYear}`,
+            `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`,
+          )
+        }
         className={className}
       >
         <Download size={15} /> GSTR-1 JSON
@@ -977,20 +969,12 @@ export function AccountsView({
             {tab === 'gst' && (
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
-                    const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  } catch (e) {
-                    alert((e as Error).message);
-                  }
-                }}
+                onClick={() =>
+                  downloadCsv(
+                    `/api/reports/gstr1?download=1&month=${gstMonth}&year=${gstYear}`,
+                    `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`,
+                  )
+                }
                 className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-emerald-600 text-white rounded-lg text-[13px] sm:text-sm font-bold hover:bg-emerald-700"
               >
                 <Download size={15} /> GSTR-1 JSON
