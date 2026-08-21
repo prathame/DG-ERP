@@ -221,7 +221,10 @@ export function applyFinancialYear(
 /** Seed Accounts/Books date inputs from the last Analytics (or shared) choice. */
 export function defaultDateRangeFromReportingPeriod(asOf = new Date()): { from: string; to: string } {
   const saved = readReportingPeriod();
+  // 'fy' / 'lastFy' presets must recalculate on every call so a new FY is picked up
+  // automatically on April 1 without the user needing to re-select anything.
+  if (saved?.preset === 'fy') return indianFyRange(asOf);
+  if (saved?.preset === 'lastFy') return indianLastFyRange(asOf);
   if (saved?.from && saved?.to) return { from: saved.from, to: saved.to };
-  const fy = indianFyRange(asOf);
-  return { from: fy.from, to: fy.to };
+  return indianFyRange(asOf);
 }

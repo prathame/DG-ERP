@@ -17,6 +17,7 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { applyInvoiceTemplate } from '../settings/WhatsAppTemplateEditor';
+import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -72,7 +73,10 @@ export function SalesEntryView({
   const [salesPage, setSalesPage] = useState(1);
   const [salesTotalPages, setSalesTotalPages] = useState(1);
   const [salesTotal, setSalesTotal] = useState(0);
-  const [salesDateFilter, setSalesDateFilter] = useState({ range: 'all', from: '', to: '' });
+  const [salesDateFilter, setSalesDateFilter] = useState(() => {
+    const { from, to } = defaultDateRangeFromReportingPeriod();
+    return { range: 'custom', from, to };
+  });
 
   const loadSales = (page = 1) => {
     api.sales

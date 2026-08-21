@@ -1526,6 +1526,30 @@ export default function App() {
             })()}
           </span>
         </div>
+        {/* Global FY indicator — click to jump to Analytics to change */}
+        {user &&
+          !servicePhoneUx &&
+          (() => {
+            const { indianFyRange, readReportingPeriod } =
+              require('./lib/reportingPeriod') as typeof import('./lib/reportingPeriod');
+            const saved = readReportingPeriod();
+            const fy = indianFyRange();
+            const label = saved?.label || fy.label;
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (canAccess('analytics')) setActiveTab('analytics' as Tab);
+                }}
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-blue-100 bg-blue-50 hover:bg-blue-100 transition-colors shrink-0"
+                title="Click to change financial year in Analytics"
+              >
+                <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider whitespace-nowrap">
+                  {label}
+                </span>
+              </button>
+            );
+          })()}
         <NotificationCenter
           portaled={inNavBar && navH}
           openBelow={navPos !== 'bottom'}
