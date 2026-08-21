@@ -62,6 +62,8 @@ export async function cleanupTestData(tenantId: string) {
     'invoice_payments',
     'standalone_invoices',
     'tenant_notifications',
+    'whatsapp_broadcasts',
+    'whatsapp_web_sessions',
     'service_cloud_device_slots',
     'service_cloud_sessions',
     'user_sessions',

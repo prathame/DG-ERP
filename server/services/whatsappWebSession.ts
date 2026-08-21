@@ -230,6 +230,29 @@ export async function sendPdfViaWeb(
   logger.info('WA PDF sent', { tenantId, to: normalised, filename });
 }
 
+/** Send an image with optional caption. */
+export async function sendImageViaWeb(
+  tenantId: string,
+  phone: string,
+  imageBuffer: Buffer,
+  mimetype: 'image/jpeg' | 'image/png' | 'image/webp',
+  caption?: string,
+): Promise<void> {
+  const session = sessions.get(tenantId);
+  if (!session?.socket || session.status !== 'connected') {
+    throw new Error('WhatsApp Web not connected for this tenant');
+  }
+  const digits = phone.replace(/\D/g, '');
+  const normalised = digits.startsWith('91') ? digits : `91${digits}`;
+  const jid = `${normalised}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, {
+    image: imageBuffer,
+    mimetype,
+    caption: caption || '',
+  });
+  logger.info('WA image sent', { tenantId, to: normalised });
+}
+
 /** Send a text message. */
 export async function sendTextViaWeb(tenantId: string, phone: string, message: string): Promise<void> {
   const session = sessions.get(tenantId);

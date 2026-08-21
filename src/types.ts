@@ -201,4 +201,6 @@ export interface BillSettings {
    * Configured once in Bill Settings; picked per line on bills.
    */
   billUnits?: string[];
+  /** WhatsApp message template for invoice sends. Supports {customerName} {invoiceNumber} {amount} {balance} {date} {businessName} */
+  whatsappInvoiceTemplate?: string | null;
 }

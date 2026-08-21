@@ -1035,6 +1035,25 @@ export async function initSchema() {
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_id TEXT`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_secret TEXT`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_seller_pin TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS whatsapp_invoice_template TEXT`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_broadcasts (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        image_base64 TEXT,
+        image_mimetype TEXT,
+        recipient_type TEXT NOT NULL DEFAULT 'all_customers',
+        recipient_ids JSONB DEFAULT '[]'::jsonb,
+        status TEXT NOT NULL DEFAULT 'pending',
+        total_recipients INTEGER NOT NULL DEFAULT 0,
+        sent_count INTEGER NOT NULL DEFAULT 0,
+        failed_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        completed_at TIMESTAMPTZ,
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
     await client.query('ALTER TABLE product_purchases ALTER COLUMN barcode DROP NOT NULL');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');
