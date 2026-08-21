@@ -437,16 +437,22 @@ export async function shareStandaloneInvoiceWhatsApp(
         waLog('info', 'WhatsApp web Baileys PDF sent', { ...ctx, path: 'pdf' });
         return { how: 'shared' };
       } catch (baileysErr) {
-        // Not connected or failed — fall through to wa.me
-        waLog('info', 'WhatsApp Baileys not connected, falling back to wa.me', {
+        // Not connected or failed — show toast
+        waLog('info', 'WhatsApp Baileys not connected', {
           ...ctx,
           path: 'pdf',
           errorMessage: (baileysErr as Error)?.message,
         });
+        window.dispatchEvent(
+          new CustomEvent('dg-toast', {
+            detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+          }),
+        );
+        return { how: 'cancelled' };
       }
     }
 
-    // Web Share API (mobile browsers with file-share support)
+    // Web Share API (mobile browsers with file-share support, no Baileys needed)
     if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
       try {
         const file = new File([blob], filename, { type: 'application/pdf' });
@@ -466,22 +472,13 @@ export async function shareStandaloneInvoiceWhatsApp(
       }
     }
 
-    // Download PDF + open WhatsApp with text (wa.me fallback)
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-    if (phone) {
-      window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
-      return { how: 'text' };
-    }
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-    return { how: 'downloaded' };
+    // No phone and no Baileys session
+    window.dispatchEvent(
+      new CustomEvent('dg-toast', {
+        detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+      }),
+    );
+    return { how: 'cancelled' };
   } catch (err) {
     // ponytail: html2canvas fallback only if jsPDF itself fails (rare)
     waLog('warn', 'WhatsApp web jsPDF failed, falling back to html2canvas', {

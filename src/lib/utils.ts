@@ -502,17 +502,18 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
       return 'summary';
     }
 
-    // 3. wa.me
-    openPersonalWhatsApp(phone, opts.message);
-    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me' });
+    // 3. Not connected — show toast
+    toastNotConnected();
+    waShareLog('info', 'WhatsApp not connected — showed toast', { ...ctx, shareMode: 'not_connected' });
     return 'summary';
   }
   try {
-    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
-    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me-open' });
+    // No phone number and not connected
+    toastNotConnected();
+    waShareLog('info', 'WhatsApp not connected — showed toast (no phone)', { ...ctx, shareMode: 'not_connected' });
     return 'summary';
   } catch (err) {
-    waShareLog('warn', 'WhatsApp wa.me open fail — Share sheet fallback', {
+    waShareLog('warn', 'WhatsApp toast dispatch failed', {
       ...ctx,
       shareMode: 'text-only',
       errorMessage: truncateShareError(err),
@@ -617,8 +618,7 @@ export async function shareHtmlPdfViaWhatsApp(opts: {
     return 'text';
   }
 
-  window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
-  await deliverPdfBlob(blob, safeName);
+  toastNotConnected();
   return 'downloaded';
 }
 
@@ -1191,23 +1191,32 @@ export async function saveBillAsPdf(html: string, filename?: string, win?: Windo
   return true;
 }
 
-/** Personal WhatsApp (wa.me) — no Business API. */
-export function openPersonalWhatsApp(phone: string, message: string) {
-  let p = phone.replace(/[\s\-().+]/g, '');
-  if (p.length === 10 && /^\d+$/.test(p)) p = '91' + p;
-  if (p.startsWith('0')) p = '91' + p.slice(1);
-  window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, '_blank');
+/** Show a toast via the global CustomEvent bridge (works outside React components). */
+function toastNotConnected() {
+  window.dispatchEvent(
+    new CustomEvent('dg-toast', {
+      detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+    }),
+  );
+}
+
+/** @deprecated wa.me removed — kept only as emergency reference, not called */
+export function openPersonalWhatsApp(_phone: string, _message: string) {
+  toastNotConnected();
 }
 
 /**
  * Send WhatsApp message — priority order:
  *   1. Baileys (WhatsApp Web session) — direct, no popup
  *   2. Meta Cloud API — if tenant Business ON
- *   3. wa.me — fallback (opens browser tab)
+ *   3. Toast: "WhatsApp not connected — go to Settings to connect"
  */
 export function shareViaWhatsApp(phone: string, message: string) {
   const p = (phone || '').replace(/[\s\-().+]/g, '');
-  if (!p) return;
+  if (!p) {
+    toastNotConnected();
+    return;
+  }
 
   const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
   const tenantId = user?.tenantId || '';
@@ -1229,7 +1238,7 @@ export function shareViaWhatsApp(phone: string, message: string) {
         });
         if (r.ok) return; // sent via Baileys — done
       } catch {
-        /* not connected or failed — fall through */
+        /* not connected or timed out — fall through */
       }
     }
 
@@ -1238,8 +1247,8 @@ export function shareViaWhatsApp(phone: string, message: string) {
       if (await trySendWhatsAppBusiness(phone, message)) return;
     }
 
-    // 3. wa.me fallback
-    openPersonalWhatsApp(phone, message);
+    // 3. Not connected — show toast instead of wa.me
+    toastNotConnected();
   })();
 }
 
