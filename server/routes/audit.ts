@@ -87,32 +87,7 @@ router.get('/api/backup', requireAdmin, async (req: AuthRequest, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const tables = [
-      'products',
-      'product_inventory',
-      'product_distribution',
-      'product_sales',
-      'product_purchases',
-      'vendors',
-      'vendor_payments',
-      'customers',
-      'warranties',
-      'rewards',
-      'reward_rules',
-      'quotations',
-      'orders',
-      'credit_debit_notes',
-      'price_lists',
-      'categories',
-      'suppliers',
-      'supplier_payments',
-      'banks',
-      'bill_settings',
-      'expenses',
-      'staff_members',
-      'staff_payments',
-      'audit_log',
-    ];
+    const tables = Object.keys(BACKUP_COLUMN_ALLOWLIST);
 
     const backup: Record<string, unknown[]> = {};
     const counts: Record<string, number> = {};
@@ -253,6 +228,21 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'invoice_number',
     'created_at',
   ]),
+  product_replacements: new Set([
+    'id',
+    'tenant_id',
+    'old_barcode',
+    'new_barcode',
+    'warranty_id',
+    'product_id',
+    'product_name',
+    'customer_name',
+    'customer_phone',
+    'replaced_date',
+    'reason',
+    'vendor_id',
+    'created_at',
+  ]),
   vendors: new Set([
     'id',
     'name',
@@ -263,6 +253,26 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'total_sales',
     'total_reward_points',
     'tenant_id',
+    'created_at',
+  ]),
+  vendor_payments: new Set([
+    'id',
+    'vendor_id',
+    'amount',
+    'payment_date',
+    'payment_method',
+    'reference_number',
+    'notes',
+    'tenant_id',
+    'batch_id',
+    'created_at',
+  ]),
+  vendor_reminder_settings: new Set([
+    'vendor_id',
+    'tenant_id',
+    'enabled',
+    'reminder_days',
+    'last_reminder_date',
     'created_at',
   ]),
   customers: new Set(['id', 'name', 'phone', 'email', 'address', 'vendor_id', 'tenant_id', 'created_at']),
@@ -279,15 +289,49 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'tenant_id',
     'created_at',
   ]),
-  vendor_payments: new Set([
+  rewards: new Set([
     'id',
+    'tenant_id',
+    'user_id',
+    'points',
+    'type',
+    'description',
+    'date',
     'vendor_id',
+    'sale_id',
+    'created_at',
+  ]),
+  reward_rules: new Set([
+    'id',
+    'tenant_id',
+    'category_id',
+    'products_sold_threshold',
+    'reward_points',
+    'description',
+    'created_at',
+  ]),
+  redemption_settings: new Set(['id', 'tenant_id', 'min_balance', 'min_points']),
+  banks: new Set(['id', 'name', 'account_number', 'ifsc', 'branch', 'tenant_id', 'created_at']),
+  suppliers: new Set([
+    'id',
+    'name',
+    'contact_person',
+    'phone',
+    'email',
+    'address',
+    'gst_number',
+    'tenant_id',
+    'created_at',
+  ]),
+  supplier_payments: new Set([
+    'id',
+    'tenant_id',
+    'supplier_id',
     'amount',
     'payment_date',
     'payment_method',
     'reference_number',
     'notes',
-    'tenant_id',
     'batch_id',
     'created_at',
   ]),
@@ -301,32 +345,64 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'tenant_id',
     'created_at',
   ]),
-  banks: new Set(['id', 'name', 'account_number', 'ifsc', 'branch', 'tenant_id', 'created_at']),
-  suppliers: new Set([
+  staff_members: new Set([
     'id',
-    'name',
-    'contact_person',
-    'phone',
-    'email',
-    'address',
-    'gst_number',
     'tenant_id',
+    'name',
+    'phone',
+    'role',
+    'address',
+    'salary',
+    'joining_date',
+    'status',
+    'created_at',
+  ]),
+  staff_payments: new Set([
+    'id',
+    'tenant_id',
+    'staff_name',
+    'amount',
+    'payment_date',
+    'payment_type',
+    'payment_method',
+    'reference_number',
+    'notes',
+    'month',
+    'year',
     'created_at',
   ]),
   standalone_invoices: new Set([
     'id',
+    'tenant_id',
     'invoice_number',
     'invoice_date',
+    'due_date',
+    'status',
     'customer_name',
     'customer_phone',
     'customer_email',
     'customer_address',
+    'customer_gstin',
     'party_type',
     'party_id',
-    'status',
+    'items',
+    'subtotal',
+    'tax_total',
     'grand_total',
     'notes',
+    'terms',
+    'created_at',
+    'updated_at',
+  ]),
+  invoice_payments: new Set([
+    'id',
     'tenant_id',
+    'invoice_id',
+    'amount',
+    'payment_date',
+    'payment_method',
+    'reference_number',
+    'notes',
     'created_at',
   ]),
   quotations: new Set([
@@ -339,6 +415,100 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'notes',
     'tenant_id',
     'created_at',
+  ]),
+  orders: new Set([
+    'id',
+    'tenant_id',
+    'order_number',
+    'vendor_id',
+    'vendor_name',
+    'customer_name',
+    'customer_phone',
+    'customer_gst_number',
+    'order_date',
+    'required_date',
+    'status',
+    'items',
+    'subtotal',
+    'gst_rate',
+    'gst_amount',
+    'total',
+    'notes',
+    'fulfilled_batch_id',
+    'created_at',
+  ]),
+  credit_debit_notes: new Set([
+    'id',
+    'tenant_id',
+    'note_number',
+    'note_type',
+    'vendor_id',
+    'vendor_name',
+    'customer_name',
+    'note_date',
+    'reason',
+    'items',
+    'subtotal',
+    'gst_rate',
+    'gst_amount',
+    'total',
+    'reference_invoice',
+    'reference_type',
+    'status',
+    'created_at',
+  ]),
+  price_lists: new Set([
+    'id',
+    'tenant_id',
+    'name',
+    'product_id',
+    'vendor_id',
+    'min_qty',
+    'max_qty',
+    'price',
+    'is_active',
+    'valid_from',
+    'valid_to',
+    'created_at',
+  ]),
+  bill_settings: new Set([
+    'tenant_id',
+    'primary_color',
+    'tagline',
+    'invoice_prefix',
+    'challan_prefix',
+    'bank_account_name',
+    'bank_account_number',
+    'bank_name',
+    'bank_branch',
+    'bank_ifsc',
+    'bank_upi_id',
+    'terms_and_conditions',
+    'signatory_name',
+    'signatory_designation',
+    'show_rewards',
+    'show_barcode',
+    'show_warranty',
+    'show_hsn_sac',
+    'footer_text',
+    'invoice_template_style',
+  ]),
+  barcode_label_templates: new Set([
+    'id',
+    'tenant_id',
+    'name',
+    'description',
+    'width_mm',
+    'height_mm',
+    'orientation',
+    'status',
+    'is_default',
+    'version',
+    'elements',
+    'created_by',
+    'updated_by',
+    'created_at',
+    'updated_at',
   ]),
 };
 
@@ -360,21 +530,34 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
       });
     }
 
-    // H3: only clear/restore tables that have a column allowlist — never wipe
-    // tables we cannot reinsert (staff_members, audit_log, rewards, etc.).
     const restoreTables = Object.keys(BACKUP_COLUMN_ALLOWLIST);
+    // FK-safe delete order: children before parents
     const clearOrder = [
+      'invoice_payments',
       'vendor_payments',
+      'supplier_payments',
+      'staff_payments',
+      'product_replacements',
       'product_sales',
+      'rewards',
       'product_distribution',
       'product_inventory',
       'product_purchases',
       'warranties',
       'quotations',
+      'orders',
       'standalone_invoices',
+      'credit_debit_notes',
+      'price_lists',
       'expenses',
+      'reward_rules',
+      'redemption_settings',
+      'vendor_reminder_settings',
+      'barcode_label_templates',
+      'bill_settings',
       'customers',
       'banks',
+      'staff_members',
       'suppliers',
       'vendors',
       'categories',
@@ -402,7 +585,15 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
           const cols = Object.keys(row).filter(k => allowed.has(k));
           if (cols.length === 0) continue;
           const vals = cols.map((_, i) => `$${i + 1}`);
-          const onConflict = cols.includes('id') ? `ON CONFLICT (id, tenant_id) DO NOTHING` : 'ON CONFLICT DO NOTHING';
+          // bill_settings PK is tenant_id; vendor_reminder_settings PK is (vendor_id, tenant_id)
+          const onConflict =
+            table === 'bill_settings'
+              ? 'ON CONFLICT (tenant_id) DO NOTHING'
+              : table === 'vendor_reminder_settings'
+                ? 'ON CONFLICT (vendor_id, tenant_id) DO NOTHING'
+                : cols.includes('id')
+                  ? 'ON CONFLICT (id, tenant_id) DO NOTHING'
+                  : 'ON CONFLICT DO NOTHING';
           try {
             await client.query(
               `INSERT INTO ${table} (${cols.join(',')}) VALUES (${vals.join(',')}) ${onConflict}`,
@@ -493,6 +684,182 @@ router.put('/api/backup/settings', requireAdmin, async (req: AuthRequest, res) =
       `${enabled ? 'Enabled' : 'Disabled'} — ${freq} (every ${days} days)`,
     );
     res.json({ ok: true, enabled: !!enabled, frequency: freq, intervalDays: days, email: email || null });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// ── Tally XML export ──────────────────────────────────────────────────────────
+router.get('/api/backup/tally', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const tenant = (await pool.query('SELECT company_name, slug, admin_email FROM tenants WHERE id = $1', [tenantId]))
+      .rows[0] as Record<string, unknown> | undefined;
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const esc = (s: unknown) =>
+      String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const fmtDate = (d: unknown) => {
+      if (!d) return '';
+      const dt = new Date(String(d));
+      if (isNaN(dt.getTime())) return String(d);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      return `${y}${m}${day}`;
+    };
+
+    const [sales, purchases, expenses, vendors, suppliers, customers, invoices, payments] = await Promise.all([
+      pool.query('SELECT * FROM product_sales WHERE tenant_id = $1 ORDER BY purchase_date', [tenantId]),
+      pool.query('SELECT * FROM product_purchases WHERE tenant_id = $1 ORDER BY purchase_date', [tenantId]),
+      pool.query('SELECT * FROM expenses WHERE tenant_id = $1 ORDER BY expense_date', [tenantId]),
+      pool.query('SELECT id, name FROM vendors WHERE tenant_id = $1', [tenantId]),
+      pool.query('SELECT id, name FROM suppliers WHERE tenant_id = $1', [tenantId]),
+      pool.query('SELECT id, name FROM customers WHERE tenant_id = $1', [tenantId]),
+      pool.query('SELECT * FROM standalone_invoices WHERE tenant_id = $1 ORDER BY invoice_date', [tenantId]),
+      pool.query('SELECT * FROM vendor_payments WHERE tenant_id = $1 ORDER BY payment_date', [tenantId]),
+    ]);
+
+    const vendorMap = Object.fromEntries(vendors.rows.map((v: Record<string, string>) => [v.id, v.name]));
+    const supplierMap = Object.fromEntries(suppliers.rows.map((s: Record<string, string>) => [s.id, s.name]));
+    const customerMap = Object.fromEntries(customers.rows.map((c: Record<string, string>) => [c.id, c.name]));
+
+    const companyName = esc(tenant.company_name);
+    const lines: string[] = [];
+
+    lines.push(`<?xml version="1.0" encoding="UTF-8"?>`);
+    lines.push(`<ENVELOPE>`);
+    lines.push(`<HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>`);
+    lines.push(`<BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME>`);
+    lines.push(`<STATICVARIABLES><SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY></STATICVARIABLES>`);
+    lines.push(`</REQUESTDESC><REQUESTDATA>`);
+
+    // Sales vouchers
+    for (const row of sales.rows as Record<string, unknown>[]) {
+      const party = esc(row.customer_name || vendorMap[row.vendor_id as string] || 'Cash');
+      lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
+      lines.push(`<VOUCHER VCHTYPE="Sales" ACTION="Create">`);
+      lines.push(`<DATE>${fmtDate(row.purchase_date)}</DATE>`);
+      lines.push(`<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>`);
+      lines.push(`<VOUCHERNUMBER>${esc(row.id)}</VOUCHERNUMBER>`);
+      lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>-${Number(row.sale_price || 0).toFixed(2)}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>Sales</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>${Number(row.sale_price || 0).toFixed(2)}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`</VOUCHER></TALLYMESSAGE>`);
+    }
+
+    // Purchase vouchers
+    for (const row of purchases.rows as Record<string, unknown>[]) {
+      const party = esc(supplierMap[row.supplier_id as string] || 'Cash');
+      const amt = Number(row.billed_price || row.cost_price || 0).toFixed(2);
+      lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
+      lines.push(`<VOUCHER VCHTYPE="Purchase" ACTION="Create">`);
+      lines.push(`<DATE>${fmtDate(row.purchase_date)}</DATE>`);
+      lines.push(`<VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>`);
+      lines.push(`<VOUCHERNUMBER>${esc(row.invoice_number || row.id)}</VOUCHERNUMBER>`);
+      lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>Purchase</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`</VOUCHER></TALLYMESSAGE>`);
+    }
+
+    // Expense vouchers
+    for (const row of expenses.rows as Record<string, unknown>[]) {
+      const amt = Number(row.amount || 0).toFixed(2);
+      lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
+      lines.push(`<VOUCHER VCHTYPE="Payment" ACTION="Create">`);
+      lines.push(`<DATE>${fmtDate(row.expense_date)}</DATE>`);
+      lines.push(`<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>`);
+      lines.push(`<NARRATION>${esc(row.description || row.category)}</NARRATION>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>${esc(row.category || 'Expenses')}</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>Cash</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`</VOUCHER></TALLYMESSAGE>`);
+    }
+
+    // Standalone invoices as Sales vouchers
+    for (const row of invoices.rows as Record<string, unknown>[]) {
+      const party = esc(row.customer_name || 'Cash');
+      const amt = Number(row.grand_total || 0).toFixed(2);
+      lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
+      lines.push(`<VOUCHER VCHTYPE="Sales" ACTION="Create">`);
+      lines.push(`<DATE>${fmtDate(row.invoice_date)}</DATE>`);
+      lines.push(`<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>`);
+      lines.push(`<VOUCHERNUMBER>${esc(row.invoice_number)}</VOUCHERNUMBER>`);
+      lines.push(`<PARTYLEDGERNAME>${party}</PARTYLEDGERNAME>`);
+      lines.push(`<NARRATION>${esc(row.notes)}</NARRATION>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>Sales</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`</VOUCHER></TALLYMESSAGE>`);
+    }
+
+    // Vendor payments as Payment vouchers
+    for (const row of payments.rows as Record<string, unknown>[]) {
+      const party = esc(vendorMap[row.vendor_id as string] || 'Vendor');
+      const amt = Number(row.amount || 0).toFixed(2);
+      lines.push(`<TALLYMESSAGE xmlns:UDF="TallyUDF">`);
+      lines.push(`<VOUCHER VCHTYPE="Payment" ACTION="Create">`);
+      lines.push(`<DATE>${fmtDate(row.payment_date)}</DATE>`);
+      lines.push(`<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>`);
+      lines.push(`<NARRATION>${esc(row.notes || row.reference_number)}</NARRATION>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>${party}</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<ALLLEDGERENTRIES.LIST>`);
+      lines.push(`<LEDGERNAME>Cash</LEDGERNAME>`);
+      lines.push(`<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>`);
+      lines.push(`<AMOUNT>-${amt}</AMOUNT>`);
+      lines.push(`</ALLLEDGERENTRIES.LIST>`);
+      lines.push(`</VOUCHER></TALLYMESSAGE>`);
+    }
+
+    lines.push(`</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`);
+
+    const xml = lines.join('\n');
+    const filename = `tally-${tenant.slug || tenantId}-${new Date().toISOString().slice(0, 10)}.xml`;
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(xml);
   } catch (err) {
     return handleApiError(req, res, err);
   }
