@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchApi } from '../../api';
+import { WhatsAppTemplateEditor } from './WhatsAppTemplateEditor';
+import { WhatsAppBroadcastPanel } from './WhatsAppBroadcastPanel';
+import { api } from '../../api';
+import type { BillSettings } from '../../types';
 
 type Status = 'disconnected' | 'qr_pending' | 'connecting' | 'connected';
 
@@ -13,6 +17,25 @@ export function WhatsAppWebPanel() {
   const [state, setState] = useState<SessionState>({ status: 'disconnected', qrDataUrl: null, phoneNumber: null });
   const [loading, setLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [template, setTemplate] = useState<string | null>(null);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<'connect' | 'template' | 'broadcast'>('connect');
+
+  useEffect(() => {
+    api.settings
+      .getBillSettings()
+      .then(s => setTemplate(s.whatsappInvoiceTemplate ?? null))
+      .catch(() => {});
+  }, []);
+
+  const saveTemplate = async () => {
+    setTemplateSaving(true);
+    try {
+      await api.settings.updateBillSettings({ whatsappInvoiceTemplate: template } as Partial<BillSettings>);
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
 
   const poll = async () => {
     try {
@@ -68,64 +91,106 @@ export function WhatsAppWebPanel() {
     <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-gray-900">WhatsApp (Direct)</h3>
-          <p className="text-sm text-gray-500 mt-0.5">Send invoices as PDF directly — no link, no manual attach</p>
+          <h3 className="font-semibold text-gray-900">WhatsApp</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Direct PDF, custom messages, and broadcast to customers</p>
         </div>
         <StatusBadge status={state.status} />
       </div>
 
-      {state.status === 'connected' && (
-        <div className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-green-800">Connected</p>
-            {state.phoneNumber && <p className="text-xs text-green-700 mt-0.5">+{state.phoneNumber}</p>}
-          </div>
+      {/* Section tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        {(
+          [
+            ['connect', 'Connect'],
+            ['template', 'Message'],
+            ['broadcast', 'Broadcast'],
+          ] as const
+        ).map(([id, label]) => (
           <button
-            onClick={handleDisconnect}
-            disabled={loading}
-            className="text-xs text-red-600 hover:text-red-800 font-medium"
+            key={id}
+            type="button"
+            onClick={() => setActiveSection(id)}
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${activeSection === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            Disconnect
+            {label}
           </button>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {state.status === 'qr_pending' && state.qrDataUrl && (
-        <div className="space-y-3">
-          <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center gap-3">
-            <img src={state.qrDataUrl} alt="WhatsApp QR Code" className="w-48 h-48 rounded" />
-            <div className="text-center">
-              <p className="text-sm font-medium text-gray-800">Scan with WhatsApp</p>
-              <p className="text-xs text-gray-500 mt-1">Open WhatsApp → Settings → Linked Devices → Link a Device</p>
+      {/* Connect tab */}
+      {activeSection === 'connect' && (
+        <>
+          {state.status === 'connected' && (
+            <div className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-green-800">Connected</p>
+                {state.phoneNumber && <p className="text-xs text-green-700 mt-0.5">+{state.phoneNumber}</p>}
+              </div>
+              <button
+                onClick={handleDisconnect}
+                disabled={loading}
+                className="text-xs text-red-600 hover:text-red-800 font-medium"
+              >
+                Disconnect
+              </button>
             </div>
-          </div>
-          <p className="text-xs text-gray-400 text-center">QR refreshes automatically if it expires</p>
-        </div>
+          )}
+          {state.status === 'qr_pending' && state.qrDataUrl && (
+            <div className="space-y-3">
+              <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center gap-3">
+                <img src={state.qrDataUrl} alt="WhatsApp QR Code" className="w-48 h-48 rounded" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-800">Scan with WhatsApp</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Open WhatsApp → Settings → Linked Devices → Link a Device
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 text-center">QR refreshes automatically if it expires</p>
+            </div>
+          )}
+          {state.status === 'connecting' && !state.qrDataUrl && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+              <span className="animate-spin">⟳</span> Generating QR code…
+            </div>
+          )}
+          {state.status === 'disconnected' && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                Connect your WhatsApp to send invoices as PDF directly — no extra steps.
+              </p>
+              <button
+                onClick={handleConnect}
+                disabled={loading}
+                className="w-full py-2.5 rounded-lg bg-[#25D366] text-white font-semibold text-sm hover:bg-[#1ebe5d] disabled:opacity-50"
+              >
+                {loading ? 'Starting…' : 'Connect WhatsApp'}
+              </button>
+              <p className="text-xs text-gray-400 text-center">
+                Uses your existing WhatsApp number — same as WhatsApp Web
+              </p>
+            </div>
+          )}
+        </>
       )}
 
-      {state.status === 'connecting' && !state.qrDataUrl && (
-        <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-          <span className="animate-spin">⟳</span> Generating QR code…
-        </div>
-      )}
-
-      {state.status === 'disconnected' && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            Connect your WhatsApp to send invoices as PDF directly to customers — no extra steps.
-          </p>
+      {/* Message Template tab */}
+      {activeSection === 'template' && (
+        <div className="space-y-4">
+          <WhatsAppTemplateEditor value={template} onChange={setTemplate} />
           <button
-            onClick={handleConnect}
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-[#25D366] text-white font-semibold text-sm hover:bg-[#1ebe5d] disabled:opacity-50"
+            type="button"
+            onClick={saveTemplate}
+            disabled={templateSaving}
+            className="w-full py-2.5 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 disabled:opacity-50"
           >
-            {loading ? 'Starting…' : 'Connect WhatsApp'}
+            {templateSaving ? 'Saving…' : 'Save Template'}
           </button>
-          <p className="text-xs text-gray-400 text-center">
-            Uses your existing WhatsApp number — same as scanning WhatsApp Web
-          </p>
         </div>
       )}
+
+      {/* Broadcast tab */}
+      {activeSection === 'broadcast' && <WhatsAppBroadcastPanel />}
     </div>
   );
 }

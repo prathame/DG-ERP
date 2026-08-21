@@ -26,6 +26,7 @@
     "test:e2e:barcode-labels": "playwright test -c playwright.barcode-label.config.ts",
     "analyze": "vite build --mode analyze",
     "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit'})}catch(e){process.exit(0)}\"",
+    "postinstall": "node scripts/patch-whatsapp-rust-bridge.mjs",
     "electron:desktop:dev": "npm run tsc:electron && electron electron/desktop/main.js",
     "electron:desktop:dev:local": "npm run tsc:electron && DG_CLOUD_URL=http://localhost:3001 electron electron/desktop/main.js",
     "electron:cloud:dev": "npm run electron:desktop:dev",

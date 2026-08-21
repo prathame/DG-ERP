@@ -14,6 +14,7 @@ vi.mock('../../server/services/whatsappWebSession', () => ({
   connectSession: vi.fn().mockResolvedValue(undefined),
   disconnectSession: vi.fn().mockResolvedValue(undefined),
   sendPdfViaWeb: vi.fn().mockResolvedValue(undefined),
+  sendImageViaWeb: vi.fn().mockResolvedValue(undefined),
   sendTextViaWeb: vi.fn().mockResolvedValue(undefined),
   isConnected: vi.fn(() => false),
   initWhatsAppSessionPool: vi.fn(),
