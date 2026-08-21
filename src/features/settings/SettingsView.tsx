@@ -2831,6 +2831,7 @@ export function SettingsView({
                               headers: {
                                 Authorization: `Bearer ${session.getToken()}`,
                                 'X-Tenant-ID': session.getTenantId() || '',
+                                'x-dg-client': 'web',
                               },
                             });
                             if (!r.ok) throw new Error('Backup failed');
@@ -2940,6 +2941,7 @@ export function SettingsView({
                                   Authorization: `Bearer ${session.getToken()}`,
                                   'X-Tenant-ID': session.getTenantId() || '',
                                   'Content-Type': 'application/json',
+                                  'x-dg-client': 'web',
                                 },
                                 body: text,
                               });
