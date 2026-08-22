@@ -392,47 +392,31 @@ export async function shareStandaloneInvoiceWhatsApp(
     if (electronResult) return electronResult;
   }
 
-  // Web browser — use jsPDF (no html2canvas, no main-thread freeze).
-  waLog('info', 'WhatsApp invoice share start (web jsPDF)', { ...ctx, path: 'pdf' });
-  const user = (session.getUser() || {}) as {
-    companyName?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    gstNumber?: string;
-  };
-  const billSettings =
-    options?.billSettings || ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
+  // Web browser — use HTML template (renders logo + signature correctly via html2canvas).
+  // jsPDF cannot render CSS-based logo placeholders or load images when logoBase64 is null.
+  waLog('info', 'WhatsApp invoice share start (web HTML)', { ...ctx, path: 'pdf' });
   const filename = standaloneInvoicePdfBasename(shareInv.customerName);
-  const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType };
 
   try {
-    const blob = await buildStandaloneInvoicePdfBlob(
-      shareInv,
-      {
-        companyName: user.companyName,
-        address: user.address,
-        phone: user.phone,
-        email: user.email,
-        gstNumber: user.gstNumber,
-      },
-      pdfOpts,
+    const { html } = await buildStandaloneInvoiceHtml(shareInv, options);
+    const { htmlToBase64Pdf } = await import('./utils');
+    const pdfBase64 = await htmlToBase64Pdf(html, filename + '.pdf');
+    if (!pdfBase64) throw new Error('Could not generate PDF');
+    const blob = new Uint8Array(
+      atob(pdfBase64)
+        .split('')
+        .map(c => c.charCodeAt(0)),
     );
+    const pdfBlob = new Blob([blob], { type: 'application/pdf' });
 
     const phone = (shareInv.customerPhone || '').trim();
 
     // Try Baileys (WhatsApp Web session) first — sends PDF directly, no link needed
     if (phone) {
       try {
-        const pdfBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(',')[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
         await fetchApi('/whatsapp-web/send-pdf', {
           method: 'POST',
-          body: JSON.stringify({ phone, filename, caption: message, pdfBase64 }),
+          body: JSON.stringify({ phone, filename: filename + '.pdf', caption: message, pdfBase64 }),
         });
         waLog('info', 'WhatsApp web Baileys PDF sent', { ...ctx, path: 'pdf' });
         return { how: 'shared' };
@@ -456,7 +440,7 @@ export async function shareStandaloneInvoiceWhatsApp(
     // Web Share API (mobile browsers with file-share support, no Baileys needed)
     if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
       try {
-        const file = new File([blob], filename, { type: 'application/pdf' });
+        const file = new File([pdfBlob], filename + '.pdf', { type: 'application/pdf' });
         const payload = { files: [file], title: filename };
         if (!navigator.canShare || navigator.canShare(payload)) {
           await navigator.share(payload);
