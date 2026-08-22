@@ -60,6 +60,24 @@ import { NAV_POSITIONS, getNavPositionPref, setNavPositionPref } from '../../lib
 import { UserGuidePanel } from './UserGuidePanel';
 import { WhatsAppWebPanel } from './WhatsAppWebPanel';
 import { EmailSettingsPanel } from './EmailSettingsPanel';
+
+function backupApiHeaders(extra?: Record<string, string>): Record<string, string> {
+  return {
+    Authorization: `Bearer ${session.getToken()}`,
+    'X-Tenant-ID': session.getTenantId() || '',
+    'x-dg-client': 'web',
+    ...extra,
+  };
+}
+
+async function backupApiErrorMessage(r: Response, fallback: string): Promise<string> {
+  try {
+    const j = (await r.json()) as { error?: string };
+    return j.error?.trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
@@ -2892,12 +2910,9 @@ export function SettingsView({
                               return;
                             }
                             const r = await fetch('/api/backup', {
-                              headers: {
-                                Authorization: `Bearer ${session.getToken()}`,
-                                'X-Tenant-ID': session.getTenantId() || '',
-                              },
+                              headers: backupApiHeaders(),
                             });
-                            if (!r.ok) throw new Error('Backup failed');
+                            if (!r.ok) throw new Error(await backupApiErrorMessage(r, 'Backup failed'));
                             const blob = await r.blob();
                             const filename = `backup-${new Date().toISOString().slice(0, 10)}.json`;
                             if (isNativeCapacitor()) {
@@ -3000,11 +3015,7 @@ export function SettingsView({
                               report(restoreProgress('uploading', 40));
                               const r = await fetch('/api/backup/restore', {
                                 method: 'POST',
-                                headers: {
-                                  Authorization: `Bearer ${session.getToken()}`,
-                                  'X-Tenant-ID': session.getTenantId() || '',
-                                  'Content-Type': 'application/json',
-                                },
+                                headers: backupApiHeaders({ 'Content-Type': 'application/json' }),
                                 body: text,
                               });
                               const result = await r.json();
@@ -3014,6 +3025,7 @@ export function SettingsView({
                                 `Restored ${result.restored} records from ${data._meta?.companyName || 'backup'}`,
                                 'success',
                               );
+                              setTimeout(() => window.location.reload(), 600);
                             } catch (err) {
                               toast((err as Error).message, 'error');
                             } finally {
@@ -3062,12 +3074,9 @@ export function SettingsView({
                               onClick={async () => {
                                 try {
                                   const r = await fetch(endpoint, {
-                                    headers: {
-                                      Authorization: `Bearer ${session.getToken()}`,
-                                      'X-Tenant-ID': session.getTenantId() || '',
-                                    },
+                                    headers: backupApiHeaders(),
                                   });
-                                  if (!r.ok) throw new Error(`Export failed`);
+                                  if (!r.ok) throw new Error(await backupApiErrorMessage(r, 'Export failed'));
                                   const blob = await r.blob();
                                   const filename = `export-${ext === 'zip' ? 'miracle' : 'tally'}-${new Date().toISOString().slice(0, 10)}.${ext}`;
                                   const url = URL.createObjectURL(blob);
