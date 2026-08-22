@@ -3,6 +3,7 @@ import { pool } from '../pg-db';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../shared/billUnits';
 import { handleApiError } from '../utils/http-error';
+import { generateUpiQrBase64 } from '../utils/upiQr';
 
 const router = Router();
 
@@ -66,6 +67,7 @@ function rowToResponse(row: Record<string, unknown>) {
     bankBranch: row.bank_branch ?? null,
     bankIfsc: row.bank_ifsc ?? null,
     bankUpiId: row.bank_upi_id ?? null,
+    bankUpiQrBase64: row.bank_upi_qr_base64 ?? null,
     termsAndConditions: row.terms_and_conditions ?? null,
     signatoryName: row.signatory_name ?? null,
     signatoryDesignation: row.signatory_designation ?? null,
@@ -103,6 +105,7 @@ router.get('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
       payload.bankBranch = null;
       payload.bankIfsc = null;
       payload.bankUpiId = null;
+      payload.bankUpiQrBase64 = null;
     }
     res.json(payload);
   } catch (err) {
@@ -166,29 +169,32 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     const billUnits = normalizeBillUnits(requestBody.billUnits);
     const whatsappTemplateProvided = requestBody.whatsappInvoiceTemplate !== undefined;
     const whatsappInvoiceTemplate = whatsappTemplateProvided ? requestBody.whatsappInvoiceTemplate || null : null;
+    const bankUpiId = requestBody.bankUpiId ?? null;
+    const bankAccountName = requestBody.bankAccountName ?? null;
+    const bankUpiQrBase64 = bankUpiId ? await generateUpiQrBase64(bankUpiId, bankAccountName) : null;
 
     const { rows } = await pool.query(
       `
       INSERT INTO bill_settings (
         tenant_id, logo_base64, primary_color, tagline,
         invoice_prefix, challan_prefix,
-        bank_account_name, bank_account_number, bank_name, bank_branch, bank_ifsc, bank_upi_id,
+        bank_account_name, bank_account_number, bank_name, bank_branch, bank_ifsc, bank_upi_id, bank_upi_qr_base64,
         terms_and_conditions, signatory_name, signatory_designation, signature_base64,
         show_rewards, show_barcode, show_warranty, show_hsn_sac, footer_text, invoice_template_style,
         hosp_charge_gst, hosp_prices_include_gst, fssai_license, bill_units, whatsapp_invoice_template, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$27::jsonb,$29, NOW())
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$28::jsonb,$30, NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         logo_base64 = $2, primary_color = $3, tagline = $4,
         invoice_prefix = $5, challan_prefix = $6,
-        bank_account_name = $7, bank_account_number = $8, bank_name = $9, bank_branch = $10, bank_ifsc = $11, bank_upi_id = $12,
-        terms_and_conditions = $13, signatory_name = $14, signatory_designation = $15, signature_base64 = $16,
-        show_rewards = $17, show_barcode = $18, show_warranty = $19, show_hsn_sac = $20, footer_text = $21,
-        invoice_template_style = $22,
-        hosp_charge_gst = $23,
-        hosp_prices_include_gst = $24,
-        fssai_license = CASE WHEN $26::boolean THEN $25 ELSE bill_settings.fssai_license END,
-        bill_units = CASE WHEN $28::boolean THEN $27::jsonb ELSE bill_settings.bill_units END,
-        whatsapp_invoice_template = CASE WHEN $30::boolean THEN $29 ELSE bill_settings.whatsapp_invoice_template END,
+        bank_account_name = $7, bank_account_number = $8, bank_name = $9, bank_branch = $10, bank_ifsc = $11, bank_upi_id = $12, bank_upi_qr_base64 = $13,
+        terms_and_conditions = $14, signatory_name = $15, signatory_designation = $16, signature_base64 = $17,
+        show_rewards = $18, show_barcode = $19, show_warranty = $20, show_hsn_sac = $21, footer_text = $22,
+        invoice_template_style = $23,
+        hosp_charge_gst = $24,
+        hosp_prices_include_gst = $25,
+        fssai_license = CASE WHEN $27::boolean THEN $26 ELSE bill_settings.fssai_license END,
+        bill_units = CASE WHEN $29::boolean THEN $28::jsonb ELSE bill_settings.bill_units END,
+        whatsapp_invoice_template = CASE WHEN $31::boolean THEN $30 ELSE bill_settings.whatsapp_invoice_template END,
         updated_at = NOW()
       RETURNING *
     `,
@@ -199,12 +205,13 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         requestBody.tagline ?? null,
         requestBody.invoicePrefix ?? null,
         requestBody.challanPrefix ?? null,
-        requestBody.bankAccountName ?? null,
+        bankAccountName,
         requestBody.bankAccountNumber ?? null,
         requestBody.bankName ?? null,
         requestBody.bankBranch ?? null,
         requestBody.bankIfsc ?? null,
-        requestBody.bankUpiId ?? null,
+        bankUpiId,
+        bankUpiQrBase64,
         requestBody.termsAndConditions ?? null,
         requestBody.signatoryName ?? null,
         requestBody.signatoryDesignation ?? null,

@@ -8,6 +8,7 @@ import type { DistributionBillData } from '../api';
 import { api, fetchApi } from '../api';
 import { buildDistributionBillSlice, type StandaloneInvoicePrint } from './billTemplates';
 import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
+import { resolveUpiQrDataUrl } from './upiQr';
 import { isNativeCapacitor } from './dhandhoFiles';
 import { isElectronAppShell } from './mobileAppShell';
 import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
@@ -213,6 +214,7 @@ export async function shareDistributionDocsWhatsApp(
       options?.billSettings ||
       ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>) ||
       {};
+    const upiQrDataUrl = await resolveUpiQrDataUrl(billSettings);
 
     const sessionUser = (session.getUser() || {}) as {
       companyName?: string;
@@ -244,6 +246,7 @@ export async function shareDistributionDocsWhatsApp(
           hasGst: mapped.hasGst,
           billSettings,
           docType: 'invoice',
+          upiQrDataUrl,
         });
         const pdfBase64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -297,6 +300,7 @@ export async function shareDistributionDocsWhatsApp(
     options?.billSettings ||
     ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>) ||
     {};
+  const upiQrDataUrl = await resolveUpiQrDataUrl(billSettings);
 
   const sessionUser = (session.getUser() || {}) as {
     companyName?: string;
@@ -334,6 +338,7 @@ export async function shareDistributionDocsWhatsApp(
             hasGst: mapped.hasGst,
             billSettings,
             docType: 'invoice',
+            upiQrDataUrl,
           }),
           CAP_WHATSAPP_PDF_TIMEOUT_MS,
           'PDF_TIMEOUT',

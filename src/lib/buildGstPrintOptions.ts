@@ -1,4 +1,5 @@
 import { fetchImageAsDataUrl, resolveIrnQrPayload } from './utils';
+import { resolveUpiQrDataUrl } from './upiQr';
 import type { DistributionBillData } from '../api';
 
 /** Shared QR + showGst opts for Tax Invoice / Bill of Supply print. */
@@ -7,12 +8,7 @@ export async function buildGstPrintOptions(bill: DistributionBillData, showGst: 
   const irnPayload = resolveIrnQrPayload({ irnQr: bill.irnQr, qrCode: bill.irnQr });
   const billForPrint = irnPayload && bill.irnQr !== irnPayload ? { ...bill, irnQr: irnPayload } : bill;
   const [upiRes, irnRes] = await Promise.all([
-    bs?.bankUpiId
-      ? fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-          3000,
-        )
-      : Promise.resolve(undefined),
+    resolveUpiQrDataUrl(bs),
     irnPayload
       ? fetchImageAsDataUrl(
           `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnPayload)}`,
