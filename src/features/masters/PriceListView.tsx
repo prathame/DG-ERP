@@ -656,14 +656,16 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                         <Pencil size={14} />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteProduct(p.id, p.name)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                      title="Delete from catalog"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {productRules.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProduct(p.id, p.name)}
+                        className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                        title="Delete from catalog"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 {productRules.length > 0 && (
