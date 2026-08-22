@@ -664,6 +664,7 @@ export default function App() {
     setActiveTab(nav.tab);
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [showMobileMore, setShowMobileMore] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -1704,8 +1705,7 @@ export default function App() {
             {/* Sidebar — drawer on phone, rail or bar on desktop */}
             <aside
               className={cn(
-                'transition-transform duration-300 z-50 flex flex-col',
-                !isSidebarOpen && 'max-lg:hidden',
+                'transition-transform duration-300 z-50 flex flex-col max-lg:!hidden',
                 navH && 'lg:flex-row lg:items-stretch',
                 desktopGlass
                   ? 'dg-glass-sidebar shadow-none'
@@ -2216,16 +2216,16 @@ export default function App() {
                 })}
                 <button
                   type="button"
-                  onClick={() => setIsSidebarOpen(true)}
+                  onClick={() => setShowMobileMore(true)}
                   className={cn(
                     'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
-                    mobileMoreActive || isSidebarOpen ? 'text-brand' : 'text-gray-400',
+                    mobileMoreActive || showMobileMore ? 'text-brand' : 'text-gray-400',
                   )}
                 >
                   <span
                     className={cn(
                       'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
-                      (mobileMoreActive || isSidebarOpen) && 'bg-brand/10',
+                      (mobileMoreActive || showMobileMore) && 'bg-brand/10',
                     )}
                   >
                     <Menu size={17} />
@@ -2233,7 +2233,7 @@ export default function App() {
                   <span
                     className={cn(
                       'text-[9px] leading-tight font-medium',
-                      (mobileMoreActive || isSidebarOpen) && 'font-bold',
+                      (mobileMoreActive || showMobileMore) && 'font-bold',
                     )}
                   >
                     {t('nav.more')}
@@ -2241,6 +2241,82 @@ export default function App() {
                 </button>
               </div>
             </nav>
+
+            {/* Mobile More sheet — full nav list, replaces sidebar drawer on mobile */}
+            {showMobileMore && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/40 z-50 lg:hidden"
+                  onClick={() => setShowMobileMore(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className={cn(
+                    'fixed bottom-0 left-0 right-0 z-50 lg:hidden rounded-t-2xl max-h-[80vh] overflow-y-auto',
+                    capGlassHeader ? 'bg-[var(--dg-header)]' : 'bg-white',
+                  )}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <span className="text-sm font-semibold">Menu</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowMobileMore(false)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="p-3 pb-safe-bottom grid grid-cols-3 gap-2">
+                    {visibleNavItems
+                      .filter(item => canAccess(item.id) && companionAllows(item.id))
+                      .map(item => {
+                        const active = isNavItemActive(item.id, activeTab);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveTab(item.id as Tab);
+                              setShowMobileMore(false);
+                            }}
+                            className={cn(
+                              'flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-colors',
+                              active
+                                ? 'bg-brand/10 text-brand'
+                                : capGlassHeader
+                                  ? 'dg-m-muted hover:opacity-100'
+                                  : 'text-gray-600 hover:bg-gray-50',
+                            )}
+                          >
+                            <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
+                            <span className="truncate w-full text-center leading-tight">{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    {canAccess('settings') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('settings' as Tab);
+                          setShowMobileMore(false);
+                        }}
+                        className={cn(
+                          'flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-colors',
+                          activeTab === 'settings'
+                            ? 'bg-brand/10 text-brand'
+                            : capGlassHeader
+                              ? 'dg-m-muted hover:opacity-100'
+                              : 'text-gray-600 hover:bg-gray-50',
+                        )}
+                      >
+                        <Settings size={20} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
+                        <span className="truncate w-full text-center leading-tight">{t('nav.settings')}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
         {cmdOpen && (
