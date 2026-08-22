@@ -485,7 +485,7 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
 
   if (phone) {
     // 1. Try Baileys (WhatsApp Web session on server)
-    const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
+    const user = session.getUser() as { tenantId?: string } | null;
     if (user?.tenantId) {
       try {
         const r = await fetch('/api/whatsapp-web/send-text', {
@@ -494,7 +494,7 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
             'Content-Type': 'application/json',
             'x-tenant-id': user.tenantId,
             'x-dg-client': 'web',
-            Authorization: `Bearer ${user.accessToken || ''}`,
+            Authorization: `Bearer ${session.getToken() || ''}`,
           },
           body: JSON.stringify({ phone, message: opts.message }),
           signal: AbortSignal.timeout(5000),
@@ -1232,7 +1232,7 @@ export function shareViaWhatsApp(phone: string, message: string) {
     return;
   }
 
-  const user = session.getUser() as { tenantId?: string; accessToken?: string } | null;
+  const user = session.getUser() as { tenantId?: string } | null;
   const tenantId = user?.tenantId || '';
 
   void (async () => {
@@ -1244,7 +1244,7 @@ export function shareViaWhatsApp(phone: string, message: string) {
           headers: {
             'Content-Type': 'application/json',
             'x-tenant-id': tenantId,
-            Authorization: `Bearer ${(session.getUser() as { accessToken?: string } | null)?.accessToken || ''}`,
+            Authorization: `Bearer ${session.getToken() || ''}`,
             'x-dg-client': 'web',
           },
           body: JSON.stringify({ phone, message }),
