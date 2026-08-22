@@ -19,6 +19,7 @@ const DEFAULTS = {
   bankBranch: null,
   bankIfsc: null,
   bankUpiId: null,
+  bankUpiQrBase64: null,
   termsAndConditions: null,
   signatoryName: null,
   signatoryDesignation: null,
