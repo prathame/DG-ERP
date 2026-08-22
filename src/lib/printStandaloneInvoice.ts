@@ -392,22 +392,40 @@ export async function shareStandaloneInvoiceWhatsApp(
     if (electronResult) return electronResult;
   }
 
-  // Web browser — use HTML template (renders logo + signature correctly via html2canvas).
-  // jsPDF cannot render CSS-based logo placeholders or load images when logoBase64 is null.
-  waLog('info', 'WhatsApp invoice share start (web HTML)', { ...ctx, path: 'pdf' });
+  // Web browser — use jsPDF (no html2canvas freeze on main thread).
+  // html2canvas blocks for 3-10s making the app unresponsive — not acceptable for WhatsApp share.
+  waLog('info', 'WhatsApp invoice share start (web jsPDF)', { ...ctx, path: 'pdf' });
+  const user = (session.getUser() || {}) as {
+    companyName?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    gstNumber?: string;
+  };
+  const billSettings =
+    options?.billSettings || ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
   const filename = standaloneInvoicePdfBasename(shareInv.customerName);
+  const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType };
 
   try {
-    const { html } = await buildStandaloneInvoiceHtml(shareInv, options);
-    const { htmlToBase64Pdf } = await import('./utils');
-    const pdfBase64 = await htmlToBase64Pdf(html, filename + '.pdf');
-    if (!pdfBase64) throw new Error('Could not generate PDF');
-    const blob = new Uint8Array(
-      atob(pdfBase64)
-        .split('')
-        .map(c => c.charCodeAt(0)),
+    const blob = await buildStandaloneInvoicePdfBlob(
+      shareInv,
+      {
+        companyName: user.companyName,
+        address: user.address,
+        phone: user.phone,
+        email: user.email,
+        gstNumber: user.gstNumber,
+      },
+      pdfOpts,
     );
-    const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+    const pdfBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const pdfBlob = blob;
 
     const phone = (shareInv.customerPhone || '').trim();
 
