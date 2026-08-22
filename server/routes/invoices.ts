@@ -8,6 +8,7 @@ import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
+import { logger } from '../utils/logger';
 import { addCalendarDaysIso } from '../utils/partyCreditTerms';
 import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 
@@ -553,6 +554,30 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
       req.user?.userId,
       req.user?.name,
     );
+
+    // Auto E-Invoice: generate IRN when status moves to 'sent' and tenant has einvoice auto mode
+    if (status === 'sent' && inv.status !== 'sent') {
+      pool
+        .query('SELECT einvoice_enabled, einvoice_mode FROM tenants WHERE id = $1', [tenantId])
+        .then(async tr => {
+          const t = tr.rows[0] as { einvoice_enabled?: boolean; einvoice_mode?: string } | undefined;
+          if (!t?.einvoice_enabled || t.einvoice_mode !== 'auto') return;
+          // Fire auto IRN generation (reuse existing route logic)
+          const { generateStandaloneInvoiceIrn } = await import('../services/standaloneInvoiceGst').catch(() => ({
+            generateStandaloneInvoiceIrn: null as unknown as null,
+          }));
+          if (!generateStandaloneInvoiceIrn) return;
+          await generateStandaloneInvoiceIrn(pool, tenantId, req.params.id as string).catch(err => {
+            logger.warn('Auto E-Invoice generation failed', {
+              tenantId,
+              invoiceId: req.params.id,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        })
+        .catch(() => {});
+    }
+
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');

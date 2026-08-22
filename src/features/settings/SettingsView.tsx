@@ -184,6 +184,8 @@ function GstApiSection() {
     password: '',
     clientId: '',
     clientSecret: '',
+    einvoiceEnabled: false,
+    einvoiceMode: 'manual' as 'manual' | 'auto',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -199,6 +201,8 @@ function GstApiSection() {
           gstin: s.gstin || '',
           username: s.username || '',
           clientId: s.clientId || '',
+          einvoiceEnabled: !!(s as { einvoiceEnabled?: boolean }).einvoiceEnabled,
+          einvoiceMode: ((s as { einvoiceMode?: string }).einvoiceMode as 'manual' | 'auto') || 'manual',
         })),
       )
       .catch(() => {})
@@ -251,6 +255,66 @@ function GstApiSection() {
         </span>
       </div>
       <div className="p-6 space-y-5">
+        {/* Master toggle — enable / disable E-Invoice & EWB for this tenant */}
+        <div className="rounded-xl border border-gray-200 p-4 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-sm">Enable E-Invoice &amp; E-Way Bill</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Shows IRN and EWB buttons on invoices and distribution. Required for businesses with turnover &gt; ₹5
+                Cr.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.einvoiceEnabled}
+              onClick={() => setForm(f => ({ ...f, einvoiceEnabled: !f.einvoiceEnabled }))}
+              className={cn(
+                'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                form.einvoiceEnabled ? 'bg-brand' : 'bg-gray-300',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                  form.einvoiceEnabled ? 'translate-x-5' : 'translate-x-0',
+                )}
+                style={{ backgroundColor: '#FFFFFF' }}
+              />
+            </button>
+          </div>
+          {form.einvoiceEnabled && (
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Generation Mode</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ['manual', 'Manual', 'Click generate button per invoice — full control'],
+                    ['auto', 'Automatic', 'Auto-generate IRN when invoice is finalised / status set to Sent'],
+                  ] as const
+                ).map(([v, label, desc]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, einvoiceMode: v }))}
+                    className={cn(
+                      'text-left p-3 rounded-xl border text-sm transition-colors',
+                      form.einvoiceMode === v
+                        ? 'border-brand bg-orange-50 text-brand font-semibold'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300',
+                    )}
+                  >
+                    <p className="font-semibold">{label}</p>
+                    <p className="text-xs mt-0.5 font-normal text-gray-500">{desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <p className="text-sm text-gray-500">
           Connect to NIC's IRP portal to generate E-Invoice IRNs and E-Way Bills directly from distribution challans. No
           credentials needed in <strong>Mock</strong> mode — switch to <strong>Sandbox</strong> once you receive NIC

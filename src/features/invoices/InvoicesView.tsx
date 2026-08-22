@@ -56,6 +56,7 @@ import {
   whatsAppInvoiceShareToast,
 } from '../../lib/printStandaloneInvoice';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
+import { session } from '../../lib/session';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -970,15 +971,20 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                   </button>
                 </div>
               </div>
-              {invoiceHasGst(selectedInvoice) && selectedInvoice.status !== 'cancelled' && (
-                <InvoiceEInvoiceButtons
-                  invoice={selectedInvoice}
-                  onUpdated={patch => {
-                    setSelectedInvoice(prev => (prev ? { ...prev, ...patch } : prev));
-                    setInvoices(prev => prev.map(inv => (inv.id === selectedInvoice.id ? { ...inv, ...patch } : inv)));
-                  }}
-                />
-              )}
+              {invoiceHasGst(selectedInvoice) &&
+                selectedInvoice.status !== 'cancelled' &&
+                !!(session as { getUser?: () => { einvoiceEnabled?: boolean } | null }).getUser?.()
+                  ?.einvoiceEnabled && (
+                  <InvoiceEInvoiceButtons
+                    invoice={selectedInvoice}
+                    onUpdated={patch => {
+                      setSelectedInvoice(prev => (prev ? { ...prev, ...patch } : prev));
+                      setInvoices(prev =>
+                        prev.map(inv => (inv.id === selectedInvoice.id ? { ...inv, ...patch } : inv)),
+                      );
+                    }}
+                  />
+                )}
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm min-w-[420px]">
                   <thead>
