@@ -60,24 +60,6 @@ import { NAV_POSITIONS, getNavPositionPref, setNavPositionPref } from '../../lib
 import { UserGuidePanel } from './UserGuidePanel';
 import { WhatsAppWebPanel } from './WhatsAppWebPanel';
 import { EmailSettingsPanel } from './EmailSettingsPanel';
-
-function backupApiHeaders(extra?: Record<string, string>): Record<string, string> {
-  return {
-    Authorization: `Bearer ${session.getToken()}`,
-    'X-Tenant-ID': session.getTenantId() || '',
-    'x-dg-client': 'web',
-    ...extra,
-  };
-}
-
-async function backupApiErrorMessage(r: Response, fallback: string): Promise<string> {
-  try {
-    const j = (await r.json()) as { error?: string };
-    return j.error?.trim() || fallback;
-  } catch {
-    return fallback;
-  }
-}
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { fillMissingTabPresetKeys, getToggleableNavTabs, isPermissionModuleRelevant } from '../../../shared/tabPresets';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
@@ -101,6 +83,24 @@ import {
 import { DesktopSettingsTabNav, type DesktopSettingsTab, type DesktopSettingsTabId } from './DesktopSettingsPanel';
 import { MobileSettingsHub, MobileSettingsSheetChrome, moduleBlurb } from './MobileSettingsHub';
 import { BarcodeLabelTemplatesSection } from './barcodeLabels/BarcodeLabelTemplatesSection';
+
+function backupApiHeaders(extra?: Record<string, string>): Record<string, string> {
+  return {
+    Authorization: `Bearer ${session.getToken()}`,
+    'X-Tenant-ID': session.getTenantId() || '',
+    'x-dg-client': 'web',
+    ...extra,
+  };
+}
+
+async function backupApiErrorMessage(r: Response, fallback: string): Promise<string> {
+  try {
+    const j = (await r.json()) as { error?: string };
+    return j.error?.trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
