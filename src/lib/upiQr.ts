@@ -7,12 +7,19 @@ export function buildUpiPayLink(upiId: string, accountName?: string | null): str
   return `upi://pay?pa=${encodeURIComponent(pa)}&pn=${encodeURIComponent(pn)}&cu=INR`;
 }
 
-/** Generate a PNG data URL locally (no external qrserver fetch). */
+/** Generate a PNG data URL locally (no external API). */
+export async function generateQrDataUrl(text: string, width = 120): Promise<string> {
+  const payload = String(text || '').trim();
+  if (!payload) return '';
+  const { default: QRCode } = await import('qrcode');
+  return QRCode.toDataURL(payload, { width, margin: 1, errorCorrectionLevel: 'M' });
+}
+
+/** Generate a PNG data URL for a UPI pay link. */
 export async function generateUpiQrDataUrl(upiId: string, accountName?: string | null): Promise<string> {
   const link = buildUpiPayLink(upiId, accountName);
   if (!link) return '';
-  const { default: QRCode } = await import('qrcode');
-  return QRCode.toDataURL(link, { width: 120, margin: 1, errorCorrectionLevel: 'M' });
+  return generateQrDataUrl(link, 120);
 }
 
 /**

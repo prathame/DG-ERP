@@ -9,10 +9,9 @@ import { loadFreshCapBillPdfCache } from './capBillPdfCache';
 import { isNativeCapacitor } from './dhandhoFiles';
 import { isElectronAppShell } from './mobileAppShell';
 import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
-import { resolveUpiQrDataUrl } from './upiQr';
+import { resolveUpiQrDataUrl, generateQrDataUrl } from './upiQr';
 import {
   closePrintOverlay,
-  fetchImageAsDataUrl,
   openPrintWindow,
   printBillInWindow,
   PRINT_POPUP_BLOCKED,
@@ -147,11 +146,7 @@ async function buildStandaloneInvoiceHtml(
       : !isQuote && typeof inv.irn === 'string' && inv.irn.trim()
         ? inv.irn.trim()
         : '';
-  const irnQrDataUrl = irnQrPayload
-    ? await fetchImageAsDataUrl(
-        `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`,
-      )
-    : '';
+  const irnQrDataUrl = irnQrPayload ? await generateQrDataUrl(irnQrPayload, 120) : '';
   const phoneUx = isServiceProductUx(options?.businessType);
   const hasGst = invoiceHasGst(inv);
   const html = generateStandaloneInvoiceHtml(
@@ -412,11 +407,7 @@ export async function shareStandaloneInvoiceWhatsApp(
 
   const [upiQrDataUrl, irnQrDataUrl] = await Promise.all([
     resolveUpiQrDataUrl(billSettings),
-    irnQrPayload
-      ? fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`,
-        )
-      : Promise.resolve(''),
+    irnQrPayload ? generateQrDataUrl(irnQrPayload, 120) : Promise.resolve(''),
   ]);
 
   const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType, upiQrDataUrl, irnQrDataUrl };

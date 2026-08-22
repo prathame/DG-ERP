@@ -35,6 +35,7 @@ import {
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
+import { EInvoiceQrImage } from '../../components/ui/EInvoiceQrImage';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
@@ -287,13 +288,7 @@ function EInvoiceButtons({
             <p className="text-xs text-gray-500 font-mono mb-4 break-all" title={irn}>
               IRN: {irn}
             </p>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(resolveIrnQrPayload({ qrCode: qr }))}`}
-              alt="E-Invoice QR code"
-              width={240}
-              height={240}
-              className="mx-auto rounded-lg border border-gray-100"
-            />
+            <EInvoiceQrImage qrCode={qr} size={240} className="mx-auto rounded-lg border border-gray-100" />
             <p className="text-[11px] text-gray-400 mt-3">Scan with GST / e-invoice apps</p>
             <button
               type="button"

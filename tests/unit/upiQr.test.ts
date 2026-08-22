@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildUpiPayLink, generateUpiQrDataUrl, storedUpiQrDataUrl } from '../../src/lib/upiQr';
+import { buildUpiPayLink, generateUpiQrDataUrl, generateQrDataUrl, storedUpiQrDataUrl } from '../../src/lib/upiQr';
 
 describe('upiQr', () => {
   it('builds a standard UPI deep link', () => {
@@ -14,6 +14,11 @@ describe('upiQr', () => {
     const dataUrl = await generateUpiQrDataUrl('merchant@upi', 'Test Shop');
     expect(dataUrl.startsWith('data:image/png;base64,')).toBe(true);
     expect(dataUrl.length).toBeGreaterThan(500);
+  });
+
+  it('generates arbitrary QR payloads', async () => {
+    const dataUrl = await generateQrDataUrl('IRN-DEMO-PAYLOAD', 140);
+    expect(dataUrl.startsWith('data:image/png;base64,')).toBe(true);
   });
 
   it('returns stored QR without generating', () => {

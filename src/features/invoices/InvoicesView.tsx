@@ -38,6 +38,7 @@ import {
   QuickAddProductModal,
   BillLineUnitLabel,
 } from '../../components/ui';
+import { EInvoiceQrImage } from '../../components/ui/EInvoiceQrImage';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
@@ -313,13 +314,7 @@ function InvoiceEInvoiceButtons({
             <p className="text-xs text-gray-500 font-mono mb-4 break-all" title={irn}>
               IRN: {irn}
             </p>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(resolveIrnQrPayload({ qrCode: qr }))}`}
-              alt="E-Invoice QR code"
-              width={240}
-              height={240}
-              className="mx-auto rounded-lg border border-gray-100"
-            />
+            <EInvoiceQrImage qrCode={qr} size={240} className="mx-auto rounded-lg border border-gray-100" />
             <button
               type="button"
               onClick={() => setShowQrModal(false)}
