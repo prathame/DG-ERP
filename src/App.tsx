@@ -1705,6 +1705,7 @@ export default function App() {
             <aside
               className={cn(
                 'transition-transform duration-300 z-50 flex flex-col',
+                !isSidebarOpen && 'max-lg:hidden',
                 navH && 'lg:flex-row lg:items-stretch',
                 desktopGlass
                   ? 'dg-glass-sidebar shadow-none'
