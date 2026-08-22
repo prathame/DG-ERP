@@ -83,7 +83,7 @@ router.post('/api/auth/login', async (req, res) => {
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
              t.trial_ends_at, t.subscription_ends_at, t.tab_config, t.business_type,
              t.client_access_mode, t.mobile_features, t.plan_id,
-             t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone
+             t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone, t.einvoice_enabled, t.einvoice_mode
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL} ${slugClause} LIMIT 1
@@ -228,6 +228,8 @@ router.post('/api/auth/login', async (req, res) => {
       multiLanguageEnabled: row.multi_language_enabled !== false,
       inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
       whatsappBusinessEnabled: !!row.whatsapp_business_enabled,
+      einvoiceEnabled: !!row.einvoice_enabled,
+      einvoiceMode: (row.einvoice_mode as string) || 'manual',
       whatsappSendMode: (row.whatsapp_send_mode as string) || null,
       whatsappApiAllowed: !!row.whatsapp_api_allowed,
       whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,
@@ -291,7 +293,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
                 u.whatsapp_api_allowed,
                 t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
                 t.tab_config, t.business_type, t.client_access_mode, t.mobile_features,
-                t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone,
+                t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone, t.einvoice_enabled, t.einvoice_mode,
                 t.plan_id, t.status AS tenant_status, t.trial_ends_at, t.subscription_ends_at
          FROM users u JOIN tenants t ON u.tenant_id = t.id
          WHERE u.id = $1 AND u.tenant_id = $2`,
@@ -356,6 +358,8 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       multiLanguageEnabled: row.multi_language_enabled !== false,
       inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
       whatsappBusinessEnabled: !!row.whatsapp_business_enabled,
+      einvoiceEnabled: !!row.einvoice_enabled,
+      einvoiceMode: (row.einvoice_mode as string) || 'manual',
       whatsappSendMode: (row.whatsapp_send_mode as string) || null,
       whatsappApiAllowed: !!row.whatsapp_api_allowed,
       whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,

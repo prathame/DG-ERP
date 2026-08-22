@@ -94,12 +94,17 @@ router.get('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
         [tenantId],
       )
     ).rows[0] as Record<string, string> | undefined;
+    const tenantRow = (
+      await pool.query('SELECT einvoice_enabled, einvoice_mode FROM tenants WHERE id = $1', [tenantId])
+    ).rows[0] as Record<string, unknown> | undefined;
     res.json({
       mode: row?.gst_api_mode || 'mock',
       gstin: row?.gst_api_gstin || '',
       username: row?.gst_api_username || '',
       clientId: row?.gst_api_client_id || '',
       sellerPin: row?.gst_api_seller_pin || '',
+      einvoiceEnabled: !!tenantRow?.einvoice_enabled,
+      einvoiceMode: (tenantRow?.einvoice_mode as string) || 'manual',
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -110,7 +115,17 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { mode, gstin, username, password, clientId, clientSecret, sellerPin } = req.body;
+    const { mode, gstin, username, password, clientId, clientSecret, sellerPin, einvoiceEnabled, einvoiceMode } =
+      req.body;
+    // Save einvoice toggle to tenants table
+    if (einvoiceEnabled !== undefined) {
+      await pool.query(
+        'UPDATE tenants SET einvoice_enabled = $1, einvoice_mode = COALESCE($2, einvoice_mode) WHERE id = $3',
+        [!!einvoiceEnabled, einvoiceMode || null, tenantId],
+      );
+    } else if (einvoiceMode !== undefined) {
+      await pool.query('UPDATE tenants SET einvoice_mode = $1 WHERE id = $2', [einvoiceMode, tenantId]);
+    }
     const validModes: GstApiMode[] = ['mock', 'sandbox', 'production'];
     if (mode && !validModes.includes(mode))
       return res.status(400).json({ error: 'Invalid mode. Use: mock, sandbox, production' });
