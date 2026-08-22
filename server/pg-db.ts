@@ -288,6 +288,9 @@ export async function initSchema() {
       );
       -- Add bootstrap_token to existing tenants tables (idempotent)
       ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bootstrap_token TEXT;
+      -- E-Invoice & E-Way Bill toggle (added here so auth.ts SELECT works immediately)
+      ALTER TABLE tenants ADD COLUMN IF NOT EXISTS einvoice_enabled BOOLEAN DEFAULT false;
+      ALTER TABLE tenants ADD COLUMN IF NOT EXISTS einvoice_mode TEXT DEFAULT 'manual';
 
       CREATE TABLE IF NOT EXISTS tenant_stats (
         id SERIAL PRIMARY KEY,
