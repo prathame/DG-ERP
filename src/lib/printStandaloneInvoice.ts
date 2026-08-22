@@ -405,7 +405,29 @@ export async function shareStandaloneInvoiceWhatsApp(
   const billSettings =
     options?.billSettings || ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
   const filename = standaloneInvoicePdfBasename(shareInv.customerName);
-  const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType };
+
+  // Fetch QR codes in parallel — only fetch IRN QR if E-Invoice toggle is on
+  const einvoiceEnabled = !!(session.getUser() as { einvoiceEnabled?: boolean } | null)?.einvoiceEnabled;
+  const irnQrPayload = einvoiceEnabled
+    ? (shareInv as unknown as { irnQr?: string; irn?: string }).irnQr ||
+      (shareInv as unknown as { irn?: string }).irn ||
+      ''
+    : '';
+
+  const [upiQrDataUrl, irnQrDataUrl] = await Promise.all([
+    (billSettings.bankUpiId as string)
+      ? fetchImageAsDataUrl(
+          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${billSettings.bankUpiId}&pn=${billSettings.bankAccountName || 'Business'}&cu=INR`)}`,
+        )
+      : Promise.resolve(''),
+    irnQrPayload
+      ? fetchImageAsDataUrl(
+          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`,
+        )
+      : Promise.resolve(''),
+  ]);
+
+  const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType, upiQrDataUrl, irnQrDataUrl };
 
   // Fetch QR codes in parallel — only fetch IRN QR if E-Invoice toggle is on
   const einvoiceEnabled = !!(session.getUser() as { einvoiceEnabled?: boolean } | null)?.einvoiceEnabled;
