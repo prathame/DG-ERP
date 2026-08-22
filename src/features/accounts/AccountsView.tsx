@@ -665,7 +665,7 @@ export function AccountsView({
           onGstYear={setGstYear}
           loading={loading}
           onGenerate={loadData}
-          onExport={!booksSelfContained && data ? exportRows : undefined}
+          onExport={canExport ? exportRows : undefined}
           canExport={canExport}
           onPrint={!booksSelfContained && data ? handlePrint : undefined}
           gstr1Slot={gstr1Button(
