@@ -96,7 +96,7 @@ function makeTempAuthDir(tenantId: string): string {
 }
 
 /** Connect (or reconnect) a tenant's WhatsApp session. */
-export async function connectSession(tenantId: string): Promise<void> {
+export async function connectSession(tenantId: string, userInitiated = true): Promise<void> {
   const session = sessionFor(tenantId);
   logger.info('WA connect start', { tenantId });
 
@@ -123,7 +123,15 @@ export async function connectSession(tenantId: string): Promise<void> {
     const result = await useMultiFileAuthState(authDir);
     state = result.state;
     saveCreds = result.saveCreds;
-    logger.info('WA auth state loaded', { tenantId, authDir, hasCreds: !!result.state.creds.me });
+    const hasCreds = !!result.state.creds.me;
+    logger.info('WA auth state loaded', { tenantId, authDir, hasCreds });
+    // Auto-reconnect without credentials → would just show QR without user asking.
+    // Only proceed if user clicked Connect or we have saved credentials.
+    if (!hasCreds && !userInitiated) {
+      session.status = 'disconnected';
+      logger.info('WA auto-reconnect skipped — no saved creds, user must click Connect', { tenantId });
+      return;
+    }
   } catch (err) {
     logger.error('WA auth state load failed', {
       tenantId,
@@ -248,8 +256,8 @@ export async function connectSession(tenantId: string): Promise<void> {
         session.authDir = null;
         await clearSession(tenantId);
       } else {
-        // Reconnect (network drop, timeout, etc.)
-        setTimeout(() => connectSession(tenantId), 3000);
+        // Reconnect on network drop — userInitiated=false so won't show QR if creds lost
+        setTimeout(() => connectSession(tenantId, false), 3000);
       }
     }
   });
@@ -365,17 +373,22 @@ async function clearSession(tenantId: string): Promise<void> {
 }
 
 /** On server startup, reconnect all tenants that have saved sessions. */
+/** On server startup, only reconnect tenants that previously connected successfully (phone_number set).
+ *  Tenants that never completed the QR scan are NOT auto-reconnected — they must click Connect.
+ *  This prevents the QR being shown continuously without user interaction. */
 export async function reconnectAllSavedSessions(pool: Pool): Promise<void> {
   initWhatsAppSessionPool(pool);
   try {
     const { rows } = await pool.query(
-      `SELECT tenant_id, phone_number FROM whatsapp_web_sessions WHERE auth_state != '{}'::jsonb`,
+      `SELECT tenant_id, phone_number FROM whatsapp_web_sessions
+       WHERE auth_state != '{}'::jsonb AND phone_number IS NOT NULL`,
     );
-    for (const row of rows as { tenant_id: string; phone_number: string | null }[]) {
+    for (const row of rows as { tenant_id: string; phone_number: string }[]) {
       const s = sessionFor(row.tenant_id);
       s.phoneNumber = row.phone_number;
       // Reconnect in background — don't block server startup
-      connectSession(row.tenant_id).catch(err => {
+      // userInitiated=false: if creds expired (no hasCreds), stops rather than showing QR
+      connectSession(row.tenant_id, false).catch(err => {
         logger.warn('WA reconnect failed', { tenantId: row.tenant_id, error: String(err) });
       });
     }
