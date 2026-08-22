@@ -663,7 +663,7 @@ export default function App() {
     }
     setActiveTab(nav.tab);
   };
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -1696,7 +1696,7 @@ export default function App() {
             {/* Mobile sidebar backdrop */}
             {isSidebarOpen && (
               <div
-                className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px] dg-fade-enter"
+                className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-[1px] dg-fade-enter"
                 onClick={() => setIsSidebarOpen(false)}
                 aria-hidden="true"
               />
@@ -1705,7 +1705,6 @@ export default function App() {
             <aside
               className={cn(
                 'transition-transform duration-300 z-50 flex flex-col',
-                !isSidebarOpen && 'max-lg:hidden',
                 navH && 'lg:flex-row lg:items-stretch',
                 desktopGlass
                   ? 'dg-glass-sidebar shadow-none'
@@ -1726,18 +1725,11 @@ export default function App() {
                         navPos === 'top' && 'lg:border-b lg:border-gray-200',
                         navPos === 'bottom' && 'lg:border-t lg:border-gray-200',
                       ),
-                'fixed lg:relative',
-                drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
+                'relative shrink-0',
                 'h-[100dvh] max-h-[100dvh]',
-                navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
-                navH && 'lg:h-14 lg:overflow-visible',
-                isSidebarOpen
-                  ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
-                  : cn(
-                      'w-16 lg:translate-x-0',
-                      drawerRight ? 'translate-x-full' : '-translate-x-full',
-                      navH && 'lg:w-full',
-                    ),
+                navH && 'inset-x-0 left-0 right-0 inset-y-auto max-h-none min-h-0',
+                navH && 'h-14 overflow-visible',
+                isSidebarOpen ? cn('w-64 translate-x-0', navH && 'w-full') : cn('w-16 translate-x-0', navH && 'w-full'),
               )}
             >
               {/* Sticky brand / profile */}
@@ -2175,7 +2167,7 @@ export default function App() {
             {/* Mobile bottom nav — primary destinations + More drawer */}
             <nav
               className={cn(
-                'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t lg:hidden safe-bottom',
+                'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t hidden safe-bottom',
                 capGlassHeader
                   ? 'bg-[var(--dg-header)] border-[var(--dg-card-border)] shadow-[0_-2px_16px_rgba(0,0,0,0.2)]'
                   : 'bg-white/95 border-gray-200 shadow-[0_-2px_16px_rgba(0,0,0,0.05)]',
