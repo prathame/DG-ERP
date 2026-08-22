@@ -45,6 +45,16 @@ describe('buildStandaloneInvoicePdfBlob', () => {
     expect(blob.size).toBeGreaterThan(2000);
   });
 
+  it('embeds UPI QR when bankUpiQrBase64 is in bill settings', async () => {
+    const tinyPng =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const withQr = await buildStandaloneInvoicePdfBlob(sampleInvoice, sampleCompany, {
+      hasGst: true,
+      billSettings: { bankUpiId: 'test@upi', bankUpiQrBase64: tinyPng, bankAccountName: 'Test' },
+    });
+    const withoutQr = await buildStandaloneInvoicePdfBlob(sampleInvoice, sampleCompany, { hasGst: true });
+    expect(withQr.size).toBeGreaterThan(withoutQr.size);
+  });
   it('throws when invoice has no line items', async () => {
     await expect(buildStandaloneInvoicePdfBlob({ ...sampleInvoice, items: [] }, sampleCompany)).rejects.toThrow(
       /no line items/i,

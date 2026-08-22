@@ -30,6 +30,7 @@ import {
 } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
 import { formatBillQty } from '../../shared/billUnits';
+import { resolveUpiQrDataUrl, storedUpiQrDataUrl } from './upiQr';
 
 const BORDER = 34; // ~#222 — all strokes use this (no washed #ccc/#c8 grays)
 const MUTED = 100;
@@ -37,8 +38,13 @@ const FILL = 245;
 const ACCENT_DEFAULT = '#F27D26';
 const LINE_W = 0.35;
 
+/** jsPDF Helvetica lacks Unicode ₹ — use Rs. to avoid garbled amounts (¹ 1 0 0 . 0 0). */
 function money(n: number): string {
-  return `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rs.${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtGstPct(n: number): string {
+  return `${Number(n || 0).toFixed(1)}%`;
 }
 
 type HsnGstRow = { taxable: number; tax: number; rate: number; cgst: number; sgst: number; igst: number };
@@ -148,7 +154,10 @@ export async function buildStandaloneInvoicePdfBlob(
   const isQuote = options?.docType === 'quotation';
   const hasGst = options?.hasGst ?? invoiceHasGst(inv);
   const bs = options?.billSettings || {};
-  const upiQrDataUrl = options?.upiQrDataUrl || '';
+  let upiQrDataUrl = options?.upiQrDataUrl || storedUpiQrDataUrl(bs);
+  if (!upiQrDataUrl && !isQuote && bs.bankUpiId) {
+    upiQrDataUrl = await resolveUpiQrDataUrl(bs);
+  }
   const irnQrDataUrl = options?.irnQrDataUrl || '';
   const companyName = company.companyName || 'Dhandho';
   const footerText = String(bs.footerText || 'Powered by Dhandho Management');
@@ -408,16 +417,16 @@ export async function buildStandaloneInvoicePdfBlob(
     setBorder();
     doc.rect(margin, y, contentW, h, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.text('#', colHash, y + 4.8);
     doc.text('ITEM NAME', colItem, y + 4.8);
-    if (showHsn) doc.text('HSN', colHsnL, y + 4.8);
+    if (showHsn) doc.text('HSN/SAC', colHsnL, y + 4.8);
     doc.text('QTY', colQtyR, y + 4.8, { align: 'right' });
     doc.text('PRICE/UNIT', colRateR, y + 4.8, { align: 'right' });
     if (showDisc) doc.text('DISC%', colDiscR, y + 4.8, { align: 'right' });
     if (hasGst) {
       doc.text('GST%', colGstPctR, y + 4.8, { align: 'right' });
-      doc.text('TAX', colGstTaxR, y + 4.8, { align: 'right' });
+      doc.text('TAX AMT', colGstTaxR, y + 4.8, { align: 'right' });
     }
     doc.text('AMOUNT', colAmtR, y + 4.8, { align: 'right' });
     y += h;
@@ -466,7 +475,7 @@ export async function buildStandaloneInvoicePdfBlob(
       doc.text(d > 0 ? `${d}%` : '—', colDiscR, y + 4.5, { align: 'right' });
     }
     if (hasGst) {
-      doc.text(`${Number(it.gstPercent || 0).toFixed(0)}%`, colGstPctR, y + 4.5, { align: 'right' });
+      doc.text(fmtGstPct(it.gstPercent || 0), colGstPctR, y + 4.5, { align: 'right' });
       doc.text(money(it.tax), colGstTaxR, y + 4.5, { align: 'right' });
     }
     doc.text(money(it.total), colAmtR, y + 4.5, { align: 'right' });
@@ -599,14 +608,14 @@ export async function buildStandaloneInvoicePdfBlob(
         const colCgstR = margin + contentW * 0.52;
         const colSgstPctR = margin + contentW * 0.64;
         const colSgstR = margin + contentW * 0.76;
-        doc.setFontSize(6.5);
-        doc.text('HSN', colHsn, y + 4.8);
-        doc.text('Taxable', colTaxR, y + 4.8, { align: 'right' });
+        doc.setFontSize(6);
+        doc.text('HSN/SAC', colHsn, y + 4.8);
+        doc.text('Taxable Amt', colTaxR, y + 4.8, { align: 'right' });
         doc.text('CGST%', colCgstPctR, y + 4.8, { align: 'right' });
-        doc.text('CGST', colCgstR, y + 4.8, { align: 'right' });
+        doc.text('CGST Amt', colCgstR, y + 4.8, { align: 'right' });
         doc.text('SGST%', colSgstPctR, y + 4.8, { align: 'right' });
-        doc.text('SGST', colSgstR, y + 4.8, { align: 'right' });
-        doc.text('Tax', colAmtR, y + 4.8, { align: 'right' });
+        doc.text('SGST Amt', colSgstR, y + 4.8, { align: 'right' });
+        doc.text('Total Tax', colAmtR, y + 4.8, { align: 'right' });
         let hy = y + hdrRowH;
         doc.setFont('helvetica', 'normal');
         for (const [hsn, row] of hsnEntries) {
@@ -656,20 +665,27 @@ export async function buildStandaloneInvoicePdfBlob(
 
   // —— Bank | Signatory (from billSettings template; bank omitted for quotations) ——
   const hasBank = !isQuote && !!(bs.bankAccountName || bs.bankAccountNumber || bs.bankName || bs.bankUpiId);
-  const bankLines: string[] = [];
+  const bankRows: { label: string; value: string }[] = [];
   if (hasBank) {
-    bankLines.push('Bank Details');
-    if (bs.bankAccountName) bankLines.push(`Name: ${String(bs.bankAccountName)}`);
+    if (bs.bankAccountName) bankRows.push({ label: 'Name', value: String(bs.bankAccountName) });
     if (bs.bankName) {
-      bankLines.push(`Bank: ${String(bs.bankName)}${bs.bankBranch ? `, ${String(bs.bankBranch)}` : ''}`);
+      bankRows.push({
+        label: 'Bank',
+        value: `${String(bs.bankName)}${bs.bankBranch ? `, ${String(bs.bankBranch)}` : ''}`,
+      });
     }
-    if (bs.bankAccountNumber) bankLines.push(`A/c No.: ${String(bs.bankAccountNumber)}`);
-    if (bs.bankIfsc) bankLines.push(`IFSC: ${String(bs.bankIfsc)}`);
-    if (bs.bankUpiId) bankLines.push(`UPI: ${String(bs.bankUpiId)}`);
+    if (bs.bankAccountNumber) bankRows.push({ label: 'A/c No.', value: String(bs.bankAccountNumber) });
+    if (bs.bankIfsc) bankRows.push({ label: 'IFSC', value: String(bs.bankIfsc) });
+    if (bs.bankUpiId) bankRows.push({ label: 'UPI', value: String(bs.bankUpiId) });
   }
   const footMid = margin + contentW * 0.55;
-  const upiQrSize = upiQrDataUrl ? 18 : 0; // 18mm QR code in bank section
-  const bankBlockH = hasBank ? 6 + bankLines.length * 3.6 + upiQrSize : 8;
+  const bankLabelX = margin + 3;
+  const bankValueX = margin + 24;
+  const bankRowH = 3.6;
+  const qrImgSize = 18;
+  const qrCaptionH = upiQrDataUrl ? 4 : 0;
+  const qrBlockH = upiQrDataUrl ? qrImgSize + qrCaptionH + 2 : 0;
+  const bankBlockH = hasBank ? 6 + bankRows.length * bankRowH + qrBlockH : 8;
   const sigBlockH = 32;
   const footH = Math.max(bankBlockH, sigBlockH);
 
@@ -679,16 +695,31 @@ export async function buildStandaloneInvoicePdfBlob(
   doc.line(footMid, y, footMid, y + footH);
 
   if (hasBank) {
-    let by2 = y + 5;
-    bankLines.forEach((ln, idx) => {
-      doc.setFont('helvetica', idx === 0 ? 'bold' : 'normal');
-      doc.setFontSize(idx === 0 ? 8.5 : 7.5);
-      doc.text(ln, margin + 3, by2);
-      by2 += 3.6;
-    });
-    // UPI QR code
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text('Bank Details', bankLabelX, y + 5);
+    let by2 = y + 9;
+    for (const row of bankRows) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(MUTED);
+      doc.text(row.label, bankLabelX, by2);
+      doc.setTextColor(0);
+      const valueLines = wrapLines(doc, row.value, footMid - bankValueX - 4);
+      for (let vi = 0; vi < valueLines.length; vi++) {
+        doc.text(valueLines[vi], bankValueX, by2 + vi * 3.2);
+      }
+      by2 += bankRowH + Math.max(0, valueLines.length - 1) * 3.2;
+    }
     if (upiQrDataUrl) {
-      tryAddImage(doc, upiQrDataUrl, margin + 3, by2 + 1, 16, 16);
+      const qrY = by2 + 1;
+      if (tryAddImage(doc, upiQrDataUrl, bankLabelX, qrY, qrImgSize, qrImgSize)) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(MUTED);
+        doc.text('Scan to pay via UPI', bankLabelX + qrImgSize / 2, qrY + qrImgSize + 3, { align: 'center' });
+        doc.setTextColor(0);
+      }
     }
   } else {
     doc.setFont('helvetica', 'normal');
