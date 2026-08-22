@@ -123,10 +123,11 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
 
   const openEdit = (rule: PriceRule) => {
     setEditingId(rule.id);
+    const prod = products.find(p => p.id === rule.productId);
     setForm({
       name: rule.name || '',
       productId: rule.productId || '',
-      newItemName: '',
+      newItemName: prod?.name || '',
       vendorId: rule.vendorId || '',
       minQty: String(rule.minQty ?? 1),
       maxQty: rule.maxQty != null ? String(rule.maxQty) : '',
@@ -181,17 +182,27 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     if (editingId) {
       setSubmitting(true);
       try {
-        await fetchApi(`/price-lists/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            name: form.name || undefined,
-            minQty: Number(form.minQty) || 1,
-            maxQty: form.maxQty ? Number(form.maxQty) : null,
-            price: Number(form.price),
-            validFrom: form.validFrom || null,
-            validTo: form.validTo || null,
+        const prod = products.find(p => p.id === form.productId);
+        const renames = serviceCatalogUx && form.newItemName.trim() && form.newItemName.trim() !== prod?.name;
+        await Promise.all([
+          fetchApi(`/price-lists/${editingId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              name: form.name || undefined,
+              minQty: Number(form.minQty) || 1,
+              maxQty: form.maxQty ? Number(form.maxQty) : null,
+              price: Number(form.price),
+              validFrom: form.validFrom || null,
+              validTo: form.validTo || null,
+            }),
           }),
-        });
+          renames
+            ? fetchApi(`/products/${form.productId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ name: form.newItemName.trim() }),
+              })
+            : Promise.resolve(),
+        ]);
         closeModal();
         load();
         toast('Price rule updated', 'success');
@@ -635,22 +646,26 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   <span className="font-bold text-sm text-gray-800 truncate">{p.name}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-bold text-brand">₹{(Number(p.price) || 0).toLocaleString('en-IN')}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleEditProductPrice(p)}
-                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                      title="Edit price"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteProduct(p.id, p.name)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                      title="Delete from catalog"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {productRules.length === 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleEditProductPrice(p)}
+                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                          title="Edit price"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(p.id, p.name)}
+                          className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                          title="Delete from catalog"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 {productRules.length > 0 && (
@@ -806,32 +821,43 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
                     {serviceCatalogUx ? 'Item *' : 'Product *'}
                   </label>
-                  <select
-                    required
-                    disabled={!!editingId}
-                    value={form.productId}
-                    onChange={e => setForm({ ...form, productId: e.target.value, newItemName: '' })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm disabled:bg-gray-50 disabled:text-gray-500"
-                  >
-                    {serviceCatalogUx ? (
-                      <option value={NEW_ITEM}>+ New item</option>
-                    ) : (
-                      <option value="">Select product</option>
-                    )}
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (₹{Number(p.price).toLocaleString('en-IN')})
-                      </option>
-                    ))}
-                  </select>
-                  {serviceCatalogUx && !editingId && form.productId === NEW_ITEM && (
+                  {serviceCatalogUx && editingId ? (
                     <input
-                      className="w-full mt-2 px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
                       value={form.newItemName}
                       onChange={e => setForm({ ...form, newItemName: e.target.value })}
-                      placeholder="e.g. Wiring repair, Fan install"
-                      autoFocus
+                      placeholder="Item name"
                     />
+                  ) : (
+                    <>
+                      <select
+                        required
+                        disabled={!!editingId}
+                        value={form.productId}
+                        onChange={e => setForm({ ...form, productId: e.target.value, newItemName: '' })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm disabled:bg-gray-50 disabled:text-gray-500"
+                      >
+                        {serviceCatalogUx ? (
+                          <option value={NEW_ITEM}>+ New item</option>
+                        ) : (
+                          <option value="">Select product</option>
+                        )}
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (₹{Number(p.price).toLocaleString('en-IN')})
+                          </option>
+                        ))}
+                      </select>
+                      {serviceCatalogUx && !editingId && form.productId === NEW_ITEM && (
+                        <input
+                          className="w-full mt-2 px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                          value={form.newItemName}
+                          onChange={e => setForm({ ...form, newItemName: e.target.value })}
+                          placeholder="e.g. Wiring repair, Fan install"
+                          autoFocus
+                        />
+                      )}
+                    </>
                   )}
                 </div>
                 {tab === 'vendor' && (
