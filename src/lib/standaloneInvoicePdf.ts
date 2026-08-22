@@ -37,8 +37,9 @@ const FILL = 245;
 const ACCENT_DEFAULT = '#F27D26';
 const LINE_W = 0.35;
 
+/** jsPDF Helvetica lacks Unicode ₹ — use Rs. to avoid garbled amounts (¹ 1 0 0 . 0 0). */
 function money(n: number): string {
-  return `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rs.${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 type HsnGstRow = { taxable: number; tax: number; rate: number; cgst: number; sgst: number; igst: number };
