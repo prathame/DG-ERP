@@ -232,5 +232,6 @@ export function defaultDateRangeFromReportingPeriod(asOf = new Date()): { from: 
     return { from: r.from, to: r.to };
   }
   if (saved?.from && saved?.to) return { from: saved.from, to: saved.to };
-  return indianFyRange(asOf);
+  const fy = indianFyRange(asOf);
+  return { from: fy.from, to: fy.to };
 }
