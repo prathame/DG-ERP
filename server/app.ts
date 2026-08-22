@@ -316,7 +316,6 @@ export function createApp(): express.Application {
   }
 
   app.use('/api/backup/restore', express.json({ limit: '50mb' }));
-  app.use('/api/whatsapp-web/send-pdf', express.json({ limit: '20mb' }));
   app.use(express.json({ limit: '2mb' }));
 
   // Global API rate limit (authenticated + public) — auth endpoints have tighter limits below.
