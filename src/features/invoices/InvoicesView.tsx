@@ -38,6 +38,7 @@ import {
   QuickAddProductModal,
   BillLineUnitLabel,
 } from '../../components/ui';
+import { EInvoiceQrImage } from '../../components/ui/EInvoiceQrImage';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
@@ -313,13 +314,7 @@ function InvoiceEInvoiceButtons({
             <p className="text-xs text-gray-500 font-mono mb-4 break-all" title={irn}>
               IRN: {irn}
             </p>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(resolveIrnQrPayload({ qrCode: qr }))}`}
-              alt="E-Invoice QR code"
-              width={240}
-              height={240}
-              className="mx-auto rounded-lg border border-gray-100"
-            />
+            <EInvoiceQrImage qrCode={qr} size={240} className="mx-auto rounded-lg border border-gray-100" />
             <button
               type="button"
               onClick={() => setShowQrModal(false)}
@@ -569,18 +564,14 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
         email?: string;
         gstNumber?: string;
       } | null;
-      const { fetchImageAsDataUrl } = await import('../../lib/utils');
+      const { resolveUpiQrDataUrl } = await import('../../lib/upiQr');
       const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
       const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
       const sigSrc =
         typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/')
           ? bs.signatureBase64
           : '';
-      const upiQrDataUrl = bs.bankUpiId
-        ? await fetchImageAsDataUrl(
-            `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&cu=INR`)}`,
-          ).catch(() => '')
-        : '';
+      const upiQrDataUrl = bs.bankUpiId ? await resolveUpiQrDataUrl(bs) : '';
       const html = generateStandaloneInvoiceHtml(
         inv,
         {

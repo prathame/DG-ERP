@@ -21,10 +21,12 @@ import type { jsPDF } from 'jspdf';
 
 import {
   amountInWords,
+  placeOfSupplyLabel,
   safeImgSrc,
   type BillDocType,
   type StandaloneInvoicePrint,
   type StandaloneInvoicePrintCompany,
+  type StandaloneInvoicePrintItem,
 } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
 import { formatBillQty } from '../../shared/billUnits';
@@ -36,7 +38,27 @@ const ACCENT_DEFAULT = '#F27D26';
 const LINE_W = 0.35;
 
 function money(n: number): string {
-  return `Rs ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+type HsnGstRow = { taxable: number; tax: number; rate: number; cgst: number; sgst: number; igst: number };
+
+function buildHsnGstMap(items: StandaloneInvoicePrintItem[], useIgst: boolean): Map<string, HsnGstRow> {
+  const hsnMap = new Map<string, HsnGstRow>();
+  for (const it of items) {
+    const key = String(it.hsnSac || '—').trim() || '—';
+    const cur = hsnMap.get(key) || { taxable: 0, tax: 0, rate: Number(it.gstPercent || 0), cgst: 0, sgst: 0, igst: 0 };
+    cur.taxable += Number(it.taxable || 0);
+    cur.tax += Number(it.tax || 0);
+    cur.rate = Number(it.gstPercent || cur.rate || 0);
+    if (useIgst) cur.igst += Number(it.tax || 0);
+    else {
+      cur.cgst += Number(it.tax || 0) / 2;
+      cur.sgst += Number(it.tax || 0) / 2;
+    }
+    hsnMap.set(key, cur);
+  }
+  return hsnMap;
 }
 
 function fmtDate(dateStr: string | null | undefined): string {
@@ -242,20 +264,31 @@ export async function buildStandaloneInvoicePdfBlob(
   if (company.email) companyLines.push(`Email: ${company.email}`);
   if (company.gstNumber) companyLines.push(`GSTIN: ${company.gstNumber}`);
   if (tagline) companyLines.push(tagline);
-  const metaRows: [string, string][] = [
-    [numberLabel, `${invPrefix}${inv.invoiceNumber}`],
-    ['Date', fmtDate(inv.invoiceDate)],
+  const metaEntries: { label: string; value: string; wrap?: boolean }[] = [
+    { label: numberLabel, value: `${invPrefix}${inv.invoiceNumber}` },
+    { label: 'Date', value: fmtDate(inv.invoiceDate) },
   ];
-  if (isQuote && inv.dueDate) metaRows.push(['Valid until', fmtDate(inv.dueDate)]);
-  if (!isQuote && String(inv.status || '').toLowerCase() === 'paid') metaRows.push(['Status', 'PAID']);
-  if (isQuote && inv.status) metaRows.push(['Status', String(inv.status)]);
-  // IRN details (when E-Invoice toggle is on and IRN exists)
-  const irnVal = (inv as unknown as { irn?: string | null }).irn;
-  const irnAckNo = (inv as unknown as { irnAckNo?: string | null }).irnAckNo;
-  if (!isQuote && irnVal) metaRows.push(['IRN', String(irnVal).slice(0, 20) + '…']);
-  if (!isQuote && irnAckNo) metaRows.push(['Ack No', String(irnAckNo)]);
+  if (isQuote && inv.dueDate) metaEntries.push({ label: 'Valid until', value: fmtDate(inv.dueDate) });
+  if (!isQuote && String(inv.status || '').toLowerCase() === 'paid')
+    metaEntries.push({ label: 'Status', value: 'PAID' });
+  if (isQuote && inv.status) metaEntries.push({ label: 'Status', value: String(inv.status) });
+  if (!isQuote && hasGst && inv.ewbNumber) metaEntries.push({ label: 'E-Way Bill', value: String(inv.ewbNumber) });
+  if (!isQuote && inv.irn) {
+    metaEntries.push({ label: 'IRN', value: String(inv.irn), wrap: true });
+    if (inv.irnAckNo) metaEntries.push({ label: 'Ack No', value: String(inv.irnAckNo) });
+    if (inv.irnAckDt) metaEntries.push({ label: 'Ack Date', value: fmtDate(inv.irnAckDt) });
+  }
+  const metaValueMaxW = contentW * 0.38 - 6;
+  const metaLayouts = metaEntries.map(entry => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const lines = entry.wrap ? wrapLines(doc, entry.value, metaValueMaxW) : [entry.value];
+    const h = Math.max(5.5, 2.8 + lines.length * 3.6);
+    return { ...entry, lines, h };
+  });
+  const metaContentH = metaLayouts.reduce((sum, row) => sum + row.h, 0);
   const irnQrSize = irnQrDataUrl ? 18 : 0;
-  const hdrH = Math.max(22 + irnQrSize, 12 + companyLines.length * 3.6, 6 + metaRows.length * 5.5 + irnQrSize);
+  const hdrH = Math.max(22 + irnQrSize, 12 + companyLines.length * 3.6, 4 + metaContentH + irnQrSize);
 
   setBorder();
   doc.rect(margin, y, contentW, hdrH);
@@ -291,16 +324,20 @@ export async function buildStandaloneInvoicePdfBlob(
   doc.setTextColor(0);
 
   let my = y + 5;
-  for (const [label, value] of metaRows) {
+  for (const row of metaLayouts) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(MUTED);
-    doc.text(label, metaX + 3, my);
+    doc.text(row.label, metaX + 3, my);
     doc.setTextColor(0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text(value, right - 3, my, { align: 'right' });
-    my += 5.5;
+    let vy = my;
+    for (const line of row.lines) {
+      doc.text(line, right - 3, vy, { align: 'right' });
+      vy += 3.6;
+    }
+    my += row.h;
     if (my < y + hdrH - 1) {
       setBorder();
       doc.line(metaX, my - 2.2, right, my - 2.2);
@@ -326,6 +363,7 @@ export async function buildStandaloneInvoicePdfBlob(
   if (inv.customerPhone) billBody.push(`Ph: ${inv.customerPhone}`);
   if (inv.customerAddress) billBody.push(...wrapLines(doc, inv.customerAddress, contentW - 8));
   if (inv.customerGstin) billBody.push(`GSTIN: ${inv.customerGstin}`);
+  if (hasGst) billBody.push(`Place of Supply: ${placeOfSupplyLabel(inv.customerGstin, company.gstNumber)}`);
   const billH = Math.max(14, 6 + billBody.length * 3.8);
   setBorder();
   doc.rect(margin, y, contentW, billH);
@@ -513,23 +551,107 @@ export async function buildStandaloneInvoicePdfBlob(
   y += sumH;
 
   if (hasGst && (inv.taxTotal || 0) > 0) {
-    ensureSpace(14);
-    const gstH = 10;
-    setBorder();
-    doc.rect(margin, y, contentW, gstH);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
     const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
-    let gstLine: string;
-    if (useIgst) {
-      gstLine = `IGST: ${money(inv.taxIgst ?? inv.taxTotal)}`;
-    } else {
-      const cgst = typeof inv.taxCgst === 'number' ? inv.taxCgst : Math.round((inv.taxTotal || 0) / 2);
-      const sgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round(((inv.taxTotal || 0) - cgst) * 100) / 100;
-      gstLine = `CGST: ${money(cgst)}   SGST: ${money(sgst)}   Tax Total: ${money(inv.taxTotal)}`;
+    const hsnMap = buildHsnGstMap(inv.items, useIgst);
+    const hsnEntries = [...hsnMap.entries()];
+    if (hsnEntries.length > 0) {
+      const hdrRowH = 7;
+      const dataRowH = 6;
+      const tableH = hdrRowH + hsnEntries.length * dataRowH + dataRowH;
+      ensureSpace(tableH);
+      pageBreakPending = false;
+      setBorder();
+      doc.rect(margin, y, contentW, tableH);
+      setFill();
+      doc.rect(margin, y, contentW, hdrRowH, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      const colHsn = margin + 2;
+      const colTaxR = margin + contentW * 0.28;
+      const colAmtR = right - 2;
+      if (useIgst) {
+        const colRateR = margin + contentW * 0.52;
+        const colIgstR = margin + contentW * 0.72;
+        doc.text('HSN/SAC', colHsn, y + 4.8);
+        doc.text('Taxable', colTaxR, y + 4.8, { align: 'right' });
+        doc.text('IGST%', colRateR, y + 4.8, { align: 'right' });
+        doc.text('IGST Amt', colIgstR, y + 4.8, { align: 'right' });
+        doc.text('Total Tax', colAmtR, y + 4.8, { align: 'right' });
+        let hy = y + hdrRowH;
+        doc.setFont('helvetica', 'normal');
+        for (const [hsn, row] of hsnEntries) {
+          setBorder();
+          doc.line(margin, hy, right, hy);
+          doc.text(String(hsn).slice(0, 12), colHsn, hy + 4.2);
+          doc.text(money(row.taxable), colTaxR, hy + 4.2, { align: 'right' });
+          doc.text(row.rate.toFixed(1), colRateR, hy + 4.2, { align: 'right' });
+          doc.text(money(row.igst), colIgstR, hy + 4.2, { align: 'right' });
+          doc.text(money(row.tax), colAmtR, hy + 4.2, { align: 'right' });
+          hy += dataRowH;
+        }
+        setBorder();
+        doc.line(margin, hy, right, hy);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Total', colHsn, hy + 4.2);
+        doc.text(money(inv.taxTotal || 0), colAmtR, hy + 4.2, { align: 'right' });
+      } else {
+        const colCgstPctR = margin + contentW * 0.4;
+        const colCgstR = margin + contentW * 0.52;
+        const colSgstPctR = margin + contentW * 0.64;
+        const colSgstR = margin + contentW * 0.76;
+        doc.setFontSize(6.5);
+        doc.text('HSN', colHsn, y + 4.8);
+        doc.text('Taxable', colTaxR, y + 4.8, { align: 'right' });
+        doc.text('CGST%', colCgstPctR, y + 4.8, { align: 'right' });
+        doc.text('CGST', colCgstR, y + 4.8, { align: 'right' });
+        doc.text('SGST%', colSgstPctR, y + 4.8, { align: 'right' });
+        doc.text('SGST', colSgstR, y + 4.8, { align: 'right' });
+        doc.text('Tax', colAmtR, y + 4.8, { align: 'right' });
+        let hy = y + hdrRowH;
+        doc.setFont('helvetica', 'normal');
+        for (const [hsn, row] of hsnEntries) {
+          setBorder();
+          doc.line(margin, hy, right, hy);
+          doc.text(String(hsn).slice(0, 8), colHsn, hy + 4.2);
+          doc.text(money(row.taxable), colTaxR, hy + 4.2, { align: 'right' });
+          doc.text((row.rate / 2).toFixed(1), colCgstPctR, hy + 4.2, { align: 'right' });
+          doc.text(money(row.cgst), colCgstR, hy + 4.2, { align: 'right' });
+          doc.text((row.rate / 2).toFixed(1), colSgstPctR, hy + 4.2, { align: 'right' });
+          doc.text(money(row.sgst), colSgstR, hy + 4.2, { align: 'right' });
+          doc.text(money(row.tax), colAmtR, hy + 4.2, { align: 'right' });
+          hy += dataRowH;
+        }
+        setBorder();
+        doc.line(margin, hy, right, hy);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Total', colHsn, hy + 4.2);
+        doc.text(money(inv.taxTotal || 0), colAmtR, hy + 4.2, { align: 'right' });
+      }
+      y += tableH;
     }
-    doc.text(gstLine, margin + 3, y + 6.2);
-    y += gstH;
+  }
+
+  const notesText = String(inv.notes || '').trim();
+  if (notesText) {
+    const noteLines = wrapLines(doc, notesText, contentW - 8).slice(0, 10);
+    const notesH = 8 + noteLines.length * 3.4;
+    ensureSpace(notesH + 2);
+    pageBreakPending = false;
+    setBorder();
+    doc.rect(margin, y, contentW, notesH);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Notes', margin + 3, y + 4.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(MUTED);
+    let ny = y + 8.5;
+    for (const ln of noteLines) {
+      doc.text(ln, margin + 3, ny);
+      ny += 3.4;
+    }
+    doc.setTextColor(0);
+    y += notesH + 2;
   }
 
   // —— Bank | Signatory (from billSettings template; bank omitted for quotations) ——

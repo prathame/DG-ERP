@@ -12,7 +12,6 @@ import {
   formatSalesInvoiceText,
   formatDate,
   getTabLabel,
-  fetchImageAsDataUrl,
   htmlToBase64Pdf,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
@@ -22,6 +21,7 @@ import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
+import { resolveUpiQrDataUrl } from '../../lib/upiQr';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -468,11 +468,7 @@ export function SalesEntryView({
                             const bill = await api.sales.getBill(s.id);
                             const bs = (bill as unknown as Record<string, unknown>).billSettings as
                               Record<string, unknown> | undefined;
-                            const qrDataUrl = bs?.bankUpiId
-                              ? await fetchImageAsDataUrl(
-                                  `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-                                )
-                              : undefined;
+                            const qrDataUrl = bs?.bankUpiId ? await resolveUpiQrDataUrl(bs) : undefined;
                             printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }));
                           } catch (err) {
                             try {
@@ -500,11 +496,7 @@ export function SalesEntryView({
                             const bill = await api.sales.getBill(s.id);
                             const bs = (bill as unknown as Record<string, unknown>).billSettings as
                               Record<string, unknown> | undefined;
-                            const qrDataUrl = bs?.bankUpiId
-                              ? await fetchImageAsDataUrl(
-                                  `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-                                )
-                              : undefined;
+                            const qrDataUrl = bs?.bankUpiId ? await resolveUpiQrDataUrl(bs) : undefined;
                             if (
                               !(await saveBillAsPdf(
                                 generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }),

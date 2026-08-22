@@ -168,6 +168,8 @@ export interface BillSettings {
   bankBranch: string | null;
   bankIfsc: string | null;
   bankUpiId: string | null;
+  /** Cached PNG data URL for UPI QR — regenerated when UPI ID / account name changes. */
+  bankUpiQrBase64?: string | null;
   termsAndConditions: string | null;
   signatoryName: string | null;
   signatoryDesignation: string | null;

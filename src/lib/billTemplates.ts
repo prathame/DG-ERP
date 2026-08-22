@@ -1,5 +1,6 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 import { formatBillQty } from '../../shared/billUnits';
+import { storedUpiQrDataUrl } from './upiQr';
 
 export function esc(text: unknown): string {
   return String(text ?? '')
@@ -238,10 +239,8 @@ export function generateSalesInvoiceHtml(
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const upiQrSection = billConfig.bankUpiId
     ? (() => {
-        const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
-        const qrUrl =
-          options?.qrDataUrl ||
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+        const qrUrl = options?.qrDataUrl || storedUpiQrDataUrl(billConfig);
+        if (!qrUrl) return '';
         return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
       <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
@@ -582,12 +581,7 @@ export function generateStandaloneInvoiceHtml(
   const irnAckNo = irn ? String(inv.irnAckNo || '') : '';
   const irnAckDt = irn ? String(inv.irnAckDt || '') : '';
   const ewbNumber = !isQuote && hasGst ? String(inv.ewbNumber || '') : '';
-  const irnQrPayload = irn ? String(inv.irnQr || '') : '';
-  const irnQrSrc =
-    options?.irnQrDataUrl ||
-    (irnQrPayload
-      ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`
-      : '');
+  const irnQrSrc = options?.irnQrDataUrl || '';
 
   // HSN-wise GST summary (end of bill — matches classic Tax Invoice layout)
   const hsnMap = new Map<
@@ -621,7 +615,7 @@ export function generateStandaloneInvoiceHtml(
       billSettings.bankUpiId
     );
   const upiQr =
-    !isQuote && billSettings.bankUpiId && options?.qrDataUrl
+    !isQuote && billSettings.bankUpiId && (options?.qrDataUrl || storedUpiQrDataUrl(billSettings))
       ? `<div style="text-align:center;"><img src="${options.qrDataUrl}" style="width:100px;height:100px;" /><div style="font-size:9px;color:#666;margin-top:2px;">Scan to pay via UPI</div></div>`
       : '';
 
@@ -858,20 +852,13 @@ export function generateDistributionChallanHtml(
   const irn = bill.irn || '';
   const irnAckNo = bill.irnAckNo || '';
   const irnAckDt = bill.irnAckDt || '';
-  const irnQrPayload = bill.irnQr || '';
-  const irnQrSrc =
-    options?.irnQrDataUrl ||
-    (irnQrPayload
-      ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnQrPayload)}`
-      : '');
+  const irnQrSrc = options?.irnQrDataUrl || '';
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const upiQrSection = billConfig.bankUpiId
     ? (() => {
-        const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
-        const qrUrl =
-          options?.qrDataUrl ||
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+        const qrUrl = options?.qrDataUrl || storedUpiQrDataUrl(billConfig);
+        if (!qrUrl) return '';
         return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
       <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>

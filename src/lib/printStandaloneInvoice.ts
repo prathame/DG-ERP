@@ -9,9 +9,9 @@ import { loadFreshCapBillPdfCache } from './capBillPdfCache';
 import { isNativeCapacitor } from './dhandhoFiles';
 import { isElectronAppShell } from './mobileAppShell';
 import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
+import { resolveUpiQrDataUrl, generateQrDataUrl } from './upiQr';
 import {
   closePrintOverlay,
-  fetchImageAsDataUrl,
   openPrintWindow,
   printBillInWindow,
   PRINT_POPUP_BLOCKED,
@@ -138,24 +138,15 @@ async function buildStandaloneInvoiceHtml(
   const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
   const sigSrc =
     typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/') ? bs.signatureBase64 : '';
-  // Quotations omit bank/UPI — skip QR network fetch.
-  const upiQrDataUrl =
-    !isQuote && bs.bankUpiId
-      ? await fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-        )
-      : '';
+  // Quotations omit bank/UPI — skip QR generation.
+  const upiQrDataUrl = !isQuote && bs.bankUpiId ? await resolveUpiQrDataUrl(bs) : '';
   const irnQrPayload =
     !isQuote && typeof inv.irnQr === 'string' && inv.irnQr.trim()
       ? inv.irnQr.trim()
       : !isQuote && typeof inv.irn === 'string' && inv.irn.trim()
         ? inv.irn.trim()
         : '';
-  const irnQrDataUrl = irnQrPayload
-    ? await fetchImageAsDataUrl(
-        `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`,
-      )
-    : '';
+  const irnQrDataUrl = irnQrPayload ? await generateQrDataUrl(irnQrPayload, 120) : '';
   const phoneUx = isServiceProductUx(options?.businessType);
   const hasGst = invoiceHasGst(inv);
   const html = generateStandaloneInvoiceHtml(
@@ -257,15 +248,15 @@ async function shareCapInvoicePdfWithFallback(
     gstNumber?: string;
   };
   // Saved Bill Customization = WhatsApp PDF template (logo/sig/bank/colors/terms/footer).
-  // No separate template file; no UPI QR network fetch (text bank fields only).
   const billSettings =
     options?.billSettings ||
     ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>) ||
     {};
+  const upiQrDataUrl = await resolveUpiQrDataUrl(billSettings);
 
   try {
     const docType = options?.docType || 'invoice';
-    const pdfOpts = { hasGst: invoiceHasGst(inv), billSettings, docType };
+    const pdfOpts = { hasGst: invoiceHasGst(inv), billSettings, docType, upiQrDataUrl };
 
     // Prefer Save-baked cache (Documents/Dhandho/invoices) when contentKey matches.
     let blob: Blob | null = null;
@@ -415,16 +406,8 @@ export async function shareStandaloneInvoiceWhatsApp(
     : '';
 
   const [upiQrDataUrl, irnQrDataUrl] = await Promise.all([
-    (billSettings.bankUpiId as string)
-      ? fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${billSettings.bankUpiId}&pn=${billSettings.bankAccountName || 'Business'}&cu=INR`)}`,
-        )
-      : Promise.resolve(''),
-    irnQrPayload
-      ? fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(irnQrPayload)}`,
-        )
-      : Promise.resolve(''),
+    resolveUpiQrDataUrl(billSettings),
+    irnQrPayload ? generateQrDataUrl(irnQrPayload, 120) : Promise.resolve(''),
   ]);
 
   const pdfOpts = { hasGst: invoiceHasGst(shareInv), billSettings, docType, upiQrDataUrl, irnQrDataUrl };
