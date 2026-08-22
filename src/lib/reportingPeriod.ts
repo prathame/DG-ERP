@@ -223,8 +223,14 @@ export function defaultDateRangeFromReportingPeriod(asOf = new Date()): { from: 
   const saved = readReportingPeriod();
   // 'fy' / 'lastFy' presets must recalculate on every call so a new FY is picked up
   // automatically on April 1 without the user needing to re-select anything.
-  if (saved?.preset === 'fy') return indianFyRange(asOf);
-  if (saved?.preset === 'lastFy') return indianLastFyRange(asOf);
+  if (saved?.preset === 'fy') {
+    const r = indianFyRange(asOf);
+    return { from: r.from, to: r.to };
+  }
+  if (saved?.preset === 'lastFy') {
+    const r = indianLastFyRange(asOf);
+    return { from: r.from, to: r.to };
+  }
   if (saved?.from && saved?.to) return { from: saved.from, to: saved.to };
   return indianFyRange(asOf);
 }
