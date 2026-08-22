@@ -266,6 +266,34 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}" from catalog? This cannot be undone.`)) return;
+    try {
+      await api.products.delete(id);
+      load();
+      toast(`"${name}" deleted from catalog`, 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
+  const handleEditProductPrice = async (p: Product) => {
+    const input = window.prompt(`Edit price for "${p.name}":`, String(p.price ?? ''));
+    if (input === null) return;
+    const price = parseFloat(input);
+    if (!isFinite(price) || price < 0) {
+      toast('Invalid price', 'error');
+      return;
+    }
+    try {
+      await api.products.update(p.id, { price });
+      load();
+      toast('Price updated', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
   const handleExportCsv = () => {
     if (!tabRules.length) {
       toast('No price rules on this tab to export', 'error');
@@ -605,9 +633,25 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               <div key={p.id} className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-bold text-sm text-gray-800 truncate">{p.name}</span>
-                  <span className="font-bold text-brand shrink-0">
-                    ₹{(Number(p.price) || 0).toLocaleString('en-IN')}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-bold text-brand">₹{(Number(p.price) || 0).toLocaleString('en-IN')}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleEditProductPrice(p)}
+                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                      title="Edit price"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteProduct(p.id, p.name)}
+                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                      title="Delete from catalog"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 {productRules.length > 0 && (
                   <div className="mt-2 space-y-1.5 pl-1 border-l-2 border-amber-200">
