@@ -103,6 +103,10 @@ export type StandaloneInvoicePdfOptions = {
    * signatoryName, signatoryDesignation. Invoice payload supplies only per-bill data.
    */
   billSettings?: Record<string, unknown>;
+  /** Base64 data URL for UPI QR code (bank/UPI section). */
+  upiQrDataUrl?: string;
+  /** Base64 data URL for IRN/E-Invoice QR code. */
+  irnQrDataUrl?: string;
 };
 
 /**
@@ -122,6 +126,8 @@ export async function buildStandaloneInvoicePdfBlob(
   const isQuote = options?.docType === 'quotation';
   const hasGst = options?.hasGst ?? invoiceHasGst(inv);
   const bs = options?.billSettings || {};
+  const upiQrDataUrl = options?.upiQrDataUrl || '';
+  const irnQrDataUrl = options?.irnQrDataUrl || '';
   const companyName = company.companyName || 'Dhandho';
   const footerText = String(bs.footerText || 'Powered by Dhandho Management');
   const tagline = String(bs.tagline || '').trim();
@@ -243,7 +249,13 @@ export async function buildStandaloneInvoicePdfBlob(
   if (isQuote && inv.dueDate) metaRows.push(['Valid until', fmtDate(inv.dueDate)]);
   if (!isQuote && String(inv.status || '').toLowerCase() === 'paid') metaRows.push(['Status', 'PAID']);
   if (isQuote && inv.status) metaRows.push(['Status', String(inv.status)]);
-  const hdrH = Math.max(22, 12 + companyLines.length * 3.6, 6 + metaRows.length * 5.5);
+  // IRN details (when E-Invoice toggle is on and IRN exists)
+  const irnVal = (inv as unknown as { irn?: string | null }).irn;
+  const irnAckNo = (inv as unknown as { irnAckNo?: string | null }).irnAckNo;
+  if (!isQuote && irnVal) metaRows.push(['IRN', String(irnVal).slice(0, 20) + '…']);
+  if (!isQuote && irnAckNo) metaRows.push(['Ack No', String(irnAckNo)]);
+  const irnQrSize = irnQrDataUrl ? 18 : 0;
+  const hdrH = Math.max(22 + irnQrSize, 12 + companyLines.length * 3.6, 6 + metaRows.length * 5.5 + irnQrSize);
 
   setBorder();
   doc.rect(margin, y, contentW, hdrH);
@@ -293,6 +305,10 @@ export async function buildStandaloneInvoicePdfBlob(
       setBorder();
       doc.line(metaX, my - 2.2, right, my - 2.2);
     }
+  }
+  // IRN QR code — bottom-right of header when E-Invoice is enabled
+  if (irnQrDataUrl) {
+    tryAddImage(doc, irnQrDataUrl, right - irnQrSize - 1, y + hdrH - irnQrSize - 1, irnQrSize, irnQrSize);
   }
   y += hdrH;
 
@@ -530,7 +546,8 @@ export async function buildStandaloneInvoicePdfBlob(
     if (bs.bankUpiId) bankLines.push(`UPI: ${String(bs.bankUpiId)}`);
   }
   const footMid = margin + contentW * 0.55;
-  const bankBlockH = hasBank ? 6 + bankLines.length * 3.6 : 8;
+  const upiQrSize = upiQrDataUrl ? 18 : 0; // 18mm QR code in bank section
+  const bankBlockH = hasBank ? 6 + bankLines.length * 3.6 + upiQrSize : 8;
   const sigBlockH = 32;
   const footH = Math.max(bankBlockH, sigBlockH);
 
@@ -547,6 +564,10 @@ export async function buildStandaloneInvoicePdfBlob(
       doc.text(ln, margin + 3, by2);
       by2 += 3.6;
     });
+    // UPI QR code
+    if (upiQrDataUrl) {
+      tryAddImage(doc, upiQrDataUrl, margin + 3, by2 + 1, 16, 16);
+    }
   } else {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
