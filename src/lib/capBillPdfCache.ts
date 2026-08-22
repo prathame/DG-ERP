@@ -44,6 +44,7 @@ function billSettingsFingerprint(bs: Record<string, unknown>): string {
     bs.bankBranch,
     bs.bankIfsc,
     bs.bankUpiId,
+    typeof bs.bankUpiQrBase64 === 'string' ? bs.bankUpiQrBase64.length : 0,
     `L${logo}`,
     `S${sig}`,
   ].join('|');
