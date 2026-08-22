@@ -1,10 +1,11 @@
 /**
- * Cap / Electron WhatsApp PDF for Distribution Tax Invoice / Bill of Supply.
- * Reuses standalone jsPDF builder (no html2canvas on Cap). Text fallback otherwise.
+ * WhatsApp PDF for Distribution Tax Invoice / Bill of Supply.
+ * Web: jsPDF + Baileys send-pdf when WhatsApp Web is connected.
+ * Cap / Electron: native share paths. Text fallback on PDF failure.
  */
 
 import type { DistributionBillData } from '../api';
-import { api } from '../api';
+import { api, fetchApi } from '../api';
 import { buildDistributionBillSlice, type StandaloneInvoicePrint } from './billTemplates';
 import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
 import { isNativeCapacitor } from './dhandhoFiles';
@@ -164,31 +165,6 @@ function optionsPaidStatus(bill: DistributionBillData, halfTotal: number): strin
   return 'sent';
 }
 
-function textForKind(bill: DistributionBillData, kind: DistPrintKind): string {
-  const avail = deliveryPrintAvailability(bill);
-  if (kind === 'gst' || (kind === 'both' && avail.hasGst && !avail.hasBos)) {
-    const m = distributionHalfToStandalonePrint(bill, 'gst');
-    return m ? formatDistributionChallanText(m.textBill) : formatDistributionChallanText(bill);
-  }
-  if (kind === 'bos' || (kind === 'both' && avail.hasBos && !avail.hasGst)) {
-    const m = distributionHalfToStandalonePrint(bill, 'bos');
-    const t = m ? formatDistributionChallanText(m.textBill) : formatDistributionChallanText(bill);
-    return t.replace('DISTRIBUTION CHALLAN', 'BILL OF SUPPLY');
-  }
-  const gst = distributionHalfToStandalonePrint(bill, 'gst');
-  const bos = distributionHalfToStandalonePrint(bill, 'bos');
-  const parts: string[] = [];
-  if (gst) parts.push(formatDistributionChallanText(gst.textBill));
-  if (bos) {
-    parts.push('———');
-    parts.push(formatDistributionChallanText(bos.textBill).replace('DISTRIBUTION CHALLAN', 'BILL OF SUPPLY (non-GST)'));
-  }
-  if (bill.totalBilled != null) {
-    parts.push(`Batch outstanding (combined): ₹${Number(bill.totalBilled).toLocaleString('en-IN')}`);
-  }
-  return parts.filter(Boolean).join('\n\n') || formatDistributionChallanText(bill);
-}
-
 /**
  * Share Distribution Tax Invoice / Bill of Supply via WhatsApp.
  * Cap: jsPDF → Cache FileProvider Share (same as standalone invoice).
@@ -227,13 +203,90 @@ export async function shareDistributionDocsWhatsApp(
     electron: isElectronAppShell(),
   };
 
-  const textMessage = textForKind(bill, kind === 'both' && toShare.length === 1 ? toShare[0] : kind);
-
-  // Browser (non-Cap, non-Electron): text only — html2pdf path not used for distribution.
+  // Web browser — jsPDF + Baileys (same path as standalone invoices).
   if (!isNativeCapacitor() && !isElectronAppShell()) {
-    waLog('info', 'WhatsApp distribution share text (web)', { ...baseCtx, path: 'text' });
-    shareViaWhatsApp(phone, textMessage);
-    return { how: 'summary' };
+    waLog('info', 'WhatsApp distribution share start (web jsPDF)', { ...baseCtx, path: 'pdf' });
+    options?.onPreparing?.();
+    await yieldToUi();
+
+    const billSettings =
+      options?.billSettings ||
+      ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>) ||
+      {};
+
+    const sessionUser = (session.getUser() || {}) as {
+      companyName?: string;
+      address?: string;
+      phone?: string;
+      email?: string;
+      gstNumber?: string;
+    };
+
+    let lastHow: WhatsAppInvoiceShareResult['how'] = 'shared';
+    let lastHint: string | undefined;
+
+    for (const which of toShare) {
+      const mapped = distributionHalfToStandalonePrint(bill, which);
+      if (!mapped) continue;
+
+      const company = {
+        companyName: mapped.company.companyName || sessionUser.companyName,
+        address: mapped.company.address || sessionUser.address,
+        phone: mapped.company.phone || sessionUser.phone,
+        email: sessionUser.email,
+        gstNumber: mapped.company.gstNumber || sessionUser.gstNumber,
+      };
+      const halfCtx = { ...baseCtx, which, docNo: mapped.docNo, filename: mapped.filename };
+      const caption = formatDistributionChallanText(mapped.textBill);
+
+      try {
+        const blob = await buildStandaloneInvoicePdfBlob(mapped.inv, company, {
+          hasGst: mapped.hasGst,
+          billSettings,
+          docType: 'invoice',
+        });
+        const pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        try {
+          await fetchApi('/whatsapp-web/send-pdf', {
+            method: 'POST',
+            body: JSON.stringify({
+              phone,
+              filename: mapped.filename,
+              caption,
+              pdfBase64,
+            }),
+          });
+          waLog('info', 'WhatsApp web Baileys distribution PDF sent', { ...halfCtx, path: 'pdf' });
+          lastHow = 'shared';
+        } catch (baileysErr) {
+          waLog('info', 'WhatsApp Baileys send failed', {
+            ...halfCtx,
+            path: 'pdf',
+            errorMessage: (baileysErr as Error)?.message,
+          });
+          if (typeof window !== 'undefined')
+            window.dispatchEvent(
+              new CustomEvent('dg-toast', {
+                detail: { message: 'WhatsApp not connected — go to Settings → WhatsApp to connect', type: 'warn' },
+              }),
+            );
+          return { how: 'cancelled' };
+        }
+      } catch (err) {
+        lastHint = truncateShareError(err);
+        lastHow = 'pdf_fallback';
+        waLog('error', 'WhatsApp distribution PDF fail', { ...halfCtx, errorMessage: lastHint });
+        shareViaWhatsApp(phone, caption);
+      }
+    }
+
+    return lastHow === 'pdf_fallback' ? { how: 'pdf_fallback', errorHint: lastHint } : { how: lastHow };
   }
 
   waLog('info', 'WhatsApp distribution share start', { ...baseCtx, path: 'pdf' });
