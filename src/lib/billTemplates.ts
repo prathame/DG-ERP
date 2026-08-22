@@ -1,5 +1,6 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 import { formatBillQty } from '../../shared/billUnits';
+import { storedUpiQrDataUrl } from './upiQr';
 
 export function esc(text: unknown): string {
   return String(text ?? '')
@@ -241,6 +242,7 @@ export function generateSalesInvoiceHtml(
         const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
         const qrUrl =
           options?.qrDataUrl ||
+          storedUpiQrDataUrl(billConfig) ||
           `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
         return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
@@ -621,7 +623,7 @@ export function generateStandaloneInvoiceHtml(
       billSettings.bankUpiId
     );
   const upiQr =
-    !isQuote && billSettings.bankUpiId && options?.qrDataUrl
+    !isQuote && billSettings.bankUpiId && (options?.qrDataUrl || storedUpiQrDataUrl(billSettings))
       ? `<div style="text-align:center;"><img src="${options.qrDataUrl}" style="width:100px;height:100px;" /><div style="font-size:9px;color:#666;margin-top:2px;">Scan to pay via UPI</div></div>`
       : '';
 
@@ -871,6 +873,7 @@ export function generateDistributionChallanHtml(
         const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
         const qrUrl =
           options?.qrDataUrl ||
+          storedUpiQrDataUrl(billConfig) ||
           `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
         return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />

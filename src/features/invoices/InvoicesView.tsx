@@ -569,18 +569,14 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
         email?: string;
         gstNumber?: string;
       } | null;
-      const { fetchImageAsDataUrl } = await import('../../lib/utils');
+      const { resolveUpiQrDataUrl } = await import('../../lib/upiQr');
       const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
       const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
       const sigSrc =
         typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/')
           ? bs.signatureBase64
           : '';
-      const upiQrDataUrl = bs.bankUpiId
-        ? await fetchImageAsDataUrl(
-            `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&cu=INR`)}`,
-          ).catch(() => '')
-        : '';
+      const upiQrDataUrl = bs.bankUpiId ? await resolveUpiQrDataUrl(bs) : '';
       const html = generateStandaloneInvoiceHtml(
         inv,
         {

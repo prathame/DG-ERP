@@ -23,7 +23,13 @@ export async function resolveUpiQrDataUrl(billSettings: Record<string, unknown> 
   const bs = billSettings || {};
   const upiId = String(bs.bankUpiId || '').trim();
   if (!upiId) return '';
-  const stored = typeof bs.bankUpiQrBase64 === 'string' ? bs.bankUpiQrBase64.trim() : '';
-  if (stored.startsWith('data:image/')) return stored;
+  const stored = storedUpiQrDataUrl(bs);
+  if (stored) return stored;
   return generateUpiQrDataUrl(upiId, String(bs.bankAccountName || 'Business'));
+}
+
+/** Sync read of cached UPI QR from bill settings (no network / no generate). */
+export function storedUpiQrDataUrl(billSettings: Record<string, unknown> | undefined | null): string {
+  const stored = typeof billSettings?.bankUpiQrBase64 === 'string' ? billSettings.bankUpiQrBase64.trim() : '';
+  return stored.startsWith('data:image/') ? stored : '';
 }
