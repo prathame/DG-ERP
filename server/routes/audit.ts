@@ -97,7 +97,8 @@ router.get('/api/backup', requireAdmin, async (req: AuthRequest, res) => {
     await Promise.all(
       tables.map(async table => {
         try {
-          const { rows } = await pool.query(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+          const cols = [...BACKUP_COLUMN_ALLOWLIST[table]].join(', ');
+          const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE tenant_id = $1`, [tenantId]);
           backup[table] = rows;
           counts[table] = rows.length;
         } catch (err) {
@@ -343,7 +344,9 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'amount',
     'expense_date',
     'description',
-    'vendor_id',
+    'payment_method',
+    'reference_number',
+    'notes',
     'tenant_id',
     'created_at',
   ]),
@@ -494,6 +497,11 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'show_hsn_sac',
     'footer_text',
     'invoice_template_style',
+    'bill_units',
+    'whatsapp_invoice_template',
+    'hosp_prices_include_gst',
+    'hosp_charge_gst',
+    'fssai_license',
   ]),
   barcode_label_templates: new Set([
     'id',
@@ -940,7 +948,8 @@ export async function generateBackupJson(
   await Promise.all(
     tables.map(async table => {
       try {
-        const { rows } = await pool.query(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+        const cols = [...BACKUP_COLUMN_ALLOWLIST[table]].join(', ');
+        const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE tenant_id = $1`, [tenantId]);
         backup[table] = rows;
         counts[table] = rows.length;
       } catch {
