@@ -97,7 +97,8 @@ router.get('/api/backup', requireAdmin, async (req: AuthRequest, res) => {
     await Promise.all(
       tables.map(async table => {
         try {
-          const { rows } = await pool.query(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+          const cols = [...BACKUP_COLUMN_ALLOWLIST[table]].join(', ');
+          const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE tenant_id = $1`, [tenantId]);
           backup[table] = rows;
           counts[table] = rows.length;
         } catch (err) {
@@ -940,7 +941,8 @@ export async function generateBackupJson(
   await Promise.all(
     tables.map(async table => {
       try {
-        const { rows } = await pool.query(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+        const cols = [...BACKUP_COLUMN_ALLOWLIST[table]].join(', ');
+        const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE tenant_id = $1`, [tenantId]);
         backup[table] = rows;
         counts[table] = rows.length;
       } catch {
