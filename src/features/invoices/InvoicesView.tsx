@@ -553,17 +553,34 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
     setEmailBusyId(inv.id);
     toast('Preparing email…', 'info');
     try {
-      const { buildStandaloneInvoicePdfBlob } = await import('../../lib/standaloneInvoicePdf');
+      // Use HTML template path so logo + signature render correctly (same as print button)
       const { standaloneInvoicePdfBasename } = await import('../../lib/printStandaloneInvoice');
-      const bs = billSettings ?? {};
-      const user = (await import('../../lib/session')).session.getUser() as {
+      const { htmlToBase64Pdf } = await import('../../lib/utils');
+      const { generateStandaloneInvoiceHtml } = await import('../../lib/billTemplates');
+      const { session } = await import('../../lib/session');
+      const { api: apiInner } = await import('../../api');
+      const bs =
+        billSettings ?? ((await apiInner.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
+      const user = session.getUser() as {
         companyName?: string;
         address?: string;
         phone?: string;
         email?: string;
         gstNumber?: string;
       } | null;
-      const blob = await buildStandaloneInvoicePdfBlob(
+      const { fetchImageAsDataUrl } = await import('../../lib/utils');
+      const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
+      const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
+      const sigSrc =
+        typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/')
+          ? bs.signatureBase64
+          : '';
+      const upiQrDataUrl = bs.bankUpiId
+        ? await fetchImageAsDataUrl(
+            `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&cu=INR`)}`,
+          ).catch(() => '')
+        : '';
+      const html = generateStandaloneInvoiceHtml(
         inv,
         {
           companyName: user?.companyName,
@@ -572,15 +589,17 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
           email: user?.email,
           gstNumber: user?.gstNumber,
         },
-        { hasGst: !!(inv as unknown as { taxTotal?: number }).taxTotal, billSettings: bs },
+        {
+          ...bs,
+          logoBase64: logoSrc || bs.logoBase64,
+          signatureBase64: sigSrc || bs.signatureBase64,
+          primaryColor: color,
+        },
+        { qrDataUrl: upiQrDataUrl || undefined, hasGst: !!(inv as unknown as { taxTotal?: number }).taxTotal },
       );
       const filename = standaloneInvoicePdfBasename(inv.customerName) + '.pdf';
-      const pdfBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      const pdfBase64 = await htmlToBase64Pdf(html, filename);
+      if (!pdfBase64) throw new Error('Could not generate PDF');
       const { fetchApi } = await import('../../api');
       await fetchApi('/email/send-invoice', {
         method: 'POST',

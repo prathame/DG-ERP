@@ -448,6 +448,18 @@ async function htmlToPdfBlob(html: string, filename?: string): Promise<Blob | nu
  * Render bill/quote/invoice HTML to a PDF and download (web) or save under Dhandho/invoices (Cap).
  * Returns path when saved to the fixed Dhandho folder.
  */
+/** Convert HTML to base64-encoded PDF string (for WhatsApp/email attachment). */
+export async function htmlToBase64Pdf(html: string, filename?: string): Promise<string | null> {
+  const blob = await htmlToPdfBlob(html, filename);
+  if (!blob) return null;
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function downloadHtmlAsPdf(html: string, filename?: string): Promise<{ ok: boolean; path?: string }> {
   const safeName = safePdfFilename(filename);
   try {
