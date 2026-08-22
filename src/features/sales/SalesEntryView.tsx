@@ -13,8 +13,11 @@ import {
   formatDate,
   getTabLabel,
   fetchImageAsDataUrl,
+  htmlToBase64Pdf,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
+import { applyInvoiceTemplate } from '../settings/WhatsAppTemplateEditor';
+import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -70,7 +73,10 @@ export function SalesEntryView({
   const [salesPage, setSalesPage] = useState(1);
   const [salesTotalPages, setSalesTotalPages] = useState(1);
   const [salesTotal, setSalesTotal] = useState(0);
-  const [salesDateFilter, setSalesDateFilter] = useState({ range: 'all', from: '', to: '' });
+  const [salesDateFilter, setSalesDateFilter] = useState(() => {
+    const { from, to } = defaultDateRangeFromReportingPeriod();
+    return { range: 'custom', from, to };
+  });
 
   const loadSales = (page = 1) => {
     api.sales
@@ -175,13 +181,57 @@ export function SalesEntryView({
         });
         loadSales(salesPage);
         toast('Sale completed successfully', 'success');
-        // Auto-send WhatsApp — check granular wa_auto_settings.sale (falls back to legacy autoWhatsapp)
+        // Auto-send WhatsApp — PDF + template caption
         const waSettings = (user as { waAutoSettings?: { sale?: boolean } } | null)?.waAutoSettings;
         const autoSale = waSettings?.sale ?? user?.autoWhatsapp;
         if (autoSale && savedPhone && saleResult?.id) {
           api.sales
             .getBill(saleResult.id)
-            .then(bill => shareViaWhatsApp(savedPhone, formatSalesInvoiceText(bill)))
+            .then(async bill => {
+              // Build caption from template (falls back to text summary)
+              const bs = await api.settings.getBillSettings().catch(() => ({}) as Record<string, unknown>);
+              const caption = applyInvoiceTemplate(
+                (bs as { whatsappInvoiceTemplate?: string }).whatsappInvoiceTemplate,
+                {
+                  customerName: bill.customerName,
+                  invoiceNumber: bill.barcode,
+                  amount: bill.salePrice,
+                  date: bill.purchaseDate,
+                  businessName: bill.company.name,
+                },
+              );
+              // Try PDF via Baileys first
+              const { session } = await import('../../lib/session');
+              const tenantId = session.getTenantId() || '';
+              if (tenantId) {
+                try {
+                  const html = generateSalesInvoiceHtml(bill, { showGst: !!(bill.gstRate > 0) });
+                  const pdfBase64 = await htmlToBase64Pdf(html, `bill-${bill.barcode}.pdf`);
+                  if (pdfBase64) {
+                    const r = await fetch('/api/whatsapp-web/send-pdf', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'x-tenant-id': tenantId,
+                        'x-dg-client': 'web',
+                        Authorization: `Bearer ${session.getToken()}`,
+                      },
+                      body: JSON.stringify({
+                        phone: savedPhone,
+                        filename: `bill-${bill.barcode}.pdf`,
+                        caption,
+                        pdfBase64,
+                      }),
+                    });
+                    if (r.ok) return; // PDF sent
+                  }
+                } catch {
+                  /* fall through to text */
+                }
+              }
+              // Fallback: text only
+              shareViaWhatsApp(savedPhone, caption || formatSalesInvoiceText(bill));
+            })
             .catch(() => {});
         }
       })
@@ -480,37 +530,98 @@ export function SalesEntryView({
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          api.sales
-                            .getBill(s.id)
-                            .then(bill => shareViaWhatsApp(bill.customerPhone, formatSalesInvoiceText(bill)))
-                            .catch(err => toast(err.message, 'error'))
-                        }
+                        onClick={async () => {
+                          try {
+                            const bill = await api.sales.getBill(s.id);
+                            const bs = await api.settings
+                              .getBillSettings()
+                              .catch(() => ({}) as Record<string, unknown>);
+                            const caption = applyInvoiceTemplate(
+                              (bs as { whatsappInvoiceTemplate?: string }).whatsappInvoiceTemplate,
+                              {
+                                customerName: bill.customerName,
+                                invoiceNumber: bill.barcode,
+                                amount: bill.salePrice,
+                                date: bill.purchaseDate,
+                                businessName: bill.company.name,
+                              },
+                            );
+                            const { session } = await import('../../lib/session');
+                            const tenantId = session.getTenantId() || '';
+                            const html = generateSalesInvoiceHtml(bill, { showGst: !!(bill.gstRate > 0) });
+                            const pdfBase64 = await htmlToBase64Pdf(html, `bill-${bill.barcode}.pdf`);
+                            if (pdfBase64 && tenantId) {
+                              const r = await fetch('/api/whatsapp-web/send-pdf', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'x-tenant-id': tenantId,
+                                  'x-dg-client': 'web',
+                                  Authorization: `Bearer ${session.getToken()}`,
+                                },
+                                body: JSON.stringify({
+                                  phone: bill.customerPhone,
+                                  filename: `bill-${bill.barcode}.pdf`,
+                                  caption,
+                                  pdfBase64,
+                                }),
+                              });
+                              if (r.ok) {
+                                toast('Bill sent via WhatsApp ✅', 'success');
+                                return;
+                              }
+                            }
+                            shareViaWhatsApp(bill.customerPhone, caption || formatSalesInvoiceText(bill));
+                          } catch (err) {
+                            toast((err as Error).message, 'error');
+                          }
+                        }}
                         className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                        title="Send via WhatsApp"
+                        title="Send via WhatsApp (PDF)"
                       >
                         <MessageCircle size={15} />
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          api.sales
-                            .getBill(s.id)
-                            .then(bill => {
-                              const email = bill.customerEmail || '';
-                              if (!email) {
-                                toast('No customer email on record — enter email manually', 'info');
-                              }
-                              shareViaEmail(
-                                email,
-                                `Sales Invoice ${bill.id} — ${bill.company.name}`,
-                                formatSalesInvoiceText(bill),
-                              );
-                            })
-                            .catch(err => toast(err.message, 'error'))
-                        }
+                        onClick={async () => {
+                          try {
+                            const bill = await api.sales.getBill(s.id);
+                            if (!bill.customerEmail) {
+                              toast('No customer email on this sale', 'error');
+                              return;
+                            }
+                            const html = generateSalesInvoiceHtml(bill, { showGst: !!(bill.gstRate > 0) });
+                            const pdfBase64 = await htmlToBase64Pdf(html, `bill-${bill.barcode}.pdf`);
+                            if (!pdfBase64) {
+                              toast('Could not generate PDF', 'error');
+                              return;
+                            }
+                            const { session } = await import('../../lib/session');
+                            const tenantId = session.getTenantId() || '';
+                            const r = await fetch('/api/email/send-invoice', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'x-tenant-id': tenantId,
+                                'x-dg-client': 'web',
+                                Authorization: `Bearer ${session.getToken()}`,
+                              },
+                              body: JSON.stringify({
+                                toEmail: bill.customerEmail,
+                                toName: bill.customerName,
+                                pdfBase64,
+                                filename: `bill-${bill.barcode}.pdf`,
+                                subject: `Sales Bill — ${bill.company.name}`,
+                              }),
+                            });
+                            if (r.ok) toast('Email sent ✅', 'success');
+                            else toast('Email failed', 'error');
+                          } catch (err) {
+                            toast((err as Error).message, 'error');
+                          }
+                        }}
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title="Send via Email"
+                        title="Send via Email (PDF)"
                       >
                         <Mail size={15} />
                       </button>

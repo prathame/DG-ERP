@@ -32,7 +32,6 @@ import {
   ListOrdered,
   BookOpen,
   IdCard,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from './lib/utils';
@@ -155,7 +154,6 @@ const ProductVerificationView = lazy(() =>
   import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })),
 );
 const InvoicesView = lazy(() => import('./features/invoices/InvoicesView').then(m => ({ default: m.InvoicesView })));
-const JobWorkView = lazy(() => import('./features/job-work/JobWorkView').then(m => ({ default: m.JobWorkView })));
 const SuperAdminApp = lazy(() =>
   import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })),
 );
@@ -918,7 +916,6 @@ export default function App() {
     hosp_parcels: ShoppingBag,
     hosp_menu: BookOpen,
     hosp_members: IdCard,
-    job_work: Wrench,
   };
   const navLabel = (id: string, fallback: string) => tc(id, fallback);
   const navItem = (id: string, fallback: string, show: boolean) => ({
@@ -941,7 +938,6 @@ export default function App() {
       label: t('navSections.transactions'),
       items: [
         navItem('invoices', t('nav.invoices'), tv('invoices')),
-        navItem('job_work', 'Job Work', tv('job_work')),
         navItem('quotations', t('nav.quotesOrders'), tv('quotations')),
         navItem('purchases', t('nav.purchaseExpense'), tv('purchases')),
         navItem('sales', t('nav.sales'), tv('sales')),
@@ -1530,6 +1526,30 @@ export default function App() {
             })()}
           </span>
         </div>
+        {/* Global FY indicator — click to jump to Analytics to change */}
+        {user &&
+          !servicePhoneUx &&
+          (() => {
+            const { indianFyRange, readReportingPeriod } =
+              require('./lib/reportingPeriod') as typeof import('./lib/reportingPeriod');
+            const saved = readReportingPeriod();
+            const fy = indianFyRange();
+            const label = saved?.label || fy.label;
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (canAccess('analytics')) setActiveTab('analytics' as Tab);
+                }}
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-blue-100 bg-blue-50 hover:bg-blue-100 transition-colors shrink-0"
+                title="Click to change financial year in Analytics"
+              >
+                <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider whitespace-nowrap">
+                  {label}
+                </span>
+              </button>
+            );
+          })()}
         <NotificationCenter
           portaled={inNavBar && navH}
           openBelow={navPos !== 'bottom'}
@@ -2109,7 +2129,6 @@ export default function App() {
                       {canAccess(activeTab) && activeTab === 'invoices' && (
                         <InvoicesView onOpenFinance={() => setActiveTab('finance')} />
                       )}
-                      {canAccess(activeTab) && activeTab === 'job_work' && <JobWorkView />}
                       {canAccess(activeTab) &&
                         activeTab === 'finance' &&
                         (serviceProductUx || (userConfig?.businessType as string) === 'hotel_restaurant' ? (
