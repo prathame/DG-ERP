@@ -647,23 +647,25 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-bold text-brand">₹{(Number(p.price) || 0).toLocaleString('en-IN')}</span>
                     {productRules.length === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => handleEditProductPrice(p)}
-                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                        title="Edit price"
-                      >
-                        <Pencil size={14} />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleEditProductPrice(p)}
+                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                          title="Edit price"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(p.id, p.name)}
+                          className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                          title="Delete from catalog"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteProduct(p.id, p.name)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                      title="Delete from catalog"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 </div>
                 {productRules.length > 0 && (
