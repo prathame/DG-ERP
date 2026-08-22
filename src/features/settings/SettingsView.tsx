@@ -3037,6 +3037,59 @@ export function SettingsView({
                         Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
                       </p>
                     )}
+                    {/* Export to other formats */}
+                    {!serviceMobile && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Export to</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {[
+                            {
+                              label: 'Miracle (ZIP)',
+                              endpoint: '/api/backup/miracle',
+                              ext: 'zip',
+                              color: 'bg-purple-600 hover:bg-purple-700',
+                            },
+                            {
+                              label: 'Tally (XML)',
+                              endpoint: '/api/backup/tally',
+                              ext: 'xml',
+                              color: 'bg-emerald-700 hover:bg-emerald-800',
+                            },
+                          ].map(({ label, endpoint, ext, color }) => (
+                            <button
+                              key={endpoint}
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const r = await fetch(endpoint, {
+                                    headers: {
+                                      Authorization: `Bearer ${session.getToken()}`,
+                                      'X-Tenant-ID': session.getTenantId() || '',
+                                    },
+                                  });
+                                  if (!r.ok) throw new Error(`Export failed`);
+                                  const blob = await r.blob();
+                                  const filename = `export-${ext === 'zip' ? 'miracle' : 'tally'}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = filename;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                  toast(`${label} downloaded`, 'success');
+                                } catch (e) {
+                                  toast((e as Error).message, 'error');
+                                }
+                              }}
+                              className={`dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold text-white ${color}`}
+                            >
+                              <Download size={15} className="shrink-0" />
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="border-t border-gray-100 pt-3 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
