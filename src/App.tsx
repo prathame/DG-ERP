@@ -663,8 +663,7 @@ export default function App() {
     }
     setActiveTab(nav.tab);
   };
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
-  const [showMobileMore, setShowMobileMore] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -1694,10 +1693,10 @@ export default function App() {
             )}
             data-nav-pos={navPos}
           >
-            {/* Mobile sidebar backdrop */}
+            {/* Sidebar backdrop — only on small screens when open as overlay */}
             {isSidebarOpen && (
               <div
-                className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px] dg-fade-enter"
+                className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-[1px] dg-fade-enter"
                 onClick={() => setIsSidebarOpen(false)}
                 aria-hidden="true"
               />
@@ -1705,7 +1704,7 @@ export default function App() {
             {/* Sidebar — drawer on phone, rail or bar on desktop */}
             <aside
               className={cn(
-                'transition-transform duration-300 z-50 flex flex-col max-lg:!hidden',
+                'transition-transform duration-300 z-50 flex flex-col',
                 navH && 'lg:flex-row lg:items-stretch',
                 desktopGlass
                   ? 'dg-glass-sidebar shadow-none'
@@ -1726,18 +1725,11 @@ export default function App() {
                         navPos === 'top' && 'lg:border-b lg:border-gray-200',
                         navPos === 'bottom' && 'lg:border-t lg:border-gray-200',
                       ),
-                'fixed lg:relative',
-                drawerRight ? 'inset-y-0 right-0' : 'inset-y-0 left-0',
+                'relative shrink-0',
                 'h-[100dvh] max-h-[100dvh]',
-                navH && 'lg:inset-x-0 lg:left-0 lg:right-0 lg:inset-y-auto lg:max-h-none lg:min-h-0',
-                navH && 'lg:h-14 lg:overflow-visible',
-                isSidebarOpen
-                  ? cn('w-[min(70vw,15rem)] translate-x-0', navH ? 'lg:w-full' : 'lg:w-64')
-                  : cn(
-                      'w-16 lg:translate-x-0',
-                      drawerRight ? 'translate-x-full' : '-translate-x-full',
-                      navH && 'lg:w-full',
-                    ),
+                navH && 'inset-x-0 left-0 right-0 inset-y-auto max-h-none min-h-0',
+                navH && 'h-14 overflow-visible',
+                isSidebarOpen ? cn('w-64 translate-x-0', navH && 'w-full') : cn('w-16 translate-x-0', navH && 'w-full'),
               )}
             >
               {/* Sticky brand / profile */}
@@ -2172,10 +2164,10 @@ export default function App() {
                 </ErrorBoundary>
               </div>
             </main>
-            {/* Mobile bottom nav — primary destinations + More drawer */}
+            {/* Mobile bottom nav — hidden, desktop sidebar is used on all screen sizes */}
             <nav
               className={cn(
-                'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t lg:hidden safe-bottom',
+                'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t hidden safe-bottom',
                 capGlassHeader
                   ? 'bg-[var(--dg-header)] border-[var(--dg-card-border)] shadow-[0_-2px_16px_rgba(0,0,0,0.2)]'
                   : 'bg-white/95 border-gray-200 shadow-[0_-2px_16px_rgba(0,0,0,0.05)]',
@@ -2216,107 +2208,26 @@ export default function App() {
                 })}
                 <button
                   type="button"
-                  onClick={() => setShowMobileMore(true)}
+                  onClick={() => setIsSidebarOpen(s => !s)}
                   className={cn(
                     'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
-                    mobileMoreActive || showMobileMore ? 'text-brand' : 'text-gray-400',
+                    mobileMoreActive ? 'text-brand' : 'text-gray-400',
                   )}
                 >
                   <span
                     className={cn(
                       'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
-                      (mobileMoreActive || showMobileMore) && 'bg-brand/10',
+                      mobileMoreActive && 'bg-brand/10',
                     )}
                   >
                     <Menu size={17} />
                   </span>
-                  <span
-                    className={cn(
-                      'text-[9px] leading-tight font-medium',
-                      (mobileMoreActive || showMobileMore) && 'font-bold',
-                    )}
-                  >
+                  <span className={cn('text-[9px] leading-tight font-medium', mobileMoreActive && 'font-bold')}>
                     {t('nav.more')}
                   </span>
                 </button>
               </div>
             </nav>
-
-            {/* Mobile More sheet — full nav list, replaces sidebar drawer on mobile */}
-            {showMobileMore && (
-              <>
-                <div
-                  className="fixed inset-0 bg-black/40 z-50 lg:hidden"
-                  onClick={() => setShowMobileMore(false)}
-                  aria-hidden="true"
-                />
-                <div
-                  className={cn(
-                    'fixed bottom-0 left-0 right-0 z-50 lg:hidden rounded-t-2xl max-h-[80vh] overflow-y-auto',
-                    capGlassHeader ? 'bg-[var(--dg-header)]' : 'bg-white',
-                  )}
-                >
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                    <span className="text-sm font-semibold">Menu</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowMobileMore(false)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="p-3 pb-safe-bottom grid grid-cols-3 gap-2">
-                    {visibleNavItems
-                      .filter(item => canAccess(item.id) && companionAllows(item.id))
-                      .map(item => {
-                        const active = isNavItemActive(item.id, activeTab);
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => {
-                              setActiveTab(item.id as Tab);
-                              setShowMobileMore(false);
-                            }}
-                            className={cn(
-                              'flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-colors',
-                              active
-                                ? 'bg-brand/10 text-brand'
-                                : capGlassHeader
-                                  ? 'dg-m-muted hover:opacity-100'
-                                  : 'text-gray-600 hover:bg-gray-50',
-                            )}
-                          >
-                            <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
-                            <span className="truncate w-full text-center leading-tight">{item.label}</span>
-                          </button>
-                        );
-                      })}
-                    {canAccess('settings') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('settings' as Tab);
-                          setShowMobileMore(false);
-                        }}
-                        className={cn(
-                          'flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-colors',
-                          activeTab === 'settings'
-                            ? 'bg-brand/10 text-brand'
-                            : capGlassHeader
-                              ? 'dg-m-muted hover:opacity-100'
-                              : 'text-gray-600 hover:bg-gray-50',
-                        )}
-                      >
-                        <Settings size={20} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
-                        <span className="truncate w-full text-center leading-tight">{t('nav.settings')}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
           </div>
         </div>
         {cmdOpen && (
