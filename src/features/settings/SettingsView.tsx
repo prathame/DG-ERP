@@ -240,7 +240,16 @@ function GstApiSection() {
   const handleCheckEligibility = async () => {
     setCheckingEligibility(true);
     try {
-      const r = await api.gst.checkEligibility(form.gstin || undefined);
+      let gstin = form.gstin.trim();
+      if (!gstin) {
+        const saved = await api.gst.getSettings();
+        gstin = (saved.gstin || '').trim();
+      }
+      if (!gstin) {
+        toast('Enter Seller GSTIN above (or set company GSTIN under Tax Compliance), then Save.', 'error');
+        return;
+      }
+      const r = await api.gst.checkEligibility(gstin);
       setEligibility({ enabled: r.enabled, status: r.status, message: r.message });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Eligibility check failed', 'error');
