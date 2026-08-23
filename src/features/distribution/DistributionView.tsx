@@ -34,6 +34,7 @@ import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { pinFromAddress } from '../../lib/pincode';
+import { useGstEinvoiceEnabled } from '../../lib/gstEinvoiceEnabled';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
@@ -155,7 +156,7 @@ function EInvoiceButtons({
   quiet?: boolean;
   buyerAddress?: string | null;
 }) {
-  const einvoiceEnabled = !!(session.getUser() as { einvoiceEnabled?: boolean } | null)?.einvoiceEnabled;
+  const { enabled: einvoiceEnabled, loading: einvoiceLoading } = useGstEinvoiceEnabled();
   const [sellerPin, setSellerPin] = useState('');
   useEffect(() => {
     if (!einvoiceEnabled) return;
@@ -164,7 +165,7 @@ function EInvoiceButtons({
       .then(s => setSellerPin(s.sellerPin || ''))
       .catch(() => {});
   }, [einvoiceEnabled]);
-  if (!einvoiceEnabled) return null;
+  if (einvoiceLoading || !einvoiceEnabled) return null;
   return (
     <GstEinvoiceToolbar
       kind="batch"

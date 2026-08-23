@@ -158,6 +158,8 @@ export type InvoiceTemplateStyle = 'modern' | 'classic' | 'minimal';
 
 export interface BillSettings {
   logoBase64: string | null;
+  /** Full-page letterhead / watermark image for print, PDF, and preview. */
+  backgroundBase64: string | null;
   primaryColor: string;
   tagline: string | null;
   invoicePrefix: string | null;

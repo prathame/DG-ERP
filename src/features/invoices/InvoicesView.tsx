@@ -26,6 +26,7 @@ import {
   BillLineUnitLabel,
 } from '../../components/ui';
 import { pinFromAddress } from '../../lib/pincode';
+import { useGstEinvoiceEnabled } from '../../lib/gstEinvoiceEnabled';
 import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
@@ -184,15 +185,17 @@ function InvoiceEInvoiceButtons({
   invoice: Invoice;
   onUpdated: (patch: Partial<Invoice>) => void;
 }) {
+  const { enabled: einvoiceEnabled, loading: einvoiceLoading } = useGstEinvoiceEnabled();
   const [sellerPin, setSellerPin] = useState('');
   const [buyerAddress, setBuyerAddress] = useState(invoice.customerAddress || '');
 
   useEffect(() => {
+    if (!einvoiceEnabled) return;
     api.gst
       .getSettings()
       .then(s => setSellerPin(s.sellerPin || ''))
       .catch(() => {});
-  }, []);
+  }, [einvoiceEnabled]);
 
   useEffect(() => {
     setBuyerAddress(invoice.customerAddress || '');
@@ -201,6 +204,8 @@ function InvoiceEInvoiceButtons({
       .then(full => setBuyerAddress(full.customerAddress || ''))
       .catch(() => {});
   }, [invoice.id, invoice.customerAddress]);
+
+  if (einvoiceLoading || !einvoiceEnabled) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -793,20 +798,15 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
                   </button>
                 </div>
               </div>
-              {invoiceHasGst(selectedInvoice) &&
-                selectedInvoice.status !== 'cancelled' &&
-                !!(session as { getUser?: () => { einvoiceEnabled?: boolean } | null }).getUser?.()
-                  ?.einvoiceEnabled && (
-                  <InvoiceEInvoiceButtons
-                    invoice={selectedInvoice}
-                    onUpdated={patch => {
-                      setSelectedInvoice(prev => (prev ? { ...prev, ...patch } : prev));
-                      setInvoices(prev =>
-                        prev.map(inv => (inv.id === selectedInvoice.id ? { ...inv, ...patch } : inv)),
-                      );
-                    }}
-                  />
-                )}
+              {invoiceHasGst(selectedInvoice) && selectedInvoice.status !== 'cancelled' && (
+                <InvoiceEInvoiceButtons
+                  invoice={selectedInvoice}
+                  onUpdated={patch => {
+                    setSelectedInvoice(prev => (prev ? { ...prev, ...patch } : prev));
+                    setInvoices(prev => prev.map(inv => (inv.id === selectedInvoice.id ? { ...inv, ...patch } : inv)));
+                  }}
+                />
+              )}
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm min-w-[420px]">
                   <thead>

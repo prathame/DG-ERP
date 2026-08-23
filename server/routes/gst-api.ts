@@ -26,9 +26,62 @@ import {
   generateStandaloneInvoiceIrnAndEwb,
   StandaloneInvoiceGstError,
 } from '../services/standaloneInvoiceGst';
+import {
+  buildStandaloneEinvoiceNicJson,
+  buildStandaloneEwaybillNicJson,
+  clearBatchGstFiling,
+  clearStandaloneInvoiceGstFiling,
+  importBatchEwb,
+  importBatchIrn,
+  importBatchPortalResponse,
+  importStandaloneInvoiceEwb,
+  importStandaloneInvoiceIrn,
+  importStandaloneInvoicePortalResponse,
+} from '../services/einvoicePortal';
 import { checkEinvoiceEligibility, lookupTransportDistance } from '../services/gstCompliance';
+import type { Response } from 'express';
+import { isEinvoiceApiMode, isEinvoicePortalMode, normalizeEinvoiceMode } from '../../shared/gstEinvoiceMode';
 
 const router = Router();
+
+/** Block IRN/EWB when tenant master toggle is off (Settings → GST). */
+async function einvoiceDisabledResponse(req: AuthRequest, res: Response, tenantId: string): Promise<boolean> {
+  const row = (await pool.query('SELECT einvoice_enabled, einvoice_mode FROM tenants WHERE id = $1', [tenantId]))
+    .rows[0] as { einvoice_enabled?: boolean; einvoice_mode?: string } | undefined;
+  if (row?.einvoice_enabled) return false;
+  res.status(403).json({
+    error: 'E-Invoice & E-Way Bill is disabled. Enable it under Settings → GST Settings.',
+  });
+  return true;
+}
+
+async function tenantEinvoiceMode(tenantId: string): Promise<string> {
+  const row = (await pool.query('SELECT einvoice_mode FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+    { einvoice_mode?: string } | undefined;
+  return String(row?.einvoice_mode || 'portal');
+}
+
+/** API generation (NIC credentials) — only when mode is automatic (api). */
+async function einvoiceApiDisabledResponse(req: AuthRequest, res: Response, tenantId: string): Promise<boolean> {
+  if (await einvoiceDisabledResponse(req, res, tenantId)) return true;
+  if (isEinvoiceApiMode(await tenantEinvoiceMode(tenantId))) return false;
+  res.status(403).json({
+    error:
+      'API generation is only available in Automatic mode. Switch to Manual mode to download JSON and import IRN/EWB from the government portal.',
+  });
+  return true;
+}
+
+/** Portal JSON / import — only when mode is manual. */
+async function einvoicePortalDisabledResponse(req: AuthRequest, res: Response, tenantId: string): Promise<boolean> {
+  if (await einvoiceDisabledResponse(req, res, tenantId)) return true;
+  if (isEinvoicePortalMode(await tenantEinvoiceMode(tenantId))) return false;
+  res.status(403).json({
+    error:
+      'Portal JSON workflow is only available in Manual mode. Switch to Automatic mode for API generation, or change Generation Mode under GST Settings.',
+  });
+  return true;
+}
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -109,7 +162,7 @@ router.get('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
       clientId: row?.gst_api_client_id || '',
       sellerPin: row?.gst_api_seller_pin || '',
       einvoiceEnabled: !!tenantRow?.einvoice_enabled,
-      einvoiceMode: (tenantRow?.einvoice_mode as string) || 'manual',
+      einvoiceMode: normalizeEinvoiceMode(tenantRow?.einvoice_mode),
       ewbWithEinvoice: !!tenantRow?.ewb_with_einvoice,
     });
   } catch (err) {
@@ -143,7 +196,7 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
          WHERE id = $4`,
         [
           einvoiceEnabled !== undefined ? !!einvoiceEnabled : null,
-          einvoiceMode || null,
+          einvoiceMode !== undefined ? normalizeEinvoiceMode(einvoiceMode) : null,
           ewbWithEinvoice !== undefined ? !!ewbWithEinvoice : null,
           tenantId,
         ],
@@ -209,6 +262,7 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const { batchId, sellerPin: sellerPinIn, buyerPin: buyerPinIn } = req.body;
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
 
@@ -386,6 +440,7 @@ router.post('/api/gst/ewb/generate', requireAdmin, blockVendors, async (req: Aut
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const {
       batchId,
       vehicleNo,
@@ -545,6 +600,7 @@ router.post('/api/gst/irn/generate-invoice', requireAdmin, blockVendors, async (
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const { invoiceId, sellerPin, buyerPin } = req.body || {};
     if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
     const result = await generateStandaloneInvoiceIrn(pool, tenantId, String(invoiceId), { sellerPin, buyerPin });
@@ -562,6 +618,7 @@ router.post('/api/gst/ewb/generate-invoice', requireAdmin, blockVendors, async (
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const { invoiceId, vehicleNo, distance, transportMode, transporterName, transporterId, sellerPin, buyerPin } =
       req.body || {};
     if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
@@ -630,6 +687,7 @@ router.post('/api/gst/ewb/generate-invoice-by-irn', requireAdmin, blockVendors, 
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const { invoiceId, vehicleNo, distance, transportMode, transporterName, transporterId } = req.body || {};
     if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
     const result = await generateStandaloneInvoiceEwbByIrn(pool, tenantId, {
@@ -651,6 +709,7 @@ router.post('/api/gst/irn-and-ewb/generate-invoice', requireAdmin, blockVendors,
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const { invoiceId, vehicleNo, distance, transportMode, transporterName, transporterId, sellerPin, buyerPin } =
       req.body || {};
     if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
@@ -671,14 +730,186 @@ router.post('/api/gst/irn-and-ewb/generate-invoice', requireAdmin, blockVendors,
   }
 });
 
-router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) => {
+// ── Portal workflow (manual mode): download NIC JSON, import IRN/EWB from government portal ──
+
+router.get('/api/gst/einvoice-json/invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const invoiceId = String(req.query.invoiceId || '');
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const transporterName = String(req.query.transporterName || '').trim();
+    const transport = transporterName
+      ? {
+          vehicleNo: String(req.query.vehicleNo || ''),
+          distance: Number(req.query.distance) || 0,
+          transportMode: String(req.query.transportMode || '1'),
+          transporterName,
+          transporterId: String(req.query.transporterId || ''),
+          transDocNo: String(req.query.transDocNo || ''),
+          transDocDate: String(req.query.transDocDate || ''),
+          vehicleType: String(req.query.vehicleType || 'R'),
+        }
+      : undefined;
+    if (transport) {
+      const transportMode = transport.transportMode || '1';
+      if (!transport.transDocNo?.trim())
+        return res.status(400).json({ error: 'transDocNo required for combined E-Way' });
+      if (!transport.transDocDate?.trim())
+        return res.status(400).json({ error: 'transDocDate required for combined E-Way' });
+      if (transportMode === '1' && !transport.vehicleNo?.trim()) {
+        return res.status(400).json({ error: 'vehicleNo required for road transport' });
+      }
+    }
+    const json = await buildStandaloneEinvoiceNicJson(pool, tenantId, invoiceId, transport);
+    res.json(json);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'E-Invoice JSON failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.get('/api/gst/ewaybill-json/invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const invoiceId = String(req.query.invoiceId || '');
+    const vehicleNo = String(req.query.vehicleNo || '');
+    const distance = Number(req.query.distance);
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    if (!String(req.query.transporterName || '').trim())
+      return res.status(400).json({ error: 'transporterName required' });
+    if (!String(req.query.transDocNo || '').trim()) return res.status(400).json({ error: 'transDocNo required' });
+    if (!String(req.query.transDocDate || '').trim()) return res.status(400).json({ error: 'transDocDate required' });
+    const transportMode = String(req.query.transportMode || '1');
+    if (transportMode === '1' && !vehicleNo)
+      return res.status(400).json({ error: 'vehicleNo required for road transport' });
+    const json = await buildStandaloneEwaybillNicJson(pool, tenantId, invoiceId, {
+      vehicleNo,
+      distance: Number.isFinite(distance) ? distance : 0,
+      transportMode,
+      transporterName: String(req.query.transporterName || ''),
+      transporterId: String(req.query.transporterId || ''),
+      transDocNo: String(req.query.transDocNo || ''),
+      transDocDate: String(req.query.transDocDate || ''),
+      subSupplyType: String(req.query.subSupplyType || 'Supply'),
+      docType: String(req.query.docType || 'INV'),
+      vehicleType: String(req.query.vehicleType || 'R'),
+      dispatchMasterRequired: req.query.dispatchMasterRequired === 'true',
+      dispatchFromState: String(req.query.dispatchFromState || ''),
+    });
+    res.json(json);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'E-Way Bill JSON failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/irn/import-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { invoiceId, irn, ackNo, ackDt, irnQr } = req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const result = await importStandaloneInvoiceIrn(pool, tenantId, { invoiceId, irn, ackNo, ackDt, irnQr });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Import IRN failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/ewb/import-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { invoiceId, ewbNumber } = req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const result = await importStandaloneInvoiceEwb(pool, tenantId, { invoiceId, ewbNumber });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Import EWB failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/irn/import-batch', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { batchId, irn, ackNo, ackDt, irnQr } = req.body || {};
+    if (!batchId) return res.status(400).json({ error: 'batchId required' });
+    const result = await importBatchIrn(pool, tenantId, { batchId, irn, ackNo, ackDt, irnQr });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Import batch IRN failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/ewb/import-batch', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { batchId, ewbNumber } = req.body || {};
+    if (!batchId) return res.status(400).json({ error: 'batchId required' });
+    const result = await importBatchEwb(pool, tenantId, { batchId, ewbNumber });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Import batch EWB failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/portal-response/import-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { invoiceId, response } = req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    if (!response) return res.status(400).json({ error: 'response JSON required' });
+    const result = await importStandaloneInvoicePortalResponse(pool, tenantId, { invoiceId, response });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Import portal response failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/portal-response/import-batch', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { batchId, response } = req.body || {};
+    if (!batchId) return res.status(400).json({ error: 'batchId required' });
+    if (!response) return res.status(400).json({ error: 'response JSON required' });
+    const result = await importBatchPortalResponse(pool, tenantId, { batchId, response });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Import portal response failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/irn/cancel', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
     const { irn, reason, remark } = req.body;
     if (!irn) return res.status(400).json({ error: 'irn required' });
     if (!reason)
-      return res.status(400).json({ error: 'reason required (1=Duplicate, 2=OrderCancelled, 3=DataError, 4=Other)' });
+      return res
+        .status(400)
+        .json({ error: 'reason required (1=Duplicate, 2=Data mistake, 3=Order cancelled, 4=Other)' });
 
     const loaded = await loadGstCredentials(pool, tenantId);
     if (!loaded.ok) return res.status(400).json({ error: (loaded as { ok: false; error: string }).error });
@@ -687,17 +918,94 @@ router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) =
     await client.cancelIrn(irn, Number(reason) as 1 | 2 | 3 | 4, remark || 'Cancelled');
 
     await pool.query(
-      'UPDATE product_distribution SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL WHERE irn=$1 AND tenant_id=$2',
+      'UPDATE product_distribution SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL, ewb_number=NULL WHERE irn=$1 AND tenant_id=$2',
       [irn, tenantId],
     );
     await pool.query(
-      'UPDATE standalone_invoices SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL WHERE irn=$1 AND tenant_id=$2',
+      'UPDATE standalone_invoices SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL, ewb_number=NULL WHERE irn=$1 AND tenant_id=$2',
       [irn, tenantId],
     );
 
     res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err, 'IRN cancel failed', { publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/ewb/cancel', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoiceApiDisabledResponse(req, res, tenantId)) return;
+    const { ewbNumber, reason, remark, invoiceId, batchId } = req.body || {};
+    if (!ewbNumber) return res.status(400).json({ error: 'ewbNumber required' });
+    if (!reason)
+      return res
+        .status(400)
+        .json({ error: 'reason required (1=Duplicate, 2=Order cancelled, 3=Data mistake, 4=Other)' });
+
+    const loaded = await loadGstCredentials(pool, tenantId);
+    if (!loaded.ok) return res.status(400).json({ error: (loaded as { ok: false; error: string }).error });
+
+    const client = new NicApiClient(loaded.creds);
+    await client.cancelEwb(String(ewbNumber), Number(reason) as 1 | 2 | 3 | 4, remark || 'Cancelled');
+
+    if (invoiceId) {
+      await pool.query(
+        `UPDATE standalone_invoices SET ewb_number = NULL WHERE id = $1 AND tenant_id = $2 AND ewb_number = $3`,
+        [invoiceId, tenantId, String(ewbNumber)],
+      );
+    } else if (batchId) {
+      await pool.query(
+        `UPDATE product_distribution SET ewb_number = NULL WHERE batch_id = $1 AND tenant_id = $2 AND ewb_number = $3`,
+        [batchId, tenantId, String(ewbNumber)],
+      );
+    } else {
+      await pool.query(`UPDATE standalone_invoices SET ewb_number = NULL WHERE tenant_id = $1 AND ewb_number = $2`, [
+        tenantId,
+        String(ewbNumber),
+      ]);
+      await pool.query(`UPDATE product_distribution SET ewb_number = NULL WHERE tenant_id = $1 AND ewb_number = $2`, [
+        tenantId,
+        String(ewbNumber),
+      ]);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    return handleApiError(req, res, err, 'EWB cancel failed', { publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/filing/clear-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { invoiceId, scope } = req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const s = scope === 'ewb' || scope === 'irn' ? scope : 'all';
+    const result = await clearStandaloneInvoiceGstFiling(pool, tenantId, invoiceId, s);
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Clear filing failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/filing/clear-batch', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (await einvoicePortalDisabledResponse(req, res, tenantId)) return;
+    const { batchId, scope } = req.body || {};
+    if (!batchId) return res.status(400).json({ error: 'batchId required' });
+    const s = scope === 'ewb' || scope === 'irn' ? scope : 'all';
+    const result = await clearBatchGstFiling(pool, tenantId, batchId, s);
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Clear filing failed', { status, publicMessage: safeError(err) });
   }
 });
 

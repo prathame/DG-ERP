@@ -2178,10 +2178,29 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { batchId, vehicleNo, transportMode, distance, transporterName, transporterId, shipToGstin } = req.query;
+    const {
+      batchId,
+      vehicleNo,
+      transportMode,
+      distance,
+      transporterName,
+      transporterId,
+      shipToGstin,
+      transDocNo,
+      transDocDate,
+      subSupplyType,
+      docType,
+      vehicleType,
+      dispatchMasterRequired,
+      dispatchFromState,
+    } = req.query;
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
-    if (!vehicleNo) return res.status(400).json({ error: 'Vehicle number required' });
-    if (!distance) return res.status(400).json({ error: 'Distance required' });
+    if (!String(transporterName || '').trim()) return res.status(400).json({ error: 'Transporter name required' });
+    if (!String(transDocNo || '').trim()) return res.status(400).json({ error: 'Transporter doc no required' });
+    if (!String(transDocDate || '').trim()) return res.status(400).json({ error: 'Transporter doc date required' });
+    const mode = String(transportMode || '1');
+    if (mode === '1' && !vehicleNo)
+      return res.status(400).json({ error: 'Vehicle number required for road transport' });
 
     const scoped = vendorScopeId(req);
     if (req.user?.role === 'Vendor' && !scoped) {
@@ -2308,11 +2327,16 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
     // Ship-To GSTIN (mandatory from Aug 2026)
     const shipTo = resolveShipToGstin(typeof shipToGstin === 'string' ? shipToGstin : null, buyerGstin);
 
+    const actFromState =
+      dispatchMasterRequired === 'true'
+        ? parseInt(String(dispatchFromState || fromStateCode), 10) || fromStateCode
+        : fromStateCode;
+
     const eWayBill = {
       Version: '1.01',
       SupTyp: buyerGstin ? 'B2B' : 'B2C',
-      SubSupTyp: 'Supply',
-      DocTyp: 'INV',
+      SubSupTyp: String(subSupplyType || 'Supply'),
+      DocTyp: String(docType || 'INV'),
       DocNo: `INV-${batchId}`,
       DocDt: invoiceDate,
       FromGstin: sellerGstin,
@@ -2325,6 +2349,7 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
           ?.trim() || 'N/A',
       FromPincode: fromPincode,
       FromStateCode: fromStateCode,
+      ActFromStateCode: actFromState,
       ToGstin: buyerGstin || 'URP',
       ToTrdName: (vendor?.name as string) || 'Walk-in',
       ToAddr1: (vendor?.address as string) || 'N/A',
@@ -2338,12 +2363,16 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
       IgstValue: isInterState ? totCgst + totSgst : 0,
       CesValue: 0,
       TotInvValue: totVal,
-      TransMode: modeMap[transportMode as string] || '1',
-      TransDistance: distance,
+      TransMode: ['1', '2', '3', '4'].includes(String(transportMode || ''))
+        ? String(transportMode)
+        : modeMap[transportMode as string] || '1',
+      TransDistance: Number(distance) || 0,
       TransporterName: transporterName || '',
       TransporterId: transporterId || '',
+      TransDocNo: String(transDocNo || ''),
+      TransDocDate: String(transDocDate || invoiceDate),
       VehicleNo: vehicleNo,
-      VehicleType: (transportMode as string) === 'Ship' ? 'O' : 'R',
+      VehicleType: String(vehicleType || (mode === '4' ? 'O' : 'R')),
       ItemList: itemList,
     };
 
@@ -2384,11 +2413,13 @@ router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
         warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 6+ digits for B2B (mandatory for AATO > ₹5Cr)`);
     }
 
-    // Vehicle & transport
+    // Vehicle & transport — distance 0 allowed (portal calculates pin-to-pin)
     if (!(vehicleNo as string).match(/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/i))
       warnings.push(`Vehicle number "${vehicleNo}" format may be invalid (expected: GJ03AB1234)`);
-    if (Number(distance) <= 0) errors.push('Distance must be greater than 0 km');
-    if (Number(distance) > 4000) warnings.push(`Distance ${distance} km seems unusually high`);
+    if (Number(distance) < 0) errors.push('Distance cannot be negative');
+    if (Number(distance) === 0)
+      warnings.push('Distance 0 — government portal will calculate pin-to-pin distance when Part B is filed');
+    else if (Number(distance) > 4000) warnings.push(`Distance ${distance} km seems unusually high`);
 
     // Address & pincode
     if (!(tenant.address as string) || (tenant.address as string) === 'N/A') errors.push('Seller address is missing');

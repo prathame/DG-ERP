@@ -2,25 +2,42 @@ import React, { useState } from 'react';
 import { Truck, Search } from 'lucide-react';
 import { api } from '../../api';
 import { useToast } from '../ui';
+import {
+  EWB_DOC_TYPES,
+  EWB_SUB_SUPPLY_TYPES,
+  EWB_VEHICLE_TYPES,
+  INDIAN_STATES,
+  fmtEwbDocDate,
+} from '../../../shared/ewbFormOptions';
 
 export type EwbFormState = {
-  vehicleNo: string;
-  distance: string;
+  dispatchMasterRequired: boolean;
+  dispatchFromState: string;
   transportMode: string;
+  subSupplyType: string;
+  docType: string;
   transporterName: string;
-  transporterId: string;
+  distance: string;
   transDocNo: string;
   transDocDate: string;
+  vehicleNo: string;
+  vehicleType: string;
+  transporterId: string;
 };
 
-export const defaultEwbForm = (): EwbFormState => ({
-  vehicleNo: '',
-  distance: '',
+export const defaultEwbForm = (sellerGstin?: string): EwbFormState => ({
+  dispatchMasterRequired: false,
+  dispatchFromState: sellerGstin ? sellerGstin.slice(0, 2) : '24',
   transportMode: '1',
+  subSupplyType: 'Supply',
+  docType: 'INV',
   transporterName: '',
-  transporterId: '',
+  distance: '',
   transDocNo: '',
-  transDocDate: new Date().toISOString().slice(0, 10),
+  transDocDate: fmtEwbDocDate(new Date().toISOString().slice(0, 10)),
+  vehicleNo: '',
+  vehicleType: 'R',
+  transporterId: '',
 });
 
 type Props = {
@@ -33,12 +50,15 @@ type Props = {
   onSubmit: () => void;
   fromPin?: string;
   toPin?: string;
+  sellerGstin?: string;
   showIrnHint?: boolean;
+  submitLabel?: string;
+  portalHint?: string;
 };
 
 export function EwbGenerateModal({
   open,
-  title = 'Generate E-Way Bill',
+  title = 'E-Way Bill details',
   generating,
   form,
   onChange,
@@ -47,9 +67,12 @@ export function EwbGenerateModal({
   fromPin,
   toPin,
   showIrnHint,
+  submitLabel,
+  portalHint,
 }: Props) {
   const { toast } = useToast();
   const [lookingUp, setLookingUp] = useState(false);
+  const isRoad = form.transportMode === '1';
 
   if (!open) return null;
 
@@ -74,6 +97,9 @@ export function EwbGenerateModal({
     }
   }
 
+  const lbl = 'text-xs font-bold text-gray-400 uppercase block mb-1';
+  const inp = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm';
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
@@ -81,39 +107,103 @@ export function EwbGenerateModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
           <Truck size={20} className="text-teal-600" /> {title}
         </h3>
         {showIrnHint ? (
           <p className="text-xs text-gray-500 mb-3">E-Way bill will be linked to the existing E-Invoice IRN.</p>
         ) : null}
+        {portalHint ? <p className="text-[10px] text-gray-400 mb-3">{portalHint}</p> : null}
         <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={lbl}>Dispatch master required</label>
+              <select
+                value={form.dispatchMasterRequired ? 'yes' : 'no'}
+                onChange={e => onChange({ ...form, dispatchMasterRequired: e.target.value === 'yes' })}
+                className={inp}
+              >
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Dispatch from {form.dispatchMasterRequired ? '*' : ''}</label>
+              <select
+                value={form.dispatchFromState}
+                onChange={e => onChange({ ...form, dispatchFromState: e.target.value })}
+                disabled={!form.dispatchMasterRequired}
+                className={inp + (form.dispatchMasterRequired ? '' : ' opacity-60')}
+              >
+                {INDIAN_STATES.map(s => (
+                  <option key={s.code} value={s.code}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={lbl}>Mode of transportation *</label>
+              <select
+                value={form.transportMode}
+                onChange={e => onChange({ ...form, transportMode: e.target.value })}
+                className={inp}
+              >
+                <option value="1">Road</option>
+                <option value="2">Rail</option>
+                <option value="3">Air</option>
+                <option value="4">Ship</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Sub type *</label>
+              <select
+                value={form.subSupplyType}
+                onChange={e => onChange({ ...form, subSupplyType: e.target.value })}
+                className={inp}
+              >
+                {EWB_SUB_SUPPLY_TYPES.map(o => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div>
-            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transport mode</label>
-            <select
-              value={form.transportMode}
-              onChange={e => onChange({ ...form, transportMode: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-            >
-              <option value="1">Road</option>
-              <option value="2">Rail</option>
-              <option value="3">Air</option>
-              <option value="4">Ship</option>
+            <label className={lbl}>Doc type *</label>
+            <select value={form.docType} onChange={e => onChange({ ...form, docType: e.target.value })} className={inp}>
+              {EWB_DOC_TYPES.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vehicle no *</label>
+            <label className={lbl}>Transporter name *</label>
             <input
-              value={form.vehicleNo}
-              onChange={e => onChange({ ...form, vehicleNo: e.target.value.toUpperCase() })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl font-mono text-sm"
-              placeholder="GJ01AB1234"
+              value={form.transporterName}
+              onChange={e => onChange({ ...form, transporterName: e.target.value })}
+              className={inp}
+              placeholder="Transporter / logistics company"
+            />
+          </div>
+          <div>
+            <label className={lbl}>Transporter ID (GSTIN)</label>
+            <input
+              value={form.transporterId}
+              onChange={e => onChange({ ...form, transporterId: e.target.value.toUpperCase() })}
+              className={inp + ' font-mono'}
+              placeholder="Optional transporter GSTIN"
             />
           </div>
           <div>
             <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="text-xs font-bold text-gray-400 uppercase">Distance (km) *</label>
+              <label className={lbl + ' mb-0'}>Distance (km) *</label>
               {fromPin && toPin ? (
                 <button
                   type="button"
@@ -129,34 +219,54 @@ export function EwbGenerateModal({
               type="number"
               value={form.distance}
               onChange={e => onChange({ ...form, distance: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-              placeholder="150"
-              min="1"
+              className={inp}
+              placeholder="0 = portal calculates from PIN"
+              min="0"
             />
-            {fromPin && toPin ? (
-              <p className="text-[10px] text-gray-400 mt-1">
-                {fromPin} → {toPin}
-              </p>
-            ) : null}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transporter</label>
+              <label className={lbl}>Transporter doc no *</label>
               <input
-                value={form.transporterName}
-                onChange={e => onChange({ ...form, transporterName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                placeholder="Name"
+                value={form.transDocNo}
+                onChange={e => onChange({ ...form, transDocNo: e.target.value })}
+                className={inp}
+                placeholder="LR / challan no."
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transporter ID</label>
+              <label className={lbl}>Transporter doc date *</label>
               <input
-                value={form.transporterId}
-                onChange={e => onChange({ ...form, transporterId: e.target.value.toUpperCase() })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl font-mono text-sm"
-                placeholder="GSTIN / ID"
+                type="date"
+                value={form.transDocDate.includes('/') ? '' : form.transDocDate}
+                onChange={e => onChange({ ...form, transDocDate: e.target.value })}
+                className={inp}
               />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={lbl}>Vehicle no {isRoad ? '*' : ''}</label>
+              <input
+                value={form.vehicleNo}
+                onChange={e => onChange({ ...form, vehicleNo: e.target.value.toUpperCase() })}
+                className={inp + ' font-mono'}
+                placeholder={isRoad ? 'GJ01AB1234' : 'If applicable'}
+              />
+            </div>
+            <div>
+              <label className={lbl}>Vehicle type</label>
+              <select
+                value={form.vehicleType}
+                onChange={e => onChange({ ...form, vehicleType: e.target.value })}
+                className={inp}
+              >
+                {EWB_VEHICLE_TYPES.map(o => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -174,10 +284,41 @@ export function EwbGenerateModal({
             disabled={generating}
             className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-bold disabled:opacity-50"
           >
-            {generating ? 'Generating…' : 'Generate'}
+            {generating ? 'Working…' : submitLabel || 'Generate'}
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+/** Build query/body payload for E-Way JSON download and API generation. */
+export function ewbFormToTransportPayload(form: EwbFormState) {
+  const docDate = form.transDocDate.includes('/')
+    ? form.transDocDate
+    : fmtEwbDocDate(form.transDocDate || new Date().toISOString().slice(0, 10));
+  return {
+    vehicleNo: form.vehicleNo.trim().toUpperCase(),
+    distance: Number(form.distance) || 0,
+    transportMode: form.transportMode,
+    transporterName: form.transporterName.trim(),
+    transporterId: form.transporterId.trim(),
+    transDocNo: form.transDocNo.trim(),
+    transDocDate: docDate,
+    subSupplyType: form.subSupplyType,
+    docType: form.docType,
+    vehicleType: form.vehicleType,
+    dispatchMasterRequired: form.dispatchMasterRequired,
+    dispatchFromState: form.dispatchFromState,
+  };
+}
+
+export function validateEwbForm(form: EwbFormState): string | null {
+  if (!form.transporterName.trim()) return 'Transporter name is required';
+  if (form.distance === '' || Number.isNaN(Number(form.distance))) return 'Distance is required';
+  if (!form.transDocNo.trim()) return 'Transporter document number is required';
+  if (!form.transDocDate.trim()) return 'Transporter document date is required';
+  if (form.transportMode === '1' && !form.vehicleNo.trim()) return 'Vehicle number is required for road transport';
+  if (form.dispatchMasterRequired && !form.dispatchFromState) return 'Dispatch from state is required';
+  return null;
 }

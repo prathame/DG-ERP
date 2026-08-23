@@ -34,6 +34,8 @@ import { BILL_UNIT_PRESETS, DEFAULT_BILL_UNITS, normalizeBillUnits } from '../..
 import { useTranslation, LANGUAGES } from '../../i18n';
 import { useToast, LoadingSpinner, PercentProgressBar } from '../../components/ui';
 import { session } from '../../lib/session';
+import { patchSessionEinvoiceFlags } from '../../lib/gstEinvoiceEnabled';
+import { normalizeEinvoiceMode } from '../../../shared/gstEinvoiceMode';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
@@ -83,6 +85,7 @@ import {
 import { DesktopSettingsTabNav, type DesktopSettingsTab, type DesktopSettingsTabId } from './DesktopSettingsPanel';
 import { MobileSettingsHub, MobileSettingsSheetChrome, moduleBlurb } from './MobileSettingsHub';
 import { GstApiGuidePanel } from './GstApiGuidePanel';
+import { GstComplianceRulesPanel } from '../../components/gst/GstComplianceRulesPanel';
 import { BarcodeLabelTemplatesSection } from './barcodeLabels/BarcodeLabelTemplatesSection';
 
 function backupApiHeaders(extra?: Record<string, string>): Record<string, string> {
@@ -205,7 +208,7 @@ function GstApiSection() {
     clientSecret: '',
     sellerPin: '',
     einvoiceEnabled: false,
-    einvoiceMode: 'manual' as 'manual' | 'auto',
+    einvoiceMode: 'portal' as 'portal' | 'api',
     ewbWithEinvoice: false,
   });
   const [eligibility, setEligibility] = useState<{
@@ -230,7 +233,7 @@ function GstApiSection() {
           clientId: s.clientId || '',
           sellerPin: s.sellerPin || '',
           einvoiceEnabled: !!s.einvoiceEnabled,
-          einvoiceMode: (s.einvoiceMode as 'manual' | 'auto') || 'manual',
+          einvoiceMode: normalizeEinvoiceMode(s.einvoiceMode),
           ewbWithEinvoice: !!s.ewbWithEinvoice,
         })),
       )
@@ -262,7 +265,8 @@ function GstApiSection() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.gst.saveSettings(form);
+      await api.gst.saveSettings({ ...form, einvoiceMode: normalizeEinvoiceMode(form.einvoiceMode) });
+      patchSessionEinvoiceFlags({ ...form, einvoiceMode: normalizeEinvoiceMode(form.einvoiceMode) });
       toast('GST API settings saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Save failed', 'error');
@@ -306,6 +310,7 @@ function GstApiSection() {
       </div>
       <div className="p-6 space-y-5">
         <GstApiGuidePanel />
+        <GstComplianceRulesPanel />
 
         {/* Master toggle — enable / disable E-Invoice & EWB for this tenant */}
         <div className="rounded-xl border border-gray-200 p-4 space-y-4">
@@ -344,8 +349,16 @@ function GstApiSection() {
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
-                      ['manual', 'Manual', 'Click generate button per invoice — full control'],
-                      ['auto', 'Automatic', 'Auto-generate IRN when invoice is finalised / status set to Sent'],
+                      [
+                        'portal',
+                        'Manual (Portal)',
+                        'Download JSON → upload on government portal → import IRN/EWB back',
+                      ],
+                      [
+                        'api',
+                        'Automatic (API)',
+                        'Generate via NIC API — button per bill or auto IRN when invoice is Sent',
+                      ],
                     ] as const
                   ).map(([v, label, desc]) => (
                     <button
