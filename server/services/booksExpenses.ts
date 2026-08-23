@@ -141,3 +141,41 @@ export async function sumTenantExpenses(
     .rows[0] as { v: number };
   return Number(row?.v) || 0;
 }
+
+/** Monthly expense outflows — Books payment vouchers when desk has data, else ops `expenses`. */
+export async function tenantExpensesByMonth(
+  pool: Pool,
+  tenantId: string,
+  from: string,
+  to: string,
+): Promise<{ month: string; total: number }[]> {
+  if (await booksDeskHasData(pool, tenantId)) {
+    const params: unknown[] = [tenantId, from, to];
+    const { rows } = await pool.query(
+      `WITH books_exp AS (${BOOKS_EXPENSE_SQL})
+       SELECT to_char(voucher_date, 'YYYY-MM') AS month,
+              COALESCE(SUM(amount), 0)::float AS total
+       FROM books_exp
+       WHERE voucher_date >= $2 AND voucher_date <= $3
+       GROUP BY 1
+       ORDER BY 1`,
+      params,
+    );
+    return (rows as { month: string; total: number }[]).map(r => ({
+      month: r.month,
+      total: Number(r.total) || 0,
+    }));
+  }
+  const { rows } = await pool.query(
+    `SELECT to_char(expense_date, 'YYYY-MM') AS month, COALESCE(SUM(amount), 0)::float AS total
+     FROM expenses
+     WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3
+     GROUP BY 1
+     ORDER BY 1`,
+    [tenantId, from, to],
+  );
+  return (rows as { month: string; total: number }[]).map(r => ({
+    month: r.month,
+    total: Number(r.total) || 0,
+  }));
+}

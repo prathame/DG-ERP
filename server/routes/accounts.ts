@@ -28,6 +28,7 @@ import {
   mergeImsActionsIntoRows,
   upsertGstr2bImsAction,
 } from '../services/gstr2bIms';
+import { sumTenantExpenses, tenantExpensesByMonth } from '../services/booksExpenses';
 
 const router = Router();
 
@@ -382,7 +383,7 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
     const debitNotes = Number(dnRes.rows[0]?.t ?? 0) || 0;
 
     // COGS ≈ cost of units distributed in period + OWNER sales cost (avg purchase cost)
-    const [cogsDistRes, cogsSaleRes, purchExclRes, staffRes, expenseRes] = await Promise.all([
+    const [cogsDistRes, cogsSaleRes, purchExclRes, staffRes, tenantExpenseTotal] = await Promise.all([
       pool.query(
         `
         SELECT COALESCE(SUM(COALESCE(
@@ -415,16 +416,13 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
         "SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus')",
         [tenantId, from, to],
       ),
-      pool.query(
-        'SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3',
-        [tenantId, from, to],
-      ),
+      sumTenantExpenses(pool, tenantId, from, to),
     ]);
 
     const cogs = (Number(cogsDistRes.rows[0]?.t ?? 0) || 0) + (Number(cogsSaleRes.rows[0]?.t ?? 0) || 0);
     const purchasesExclGst = Number(purchExclRes.rows[0]?.t ?? 0) || 0;
     const staffCost = Number(staffRes.rows[0]?.t ?? 0) || 0;
-    const expenseCost = (Number(expenseRes.rows[0]?.t ?? 0) || 0) + debitNotes;
+    const expenseCost = tenantExpenseTotal + debitNotes;
 
     const grossRevenue = distRevenue + salesRevenue + invoiceRevenue;
     const netRevenue = Math.max(0, grossRevenue - creditNotes);
@@ -631,12 +629,12 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
       vpRes,
       spRes,
       staffRes,
-      expCfRes,
+      tenantExpenseTotal,
       monthlyInRes,
       monthlyInvRes,
       monthlyOutRes,
       monthlyStaffRes,
-      monthlyExpRes,
+      monthlyExpRows,
       invPaidCfRes,
       ownerSalesCashRes,
       monthlyOwnerSalesRes,
@@ -653,10 +651,7 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
         "SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance')",
         [tenantId, from, to],
       ),
-      pool.query(
-        'SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3',
-        [tenantId, from, to],
-      ),
+      sumTenantExpenses(pool, tenantId, from, to),
       pool.query(
         "SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM vendor_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month",
         [tenantId, from, to],
@@ -674,10 +669,7 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
         "SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance') GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month",
         [tenantId, from, to],
       ),
-      pool.query(
-        "SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month",
-        [tenantId, from, to],
-      ),
+      tenantExpensesByMonth(pool, tenantId, from, to),
       pool.query(
         'SELECT COALESCE(SUM(amount), 0) as t FROM invoice_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3',
         [tenantId, from, to],
@@ -697,13 +689,13 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
     const ownerSalesCash = Number(ownerSalesCashRes.rows[0]?.t ?? 0) || 0;
     const supplierPayments = Number(spRes.rows[0]?.t ?? 0) || 0;
     const staffPayments = Number(staffRes.rows[0]?.t ?? 0) || 0;
-    const expenseTotal = Number(expCfRes.rows[0]?.t ?? 0) || 0;
+    const expenseTotal = tenantExpenseTotal;
     const monthlyIn = monthlyInRes.rows as { month: string; total: string }[];
     const monthlyInv = monthlyInvRes.rows as { month: string; total: string }[];
     const monthlyOwner = monthlyOwnerSalesRes.rows as { month: string; total: string }[];
     const monthlyOut = monthlyOutRes.rows as { month: string; total: string }[];
     const monthlyStaff = monthlyStaffRes.rows as { month: string; total: string }[];
-    const monthlyExp = monthlyExpRes.rows as { month: string; total: string }[];
+    const monthlyExp = monthlyExpRows.map(r => ({ month: r.month, total: String(r.total) }));
 
     const months = new Set([
       ...monthlyIn.map(r => r.month),
