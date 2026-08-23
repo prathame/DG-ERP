@@ -27,6 +27,13 @@ function activityQueryParams(tenantId: string, from?: string, to?: string): unkn
   return [tenantId];
 }
 
+function activityQueryParamsWithVendor(tenantId: string, vendorId: string, from?: string, to?: string): unknown[] {
+  if (from && to) return [tenantId, vendorId, from, to];
+  if (from) return [tenantId, vendorId, from];
+  if (to) return [tenantId, vendorId, to];
+  return [tenantId, vendorId];
+}
+
 router.get('/api/dashboard/stats', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -271,6 +278,9 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const from = typeof req.query.from === 'string' ? req.query.from : undefined;
+    const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+
     const vid = vendorScopeId(req);
     if (req.user?.role === 'Vendor' && !vid) {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
@@ -291,9 +301,9 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
               SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date
               FROM product_distribution WHERE tenant_id = $1 AND vendor_id = $2
               GROUP BY COALESCE(batch_id, id), vendor_id
-          ) t ORDER BY date DESC LIMIT 15
+          ) t WHERE 1=1${activityDateClause(from, to, 3)} ORDER BY date DESC LIMIT 15
         `,
-            [tenantId, vid],
+            activityQueryParamsWithVendor(tenantId, vid, from, to),
           )
         ).rows as { type: string; id: string; label: string; amount: number; date: string }[])
       : ((
@@ -309,9 +319,9 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
             SELECT 'distribution', COALESCE(batch_id, id), vendor_id as label, SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date FROM product_distribution WHERE tenant_id = $1 GROUP BY COALESCE(batch_id, id), vendor_id
             UNION ALL
             SELECT 'expense', id, category as label, amount, expense_date::text FROM expenses WHERE tenant_id = $1
-          ) t ORDER BY date DESC LIMIT 15
+          ) t WHERE 1=1${activityDateClause(from, to, 2)} ORDER BY date DESC LIMIT 15
         `,
-            [tenantId],
+            activityQueryParams(tenantId, from, to),
           )
         ).rows as { type: string; id: string; label: string; amount: number; date: string }[]);
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import { motion } from 'motion/react';
 import {
   CreditCard,
@@ -159,6 +159,17 @@ export function AnalyticsView({
     byMonth: { month: string; total: number }[];
   } | null>(null);
 
+  const payrollPeriodLabel = useMemo(() => {
+    const resolved = resolveReportingRange(
+      range as ReportingPeriodPreset,
+      fromDate,
+      toDate,
+      new Date(),
+      range === 'fy' || range === 'lastFy' ? (fyStartYear ?? undefined) : undefined,
+    );
+    return resolved.label || (resolved.from && resolved.to ? `${resolved.from} – ${resolved.to}` : '');
+  }, [range, fromDate, toDate, fyStartYear]);
+
   useEffect(() => {
     const resolved = resolveReportingRange(
       range as ReportingPeriodPreset,
@@ -190,9 +201,8 @@ export function AnalyticsView({
         setCounts(data?.counts ?? null);
       })
       .catch(() => {});
-    const year = new Date().getFullYear();
     api.payroll
-      .summary(year)
+      .summary(undefined, from, to)
       .then(data => {
         // Wrong stub shape ({ totalPaid }) used to crash on payroll.byStaff.length → blank screen.
         if (!data || typeof data !== 'object') {
@@ -613,8 +623,8 @@ export function AnalyticsView({
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
-              <Wallet size={16} className="text-indigo-500" /> {t('dashboard.staffPayroll')} —{' '}
-              {new Date().getFullYear()}
+              <Wallet size={16} className="text-indigo-500" /> {t('dashboard.staffPayroll')}
+              {payrollPeriodLabel ? ` — ${payrollPeriodLabel}` : ''}
             </h3>
             <button
               type="button"

@@ -93,12 +93,25 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
     }
     const { parsePagination } = await import('../utils/pagination');
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
+    const from = typeof req.query.from === 'string' ? req.query.from : '';
+    const to = typeof req.query.to === 'string' ? req.query.to : '';
+    const dateParams: unknown[] = [tenantId];
+    let dateWhere = '';
+    if (from) {
+      dateWhere += ` AND si.invoice_date >= $${dateParams.length + 1}`;
+      dateParams.push(from);
+    }
+    if (to) {
+      dateWhere += ` AND si.invoice_date <= $${dateParams.length + 1}`;
+      dateParams.push(to);
+    }
     // Soft-deleted invoices stay as status=cancelled for audit; never list them here.
     const total = Number(
       (
         await pool.query(
-          `SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'`,
-          [tenantId],
+          `SELECT COUNT(*)::int AS c FROM standalone_invoices si
+           WHERE si.tenant_id = $1 AND si.status != 'cancelled'${dateWhere}`,
+          dateParams,
         )
       ).rows[0]?.c ?? 0,
     );
@@ -106,10 +119,10 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
       `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
        FROM standalone_invoices si
        LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
-       WHERE si.tenant_id = $1 AND si.status != 'cancelled'
+       WHERE si.tenant_id = $1 AND si.status != 'cancelled'${dateWhere}
        GROUP BY si.id
-       ORDER BY si.created_at DESC LIMIT $2 OFFSET $3`,
-      [tenantId, limit, offset],
+       ORDER BY si.created_at DESC LIMIT $${dateParams.length + 1} OFFSET $${dateParams.length + 2}`,
+      [...dateParams, limit, offset],
     );
     res.setHeader('X-Total-Count', String(total));
     res.setHeader('X-Page', String(page));

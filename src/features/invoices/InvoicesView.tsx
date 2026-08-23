@@ -59,6 +59,7 @@ import {
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { api } from '../../api';
+import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
@@ -424,7 +425,12 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
   });
 
   const load = () => {
-    fetchApi<Invoice[]>('/invoices')
+    const { from, to } = defaultDateRangeFromReportingPeriod();
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    const qs = q.toString();
+    fetchApi<Invoice[]>(`/invoices${qs ? `?${qs}` : ''}`)
       .then(rows => setInvoices(Array.isArray(rows) ? rows : []))
       .catch(() => setInvoices([]))
       .finally(() => setLoading(false));
