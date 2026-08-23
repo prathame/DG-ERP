@@ -26,6 +26,15 @@ function globalReportingRange(): { from: string; to: string } {
   return defaultDateRangeFromReportingPeriod();
 }
 
+function reportingRangeQuery(from?: string, to?: string): string {
+  const qp = new URLSearchParams();
+  const range = globalReportingRange();
+  if (from || range.from) qp.set('from', from || range.from);
+  if (to || range.to) qp.set('to', to || range.to);
+  const qs = qp.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export interface DistributionBatch {
   batchId: string;
   vendorId: string;
@@ -942,7 +951,7 @@ export const api = {
     delete: (id: string) => fetchApi<void>(`/banks/${id}`, { method: 'DELETE' }),
   },
   invoiceFinance: {
-    summary: () =>
+    summary: (from?: string, to?: string) =>
       fetchApi<
         {
           partyKey: string;
@@ -957,9 +966,9 @@ export const api = {
           advanceBalance?: number;
           balance: number;
         }[]
-      >('/invoice-finance/summary'),
+      >(`/invoice-finance/summary${reportingRangeQuery(from, to)}`),
     /** Party sales vs cash-income KPIs (same for imported and manually recorded). */
-    breakdown: () =>
+    breakdown: (from?: string, to?: string) =>
       fetchApi<{
         partyInvoiced: number;
         partyReceived: number;
@@ -971,9 +980,9 @@ export const api = {
         cashIncome: number;
         cashIncomeReceived: number;
         cashIncomeCount: number;
-      }>('/invoice-finance/breakdown'),
+      }>(`/invoice-finance/breakdown${reportingRangeQuery(from, to)}`),
     /** Cash-income invoices (rent/scrap/misc) — not party bills. */
-    cashIncome: () =>
+    cashIncome: (from?: string, to?: string) =>
       fetchApi<
         {
           id: string;
@@ -985,7 +994,7 @@ export const api = {
           status: string;
           notes?: string | null;
         }[]
-      >('/invoice-finance/cash-income'),
+      >(`/invoice-finance/cash-income${reportingRangeQuery(from, to)}`),
     /** Record direct cash income (always paid; never party outstanding). */
     createCashIncome: (data: {
       incomeHead: string;
@@ -1009,7 +1018,7 @@ export const api = {
         body: JSON.stringify(data),
       }),
     /** Flat open bills (balance > 0) for Miracle-style bill-wise outstanding. */
-    openBills: () =>
+    openBills: (from?: string, to?: string) =>
       fetchApi<
         {
           partyKey: string;
@@ -1026,9 +1035,9 @@ export const api = {
           balance: number;
           status: string;
         }[]
-      >('/invoice-finance/open-bills'),
+      >(`/invoice-finance/open-bills${reportingRangeQuery(from, to)}`),
     /** partyKey: vendor:ID | customer:ID | name:DisplayName (or plain name for legacy) */
-    client: (partyKey: string) =>
+    client: (partyKey: string, from?: string, to?: string) =>
       fetchApi<{
         partyKey: string;
         partyType: 'vendor' | 'customer' | null;
@@ -1065,7 +1074,7 @@ export const api = {
           notes?: string;
           isAdvance?: boolean;
         }[];
-      }>(`/invoice-finance/client/${encodeURIComponent(partyKey)}`),
+      }>(`/invoice-finance/client/${encodeURIComponent(partyKey)}${reportingRangeQuery(from, to)}`),
     recordPayment: (data: {
       /** Apply to a specific invoice (must have remaining balance). */
       invoiceId?: string;

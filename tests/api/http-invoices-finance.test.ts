@@ -347,6 +347,67 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(rows.some(r => r.partyKey === 'name:Walk-in')).toBe(true);
   });
 
+  it('invoice-finance summary and open-bills respect from/to date range', async () => {
+    const oldId = 'INV-FY-OLD';
+    const newId = 'INV-FY-NEW';
+    await pool.query(
+      `INSERT INTO standalone_invoices
+        (id, tenant_id, invoice_number, customer_name, party_type, party_id, items, subtotal, tax_total, grand_total, status, invoice_date)
+       VALUES ($1, $2, 'INV/FY/OLD', 'Acme Vendor', 'vendor', $3, '[]', 1000, 180, 1180, 'sent', '2024-05-01')
+       ON CONFLICT (id) DO NOTHING`,
+      [oldId, TENANT, VENDOR],
+    );
+    await pool.query(
+      `INSERT INTO standalone_invoices
+        (id, tenant_id, invoice_number, customer_name, party_type, party_id, items, subtotal, tax_total, grand_total, status, invoice_date)
+       VALUES ($1, $2, 'INV/FY/NEW', 'Acme Vendor', 'vendor', $3, '[]', 2000, 360, 2360, 'sent', '2026-05-01')
+       ON CONFLICT (id) DO NOTHING`,
+      [newId, TENANT, VENDOR],
+    );
+
+    const fy26 = await api()
+      .get('/api/invoice-finance/summary')
+      .query({ from: '2026-04-01', to: '2027-03-31' })
+      .set(authHeaders(token, TENANT));
+    expect(fy26.status).toBe(200);
+    const vendorRow = (fy26.body as { partyKey: string; invoiceCount: number; totalInvoiced: number }[]).find(
+      r => r.partyKey === `vendor:${VENDOR}`,
+    );
+    expect(vendorRow).toBeTruthy();
+    expect(vendorRow!.invoiceCount).toBeGreaterThanOrEqual(1);
+    expect(vendorRow!.totalInvoiced).toBeGreaterThanOrEqual(2360);
+
+    const fy24 = await api()
+      .get('/api/invoice-finance/summary')
+      .query({ from: '2024-04-01', to: '2025-03-31' })
+      .set(authHeaders(token, TENANT));
+    expect(fy24.status).toBe(200);
+    const vendorFy24 = (fy24.body as { partyKey: string; totalInvoiced: number }[]).find(
+      r => r.partyKey === `vendor:${VENDOR}`,
+    );
+    expect(vendorFy24?.totalInvoiced ?? 0).toBeGreaterThanOrEqual(1180);
+
+    const openFy26 = await api()
+      .get('/api/invoice-finance/open-bills')
+      .query({ from: '2026-04-01', to: '2027-03-31' })
+      .set(authHeaders(token, TENANT));
+    expect(openFy26.status).toBe(200);
+    expect((openFy26.body as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'INV/FY/OLD')).toBe(false);
+    expect((openFy26.body as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'INV/FY/NEW')).toBe(true);
+
+    const clientFy26 = await api()
+      .get(`/api/invoice-finance/client/${encodeURIComponent(`vendor:${VENDOR}`)}`)
+      .query({ from: '2026-04-01', to: '2027-03-31' })
+      .set(authHeaders(token, TENANT));
+    expect(clientFy26.status).toBe(200);
+    expect((clientFy26.body.invoices as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'INV/FY/OLD')).toBe(
+      false,
+    );
+    expect((clientFy26.body.invoices as { invoiceNumber: string }[]).some(r => r.invoiceNumber === 'INV/FY/NEW')).toBe(
+      true,
+    );
+  });
+
   it('invoice-finance payments accept bill-wise allocations', async () => {
     const open = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
     const vendorBills = (open.body as { partyKey: string; invoiceId: string; balance: number }[]).filter(
