@@ -59,6 +59,7 @@ type Props = {
   /** Masters / Inventory deep-links (same App path as ⌘K). */
   onNavigateEntity: (nav: GlobalSearchNavigate) => void;
   revenueHighlight: number;
+  payrollPeriodLabel?: string;
 };
 
 const ACCENT_BORDER: Record<MoneyTile['accent'], string> = {
@@ -100,9 +101,9 @@ export function DesktopAnalyticsDashboard({
   setActiveTab,
   onNavigateEntity,
   revenueHighlight,
+  payrollPeriodLabel,
 }: Props) {
   const { t } = useTranslation();
-  const year = new Date().getFullYear();
 
   return (
     <div className="space-y-8 w-full max-w-none">
@@ -231,7 +232,8 @@ export function DesktopAnalyticsDashboard({
                 <div className="flex items-center gap-3">
                   <Wallet className="dg-primary" size={22} />
                   <h3 className="text-lg font-bold dg-ink">
-                    {t('dashboard.staffPayroll')} — {year}
+                    {t('dashboard.staffPayroll')}
+                    {payrollPeriodLabel ? ` — ${payrollPeriodLabel}` : ''}
                   </h3>
                 </div>
                 <button

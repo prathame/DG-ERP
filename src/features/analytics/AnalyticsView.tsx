@@ -389,6 +389,7 @@ export function AnalyticsView({
           setActiveTab={setActiveTab}
           onNavigateEntity={navigateEntity}
           revenueHighlight={money?.collections ?? money?.revenue ?? 0}
+          payrollPeriodLabel={payrollPeriodLabel}
         />
       </motion.div>
     );
@@ -414,6 +415,7 @@ export function AnalyticsView({
           counts={counts}
           setActiveTab={setActiveTab}
           onNavigateEntity={navigateEntity}
+          payrollPeriodLabel={payrollPeriodLabel}
         />
       </motion.div>
     );
