@@ -33,6 +33,7 @@ import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatch
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
+import { pinFromAddress } from '../../lib/pincode';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
@@ -155,11 +156,15 @@ function EInvoiceButtons({
   buyerAddress?: string | null;
 }) {
   const einvoiceEnabled = !!(session.getUser() as { einvoiceEnabled?: boolean } | null)?.einvoiceEnabled;
+  const [sellerPin, setSellerPin] = useState('');
+  useEffect(() => {
+    if (!einvoiceEnabled) return;
+    api.gst
+      .getSettings()
+      .then(s => setSellerPin(s.sellerPin || ''))
+      .catch(() => {});
+  }, [einvoiceEnabled]);
   if (!einvoiceEnabled) return null;
-  const pinFromAddress = (addr?: string | null) => {
-    const m = String(addr || '').match(/\b(\d{6})\b/);
-    return m ? m[1] : '';
-  };
   return (
     <GstEinvoiceToolbar
       kind="batch"
@@ -168,6 +173,7 @@ function EInvoiceButtons({
       initialQr={initialQr}
       initialEwb={initialEwb}
       quiet={quiet}
+      fromPin={sellerPin}
       toPin={pinFromAddress(buyerAddress)}
     />
   );
