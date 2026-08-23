@@ -953,6 +953,7 @@ export const api = {
           invoiceCount: number;
           totalInvoiced: number;
           totalPaid: number;
+          billDue?: number;
           advanceBalance?: number;
           balance: number;
         }[]
@@ -964,6 +965,7 @@ export const api = {
         partyReceived: number;
         partyReceivedOnBills: number;
         partyAdvances: number;
+        partyBillDue: number;
         partyOutstanding: number;
         partyInvoiceCount: number;
         cashIncome: number;
@@ -1037,6 +1039,7 @@ export const api = {
         customerAddress?: string | null;
         totalInvoiced: number;
         totalPaid: number;
+        billDue?: number;
         advanceBalance?: number;
         balance: number;
         invoices: {

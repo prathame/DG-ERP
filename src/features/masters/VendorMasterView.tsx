@@ -534,10 +534,17 @@ export function VendorMasterView({
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="rounded-2xl border border-gray-100 bg-white p-4">
-                <p className="text-[10px] font-bold text-gray-400 uppercase">Outstanding</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">
+                  {detail.advanceBalance && detail.advanceBalance > 0.005 ? 'Net outstanding' : 'Outstanding'}
+                </p>
                 <p className={cn('text-xl font-bold mt-1', detail.balance > 0 ? 'text-rose-600' : 'text-emerald-600')}>
                   {detail.balance < 0 ? `${fmt(detail.balance)} credit` : fmt(detail.balance)}
                 </p>
+                {detail.advanceBalance && detail.advanceBalance > 0.005 ? (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Bill due {fmt(detail.billDue ?? detail.balance)} · Advance {fmt(detail.advanceBalance)}
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-2xl border border-gray-100 bg-white p-4">
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Received</p>

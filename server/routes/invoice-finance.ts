@@ -77,18 +77,26 @@ export function mergeServiceVendorAdvances(input: {
     reference_number?: string | null;
     notes?: string | null;
   }[];
+  /** Open bill balances only — when omitted, falls back to lifetime invoiced minus paid. */
+  billDue?: number;
 }): {
   totalPaid: number;
   advanceBalance: number;
+  billDue: number;
   balance: number;
   payments: InvoiceFinancePaymentRow[];
 } {
+  const billDue =
+    input.billDue != null
+      ? Math.round(input.billDue * 100) / 100
+      : Math.round((input.totalInvoiced - input.invoicePaid) * 100) / 100;
   const isServiceVendor = input.businessType === 'service' && input.partyType === 'vendor';
   if (!isServiceVendor || input.vendorPayments.length === 0) {
     return {
       totalPaid: input.invoicePaid,
       advanceBalance: 0,
-      balance: input.totalInvoiced - input.invoicePaid,
+      billDue,
+      balance: billDue,
       payments: input.invoicePayments,
     };
   }
@@ -114,7 +122,8 @@ export function mergeServiceVendorAdvances(input: {
   return {
     totalPaid,
     advanceBalance,
-    balance: input.totalInvoiced - totalPaid,
+    billDue,
+    balance: Math.round((billDue - advanceBalance) * 100) / 100,
     payments,
   };
 }
@@ -173,16 +182,48 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
       invoiceCount: number;
       totalInvoiced: number;
       totalPaid: number;
+      billDue: number;
       advanceBalance: number;
       balance: number;
     };
+
+    const billDueRows = (
+      await pool.query(
+        `
+        SELECT
+          CASE
+            WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL
+              THEN si.party_type || ':' || si.party_id
+            ELSE 'name:' || si.customer_name
+          END AS party_key,
+          COALESCE(SUM(si.grand_total - COALESCE(ip.paid, 0)), 0) AS bill_due
+        FROM standalone_invoices si
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS paid
+          FROM invoice_payments WHERE tenant_id = $1
+          GROUP BY invoice_id
+        ) ip ON si.id = ip.invoice_id
+        WHERE si.tenant_id = $1
+          AND si.status IS DISTINCT FROM 'cancelled'
+          AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+          AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+        GROUP BY 1
+      `,
+        [tenantId],
+      )
+    ).rows as { party_key: string; bill_due: number }[];
+    const billDueByParty = new Map(
+      billDueRows.map(r => [r.party_key, Math.round((Number(r.bill_due) || 0) * 100) / 100]),
+    );
 
     const byKey = new Map<string, SummaryRow>();
     for (const r of rows) {
       const totalInvoiced = Number(r.total_invoiced) || 0;
       const totalPaid = Number(r.total_paid) || 0;
-      byKey.set(r.party_key as string, {
-        partyKey: r.party_key as string,
+      const partyKey = r.party_key as string;
+      const billDue = billDueByParty.get(partyKey) ?? 0;
+      byKey.set(partyKey, {
+        partyKey,
         partyType: (r.party_type as string) || null,
         partyId: (r.party_id as string) || null,
         clientName: r.customer_name as string,
@@ -190,8 +231,9 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
         invoiceCount: Number(r.invoice_count) || 0,
         totalInvoiced,
         totalPaid,
+        billDue,
         advanceBalance: 0,
-        balance: totalInvoiced - totalPaid,
+        balance: billDue > 0.005 ? billDue : totalInvoiced - totalPaid,
       });
     }
 
@@ -219,7 +261,8 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
         if (existing) {
           existing.totalPaid += advance;
           existing.advanceBalance = advance;
-          existing.balance = existing.totalInvoiced - existing.totalPaid;
+          existing.billDue = billDueByParty.get(partyKey) ?? existing.billDue;
+          existing.balance = Math.round((existing.billDue - advance) * 100) / 100;
         } else {
           byKey.set(partyKey, {
             partyKey,
@@ -230,8 +273,9 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
             invoiceCount: 0,
             totalInvoiced: 0,
             totalPaid: advance,
+            billDue: 0,
             advanceBalance: advance,
-            balance: -advance,
+            balance: Math.round(-advance * 100) / 100,
           });
         }
       }
@@ -290,6 +334,26 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
     const partyInvoiced = Number(sale.invoiced) || 0;
     const partyReceivedOnBills = Number(sale.paid) || 0;
     const partyReceived = partyReceivedOnBills + partyAdvances;
+    const partyBillDue = Number(
+      (
+        await pool.query(
+          `
+          SELECT COALESCE(SUM(si.grand_total - COALESCE(ip.paid, 0)), 0) AS v
+          FROM standalone_invoices si
+          LEFT JOIN (
+            SELECT invoice_id, SUM(amount) AS paid
+            FROM invoice_payments WHERE tenant_id = $1
+            GROUP BY invoice_id
+          ) ip ON si.id = ip.invoice_id
+          WHERE si.tenant_id = $1
+            AND si.status IS DISTINCT FROM 'cancelled'
+            AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+            AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+        `,
+          [tenantId],
+        )
+      ).rows[0]?.v,
+    );
     const cashIncome = Number(cash.invoiced) || 0;
 
     res.json({
@@ -297,7 +361,8 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
       partyReceived,
       partyReceivedOnBills,
       partyAdvances,
-      partyOutstanding: partyInvoiced - partyReceived,
+      partyBillDue,
+      partyOutstanding: partyBillDue - partyAdvances,
       partyInvoiceCount: Number(sale.invoice_count) || 0,
       cashIncome,
       cashIncomeReceived: Number(cash.paid) || 0,
@@ -668,6 +733,10 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
 
     const totalInvoiced = invoices.reduce((s, r) => s + (Number(r.grand_total) || 0), 0);
     const invoicePaid = invoices.reduce((s, r) => s + (Number(r.paid) || 0), 0);
+    const billDue = invoices.reduce((s, r) => {
+      const due = (Number(r.grand_total) || 0) - (Number(r.paid) || 0);
+      return due > 0.005 ? s + due : s;
+    }, 0);
     const invoicePaymentRows: InvoiceFinancePaymentRow[] = payments.map((r: Record<string, unknown>) => ({
       id: String(r.id),
       invoiceId: (r.invoice_id as string) || null,
@@ -704,6 +773,7 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
     const {
       totalPaid,
       advanceBalance,
+      billDue: openBillDue,
       balance,
       payments: mergedPayments,
     } = mergeServiceVendorAdvances({
@@ -711,6 +781,7 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
       partyType,
       totalInvoiced,
       invoicePaid,
+      billDue,
       invoicePayments: invoicePaymentRows,
       vendorPayments: vendorPaymentRows,
     });
@@ -725,6 +796,7 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
       customerAddress: displayAddress,
       totalInvoiced,
       totalPaid,
+      billDue: openBillDue,
       advanceBalance,
       balance,
       invoices: invoices.map((r: Record<string, unknown>) => ({

@@ -2028,8 +2028,13 @@ function ReportTable({
             { k: 'vendorName', l: partySingular },
             { k: 'totalBilled', l: 'Billed', r: true },
             { k: 'totalPaid', l: 'Paid', r: true },
-            ...(data.source === 'invoice_finance' ? [{ k: 'advanceBalance', l: 'Advance', r: true }] : []),
-            { k: 'balance', l: 'Balance', r: true },
+            ...(data.source === 'invoice_finance'
+              ? [
+                  { k: 'billDue', l: 'Bill due', r: true },
+                  { k: 'advanceBalance', l: 'Advance', r: true },
+                ]
+              : []),
+            { k: 'balance', l: data.source === 'invoice_finance' ? 'Net' : 'Balance', r: true },
             { k: 'd0_30', l: '0-30d', r: true },
             { k: 'd31_60', l: '31-60d', r: true },
             { k: 'd61_90', l: '61-90d', r: true },

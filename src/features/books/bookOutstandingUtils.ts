@@ -3,6 +3,9 @@
 export type OutstandingPartyRow = {
   partyKey: string;
   clientName: string;
+  /** Bill-wise due on open invoices. */
+  billDue: number;
+  /** Net balance after unallocated advances. */
   balance: number;
   advanceBalance?: number;
   invoiceCount: number;
