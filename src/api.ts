@@ -627,10 +627,16 @@ export const api = {
       fetchApi<{
         vendorSummaries: { vendorId: string; vendorName: string; productsSold: number; totalRewardPoints: number }[];
       }>('/dashboard/rewards-summary'),
-    recentActivity: () =>
-      fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>(
-        '/analytics/recent-activity',
-      ),
+    recentActivity: (from?: string, to?: string) => {
+      const qp = new URLSearchParams();
+      const range = globalReportingRange();
+      if (from || range.from) qp.set('from', from || range.from);
+      if (to || range.to) qp.set('to', to || range.to);
+      const qs = qp.toString();
+      return fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>(
+        `/analytics/recent-activity${qs ? `?${qs}` : ''}`,
+      );
+    },
     overview: (from?: string, to?: string) => {
       // M6 fix: use GET with query params instead of experimental QUERY method
       const qp = new URLSearchParams();

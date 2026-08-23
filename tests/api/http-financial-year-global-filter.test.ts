@@ -108,6 +108,15 @@ describe('HTTP: global FY/date-range filtering across core modules', () => {
       [TENANT],
     );
 
+    await pool.query(
+      `INSERT INTO standalone_invoices
+       (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total, grand_total, status, invoice_date)
+       VALUES
+       ('INV-FY-IN', $1, 'INV/FY/IN', 'FY Customer In', '[]', 5000, 0, 5000, 'sent', '2026-05-15'),
+       ('INV-FY-OUT', $1, 'INV/FY/OUT', 'FY Customer Out', '[]', 10000, 0, 10000, 'sent', '2025-03-31')`,
+      [TENANT],
+    );
+
     token = createTestToken({
       userId: USER,
       tenantId: TENANT,
@@ -188,5 +197,50 @@ describe('HTTP: global FY/date-range filtering across core modules', () => {
     expect(bob).toBeTruthy();
     expect(Number(bob?.totalPaid || 0)).toBe(0);
     expect(Number(bob?.paymentCount || 0)).toBe(0);
+  });
+
+  it('filters invoices list by from/to', async () => {
+    const res = await api().get(`/api/invoices?from=${from}&to=${to}`).set(hdrs());
+    expect(res.status).toBe(200);
+    const ids = (res.body as { id: string }[]).map(r => r.id);
+    expect(ids).toContain('INV-FY-IN');
+    expect(ids).not.toContain('INV-FY-OUT');
+    expect(Number(res.headers['x-total-count'])).toBe(1);
+  });
+
+  it('filters analytics overview KPIs and recent activity by from/to', async () => {
+    const res = await api().get(`/api/analytics/overview?from=${from}&to=${to}`).set(hdrs());
+    expect(res.status).toBe(200);
+
+    expect(Number(res.body.money.revenue)).toBe(6400);
+    expect(Number(res.body.money.expenses)).toBe(800);
+    expect(Number(res.body.money.invoiceOutstanding)).toBe(5000);
+
+    const activity = res.body.recentActivity as { id: string; date: string }[];
+    const ids = activity.map(r => r.id);
+    expect(ids).toContain('S-FY-IN');
+    expect(ids).toContain('EXP-FY-IN');
+    expect(ids).toContain('INV-FY-IN');
+    expect(ids).not.toContain('S-FY-OUT');
+    expect(ids).not.toContain('EXP-FY-OUT');
+    expect(ids).not.toContain('INV-FY-OUT');
+    for (const row of activity) {
+      expect(row.date >= from).toBe(true);
+      expect(row.date <= to).toBe(true);
+    }
+  });
+
+  it('filters /api/analytics/recent-activity by from/to', async () => {
+    const res = await api().get(`/api/analytics/recent-activity?from=${from}&to=${to}`).set(hdrs());
+    expect(res.status).toBe(200);
+    const activity = res.body as { id: string; date: string }[];
+    const ids = activity.map(r => r.id);
+    expect(ids).toContain('S-FY-IN');
+    expect(ids).not.toContain('S-FY-OUT');
+    expect(ids).not.toContain('INV-FY-OUT');
+    for (const row of activity) {
+      expect(row.date >= from).toBe(true);
+      expect(row.date <= to).toBe(true);
+    }
   });
 });
