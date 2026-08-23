@@ -38,6 +38,7 @@ import {
 } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { defaultDateRangeFromReportingPeriod, readReportingPeriod } from '../../lib/reportingPeriod';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
@@ -584,6 +585,12 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       : 0;
   const cashIncomeTotal = Number(breakdown?.cashIncome) || 0;
   const clientsLabel = tb(cfg.labels.vendors || 'Clients', t);
+  const reportingLabel =
+    readReportingPeriod()?.label ||
+    (() => {
+      const { from, to } = defaultDateRangeFromReportingPeriod();
+      return from && to ? `${from} – ${to}` : '';
+    })();
 
   // ── Client detail workspace (Distribution-style drill-down) ───────────────
   if (selected) {
@@ -1081,6 +1088,12 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
               : listView === 'cash'
                 ? 'Rent / scrap / misc — money already in, not party bills'
                 : `Party sales only — click a ${clientsLabel.replace(/s$/, '').toLowerCase()} for bills & payments`}
+            {reportingLabel ? (
+              <>
+                {' '}
+                · <span className="font-medium text-blue-700">{reportingLabel}</span>
+              </>
+            ) : null}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

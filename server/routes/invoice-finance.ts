@@ -26,6 +26,55 @@ async function booksPostPayment(
 
 const router = Router();
 
+function parseQueryDateRange(req: AuthRequest): { from: string; to: string } {
+  return {
+    from: typeof req.query.from === 'string' ? req.query.from.trim() : '',
+    to: typeof req.query.to === 'string' ? req.query.to.trim() : '',
+  };
+}
+
+/** Append invoice_date filters; mutates `params` and returns SQL fragment. */
+function appendInvoiceDateRange(
+  alias: string,
+  from: string,
+  to: string,
+  params: unknown[],
+  startIndex: number,
+): string {
+  let sql = '';
+  let i = startIndex;
+  if (from) {
+    params.push(from);
+    sql += ` AND ${alias}.invoice_date >= $${i++}`;
+  }
+  if (to) {
+    params.push(to);
+    sql += ` AND ${alias}.invoice_date <= $${i++}`;
+  }
+  return sql;
+}
+
+/** Append payment_date filters for vendor_payments advances. */
+function appendPaymentDateRange(
+  alias: string,
+  from: string,
+  to: string,
+  params: unknown[],
+  startIndex: number,
+): string {
+  let sql = '';
+  let i = startIndex;
+  if (from) {
+    params.push(from);
+    sql += ` AND ${alias}.payment_date >= $${i++}`;
+  }
+  if (to) {
+    params.push(to);
+    sql += ` AND ${alias}.payment_date <= $${i++}`;
+  }
+  return sql;
+}
+
 /** partyKey: vendor:ID | customer:ID | name:DisplayName (legacy unlinked invoices) */
 export function parsePartyKey(raw: string): {
   partyType: 'vendor' | 'customer' | null;
@@ -140,7 +189,11 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const { from, to } = parseQueryDateRange(req);
     const businessType = await tenantBusinessType(tenantId);
+
+    const summaryParams: unknown[] = [tenantId];
+    const summaryDateSql = appendInvoiceDateRange('si', from, to, summaryParams, 2);
 
     const rows = (
       await pool.query(
@@ -165,11 +218,11 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
         GROUP BY invoice_id
       ) ip ON si.id = ip.invoice_id
       WHERE si.tenant_id = $1 AND si.status != 'cancelled'
-        AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+        AND COALESCE(si.invoice_kind, 'sale') = 'sale'${summaryDateSql}
       GROUP BY 1
       ORDER BY (SUM(si.grand_total) - COALESCE(SUM(ip.paid), 0)) DESC
     `,
-        [tenantId],
+        summaryParams,
       )
     ).rows;
 
@@ -187,6 +240,8 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
       balance: number;
     };
 
+    const billDueParams: unknown[] = [tenantId];
+    const billDueDateSql = appendInvoiceDateRange('si', from, to, billDueParams, 2);
     const billDueRows = (
       await pool.query(
         `
@@ -206,10 +261,10 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
         WHERE si.tenant_id = $1
           AND si.status IS DISTINCT FROM 'cancelled'
           AND COALESCE(si.invoice_kind, 'sale') = 'sale'
-          AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+          AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001${billDueDateSql}
         GROUP BY 1
       `,
-        [tenantId],
+        billDueParams,
       )
     ).rows as { party_key: string; bill_due: number }[];
     const billDueByParty = new Map(
@@ -239,6 +294,8 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
 
     // Service: fold Miracle vendor_payments (unallocated receipts) into client totals
     if (businessType === 'service') {
+      const vpParams: unknown[] = [tenantId];
+      const vpDateSql = appendPaymentDateRange('vp', from, to, vpParams, 2);
       const vpRows = (
         await pool.query(
           `
@@ -246,10 +303,10 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
                  COALESCE(SUM(vp.amount), 0) AS advance
           FROM vendor_payments vp
           JOIN vendors v ON v.id = vp.vendor_id AND v.tenant_id = vp.tenant_id
-          WHERE vp.tenant_id = $1
+          WHERE vp.tenant_id = $1${vpDateSql}
           GROUP BY vp.vendor_id, v.name, v.phone
         `,
-          [tenantId],
+          vpParams,
         )
       ).rows as { vendor_id: string; name: string; phone: string | null; advance: number }[];
 
@@ -297,6 +354,10 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const { from, to } = parseQueryDateRange(req);
+    const kindParams: unknown[] = [tenantId];
+    const kindDateSql = appendInvoiceDateRange('si', from, to, kindParams, 2);
+
     const kindTotals = (
       await pool.query(
         `
@@ -311,10 +372,10 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
           FROM invoice_payments WHERE tenant_id = $1
           GROUP BY invoice_id
         ) ip ON si.id = ip.invoice_id
-        WHERE si.tenant_id = $1 AND si.status IS DISTINCT FROM 'cancelled'
+        WHERE si.tenant_id = $1 AND si.status IS DISTINCT FROM 'cancelled'${kindDateSql}
         GROUP BY 1
       `,
-        [tenantId],
+        kindParams,
       )
     ).rows as { invoice_kind: string; invoice_count: number; invoiced: number; paid: number }[];
 
@@ -325,15 +386,23 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
     const businessType = await tenantBusinessType(tenantId);
     let partyAdvances = 0;
     if (businessType === 'service') {
+      const advParams: unknown[] = [tenantId];
+      const advDateSql = appendPaymentDateRange('vp', from, to, advParams, 2);
       partyAdvances = Number(
-        (await pool.query(`SELECT COALESCE(SUM(amount), 0) AS v FROM vendor_payments WHERE tenant_id = $1`, [tenantId]))
-          .rows[0]?.v,
+        (
+          await pool.query(
+            `SELECT COALESCE(SUM(amount), 0) AS v FROM vendor_payments vp WHERE vp.tenant_id = $1${advDateSql}`,
+            advParams,
+          )
+        ).rows[0]?.v,
       );
     }
 
     const partyInvoiced = Number(sale.invoiced) || 0;
     const partyReceivedOnBills = Number(sale.paid) || 0;
     const partyReceived = partyReceivedOnBills + partyAdvances;
+    const billDueParams: unknown[] = [tenantId];
+    const billDueDateSql = appendInvoiceDateRange('si', from, to, billDueParams, 2);
     const partyBillDue = Number(
       (
         await pool.query(
@@ -348,9 +417,9 @@ router.get('/api/invoice-finance/breakdown', blockVendors, async (req: AuthReque
           WHERE si.tenant_id = $1
             AND si.status IS DISTINCT FROM 'cancelled'
             AND COALESCE(si.invoice_kind, 'sale') = 'sale'
-            AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+            AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001${billDueDateSql}
         `,
-          [tenantId],
+          billDueParams,
         )
       ).rows[0]?.v,
     );
@@ -379,6 +448,10 @@ router.get('/api/invoice-finance/cash-income', blockVendors, async (req: AuthReq
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const { from, to } = parseQueryDateRange(req);
+    const cashParams: unknown[] = [tenantId];
+    const cashDateSql = appendInvoiceDateRange('si', from, to, cashParams, 2);
+
     const rows = (
       await pool.query(
         `
@@ -392,10 +465,10 @@ router.get('/api/invoice-finance/cash-income', blockVendors, async (req: AuthReq
         ) ip ON si.id = ip.invoice_id
         WHERE si.tenant_id = $1
           AND si.status IS DISTINCT FROM 'cancelled'
-          AND COALESCE(si.invoice_kind, 'sale') = 'cash_income'
+          AND COALESCE(si.invoice_kind, 'sale') = 'cash_income'${cashDateSql}
         ORDER BY si.invoice_date DESC NULLS LAST, si.id DESC
       `,
-        [tenantId],
+        cashParams,
       )
     ).rows;
 
@@ -548,6 +621,10 @@ router.get('/api/invoice-finance/open-bills', blockVendors, async (req: AuthRequ
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const { from, to } = parseQueryDateRange(req);
+    const openParams: unknown[] = [tenantId];
+    const openDateSql = appendInvoiceDateRange('si', from, to, openParams, 2);
+
     const rows = (
       await pool.query(
         `
@@ -578,10 +655,10 @@ router.get('/api/invoice-finance/open-bills', blockVendors, async (req: AuthRequ
       WHERE si.tenant_id = $1
         AND si.status IS DISTINCT FROM 'cancelled'
         AND COALESCE(si.invoice_kind, 'sale') = 'sale'
-        AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001
+        AND (si.grand_total - COALESCE(ip.paid, 0)) > 0.001${openDateSql}
       ORDER BY si.customer_name ASC NULLS LAST, si.invoice_date ASC NULLS LAST, si.id ASC
     `,
-        [tenantId],
+        openParams,
       )
     ).rows;
 
@@ -613,10 +690,13 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { partyType, partyId, clientName, partyKey } = parsePartyKey(req.params.clientName);
+    const { from, to } = parseQueryDateRange(req);
 
     let invoices;
     let payments;
     if (partyType && partyId) {
+      const invParams: unknown[] = [tenantId, partyType, partyId];
+      const invDateSql = appendInvoiceDateRange('si', from, to, invParams, 4);
       invoices = (
         await pool.query(
           `
@@ -627,26 +707,30 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
           COALESCE(SUM(ip.amount), 0) as paid
         FROM standalone_invoices si
         LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
-        WHERE si.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3 AND si.status != 'cancelled'
+        WHERE si.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3 AND si.status != 'cancelled'${invDateSql}
         GROUP BY si.id ORDER BY si.invoice_date DESC
       `,
-          [tenantId, partyType, partyId],
+          invParams,
         )
       ).rows;
+      const payParams: unknown[] = [tenantId, partyType, partyId];
+      const payDateSql = appendInvoiceDateRange('si', from, to, payParams, 4);
       payments = (
         await pool.query(
           `
         SELECT ip.*, si.invoice_number
         FROM invoice_payments ip
         JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
-        WHERE ip.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3
+        WHERE ip.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3${payDateSql}
         ORDER BY ip.payment_date DESC, ip.created_at DESC
       `,
-          [tenantId, partyType, partyId],
+          payParams,
         )
       ).rows;
     } else {
       // By display name: include party-linked invoices for vendors/customers with that name
+      const invParams: unknown[] = [tenantId, clientName];
+      const invDateSql = appendInvoiceDateRange('si', from, to, invParams, 3);
       invoices = (
         await pool.query(
           `
@@ -666,12 +750,14 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
             OR (si.party_type = 'customer' AND si.party_id IN (
               SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
             ))
-          )
+          )${invDateSql}
         GROUP BY si.id ORDER BY si.invoice_date DESC
       `,
-          [tenantId, clientName],
+          invParams,
         )
       ).rows;
+      const payParams: unknown[] = [tenantId, clientName];
+      const payDateSql = appendInvoiceDateRange('si', from, to, payParams, 3);
       payments = (
         await pool.query(
           `
@@ -687,10 +773,10 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
             OR (si.party_type = 'customer' AND si.party_id IN (
               SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)
             ))
-          )
+          )${payDateSql}
         ORDER BY ip.payment_date DESC, ip.created_at DESC
       `,
-          [tenantId, clientName],
+          payParams,
         )
       ).rows;
     }
