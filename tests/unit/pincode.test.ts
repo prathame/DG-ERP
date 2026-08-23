@@ -23,6 +23,12 @@ describe('estimatePinDistanceKm', () => {
     expect(km).toBeLessThanOrEqual(2000);
   });
 
+  it('estimates distance within the same region', () => {
+    const km = estimatePinDistanceKm('380001', '380015');
+    expect(km).toBeGreaterThanOrEqual(5);
+    expect(km).toBeLessThanOrEqual(400);
+  });
+
   it('returns 0 for invalid pins', () => {
     expect(estimatePinDistanceKm('38', '395001')).toBe(0);
     expect(estimatePinDistanceKm('380001', 'abc')).toBe(0);

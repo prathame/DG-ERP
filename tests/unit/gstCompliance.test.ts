@@ -13,6 +13,20 @@ describe('checkEinvoiceEligibility', () => {
     expect(r.enabled).toBe(false);
     expect(r.status).toBe('disabled');
   });
+
+  it('returns unknown when GSTIN is empty', async () => {
+    const r = await checkEinvoiceEligibility('', 'Acme', 'mock');
+    expect(r.enabled).toBe(false);
+    expect(r.status).toBe('unknown');
+    expect(r.message).toMatch(/enter a gstin/i);
+  });
+
+  it('guides user when live eligibility is not configured', async () => {
+    const r = await checkEinvoiceEligibility('27AAAAA0000A1Z5', 'Acme', 'sandbox');
+    expect(r.enabled).toBe(false);
+    expect(r.status).toBe('unknown');
+    expect(r.message).toMatch(/not configured/i);
+  });
 });
 
 describe('lookupTransportDistance', () => {
