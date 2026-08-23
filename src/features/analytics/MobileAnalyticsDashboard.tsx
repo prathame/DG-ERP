@@ -60,6 +60,7 @@ type Props = {
   } | null;
   setActiveTab: (tab: Tab) => void;
   onNavigateEntity: (nav: GlobalSearchNavigate) => void;
+  payrollPeriodLabel?: string;
 };
 
 const ACCENT_BORDER: Record<MoneyTile['accent'], string> = {
@@ -103,9 +104,9 @@ export function MobileAnalyticsDashboard({
   counts,
   setActiveTab,
   onNavigateEntity,
+  payrollPeriodLabel,
 }: Props) {
   const { t } = useTranslation();
-  const year = new Date().getFullYear();
 
   return (
     <div className="dg-mobile-glass space-y-4 -mx-3 px-3 -mt-1 pb-2 min-h-full">
@@ -245,7 +246,8 @@ export function MobileAnalyticsDashboard({
         <div className="dg-m-glass-card rounded-2xl p-3.5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[13px] font-bold dg-m-ink flex items-center gap-1.5">
-              <Wallet size={15} className="dg-m-bright" /> {t('dashboard.staffPayroll')} — {year}
+              <Wallet size={15} className="dg-m-bright" /> {t('dashboard.staffPayroll')}
+              {payrollPeriodLabel ? ` — ${payrollPeriodLabel}` : ''}
             </h3>
             <button
               type="button"
