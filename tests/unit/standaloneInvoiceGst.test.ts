@@ -3,9 +3,12 @@ import { pool, cleanupTestData } from '../helpers';
 import { uid } from '../../server/utils/helpers';
 import {
   generateStandaloneInvoiceEwb,
+  generateStandaloneInvoiceEwbByIrn,
   generateStandaloneInvoiceIrn,
+  generateStandaloneInvoiceIrnAndEwb,
   StandaloneInvoiceGstError,
 } from '../../server/services/standaloneInvoiceGst';
+import { NicApiClient } from '../../server/services/nic-api';
 
 const TENANT = 'T-TEST-SI-GST-IRN';
 
@@ -222,5 +225,106 @@ describe('standaloneInvoiceGst', () => {
     );
     await expect(generateStandaloneInvoiceIrn(pool, TENANT, needCreds)).rejects.toThrow(/GST API/i);
     await pool.query(`UPDATE bill_settings SET gst_api_mode='mock' WHERE tenant_id=$1`, [TENANT]);
+  });
+
+  it('generates EWB by IRN and combined IRN+EWB flows', async () => {
+    const invId = uid('SI');
+    const items = [
+      { description: 'Cable', hsnSac: '8544', qty: 1, rate: 500, gstPercent: 18, taxable: 500, tax: 90, total: 590 },
+    ];
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address,
+          items, subtotal, tax_total, tax_cgst, tax_sgst, tax_igst, is_interstate,
+          gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0200','Buyer','24AABCU9603R1ZM','Surat 395001',
+          $3::jsonb,500,90,45,45,0,false,true,590,'sent','2025-08-12')`,
+      [invId, TENANT, JSON.stringify(items)],
+    );
+
+    const irn = await generateStandaloneInvoiceIrn(pool, TENANT, invId);
+    expect(irn.irn).toBeTruthy();
+
+    await expect(
+      generateStandaloneInvoiceEwbByIrn(pool, TENANT, { invoiceId: invId, vehicleNo: ' ', distance: 10 }),
+    ).rejects.toThrow(/vehicleNo/i);
+
+    const ewbByIrn = await generateStandaloneInvoiceEwbByIrn(pool, TENANT, {
+      invoiceId: invId,
+      vehicleNo: 'GJ01EF4321',
+      distance: 85,
+      transportMode: '1',
+      transporterName: 'Carrier',
+      transporterId: '24AABCU9603R1ZM',
+    });
+    expect(ewbByIrn.ewbNo).toBeTruthy();
+    expect(ewbByIrn.mode).toBe('mock');
+
+    await expect(
+      generateStandaloneInvoiceEwbByIrn(pool, TENANT, {
+        invoiceId: invId,
+        vehicleNo: 'GJ01EF4321',
+        distance: 10,
+      }),
+    ).rejects.toThrow(/already has an E-way/i);
+
+    const comboId = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address,
+          items, subtotal, tax_total, tax_cgst, tax_sgst, tax_igst, is_interstate,
+          gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0201','Combo Buyer','24AABCU9603R1ZM','Surat 395001',
+          $3::jsonb,500,90,45,45,0,false,true,590,'sent','2025-08-12')`,
+      [comboId, TENANT, JSON.stringify(items)],
+    );
+
+    const combo = await generateStandaloneInvoiceIrnAndEwb(pool, TENANT, {
+      invoiceId: comboId,
+      vehicleNo: 'GJ01GH6543',
+      distance: 120,
+      sellerPin: '380001',
+      buyerPin: '395001',
+    });
+    expect(combo.irn).toBeTruthy();
+    expect(combo.ewbNo).toBeTruthy();
+
+    const noIrnId = uid('SI');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total,
+          gst_enabled, grand_total, status, invoice_date)
+       VALUES
+         ($1,$2,'INV/25-26/0202','No IRN',$3::jsonb,500,90,true,590,'sent','2025-08-12')`,
+      [noIrnId, TENANT, JSON.stringify(items)],
+    );
+    await expect(
+      generateStandaloneInvoiceEwbByIrn(pool, TENANT, {
+        invoiceId: noIrnId,
+        vehicleNo: 'GJ01XX1111',
+        distance: 10,
+      }),
+    ).rejects.toThrow(/before E-Way Bill by IRN/i);
+  });
+
+  it('mock NicApiClient generateEwbByIrn returns an EWB number', async () => {
+    const nic = new NicApiClient({
+      mode: 'mock',
+      gstin: '24AAAPZ9999G1ZI',
+      username: 'u',
+      password: 'p',
+      clientId: 'c',
+      clientSecret: 's',
+    });
+    const r = await nic.generateEwbByIrn({
+      irn: 'a1b2c3d4e5f6789012345678901234',
+      vehicleNo: 'GJ01AB1234',
+      distance: 50,
+    });
+    expect(r.ewbNo).toMatch(/^\d{12}$/);
+    expect(r.ewbDt).toBeTruthy();
+    expect(r.ewbValidTill).toBeTruthy();
   });
 });

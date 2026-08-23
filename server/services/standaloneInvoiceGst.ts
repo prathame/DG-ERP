@@ -261,9 +261,18 @@ export async function generateStandaloneInvoiceIrn(
     const result = await nic.generateIrn(payload);
     await client.query(
       `UPDATE standalone_invoices
-       SET irn = $1, irn_ack_no = $2, irn_ack_dt = $3, irn_qr = $4
+       SET irn = $1, irn_ack_no = $2, irn_ack_dt = $3, irn_qr = $4,
+           ewb_number = COALESCE($7, ewb_number)
        WHERE id = $5 AND tenant_id = $6`,
-      [result.irn, result.ackNo, result.ackDt, result.signedQrCode || result.qrCode, invoiceId, tenantId],
+      [
+        result.irn,
+        result.ackNo,
+        result.ackDt,
+        result.signedQrCode || result.qrCode,
+        invoiceId,
+        tenantId,
+        result.ewbNo || null,
+      ],
     );
     await client.query('COMMIT');
     return { ...result, mode: creds.mode, invoiceId };
@@ -370,4 +379,90 @@ export async function generateStandaloneInvoiceEwb(
   } finally {
     client.release();
   }
+}
+
+export async function generateStandaloneInvoiceEwbByIrn(
+  pool: Pool,
+  tenantId: string,
+  input: {
+    invoiceId: string;
+    vehicleNo: string;
+    distance: number;
+    transportMode?: string;
+    transporterName?: string;
+    transporterId?: string;
+  },
+): Promise<EwbResult & { mode: string; invoiceId: string }> {
+  if (!input.vehicleNo?.trim()) throw new StandaloneInvoiceGstError('vehicleNo required');
+  if (!(Number(input.distance) > 0)) throw new StandaloneInvoiceGstError('distance (km) required');
+
+  const loaded = await loadGstCredentials(pool, tenantId);
+  if (loaded.ok === false) throw new StandaloneInvoiceGstError(loaded.error);
+  const creds = loaded.creds;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inv = await loadInvoice(client, tenantId, input.invoiceId);
+    if (!inv.irn) throw new StandaloneInvoiceGstError('Generate E-Invoice (IRN) before E-Way Bill by IRN.');
+    if (inv.ewb_number) throw new StandaloneInvoiceGstError('Invoice already has an E-way bill.');
+
+    const nic = new NicApiClient(creds);
+    const result = await nic.generateEwbByIrn({
+      irn: inv.irn,
+      vehicleNo: input.vehicleNo.trim().toUpperCase(),
+      distance: Number(input.distance),
+      transportMode: input.transportMode,
+      transporterName: input.transporterName,
+      transporterId: input.transporterId,
+    });
+    await client.query(`UPDATE standalone_invoices SET ewb_number = $1 WHERE id = $2 AND tenant_id = $3`, [
+      result.ewbNo,
+      input.invoiceId,
+      tenantId,
+    ]);
+    await client.query('COMMIT');
+    return { ...result, mode: creds.mode, invoiceId: input.invoiceId };
+  } catch (e) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function generateStandaloneInvoiceIrnAndEwb(
+  pool: Pool,
+  tenantId: string,
+  input: {
+    invoiceId: string;
+    vehicleNo: string;
+    distance: number;
+    transportMode?: string;
+    transporterName?: string;
+    transporterId?: string;
+    sellerPin?: string;
+    buyerPin?: string;
+  },
+): Promise<IrnResult & EwbResult & { mode: string; invoiceId: string }> {
+  const irn = await generateStandaloneInvoiceIrn(pool, tenantId, input.invoiceId, {
+    sellerPin: input.sellerPin,
+    buyerPin: input.buyerPin,
+  });
+  if (irn.ewbNo) {
+    return {
+      ...irn,
+      ewbNo: irn.ewbNo,
+      ewbDt: new Date().toISOString(),
+      ewbValidTill: new Date(Date.now() + 86400000).toISOString(),
+      mode: irn.mode,
+      invoiceId: input.invoiceId,
+    };
+  }
+  const ewb = await generateStandaloneInvoiceEwb(pool, tenantId, input);
+  return { ...irn, ...ewb, mode: ewb.mode, invoiceId: input.invoiceId };
 }

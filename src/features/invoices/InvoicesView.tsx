@@ -1,20 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Plus,
-  FileText,
-  Trash2,
-  Send,
-  Check,
-  X,
-  Printer,
-  MessageCircle,
-  FileCheck,
-  Truck,
-  QrCode,
-  Mail,
-} from 'lucide-react';
-import { cn, formatDate, exportToCsv, getTabLabel, resolveIrnQrPayload } from '../../lib/utils';
+import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, Mail } from 'lucide-react';
+import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
@@ -38,7 +25,7 @@ import {
   QuickAddProductModal,
   BillLineUnitLabel,
 } from '../../components/ui';
-import { EInvoiceQrImage } from '../../components/ui/EInvoiceQrImage';
+import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
@@ -188,7 +175,7 @@ function isPaymentsBlockDeleteError(err: unknown): boolean {
   return /delete payments first|with payments/i.test(msg);
 }
 
-/** E-Invoice + E-Way for standalone tax invoices (mirrors distribution batch controls). */
+/** E-Invoice + E-Way for standalone tax invoices (shared toolbar). */
 function InvoiceEInvoiceButtons({
   invoice,
   onUpdated,
@@ -196,200 +183,22 @@ function InvoiceEInvoiceButtons({
   invoice: Invoice;
   onUpdated: (patch: Partial<Invoice>) => void;
 }) {
-  const { toast } = useToast();
-  const [irn, setIrn] = useState(invoice.irn || '');
-  const [qr, setQr] = useState(() => resolveIrnQrPayload({ irnQr: invoice.irnQr, qrCode: invoice.irnQr }));
-  const [ewbNo, setEwbNo] = useState(invoice.ewbNumber || '');
-  const [generating, setGenerating] = useState<'irn' | 'ewb' | null>(null);
-  const [showEwbModal, setShowEwbModal] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [ewbForm, setEwbForm] = useState({ vehicleNo: '', distance: '', transportMode: '1', transporterName: '' });
-
-  useEffect(() => {
-    setIrn(invoice.irn || '');
-    setQr(resolveIrnQrPayload({ irnQr: invoice.irnQr, qrCode: invoice.irnQr }));
-    setEwbNo(invoice.ewbNumber || '');
-  }, [invoice.id, invoice.irn, invoice.irnQr, invoice.ewbNumber]);
-
-  const generateIrn = async () => {
-    setGenerating('irn');
-    try {
-      const r = await api.gst.generateInvoiceIrn(invoice.id);
-      const nextQr = resolveIrnQrPayload(r);
-      setIrn(r.irn);
-      setQr(nextQr);
-      onUpdated({
-        irn: r.irn,
-        irnAckNo: r.ackNo,
-        irnAckDt: r.ackDt,
-        irnQr: nextQr || r.signedQrCode || r.qrCode,
-      });
-      toast(`E-Invoice generated${r.mode === 'mock' ? ' (mock)' : ''}`, 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'IRN generation failed', 'error');
-    } finally {
-      setGenerating(null);
-    }
+  const pinFromAddress = (addr?: string | null) => {
+    const m = String(addr || '').match(/\b(\d{6})\b/);
+    return m ? m[1] : '';
   };
-
-  const generateEwb = async () => {
-    if (!ewbForm.vehicleNo.trim()) {
-      toast('Vehicle number required', 'error');
-      return;
-    }
-    if (!ewbForm.distance.trim()) {
-      toast('Distance (km) required', 'error');
-      return;
-    }
-    setGenerating('ewb');
-    try {
-      const r = await api.gst.generateInvoiceEwb({
-        invoiceId: invoice.id,
-        vehicleNo: ewbForm.vehicleNo.trim().toUpperCase(),
-        distance: Number(ewbForm.distance),
-        transportMode: ewbForm.transportMode,
-        transporterName: ewbForm.transporterName,
-      });
-      setEwbNo(r.ewbNo);
-      setShowEwbModal(false);
-      onUpdated({ ewbNumber: r.ewbNo });
-      toast(`E-Way Bill ${r.ewbNo}${r.mode === 'mock' ? ' (mock)' : ''}`, 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'EWB generation failed', 'error');
-    } finally {
-      setGenerating(null);
-    }
-  };
-
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          type="button"
-          onClick={generateIrn}
-          disabled={generating === 'irn'}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50"
-          title="Generate E-Invoice IRN"
-        >
-          <FileCheck size={13} /> {generating === 'irn' ? 'Generating…' : irn ? 'Re-IRN' : 'E-Invoice'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowEwbModal(true)}
-          disabled={generating === 'ewb'}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors disabled:opacity-50"
-          title="Generate E-Way Bill"
-        >
-          <Truck size={13} /> {ewbNo ? `EWB ${ewbNo.slice(-4)}` : 'E-Way Bill'}
-        </button>
-        {irn && (
-          <div className="flex items-center gap-2 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
-            <QrCode size={13} className="text-indigo-600 shrink-0" />
-            <span className="font-mono text-indigo-700 truncate max-w-[140px]" title={irn}>
-              IRN: {irn.slice(0, 12)}…
-            </span>
-            {qr && (
-              <button
-                type="button"
-                onClick={() => setShowQrModal(true)}
-                className="text-indigo-600 hover:underline text-[10px]"
-              >
-                View QR
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {showQrModal && qr && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-          onClick={e => {
-            if (e.target === e.currentTarget) setShowQrModal(false);
-          }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <h3 className="font-bold text-lg mb-1 flex items-center justify-center gap-2">
-              <QrCode size={20} className="text-indigo-600" /> E-Invoice QR
-            </h3>
-            <p className="text-xs text-gray-500 font-mono mb-4 break-all" title={irn}>
-              IRN: {irn}
-            </p>
-            <EInvoiceQrImage qrCode={qr} size={240} className="mx-auto rounded-lg border border-gray-100" />
-            <button
-              type="button"
-              onClick={() => setShowQrModal(false)}
-              className="mt-5 w-full py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showEwbModal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-          onClick={e => {
-            if (e.target === e.currentTarget) setShowEwbModal(false);
-          }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <Truck size={20} className="text-teal-600" /> Generate E-Way Bill
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vehicle No *</label>
-                <input
-                  value={ewbForm.vehicleNo}
-                  onChange={e => setEwbForm({ ...ewbForm, vehicleNo: e.target.value.toUpperCase() })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl font-mono text-sm"
-                  placeholder="GJ01AB1234"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Distance (km) *</label>
-                <input
-                  type="number"
-                  value={ewbForm.distance}
-                  onChange={e => setEwbForm({ ...ewbForm, distance: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                  placeholder="150"
-                  min="1"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transporter</label>
-                <input
-                  value={ewbForm.transporterName}
-                  onChange={e => setEwbForm({ ...ewbForm, transporterName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-                  placeholder="Optional"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button
-                type="button"
-                onClick={() => setShowEwbModal(false)}
-                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={generateEwb}
-                disabled={generating === 'ewb'}
-                className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-bold disabled:opacity-50"
-              >
-                {generating === 'ewb' ? 'Generating…' : 'Generate'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    <div className="flex flex-wrap items-center gap-2 mb-4">
+      <GstEinvoiceToolbar
+        kind="invoice"
+        id={invoice.id}
+        initialIrn={invoice.irn}
+        initialQr={invoice.irnQr}
+        initialEwb={invoice.ewbNumber}
+        toPin={pinFromAddress(invoice.customerAddress)}
+        onUpdated={onUpdated}
+      />
+    </div>
   );
 }
 

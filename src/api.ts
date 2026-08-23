@@ -1213,7 +1213,17 @@ export const api = {
     },
   },
   gst: {
-    getSettings: () => fetchApi<{ mode: string; gstin: string; username: string; clientId: string }>('/gst/settings'),
+    getSettings: () =>
+      fetchApi<{
+        mode: string;
+        gstin: string;
+        username: string;
+        clientId: string;
+        sellerPin: string;
+        einvoiceEnabled: boolean;
+        einvoiceMode: string;
+        ewbWithEinvoice: boolean;
+      }>('/gst/settings'),
     saveSettings: (d: {
       mode?: string;
       gstin?: string;
@@ -1221,7 +1231,30 @@ export const api = {
       password?: string;
       clientId?: string;
       clientSecret?: string;
+      sellerPin?: string;
+      einvoiceEnabled?: boolean;
+      einvoiceMode?: 'manual' | 'auto';
+      ewbWithEinvoice?: boolean;
     }) => fetchApi<{ ok: boolean }>('/gst/settings', { method: 'PUT', body: JSON.stringify(d) }),
+    checkEligibility: (gstin?: string) =>
+      fetchApi<{
+        gstin: string;
+        tradeName: string;
+        enabled: boolean;
+        status: string;
+        message: string;
+        enabledFrom?: string | null;
+      }>(`/gst/eligibility${gstin ? `?gstin=${encodeURIComponent(gstin)}` : ''}`),
+    lookupDistance: (q: { fromPin?: string; toPin?: string; fromAddress?: string; toAddress?: string }) => {
+      const params = new URLSearchParams();
+      if (q.fromPin) params.set('fromPin', q.fromPin);
+      if (q.toPin) params.set('toPin', q.toPin);
+      if (q.fromAddress) params.set('fromAddress', q.fromAddress);
+      if (q.toAddress) params.set('toAddress', q.toAddress);
+      return fetchApi<{ fromPin: string; toPin: string; distanceKm: number; source: string }>(
+        `/gst/distance?${params}`,
+      );
+    },
     generateIrn: (batchId: string) =>
       fetchApi<{
         ok: boolean;
@@ -1230,6 +1263,7 @@ export const api = {
         ackDt: string;
         qrCode: string;
         signedQrCode?: string;
+        ewbNo?: string;
         mode: string;
       }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
     generateInvoiceIrn: (invoiceId: string) =>
@@ -1240,9 +1274,47 @@ export const api = {
         ackDt: string;
         qrCode: string;
         signedQrCode?: string;
+        ewbNo?: string;
         mode: string;
         invoiceId: string;
       }>('/gst/irn/generate-invoice', { method: 'POST', body: JSON.stringify({ invoiceId }) }),
+    generateInvoiceIrnAndEwb: (data: {
+      invoiceId: string;
+      vehicleNo: string;
+      distance: number;
+      transportMode?: string;
+      transporterName?: string;
+      transporterId?: string;
+    }) =>
+      fetchApi<{
+        ok: boolean;
+        irn: string;
+        ackNo: string;
+        ackDt: string;
+        qrCode: string;
+        signedQrCode?: string;
+        ewbNo: string;
+        ewbDt: string;
+        ewbValidTill: string;
+        mode: string;
+        invoiceId: string;
+      }>('/gst/irn-and-ewb/generate-invoice', { method: 'POST', body: JSON.stringify(data) }),
+    generateInvoiceEwbByIrn: (data: {
+      invoiceId: string;
+      vehicleNo: string;
+      distance: number;
+      transportMode?: string;
+      transporterName?: string;
+      transporterId?: string;
+    }) =>
+      fetchApi<{
+        ok: boolean;
+        ewbNo: string;
+        ewbDt: string;
+        ewbValidTill: string;
+        mode: string;
+        invoiceId: string;
+      }>('/gst/ewb/generate-invoice-by-irn', { method: 'POST', body: JSON.stringify(data) }),
     generateEwb: (data: {
       batchId: string;
       vehicleNo: string;

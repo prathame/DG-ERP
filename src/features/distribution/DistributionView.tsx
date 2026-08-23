@@ -15,8 +15,6 @@ import {
   IndianRupee,
   MoreVertical,
   Truck,
-  FileCheck,
-  QrCode,
 } from 'lucide-react';
 import {
   cn,
@@ -30,12 +28,11 @@ import {
   sessionCompanyName,
   formatDate,
   getTabLabel,
-  resolveIrnQrPayload,
 } from '../../lib/utils';
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
-import { EInvoiceQrImage } from '../../components/ui/EInvoiceQrImage';
+import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
@@ -148,243 +145,31 @@ function EInvoiceButtons({
   initialQr,
   initialEwb,
   quiet = false,
+  buyerAddress,
 }: {
   batchId: string;
   initialIrn?: string | null;
   initialQr?: string | null;
   initialEwb?: string | null;
-  /** Muted chip styling for non-service in-flow detail toolbar */
   quiet?: boolean;
+  buyerAddress?: string | null;
 }) {
-  const { toast } = useToast();
-  const [irn, setIrn] = useState(initialIrn || '');
-  const [qr, setQr] = useState(() => resolveIrnQrPayload({ irnQr: initialQr, qrCode: initialQr }));
-  const [ewbNo, setEwbNo] = useState(initialEwb || '');
-  const [generating, setGenerating] = useState<'irn' | 'ewb' | null>(null);
-  const [showEwbModal, setShowEwbModal] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [ewbForm, setEwbForm] = useState({ vehicleNo: '', distance: '', transportMode: '1', transporterName: '' });
-
-  useEffect(() => {
-    setIrn(initialIrn || '');
-    setQr(resolveIrnQrPayload({ irnQr: initialQr, qrCode: initialQr }));
-    setEwbNo(initialEwb || '');
-  }, [batchId, initialIrn, initialQr, initialEwb]);
-
-  const generateIrn = async () => {
-    setGenerating('irn');
-    try {
-      const r = await api.gst.generateIrn(batchId);
-      setIrn(r.irn);
-      setQr(resolveIrnQrPayload(r));
-      toast(`E-Invoice generated${r.mode === 'mock' ? ' (mock)' : ''}`, 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'IRN generation failed', 'error');
-    } finally {
-      setGenerating(null);
-    }
+  const einvoiceEnabled = !!(session.getUser() as { einvoiceEnabled?: boolean } | null)?.einvoiceEnabled;
+  if (!einvoiceEnabled) return null;
+  const pinFromAddress = (addr?: string | null) => {
+    const m = String(addr || '').match(/\b(\d{6})\b/);
+    return m ? m[1] : '';
   };
-
-  const generateEwb = async () => {
-    if (!ewbForm.vehicleNo.trim()) {
-      toast('Vehicle number required', 'error');
-      return;
-    }
-    if (!ewbForm.distance.trim()) {
-      toast('Distance (km) required', 'error');
-      return;
-    }
-    setGenerating('ewb');
-    try {
-      const r = await api.gst.generateEwb({
-        batchId,
-        vehicleNo: ewbForm.vehicleNo.trim().toUpperCase(),
-        distance: Number(ewbForm.distance),
-        transportMode: ewbForm.transportMode,
-        transporterName: ewbForm.transporterName,
-      });
-      setEwbNo(r.ewbNo);
-      setShowEwbModal(false);
-      toast(`E-Way Bill ${r.ewbNo}${r.mode === 'mock' ? ' (mock)' : ''}`, 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'EWB generation failed', 'error');
-    } finally {
-      setGenerating(null);
-    }
-  };
-
   return (
-    <>
-      {/* IRN button */}
-      <button
-        type="button"
-        onClick={generateIrn}
-        disabled={generating === 'irn'}
-        className={
-          quiet
-            ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 bg-transparent hover:bg-gray-100 border border-gray-200 rounded-md transition-colors disabled:opacity-50'
-            : 'flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50'
-        }
-        title="Generate E-Invoice IRN"
-      >
-        <FileCheck size={13} /> {generating === 'irn' ? 'Generating…' : irn ? 'Re-IRN' : 'E-Invoice'}
-      </button>
-
-      {/* EWB button */}
-      <button
-        type="button"
-        onClick={() => setShowEwbModal(true)}
-        disabled={generating === 'ewb'}
-        className={
-          quiet
-            ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 bg-transparent hover:bg-gray-100 border border-gray-200 rounded-md transition-colors disabled:opacity-50'
-            : 'flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors disabled:opacity-50'
-        }
-        title="Generate E-Way Bill"
-      >
-        <Truck size={13} /> {ewbNo ? `EWB ${ewbNo.slice(-4)}` : 'E-Way Bill'}
-      </button>
-
-      {/* IRN result panel */}
-      {irn && (
-        <div
-          className={
-            quiet
-              ? 'flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200 rounded-md text-[11px]'
-              : 'flex items-center gap-2 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs'
-          }
-        >
-          <QrCode size={13} className={quiet ? 'text-gray-500 shrink-0' : 'text-indigo-600 shrink-0'} />
-          <span
-            className={cn('font-mono truncate max-w-[120px]', quiet ? 'text-gray-600' : 'text-indigo-700')}
-            title={irn}
-          >
-            IRN: {irn.slice(0, 12)}…
-          </span>
-          {qr && (
-            <button
-              type="button"
-              onClick={() => setShowQrModal(true)}
-              className={cn('hover:underline text-[10px] shrink-0', quiet ? 'text-gray-600' : 'text-indigo-600')}
-            >
-              View QR
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* IRN QR modal — in-app (window.open is blocked in Electron / by pop-up blockers) */}
-      {showQrModal && qr && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={e => {
-            if (e.target === e.currentTarget) setShowQrModal(false);
-          }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <h3 className="font-bold text-lg mb-1 flex items-center justify-center gap-2">
-              <QrCode size={20} className="text-indigo-600" /> E-Invoice QR
-            </h3>
-            <p className="text-xs text-gray-500 font-mono mb-4 break-all" title={irn}>
-              IRN: {irn}
-            </p>
-            <EInvoiceQrImage qrCode={qr} size={240} className="mx-auto rounded-lg border border-gray-100" />
-            <p className="text-[11px] text-gray-400 mt-3">Scan with GST / e-invoice apps</p>
-            <button
-              type="button"
-              onClick={() => setShowQrModal(false)}
-              className="mt-5 w-full py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* EWB modal */}
-      {showEwbModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={e => {
-            if (e.target === e.currentTarget) setShowEwbModal(false);
-          }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <Truck size={20} className="text-teal-600" /> Generate E-Way Bill
-            </h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vehicle No *</label>
-                  <input
-                    value={ewbForm.vehicleNo}
-                    onChange={e => setEwbForm({ ...ewbForm, vehicleNo: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl font-mono text-sm focus:ring-2 focus:ring-brand"
-                    placeholder="GJ01AB1234"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Distance (km) *</label>
-                  <input
-                    type="number"
-                    value={ewbForm.distance}
-                    onChange={e => setEwbForm({ ...ewbForm, distance: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                    placeholder="150"
-                    min="1"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transport Mode</label>
-                <select
-                  value={ewbForm.transportMode}
-                  onChange={e => setEwbForm({ ...ewbForm, transportMode: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                >
-                  <option value="1">Road</option>
-                  <option value="2">Rail</option>
-                  <option value="3">Air</option>
-                  <option value="4">Ship</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                  Transporter Name (optional)
-                </label>
-                <input
-                  value={ewbForm.transporterName}
-                  onChange={e => setEwbForm({ ...ewbForm, transporterName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                  placeholder="ABC Logistics"
-                />
-              </div>
-              <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                Mode: <strong>see Settings → GST API</strong>. To use real NIC API, configure credentials in Settings.
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button
-                type="button"
-                onClick={() => setShowEwbModal(false)}
-                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={generateEwb}
-                disabled={generating === 'ewb'}
-                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold transition-colors disabled:opacity-60"
-              >
-                {generating === 'ewb' ? 'Generating…' : 'Generate EWB'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    <GstEinvoiceToolbar
+      kind="batch"
+      id={batchId}
+      initialIrn={initialIrn}
+      initialQr={initialQr}
+      initialEwb={initialEwb}
+      quiet={quiet}
+      toPin={pinFromAddress(buyerAddress)}
+    />
   );
 }
 
@@ -1514,6 +1299,7 @@ export function DistributionView({
                         initialIrn={selectedBatch.irn}
                         initialQr={selectedBatch.irnQr}
                         initialEwb={selectedBatch.ewbNumber}
+                        buyerAddress={vendorAddress}
                         quiet
                       />
                     )}
@@ -1750,6 +1536,7 @@ export function DistributionView({
                                   initialIrn={selectedBatch.irn}
                                   initialQr={selectedBatch.irnQr}
                                   initialEwb={selectedBatch.ewbNumber}
+                                  buyerAddress={vendorAddress}
                                   quiet={inPlaceNav}
                                 />
                               </>
@@ -2259,6 +2046,7 @@ export function DistributionView({
                                   initialIrn={selectedBatch.irn}
                                   initialQr={selectedBatch.irnQr}
                                   initialEwb={selectedBatch.ewbNumber}
+                                  buyerAddress={vendorAddress}
                                   quiet
                                 />
                               )}
