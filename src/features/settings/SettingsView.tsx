@@ -163,6 +163,7 @@ function billDefaults(): BillSettings {
   const phoneBill = isServicePhoneBillUx();
   return {
     logoBase64: null,
+    backgroundBase64: null,
     primaryColor: '#F27D26',
     tagline: null,
     invoicePrefix: null,

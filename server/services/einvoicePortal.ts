@@ -462,13 +462,8 @@ export async function importBatchEwb(pool: Pool, tenantId: string, input: { batc
 }
 
 async function batchDocNo(pool: Pool, tenantId: string, batchId: string): Promise<string | undefined> {
-  const row = (
-    await pool.query(
-      `SELECT MAX(invoice_number) AS invoice_number FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2`,
-      [batchId, tenantId],
-    )
-  ).rows[0] as { invoice_number?: string } | undefined;
-  return row?.invoice_number?.trim() || undefined;
+  const docNo = batchId?.trim();
+  return docNo || undefined;
 }
 
 /** Import IRN / Signed QR / EWB from portal response JSON (after bulk upload on govt site). */

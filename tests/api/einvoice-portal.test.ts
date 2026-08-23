@@ -7,8 +7,15 @@ import { api, authHeaders } from '../http';
 import { uid } from '../../server/utils/helpers';
 import {
   buildStandaloneEinvoiceNicJson,
+  buildStandaloneEwaybillNicJson,
+  clearBatchGstFiling,
+  clearStandaloneInvoiceGstFiling,
+  importBatchEwb,
+  importBatchIrn,
+  importBatchPortalResponse,
   importStandaloneInvoiceEwb,
   importStandaloneInvoiceIrn,
+  importStandaloneInvoicePortalResponse,
 } from '../../server/services/einvoicePortal';
 
 const T = 'T-EINV-PORTAL';
@@ -116,6 +123,24 @@ describe('portal mode — JSON download + import', () => {
       TransDocNo: 'LR-1',
       TransDocDt: '23/08/2026',
     });
+  });
+
+  it('downloads E-Way Bill JSON for portal upload', async () => {
+    const params = new URLSearchParams({
+      invoiceId: invId,
+      transporterName: 'XYZ Transport',
+      vehicleNo: 'GJ05CD9999',
+      distance: '50',
+      transportMode: '1',
+      transDocNo: 'LR-2',
+      transDocDate: '23/08/2026',
+      vehicleType: 'R',
+    });
+    const r = await api().get(`/api/gst/ewaybill-json/invoice?${params}`).set(hdrs);
+    expect(r.status).toBe(200);
+    expect(r.body.Version).toBe('1.01');
+    expect(r.body.VehicleNo).toBe('GJ05CD9999');
+    expect(r.body._validation?.valid).toBe(true);
   });
 
   it('imports IRN from portal response', async () => {
@@ -252,9 +277,12 @@ describe('einvoicePortal service (unit)', () => {
   });
 
   it('buildStandaloneEinvoiceNicJson returns validated structure', async () => {
-    const json = await buildStandaloneEinvoiceNicJson(pool, T, invId);
+    const json = (await buildStandaloneEinvoiceNicJson(pool, T, invId)) as Record<string, unknown> & {
+      DocDtls?: { Typ?: string };
+      _validation?: { valid?: boolean };
+    };
     expect(json.Version).toBe('1.1');
-    expect(json.DocDtls.Typ).toBe('INV');
+    expect(json.DocDtls?.Typ).toBe('INV');
     expect(json._validation?.valid).toBe(true);
   });
 
@@ -274,5 +302,126 @@ describe('einvoicePortal service (unit)', () => {
       ewb_number: string;
     };
     expect(row.ewb_number).toBe('111222333');
+  });
+
+  it('buildStandaloneEwaybillNicJson returns e-way structure', async () => {
+    const json = await buildStandaloneEwaybillNicJson(pool, T, invId, {
+      vehicleNo: 'GJ01XY1234',
+      distance: 80,
+      transportMode: '1',
+      transporterName: 'Fast Freight',
+      transDocNo: 'LR-10',
+      transDocDate: '23/08/2026',
+    });
+    expect(json.Version).toBe('1.01');
+    expect(json.VehicleNo).toBe('GJ01XY1234');
+    expect(json._validation?.valid).toBe(true);
+  });
+
+  it('buildStandaloneEinvoiceNicJson embeds EwbDtls with transport', async () => {
+    const json = (await buildStandaloneEinvoiceNicJson(pool, T, invId, {
+      vehicleNo: 'GJ01AB1234',
+      distance: 100,
+      transportMode: '1',
+      transporterName: 'Combined Logistics',
+      transDocNo: 'LR-C',
+      transDocDate: '23/08/2026',
+    })) as Record<string, unknown>;
+    expect(json.EwbDtls).toBeTruthy();
+    expect(json._portalHint).toMatch(/together/i);
+  });
+
+  it('clearStandaloneInvoiceGstFiling clears EWB only', async () => {
+    const freshId = uid('INV-EWB-CLR');
+    await seedGstInvoice(freshId);
+    const irn = 'f'.repeat(64);
+    await importStandaloneInvoiceIrn(pool, T, { invoiceId: freshId, irn });
+    await importStandaloneInvoiceEwb(pool, T, { invoiceId: freshId, ewbNumber: '555666777' });
+    await clearStandaloneInvoiceGstFiling(pool, T, freshId, 'ewb');
+    const row = (await pool.query('SELECT irn, ewb_number FROM standalone_invoices WHERE id = $1', [freshId]))
+      .rows[0] as { irn: string | null; ewb_number: string | null };
+    expect(row.irn).toBe(irn);
+    expect(row.ewb_number).toBeNull();
+  });
+
+  it('importStandaloneInvoicePortalResponse imports IRN and EWB together', async () => {
+    const freshId = uid('INV-PORTAL-RESP');
+    await seedGstInvoice(freshId);
+    const irn = 'b'.repeat(64);
+    const result = await importStandaloneInvoicePortalResponse(pool, T, {
+      invoiceId: freshId,
+      response: { Irn: irn, SignedQRCode: 'qr-data', EwbNo: '998877665544' },
+    });
+    expect(result.irn).toBe(irn);
+    expect(result.ewbNumber).toBe('998877665544');
+    const row = (await pool.query('SELECT irn, irn_qr, ewb_number FROM standalone_invoices WHERE id = $1', [freshId]))
+      .rows[0] as { irn: string; irn_qr: string; ewb_number: string };
+    expect(row.irn_qr).toBe('qr-data');
+    expect(row.ewb_number).toBe('998877665544');
+  });
+
+  it('rejects portal response with no IRN or EWB', async () => {
+    const freshId = uid('INV-EMPTY-RESP');
+    await seedGstInvoice(freshId);
+    await expect(
+      importStandaloneInvoicePortalResponse(pool, T, { invoiceId: freshId, response: { Status: 'OK' } }),
+    ).rejects.toThrow(/no IRN or E-Way/i);
+  });
+
+  it('rejects cancelled invoice for JSON build', async () => {
+    const cancelledId = uid('INV-CANCEL');
+    await pool.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, items, subtotal, tax_total,
+          tax_cgst, tax_sgst, gst_enabled, grand_total, status, invoice_date)
+       VALUES ($1,$2,'INV-CANCEL','Buyer',$3::jsonb,100,18,9,9,true,118,'cancelled','2026-08-23')`,
+      [cancelledId, T, JSON.stringify(SAMPLE_ITEMS)],
+    );
+    await expect(buildStandaloneEinvoiceNicJson(pool, T, cancelledId)).rejects.toThrow(/cancelled/i);
+  });
+
+  it('batch portal import and clear filing', async () => {
+    const batchId = uid('BATCH-PORTAL');
+    const productId = uid('PROD-PORTAL');
+    const vendorId = uid('VEND-PORTAL');
+    await pool.query(
+      `INSERT INTO vendors (id, tenant_id, name) VALUES ($1,$2,'Portal Vendor') ON CONFLICT DO NOTHING`,
+      [vendorId, T],
+    );
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, stock, hsn_code, gst_rate)
+       VALUES ($1,$2,'Portal Product',1000,10,'8471',18) ON CONFLICT DO NOTHING`,
+      [productId, T],
+    );
+    await pool.query(
+      `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+       VALUES ($1,$2,$3,$4,'InStock') ON CONFLICT DO NOTHING`,
+      [uid('INV-BAR'), T, productId, `BC-${batchId.slice(-6)}`],
+    );
+    await pool.query(
+      `INSERT INTO product_distribution
+         (id, tenant_id, product_id, barcode, vendor_id, distribution_date, status, gst_applied,
+          net_price, billed_price, batch_id)
+       VALUES ($1,$2,$3,$4,$5,'2026-08-23','Distributed',true,1000,1180,$6)
+       ON CONFLICT DO NOTHING`,
+      [uid('DIST-PORTAL'), T, productId, `BC-${batchId.slice(-6)}`, vendorId, batchId],
+    );
+    const irn = '9'.repeat(64);
+    await importBatchIrn(pool, T, { batchId, irn, ackNo: 'B1', ackDt: 'today' });
+    await importBatchEwb(pool, T, { batchId, ewbNumber: '123456789012' });
+    const imported = await importBatchPortalResponse(pool, T, {
+      batchId,
+      response: { Irn: irn, EwbNo: '123456789012' },
+    });
+    expect(imported.ewbNumber).toBe('123456789012');
+    await clearBatchGstFiling(pool, T, batchId, 'all');
+    const row = (
+      await pool.query('SELECT irn, ewb_number FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2', [
+        batchId,
+        T,
+      ])
+    ).rows[0] as { irn: string | null; ewb_number: string | null };
+    expect(row.irn).toBeNull();
+    expect(row.ewb_number).toBeNull();
   });
 });
