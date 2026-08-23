@@ -21,9 +21,12 @@ import {
 } from '../services/nic-api';
 import {
   generateStandaloneInvoiceEwb,
+  generateStandaloneInvoiceEwbByIrn,
   generateStandaloneInvoiceIrn,
+  generateStandaloneInvoiceIrnAndEwb,
   StandaloneInvoiceGstError,
 } from '../services/standaloneInvoiceGst';
+import { checkEinvoiceEligibility, lookupTransportDistance } from '../services/gstCompliance';
 
 const router = Router();
 
@@ -95,7 +98,9 @@ router.get('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
       )
     ).rows[0] as Record<string, string> | undefined;
     const tenantRow = (
-      await pool.query('SELECT einvoice_enabled, einvoice_mode FROM tenants WHERE id = $1', [tenantId])
+      await pool.query('SELECT einvoice_enabled, einvoice_mode, ewb_with_einvoice FROM tenants WHERE id = $1', [
+        tenantId,
+      ])
     ).rows[0] as Record<string, unknown> | undefined;
     res.json({
       mode: row?.gst_api_mode || 'mock',
@@ -105,6 +110,7 @@ router.get('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
       sellerPin: row?.gst_api_seller_pin || '',
       einvoiceEnabled: !!tenantRow?.einvoice_enabled,
       einvoiceMode: (tenantRow?.einvoice_mode as string) || 'manual',
+      ewbWithEinvoice: !!tenantRow?.ewb_with_einvoice,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -115,16 +121,33 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { mode, gstin, username, password, clientId, clientSecret, sellerPin, einvoiceEnabled, einvoiceMode } =
-      req.body;
+    const {
+      mode,
+      gstin,
+      username,
+      password,
+      clientId,
+      clientSecret,
+      sellerPin,
+      einvoiceEnabled,
+      einvoiceMode,
+      ewbWithEinvoice,
+    } = req.body;
     // Save einvoice toggle to tenants table
-    if (einvoiceEnabled !== undefined) {
+    if (einvoiceEnabled !== undefined || ewbWithEinvoice !== undefined || einvoiceMode !== undefined) {
       await pool.query(
-        'UPDATE tenants SET einvoice_enabled = $1, einvoice_mode = COALESCE($2, einvoice_mode) WHERE id = $3',
-        [!!einvoiceEnabled, einvoiceMode || null, tenantId],
+        `UPDATE tenants SET
+           einvoice_enabled = COALESCE($1, einvoice_enabled),
+           einvoice_mode = COALESCE($2, einvoice_mode),
+           ewb_with_einvoice = COALESCE($3, ewb_with_einvoice)
+         WHERE id = $4`,
+        [
+          einvoiceEnabled !== undefined ? !!einvoiceEnabled : null,
+          einvoiceMode || null,
+          ewbWithEinvoice !== undefined ? !!ewbWithEinvoice : null,
+          tenantId,
+        ],
       );
-    } else if (einvoiceMode !== undefined) {
-      await pool.query('UPDATE tenants SET einvoice_mode = $1 WHERE id = $2', [einvoiceMode, tenantId]);
     }
     const validModes: GstApiMode[] = ['mock', 'sandbox', 'production'];
     if (mode && !validModes.includes(mode))
@@ -333,9 +356,18 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
 
     // Stamp IRN only on GST-applied units — non-GST BoS print must not present as e-invoice
     await db.query(
-      `UPDATE product_distribution SET irn=$1, irn_ack_no=$2, irn_ack_dt=$3, irn_qr=$4
+      `UPDATE product_distribution SET irn=$1, irn_ack_no=$2, irn_ack_dt=$3, irn_qr=$4,
+         ewb_number = COALESCE($7, ewb_number)
        WHERE batch_id=$5 AND tenant_id=$6 AND COALESCE(gst_applied, false) = true`,
-      [result.irn, result.ackNo, result.ackDt, result.signedQrCode || result.qrCode, batchId, tenantId],
+      [
+        result.irn,
+        result.ackNo,
+        result.ackDt,
+        result.signedQrCode || result.qrCode,
+        batchId,
+        tenantId,
+        result.ewbNo || null,
+      ],
     );
     await db.query('COMMIT');
     res.json({ ok: true, ...result, mode: creds.mode });
@@ -550,6 +582,92 @@ router.post('/api/gst/ewb/generate-invoice', requireAdmin, blockVendors, async (
       status,
       publicMessage: safeError(err),
     });
+  }
+});
+
+router.get('/api/gst/eligibility', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const gstinQ = String(req.query.gstin || '').trim();
+    const loaded = await loadGstCredentials(pool, tenantId);
+    const mode = loaded.ok ? loaded.creds.mode : 'mock';
+    const tenant = (await pool.query('SELECT company_name, gst_number FROM tenants WHERE id = $1', [tenantId]))
+      .rows[0] as { company_name?: string; gst_number?: string } | undefined;
+    const bs = (await pool.query('SELECT gst_api_gstin FROM bill_settings WHERE tenant_id = $1', [tenantId]))
+      .rows[0] as { gst_api_gstin?: string } | undefined;
+    const gstin = gstinQ || bs?.gst_api_gstin || tenant?.gst_number || '';
+    const result = await checkEinvoiceEligibility(gstin, tenant?.company_name || '', mode);
+    res.json(result);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.get('/api/gst/distance', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const loaded = await loadGstCredentials(pool, tenantId);
+    const mode = loaded.ok ? loaded.creds.mode : 'mock';
+    const result = lookupTransportDistance({
+      fromPin: String(req.query.fromPin || ''),
+      toPin: String(req.query.toPin || ''),
+      fromAddress: String(req.query.fromAddress || ''),
+      toAddress: String(req.query.toAddress || ''),
+      mode,
+    });
+    if (result.source === 'invalid_pin') {
+      return res.status(400).json({ error: 'Valid 6-digit fromPin and toPin required' });
+    }
+    res.json(result);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.post('/api/gst/ewb/generate-invoice-by-irn', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { invoiceId, vehicleNo, distance, transportMode, transporterName, transporterId } = req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const result = await generateStandaloneInvoiceEwbByIrn(pool, tenantId, {
+      invoiceId: String(invoiceId),
+      vehicleNo: String(vehicleNo || ''),
+      distance: Number(distance),
+      transportMode,
+      transporterName,
+      transporterId,
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Invoice EWB by IRN failed', { status, publicMessage: safeError(err) });
+  }
+});
+
+router.post('/api/gst/irn-and-ewb/generate-invoice', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { invoiceId, vehicleNo, distance, transportMode, transporterName, transporterId, sellerPin, buyerPin } =
+      req.body || {};
+    if (!invoiceId) return res.status(400).json({ error: 'invoiceId required' });
+    const result = await generateStandaloneInvoiceIrnAndEwb(pool, tenantId, {
+      invoiceId: String(invoiceId),
+      vehicleNo: String(vehicleNo || ''),
+      distance: Number(distance),
+      transportMode,
+      transporterName,
+      transporterId,
+      sellerPin,
+      buyerPin,
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    const status = err instanceof StandaloneInvoiceGstError ? err.status : 500;
+    return handleApiError(req, res, err, 'Invoice IRN+EWB failed', { status, publicMessage: safeError(err) });
   }
 });
 

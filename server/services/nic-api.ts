@@ -430,6 +430,51 @@ export class NicApiClient {
     return { ewbNo: String(result.ewayBillNo), ewbDt: result.ewayBillDate, ewbValidTill: result.validUpto };
   }
 
+  async generateEwbByIrn(input: {
+    irn: string;
+    vehicleNo: string;
+    distance: number;
+    transportMode?: string;
+    transporterName?: string;
+    transporterId?: string;
+  }): Promise<EwbResult> {
+    if (this.creds.mode === 'mock') return this.mockEwb(input.irn.slice(-8) || 'IRN');
+    getGstnPublicKey(this.creds.mode);
+    const { authToken, sek } = await this.authenticate();
+    const body = {
+      Irn: input.irn,
+      Distance: input.distance,
+      TransMode: input.transportMode || '1',
+      TransName: input.transporterName || '',
+      TransId: input.transporterId || '',
+      VehNo: input.vehicleNo,
+      VehType: 'R',
+    };
+    const encPayload = aesEncrypt(JSON.stringify(body), sek);
+    const res = await loggedFetch(
+      `${this.baseUrl}/eicore/v1.03/Ewaybill`,
+      {
+        method: 'POST',
+        headers: {
+          client_id: this.creds.clientId,
+          client_secret: this.creds.clientSecret,
+          user_name: this.creds.username,
+          authtoken: authToken,
+          Gstin: this.creds.gstin,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ Data: encPayload }),
+        signal: AbortSignal.timeout(20000),
+      },
+      'nic.generateEwbByIrn',
+    );
+    if (!res.ok) throw new Error(`EWB by IRN failed: ${res.status}`);
+    const data = (await res.json()) as { Status: number; Data?: string };
+    if (data.Status !== 1 || !data.Data) throw new Error('EWB by IRN rejected by GST portal');
+    const result = JSON.parse(aesDecrypt(data.Data, sek));
+    return { ewbNo: String(result.EwbNo || result.ewayBillNo), ewbDt: result.EwbDt, ewbValidTill: result.EwbValidTill };
+  }
+
   async cancelIrn(irn: string, cancelReason: 1 | 2 | 3 | 4, cancelRemark: string): Promise<void> {
     if (this.creds.mode === 'mock') return;
     getGstnPublicKey(this.creds.mode);

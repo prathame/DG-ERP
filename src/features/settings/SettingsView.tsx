@@ -202,9 +202,17 @@ function GstApiSection() {
     password: '',
     clientId: '',
     clientSecret: '',
+    sellerPin: '',
     einvoiceEnabled: false,
     einvoiceMode: 'manual' as 'manual' | 'auto',
+    ewbWithEinvoice: false,
   });
+  const [eligibility, setEligibility] = useState<{
+    enabled: boolean;
+    status: string;
+    message: string;
+  } | null>(null);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSecrets, setShowSecrets] = useState(false);
@@ -219,13 +227,27 @@ function GstApiSection() {
           gstin: s.gstin || '',
           username: s.username || '',
           clientId: s.clientId || '',
-          einvoiceEnabled: !!(s as { einvoiceEnabled?: boolean }).einvoiceEnabled,
-          einvoiceMode: ((s as { einvoiceMode?: string }).einvoiceMode as 'manual' | 'auto') || 'manual',
+          sellerPin: s.sellerPin || '',
+          einvoiceEnabled: !!s.einvoiceEnabled,
+          einvoiceMode: (s.einvoiceMode as 'manual' | 'auto') || 'manual',
+          ewbWithEinvoice: !!s.ewbWithEinvoice,
         })),
       )
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handleCheckEligibility = async () => {
+    setCheckingEligibility(true);
+    try {
+      const r = await api.gst.checkEligibility(form.gstin || undefined);
+      setEligibility({ enabled: r.enabled, status: r.status, message: r.message });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Eligibility check failed', 'error');
+    } finally {
+      setCheckingEligibility(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -304,31 +326,47 @@ function GstApiSection() {
             </button>
           </div>
           {form.einvoiceEnabled && (
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Generation Mode</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    ['manual', 'Manual', 'Click generate button per invoice — full control'],
-                    ['auto', 'Automatic', 'Auto-generate IRN when invoice is finalised / status set to Sent'],
-                  ] as const
-                ).map(([v, label, desc]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, einvoiceMode: v }))}
-                    className={cn(
-                      'text-left p-3 rounded-xl border text-sm transition-colors',
-                      form.einvoiceMode === v
-                        ? 'border-brand bg-orange-50 text-brand font-semibold'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300',
-                    )}
-                  >
-                    <p className="font-semibold">{label}</p>
-                    <p className="text-xs mt-0.5 font-normal text-gray-500">{desc}</p>
-                  </button>
-                ))}
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Generation Mode</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      ['manual', 'Manual', 'Click generate button per invoice — full control'],
+                      ['auto', 'Automatic', 'Auto-generate IRN when invoice is finalised / status set to Sent'],
+                    ] as const
+                  ).map(([v, label, desc]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, einvoiceMode: v }))}
+                      className={cn(
+                        'text-left p-3 rounded-xl border text-sm transition-colors',
+                        form.einvoiceMode === v
+                          ? 'border-brand bg-orange-50 text-brand font-semibold'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300',
+                      )}
+                    >
+                      <p className="font-semibold">{label}</p>
+                      <p className="text-xs mt-0.5 font-normal text-gray-500">{desc}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.ewbWithEinvoice}
+                  onChange={e => setForm(f => ({ ...f, ewbWithEinvoice: e.target.checked }))}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="text-sm font-semibold text-gray-800">Generate E-Way Bill with E-Invoice</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    Shows a combined action when goods move with the invoice (Miracle-style E-Inv + EWB).
+                  </span>
+                </span>
+              </label>
             </div>
           )}
         </div>
@@ -369,13 +407,36 @@ function GstApiSection() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Seller GSTIN</label>
+              <div className="flex gap-2">
+                <input
+                  value={form.gstin}
+                  onChange={e => setForm({ ...form, gstin: e.target.value.toUpperCase() })}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
+                  placeholder="24AAAPZ9999G1ZI"
+                  maxLength={15}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCheckEligibility()}
+                  disabled={checkingEligibility}
+                  className="shrink-0 px-3 py-2 text-xs font-bold border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {checkingEligibility ? 'Checking…' : 'Check e-invoice'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Dispatch PIN (seller)</label>
               <input
-                value={form.gstin}
-                onChange={e => setForm({ ...form, gstin: e.target.value.toUpperCase() })}
+                value={form.sellerPin}
+                onChange={e => setForm({ ...form, sellerPin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
-                placeholder="24AAAPZ9999G1ZI"
-                maxLength={15}
+                placeholder="380001"
+                maxLength={6}
               />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Used for E-Way distance and NIC payloads when address has no pincode.
+              </p>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">NIC Username</label>
@@ -448,6 +509,20 @@ function GstApiSection() {
             </div>
           )}
         </div>
+
+        {eligibility ? (
+          <div
+            className={cn(
+              'rounded-xl border px-4 py-3 text-sm',
+              eligibility.enabled
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-amber-200 bg-amber-50 text-amber-900',
+            )}
+          >
+            <p className="font-semibold">{eligibility.enabled ? 'E-Invoice enabled' : 'Eligibility check'}</p>
+            <p className="text-xs mt-1">{eligibility.message}</p>
+          </div>
+        ) : null}
 
         <button type="button" onClick={handleSave} disabled={saving} className={settingsPrimaryBtn()}>
           {saving ? 'Saving…' : 'Save GST API Settings'}

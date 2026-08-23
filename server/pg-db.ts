@@ -291,6 +291,7 @@ export async function initSchema() {
       -- E-Invoice & E-Way Bill toggle (added here so auth.ts SELECT works immediately)
       ALTER TABLE tenants ADD COLUMN IF NOT EXISTS einvoice_enabled BOOLEAN DEFAULT false;
       ALTER TABLE tenants ADD COLUMN IF NOT EXISTS einvoice_mode TEXT DEFAULT 'manual';
+      ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ewb_with_einvoice BOOLEAN DEFAULT false;
 
       CREATE TABLE IF NOT EXISTS tenant_stats (
         id SERIAL PRIMARY KEY,
