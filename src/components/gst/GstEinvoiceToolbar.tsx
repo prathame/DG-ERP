@@ -59,6 +59,10 @@ export function GstEinvoiceToolbar(props: InvoiceProps | BatchProps) {
   }, [props.ewbWithEinvoice, props.fromPin]);
 
   useEffect(() => {
+    if (props.fromPin) setSellerPin(props.fromPin);
+  }, [props.fromPin]);
+
+  useEffect(() => {
     setIrn(props.initialIrn || '');
     setQr(resolveIrnQrPayload({ irnQr: props.initialQr, qrCode: props.initialQr }));
     setEwbNo(props.initialEwb || '');
@@ -180,7 +184,15 @@ export function GstEinvoiceToolbar(props: InvoiceProps | BatchProps) {
     }
   }
 
-  function openEwbModal(byIrn: boolean) {
+  async function openEwbModal(byIrn: boolean) {
+    if (!sellerPin && !props.fromPin) {
+      try {
+        const s = await api.gst.getSettings();
+        if (s.sellerPin) setSellerPin(s.sellerPin);
+      } catch {
+        /* ignore */
+      }
+    }
     setEwbByIrn(byIrn);
     setEwbForm(defaultEwbForm());
     setShowEwbModal(true);
@@ -201,9 +213,19 @@ export function GstEinvoiceToolbar(props: InvoiceProps | BatchProps) {
         <button
           type="button"
           onClick={() => {
-            setEwbForm(defaultEwbForm());
-            setShowEwbModal(true);
-            setEwbByIrn(false);
+            void (async () => {
+              if (!sellerPin && !props.fromPin) {
+                try {
+                  const s = await api.gst.getSettings();
+                  if (s.sellerPin) setSellerPin(s.sellerPin);
+                } catch {
+                  /* ignore */
+                }
+              }
+              setEwbForm(defaultEwbForm());
+              setShowEwbModal(true);
+              setEwbByIrn(false);
+            })();
           }}
           disabled={!!generating}
           className={btn(false)}

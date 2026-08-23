@@ -25,6 +25,7 @@ import {
   QuickAddProductModal,
   BillLineUnitLabel,
 } from '../../components/ui';
+import { pinFromAddress } from '../../lib/pincode';
 import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
@@ -183,10 +184,24 @@ function InvoiceEInvoiceButtons({
   invoice: Invoice;
   onUpdated: (patch: Partial<Invoice>) => void;
 }) {
-  const pinFromAddress = (addr?: string | null) => {
-    const m = String(addr || '').match(/\b(\d{6})\b/);
-    return m ? m[1] : '';
-  };
+  const [sellerPin, setSellerPin] = useState('');
+  const [buyerAddress, setBuyerAddress] = useState(invoice.customerAddress || '');
+
+  useEffect(() => {
+    api.gst
+      .getSettings()
+      .then(s => setSellerPin(s.sellerPin || ''))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setBuyerAddress(invoice.customerAddress || '');
+    if (invoice.customerAddress) return;
+    fetchApi<Invoice>(`/invoices/${invoice.id}`)
+      .then(full => setBuyerAddress(full.customerAddress || ''))
+      .catch(() => {});
+  }, [invoice.id, invoice.customerAddress]);
+
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
       <GstEinvoiceToolbar
@@ -195,7 +210,8 @@ function InvoiceEInvoiceButtons({
         initialIrn={invoice.irn}
         initialQr={invoice.irnQr}
         initialEwb={invoice.ewbNumber}
-        toPin={pinFromAddress(invoice.customerAddress)}
+        fromPin={sellerPin}
+        toPin={pinFromAddress(buyerAddress)}
         onUpdated={onUpdated}
       />
     </div>
