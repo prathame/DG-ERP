@@ -82,6 +82,7 @@ import {
 } from '../../lib/paymentReminders';
 import { DesktopSettingsTabNav, type DesktopSettingsTab, type DesktopSettingsTabId } from './DesktopSettingsPanel';
 import { MobileSettingsHub, MobileSettingsSheetChrome, moduleBlurb } from './MobileSettingsHub';
+import { GstApiGuidePanel } from './GstApiGuidePanel';
 import { BarcodeLabelTemplatesSection } from './barcodeLabels/BarcodeLabelTemplatesSection';
 
 function backupApiHeaders(extra?: Record<string, string>): Record<string, string> {
@@ -304,6 +305,8 @@ function GstApiSection() {
         </span>
       </div>
       <div className="p-6 space-y-5">
+        <GstApiGuidePanel />
+
         {/* Master toggle — enable / disable E-Invoice & EWB for this tenant */}
         <div className="rounded-xl border border-gray-200 p-4 space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -409,44 +412,47 @@ function GstApiSection() {
           <p className="text-xs text-gray-400 mt-1">{MODE_OPTIONS.find(m => m.value === form.mode)?.desc}</p>
         </div>
 
-        {/* Credentials — hidden in mock mode */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Seller GSTIN</label>
+            <div className="flex gap-2">
+              <input
+                value={form.gstin}
+                onChange={e => setForm({ ...form, gstin: e.target.value.toUpperCase() })}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
+                placeholder="24AAAPZ9999G1ZI"
+                maxLength={15}
+              />
+              <button
+                type="button"
+                onClick={() => void handleCheckEligibility()}
+                disabled={checkingEligibility}
+                className="shrink-0 px-3 py-2 text-xs font-bold border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50"
+              >
+                {checkingEligibility ? 'Checking…' : 'Check e-invoice'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Dispatch PIN (seller)</label>
+            <input
+              value={form.sellerPin}
+              onChange={e => setForm({ ...form, sellerPin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
+              placeholder="380001"
+              maxLength={6}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Used for E-Way distance and NIC payloads when address has no pincode.
+            </p>
+          </div>
+        </div>
+
+        {/* NIC credentials — dimmed in mock mode */}
         <div
           className={`space-y-4 transition-opacity ${form.mode === 'mock' ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Seller GSTIN</label>
-              <div className="flex gap-2">
-                <input
-                  value={form.gstin}
-                  onChange={e => setForm({ ...form, gstin: e.target.value.toUpperCase() })}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
-                  placeholder="24AAAPZ9999G1ZI"
-                  maxLength={15}
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleCheckEligibility()}
-                  disabled={checkingEligibility}
-                  className="shrink-0 px-3 py-2 text-xs font-bold border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {checkingEligibility ? 'Checking…' : 'Check e-invoice'}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Dispatch PIN (seller)</label>
-              <input
-                value={form.sellerPin}
-                onChange={e => setForm({ ...form, sellerPin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
-                placeholder="380001"
-                maxLength={6}
-              />
-              <p className="text-[11px] text-gray-400 mt-1">
-                Used for E-Way distance and NIC payloads when address has no pincode.
-              </p>
-            </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">NIC Username</label>
               <input
