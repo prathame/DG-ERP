@@ -101,13 +101,13 @@ export function BooksOutstandingPanel() {
     [bills, selectedParty],
   );
 
+  const aging = useMemo(() => summarizeArAging(bills), [bills]);
   const totalBillDue = useMemo(() => aging.total, [aging]);
   const totalAdvance = useMemo(
     () => openParties.reduce((s, p) => s + (Number(p.advanceBalance) || 0), 0),
     [openParties],
   );
   const totalNet = useMemo(() => openParties.reduce((s, p) => s + (Number(p.balance) || 0), 0), [openParties]);
-  const aging = useMemo(() => summarizeArAging(bills), [bills]);
 
   function openPay(target: PayTarget) {
     setPayTarget(target);
