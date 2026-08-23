@@ -108,4 +108,20 @@ describe('Accounts books expense alignment', () => {
     expect(overview.status).toBe(200);
     expect(Math.abs(pnl.body.expenses.otherExpenses - overview.body.money.expenses)).toBeLessThan(0.05);
   });
+
+  it('GET /api/accounts/profit-loss?format=csv includes other expenses line', async () => {
+    const res = await api().get(`/api/accounts/profit-loss?format=csv&from=${FROM}&to=${TO}`).set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('Other Expenses');
+    expect(res.text).toContain(String(EXPENSE_AMOUNT.toFixed(2)));
+  });
+
+  it('GET /api/accounts/cash-flow?format=csv includes expense outflows', async () => {
+    const res = await api().get(`/api/accounts/cash-flow?format=csv&from=${FROM}&to=${TO}`).set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('Expenses Out');
+    expect(res.text).toContain(String(EXPENSE_AMOUNT.toFixed(2)));
+  });
 });

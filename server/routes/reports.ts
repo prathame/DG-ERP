@@ -4,23 +4,12 @@ import { pool } from '../pg-db';
 import { DISTRIBUTION_BILL_UNIT_SQL, INVOICE_IS_GST_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { foldVendorAdvancesIntoOutstanding, type OutstandingPartyAgg } from '../services/outstandingAdvances';
+import { toCsv, sendCsv } from '../utils/csv-export';
 
 const router = Router();
 
 // Reports are staff-only — Vendors must not see full-tenant registers
 router.use(blockVendors);
-
-function toCsv(headers: string[], rows: unknown[][]): string {
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  return [headers, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function sendCsv(res: any, filename: string, csv: string): void {
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.send('﻿' + csv); // BOM for Excel UTF-8 detection
-}
 
 type OutstandingAgeBucket = '0-30' | '31-60' | '61-90' | '90+';
 

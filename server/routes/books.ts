@@ -43,6 +43,16 @@ import { getProductLedger, getBooksStockSummary } from '../services/bookProductL
 import { getBooksDailyStatus } from '../services/bookDailyStatus';
 import { ensureNativeBooksDesk, wipeNativeBooksDesk, resyncOpsInvoiceBooks } from '../services/opsToBooks';
 import {
+  balanceSheetCsv,
+  dayBookCsv,
+  fundBookCsv,
+  profitLossCsv,
+  tradeRegisterCsv,
+  tradingAccountCsv,
+  trialBalanceCsv,
+} from '../services/booksCsvExport';
+import { sendCsv } from '../utils/csv-export';
+import {
   BookCoaNotFoundError,
   BookCoaValidationError,
   createBookGroup,
@@ -851,7 +861,11 @@ router.get('/api/books/trial-balance', blockVendors, async (req: AuthRequest, re
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
-    res.json(await getTrialBalance(pool, tenantId, from, to));
+    const data = await getTrialBalance(pool, tenantId, from, to);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `trial-balance-${from || 'all'}-to-${to || 'all'}.csv`, trialBalanceCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -863,7 +877,11 @@ router.get('/api/books/profit-loss', blockVendors, async (req: AuthRequest, res)
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
-    res.json(await getBooksProfitLoss(pool, tenantId, from, to));
+    const data = await getBooksProfitLoss(pool, tenantId, from, to);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `profit-loss-${from || 'all'}-to-${to || 'all'}.csv`, profitLossCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -875,7 +893,11 @@ router.get('/api/books/trading-account', blockVendors, async (req: AuthRequest, 
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
-    res.json(await getTradingAccount(pool, tenantId, from, to));
+    const data = await getTradingAccount(pool, tenantId, from, to);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `trading-account-${from || 'all'}-to-${to || 'all'}.csv`, tradingAccountCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -888,7 +910,11 @@ router.get('/api/books/balance-sheet', blockVendors, async (req: AuthRequest, re
     const asOf =
       (typeof req.query.asOf === 'string' && req.query.asOf.trim() ? req.query.asOf.trim() : null) ||
       (typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null);
-    res.json(await getBooksBalanceSheet(pool, tenantId, asOf));
+    const data = await getBooksBalanceSheet(pool, tenantId, asOf);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `balance-sheet-${asOf || 'today'}.csv`, balanceSheetCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -919,18 +945,20 @@ router.get('/api/books/day-book', blockVendors, async (req: AuthRequest, res) =>
     }
     sql += ` ORDER BY v.voucher_date, v.voucher_number NULLS LAST, e.line_no LIMIT 5000`;
     const { rows } = await pool.query(sql, params);
-    res.json(
-      rows.map(r => ({
-        voucherId: r.voucher_id,
-        date: r.voucher_date,
-        voucherNumber: r.voucher_number,
-        voucherType: r.voucher_type,
-        ledgerName: r.ledger_name,
-        debit: Number(r.debit || 0),
-        credit: Number(r.credit || 0),
-        narration: r.narration,
-      })),
-    );
+    const mapped = rows.map(r => ({
+      voucherId: r.voucher_id,
+      date: r.voucher_date,
+      voucherNumber: r.voucher_number,
+      voucherType: r.voucher_type,
+      ledgerName: r.ledger_name,
+      debit: Number(r.debit || 0),
+      credit: Number(r.credit || 0),
+      narration: r.narration,
+    }));
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `day-book-${from || 'all'}-to-${to || 'all'}.csv`, dayBookCsv(mapped));
+    }
+    res.json(mapped);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -944,7 +972,11 @@ router.get('/api/books/cash-book', blockVendors, async (req: AuthRequest, res) =
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
     const ledgerId =
       typeof req.query.ledgerId === 'string' && req.query.ledgerId.trim() ? req.query.ledgerId.trim() : null;
-    res.json(await getFundBook(pool, tenantId, 'cash', from, to, ledgerId));
+    const data = await getFundBook(pool, tenantId, 'cash', from, to, ledgerId);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `cash-book-${from || 'all'}-to-${to || 'all'}.csv`, fundBookCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -958,7 +990,11 @@ router.get('/api/books/bank-book', blockVendors, async (req: AuthRequest, res) =
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
     const ledgerId =
       typeof req.query.ledgerId === 'string' && req.query.ledgerId.trim() ? req.query.ledgerId.trim() : null;
-    res.json(await getFundBook(pool, tenantId, 'bank', from, to, ledgerId));
+    const data = await getFundBook(pool, tenantId, 'bank', from, to, ledgerId);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `bank-book-${from || 'all'}-to-${to || 'all'}.csv`, fundBookCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -971,7 +1007,11 @@ router.get('/api/books/sales-register', blockVendors, async (req: AuthRequest, r
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
-    res.json(await getTradeRegister(pool, tenantId, 'sales', from, to));
+    const data = await getTradeRegister(pool, tenantId, 'sales', from, to);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `sales-register-${from || 'all'}-to-${to || 'all'}.csv`, tradeRegisterCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -983,7 +1023,11 @@ router.get('/api/books/purchase-register', blockVendors, async (req: AuthRequest
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const from = typeof req.query.from === 'string' && req.query.from.trim() ? req.query.from.trim() : null;
     const to = typeof req.query.to === 'string' && req.query.to.trim() ? req.query.to.trim() : null;
-    res.json(await getTradeRegister(pool, tenantId, 'purchase', from, to));
+    const data = await getTradeRegister(pool, tenantId, 'purchase', from, to);
+    if (req.query.format === 'csv') {
+      return sendCsv(res, `purchase-register-${from || 'all'}-to-${to || 'all'}.csv`, tradeRegisterCsv(data));
+    }
+    res.json(data);
   } catch (err) {
     return handleApiError(req, res, err);
   }

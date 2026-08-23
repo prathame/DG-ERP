@@ -46,6 +46,7 @@ import {
   BillLineUnitLabel,
 } from '../../components/ui';
 import { api, fetchApi } from '../../api';
+import { downloadApiCsv } from '../../lib/downloadApiCsv';
 import { esc } from '../../lib/billTemplates';
 import {
   DEFAULT_BILL_UNIT,
@@ -489,21 +490,7 @@ export function AccountsView({
 
   const downloadCsv = async (url: string, filename: string) => {
     try {
-      const { session } = await import('../../lib/session');
-      const r = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${session.getToken()}`,
-          'x-tenant-id': session.getTenantId() || '',
-          'x-dg-client': 'web',
-        },
-      });
-      if (!r.ok) throw new Error('Download failed');
-      const blob = await r.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      await downloadApiCsv(url, filename);
     } catch {
       toast('CSV download failed', 'error');
     }

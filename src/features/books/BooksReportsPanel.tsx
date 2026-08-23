@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { Download } from 'lucide-react';
 import { fetchApi } from '../../api';
-import { LoadingSpinner, PeriodPresetChips, FinancialYearSelect } from '../../components/ui';
+import { LoadingSpinner, PeriodPresetChips, FinancialYearSelect, useToast } from '../../components/ui';
+import { downloadApiCsv } from '../../lib/downloadApiCsv';
 import { useTranslation } from '../../i18n';
 import {
   applyFinancialYear,
@@ -92,6 +94,7 @@ export function BooksReportsPanel({
   hideSourceNote?: boolean;
 } = {}) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const defaults = fyDefaults();
   const [kind, setKind] = useState<ReportKind>(lockedKind || 'tb');
   const [from, setFrom] = useState(defaults.from);
@@ -208,6 +211,36 @@ export function BooksReportsPanel({
     { id: 'bs', label: 'Balance sheet' },
   ];
 
+  const hasReportData =
+    (kind === 'tb' && tb) || (kind === 'trading' && trading) || (kind === 'pnl' && pnl) || (kind === 'bs' && bs);
+
+  const exportCsv = async () => {
+    try {
+      const qs = new URLSearchParams({ format: 'csv' });
+      if (kind === 'bs') {
+        if (to) qs.set('asOf', to);
+        await downloadApiCsv(`/api/books/balance-sheet?${qs}`, `balance-sheet-${to || 'today'}.csv`);
+        return;
+      }
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      const endpoints: Record<Exclude<ReportKind, 'bs'>, string> = {
+        tb: '/api/books/trial-balance',
+        trading: '/api/books/trading-account',
+        pnl: '/api/books/profit-loss',
+      };
+      const names: Record<Exclude<ReportKind, 'bs'>, string> = {
+        tb: 'trial-balance',
+        trading: 'trading-account',
+        pnl: 'profit-loss',
+      };
+      const k = kind as Exclude<ReportKind, 'bs'>;
+      await downloadApiCsv(`${endpoints[k]}?${qs}`, `${names[k]}-${from || 'all'}-to-${to || 'all'}.csv`);
+    } catch {
+      toast('CSV download failed', 'error');
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -279,6 +312,15 @@ export function BooksReportsPanel({
               />
               Compare vs last FY
             </label>
+          )}
+          {hasReportData && (
+            <button
+              type="button"
+              onClick={() => void exportCsv()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Download size={14} /> CSV
+            </button>
           )}
         </div>
       </div>
