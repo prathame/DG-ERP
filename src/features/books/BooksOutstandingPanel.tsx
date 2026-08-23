@@ -55,6 +55,7 @@ export function BooksOutstandingPanel() {
       const nextParties = (Array.isArray(summary) ? summary : []).map(r => ({
         partyKey: r.partyKey,
         clientName: r.clientName,
+        billDue: Number(r.billDue ?? r.balance) || 0,
         balance: Number(r.balance) || 0,
         advanceBalance: Number(r.advanceBalance) || 0,
         invoiceCount: Number(r.invoiceCount) || 0,
@@ -100,8 +101,13 @@ export function BooksOutstandingPanel() {
     [bills, selectedParty],
   );
 
-  const totalDue = useMemo(() => openParties.reduce((s, p) => s + (Number(p.balance) || 0), 0), [openParties]);
   const aging = useMemo(() => summarizeArAging(bills), [bills]);
+  const totalBillDue = useMemo(() => aging.total, [aging]);
+  const totalAdvance = useMemo(
+    () => openParties.reduce((s, p) => s + (Number(p.advanceBalance) || 0), 0),
+    [openParties],
+  );
+  const totalNet = useMemo(() => openParties.reduce((s, p) => s + (Number(p.balance) || 0), 0), [openParties]);
 
   function openPay(target: PayTarget) {
     setPayTarget(target);
@@ -185,10 +191,12 @@ export function BooksOutstandingPanel() {
         <div>
           <h3 className="text-lg font-semibold text-slate-900">{selectedParty.clientName}</h3>
           <p className="text-sm text-slate-500">
-            Due ₹{money(selectedParty.balance)}
+            Bill due ₹{money(selectedParty.billDue)}
             {(selectedParty.advanceBalance || 0) > 0.005
               ? ` · Advance ₹${money(selectedParty.advanceBalance || 0)}`
               : ''}
+            {' · Net ₹'}
+            {money(selectedParty.balance)}
             {' · '}
             {partyBills.length} open bill{partyBills.length === 1 ? '' : 's'}
           </p>
@@ -254,7 +262,8 @@ export function BooksOutstandingPanel() {
         <div>
           <h3 className="text-sm font-bold text-slate-900">Outstanding</h3>
           <p className="text-xs text-slate-500">
-            Bill-wise dues from Invoice Finance — collect against a party or a specific bill (posts Books receipt).
+            Bill-wise dues from open invoices. Net balance subtracts unallocated advances (vendor receipts not yet
+            applied to a bill).
           </p>
         </div>
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
@@ -286,8 +295,15 @@ export function BooksOutstandingPanel() {
           className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm"
         />
         <div className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-900">{openParties.length}</span> parties · due{' '}
-          <span className="font-semibold tabular-nums text-orange-800">₹{money(totalDue)}</span>
+          <span className="font-semibold text-slate-900">{openParties.length}</span> parties · bill due{' '}
+          <span className="font-semibold tabular-nums text-orange-800">₹{money(totalBillDue)}</span>
+          {totalAdvance > 0.005 ? (
+            <>
+              {' '}
+              · advances <span className="font-semibold tabular-nums text-slate-700">₹{money(totalAdvance)}</span>
+            </>
+          ) : null}{' '}
+          · net <span className="font-semibold tabular-nums text-orange-800">₹{money(totalNet)}</span>
         </div>
       </div>
 
@@ -319,8 +335,9 @@ export function BooksOutstandingPanel() {
                 <tr>
                   <th className="px-3 py-2">Party</th>
                   <th className="px-3 py-2 text-right">Bills</th>
+                  <th className="px-3 py-2 text-right">Bill due</th>
                   <th className="px-3 py-2 text-right">Advance</th>
-                  <th className="px-3 py-2 text-right">Due</th>
+                  <th className="px-3 py-2 text-right">Net</th>
                 </tr>
               </thead>
               <tbody>
@@ -332,6 +349,7 @@ export function BooksOutstandingPanel() {
                   >
                     <td className="px-3 py-2 font-medium">{p.clientName}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{p.invoiceCount}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-700">{money(p.billDue)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-slate-500">
                       {(p.advanceBalance || 0) > 0.005 ? money(p.advanceBalance || 0) : '—'}
                     </td>

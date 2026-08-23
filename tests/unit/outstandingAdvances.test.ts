@@ -7,6 +7,7 @@ function party(
   return {
     totalBilled: 0,
     totalPaid: 0,
+    billDue: 0,
     balance: 0,
     advanceBalance: 0,
     d0_30: 0,
@@ -27,6 +28,7 @@ describe('foldVendorAdvancesIntoOutstanding', () => {
           vendorName: 'ACME',
           totalBilled: 1000,
           totalPaid: 200,
+          billDue: 800,
           balance: 800,
           d0_30: 800,
         }),
@@ -35,6 +37,7 @@ describe('foldVendorAdvancesIntoOutstanding', () => {
     foldVendorAdvancesIntoOutstanding(byParty, [{ vendorId: 'V1', vendorName: 'ACME', advance: 300 }]);
     const row = byParty.get('vendor:V1')!;
     expect(row.totalPaid).toBe(500);
+    expect(row.billDue).toBe(800);
     expect(row.advanceBalance).toBe(300);
     expect(row.balance).toBe(500);
     expect(row.d0_30).toBe(800); // aging stays bill-based
@@ -45,6 +48,7 @@ describe('foldVendorAdvancesIntoOutstanding', () => {
     foldVendorAdvancesIntoOutstanding(byParty, [{ vendorId: 'V2', vendorName: 'PREPAID', advance: 150 }]);
     const row = byParty.get('vendor:V2')!;
     expect(row.totalBilled).toBe(0);
+    expect(row.billDue).toBe(0);
     expect(row.advanceBalance).toBe(150);
     expect(row.balance).toBe(-150);
   });

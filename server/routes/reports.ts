@@ -332,6 +332,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
             vendorName: inv.party_name || 'Unknown',
             totalBilled: 0,
             totalPaid: 0,
+            billDue: 0,
             balance: 0,
             advanceBalance: 0,
             d0_30: 0,
@@ -343,6 +344,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
         }
         row.totalBilled += billed;
         row.totalPaid += paid;
+        row.billDue += due;
         row.balance += due;
         const ageFrom = String(inv.due_date || inv.invoice_date);
         const days = daysSince(ageFrom, now);
@@ -392,6 +394,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
         (acc, r) => {
           acc.totalBilled += r.totalBilled;
           acc.totalPaid += r.totalPaid;
+          acc.billDue += r.billDue;
           acc.balance += r.balance;
           acc.advanceBalance += r.advanceBalance;
           acc.d0_30 += r.d0_30;
@@ -403,6 +406,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
         {
           totalBilled: 0,
           totalPaid: 0,
+          billDue: 0,
           balance: 0,
           advanceBalance: 0,
           d0_30: 0,

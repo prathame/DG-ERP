@@ -11,9 +11,9 @@ import {
 describe('partiesWithOpenDues', () => {
   it('keeps positive balances and sorts by due desc', () => {
     const rows = partiesWithOpenDues([
-      { partyKey: 'a', clientName: 'Alpha', balance: 100, invoiceCount: 1 },
-      { partyKey: 'b', clientName: 'Beta', balance: 0, invoiceCount: 0 },
-      { partyKey: 'c', clientName: 'Gamma', balance: 250.5, invoiceCount: 2 },
+      { partyKey: 'a', clientName: 'Alpha', billDue: 100, balance: 100, invoiceCount: 1 },
+      { partyKey: 'b', clientName: 'Beta', billDue: 0, balance: 0, invoiceCount: 0 },
+      { partyKey: 'c', clientName: 'Gamma', billDue: 250.5, balance: 250.5, invoiceCount: 2 },
     ]);
     expect(rows.map(r => r.partyKey)).toEqual(['c', 'a']);
   });

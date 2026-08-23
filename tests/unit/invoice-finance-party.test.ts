@@ -67,6 +67,7 @@ describe('mergeServiceVendorAdvances', () => {
     });
     expect(result.advanceBalance).toBe(30000);
     expect(result.totalPaid).toBe(30000);
+    expect(result.billDue).toBe(0);
     expect(result.balance).toBe(-30000);
     expect(result.payments).toHaveLength(2);
     expect(result.payments.every(p => p.isAdvance)).toBe(true);
@@ -92,6 +93,7 @@ describe('mergeServiceVendorAdvances', () => {
       partyType: 'vendor',
       totalInvoiced: 100000,
       invoicePaid: 40000,
+      billDue: 60000,
       invoicePayments: [
         {
           id: 'IP1',
@@ -106,6 +108,7 @@ describe('mergeServiceVendorAdvances', () => {
       vendorPayments: [{ id: 'VP1', amount: 5000, payment_date: '2025-08-01', payment_method: 'Cash' }],
     });
     expect(result.totalPaid).toBe(45000);
+    expect(result.billDue).toBe(60000);
     expect(result.balance).toBe(55000);
     expect(result.payments).toHaveLength(2);
     expect(result.payments[0]?.id).toBe('VP1'); // newer date first

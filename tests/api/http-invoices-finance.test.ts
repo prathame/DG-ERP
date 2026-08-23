@@ -377,6 +377,71 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(Number(res.body.amount)).toBeCloseTo(payA + payB, 2);
   });
 
+  it('invoice-finance summary separates bill due from net when vendor has unallocated advance', async () => {
+    const advVendor = 'V-HTTP-INV-ADV';
+    await pool.query(`UPDATE tenants SET business_type = 'service' WHERE id = $1`, [TENANT]);
+    try {
+      await pool.query(
+        `INSERT INTO vendors (id, tenant_id, name, phone, address)
+         VALUES ($1, $2, 'Advance Client', '9000000001', 'Pune')
+         ON CONFLICT DO NOTHING`,
+        [advVendor, TENANT],
+      );
+      await pool.query(
+        `INSERT INTO standalone_invoices
+           (id, tenant_id, invoice_number, customer_name, party_type, party_id, items, subtotal, tax_total, grand_total, status, invoice_date, invoice_kind)
+         VALUES ('INV-ADV-1', $1, 'INV/ADV/1', 'Advance Client', 'vendor', $2, '[]', 1000, 0, 1000, 'sent', CURRENT_DATE, 'sale')
+         ON CONFLICT DO NOTHING`,
+        [TENANT, advVendor],
+      );
+      await pool.query(
+        `INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, notes)
+         VALUES ('VP-ADV-1', $1, $2, 100, CURRENT_DATE, 'Cash', 'Unallocated advance')
+         ON CONFLICT DO NOTHING`,
+        [TENANT, advVendor],
+      );
+
+      const summary = await api().get('/api/invoice-finance/summary').set(authHeaders(token, TENANT));
+      expect(summary.status).toBe(200);
+      const row = (
+        summary.body as { partyKey: string; billDue: number; advanceBalance: number; balance: number }[]
+      ).find(r => r.partyKey === `vendor:${advVendor}`);
+      expect(row).toBeTruthy();
+      expect(row!.billDue).toBeCloseTo(1000, 2);
+      expect(row!.advanceBalance).toBeCloseTo(100, 2);
+      expect(row!.balance).toBeCloseTo(900, 2);
+
+      const open = await api().get('/api/invoice-finance/open-bills').set(authHeaders(token, TENANT));
+      const openDue = (open.body as { partyKey: string; balance: number }[])
+        .filter(r => r.partyKey === `vendor:${advVendor}`)
+        .reduce((s, r) => s + r.balance, 0);
+      expect(openDue).toBeCloseTo(1000, 2);
+
+      const breakdown = await api().get('/api/invoice-finance/breakdown').set(authHeaders(token, TENANT));
+      expect(breakdown.status).toBe(200);
+      expect(Number(breakdown.body.partyBillDue)).toBeGreaterThanOrEqual(1000);
+      expect(Number(breakdown.body.partyOutstanding)).toBeCloseTo(
+        Number(breakdown.body.partyBillDue) - Number(breakdown.body.partyAdvances),
+        1,
+      );
+
+      const report = await api().get('/api/reports/outstanding').set(authHeaders(token, TENANT));
+      expect(report.status).toBe(200);
+      const reportRow = (
+        report.body.rows as { vendorId: string; billDue: number; advanceBalance: number; balance: number }[]
+      ).find(r => r.vendorId === `vendor:${advVendor}`);
+      expect(reportRow).toBeTruthy();
+      expect(reportRow!.billDue).toBeCloseTo(1000, 2);
+      expect(reportRow!.advanceBalance).toBeCloseTo(100, 2);
+      expect(reportRow!.balance).toBeCloseTo(900, 2);
+    } finally {
+      await pool.query(`DELETE FROM vendor_payments WHERE id = 'VP-ADV-1' AND tenant_id = $1`, [TENANT]);
+      await pool.query(`DELETE FROM standalone_invoices WHERE id = 'INV-ADV-1' AND tenant_id = $1`, [TENANT]);
+      await pool.query(`DELETE FROM vendors WHERE id = $1 AND tenant_id = $2`, [advVendor, TENANT]);
+      await pool.query(`UPDATE tenants SET business_type = 'manufacturer' WHERE id = $1`, [TENANT]);
+    }
+  });
+
   it('POST /api/price-lists/bulk imports by product/vendor name', async () => {
     const res = await api()
       .post('/api/price-lists/bulk')
