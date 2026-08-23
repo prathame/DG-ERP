@@ -485,7 +485,28 @@
     "blurbData": "Backups, Exports, Cloud",
     "blurbPreferences": "Language, reminders, appearance",
     "blurbGuide": "How shop and accounts staff use Dhandho",
-    "blurbUsers": "Roles and access"
+    "blurbUsers": "Roles and access",
+    "gstApiGuide": {
+      "title": "How to set up & use",
+      "intro": "Generate government E-Invoice (IRN) and E-Way Bills from GST tax invoices and distribution challans. Follow the steps below, then save your settings.",
+      "setupTitle": "One-time setup",
+      "setup1": "Turn on Enable E-Invoice & E-Way Bill. Choose Manual (button per bill) or Automatic (IRN when invoice is sent).",
+      "setup2": "Pick API Mode: Mock to practice without NIC login; Sandbox or Production when you have portal credentials.",
+      "setup3": "Enter Seller GSTIN and Dispatch PIN (6-digit pincode of your dispatch location), then click Save GST API Settings.",
+      "setup4": "Optional: tick Generate E-Way Bill with E-Invoice for one combined E-Inv + EWB button when goods move with the invoice.",
+      "setup5": "For Sandbox or Production, enter NIC Username, Client ID, Password, and Client Secret from the government portal.",
+      "setup6": "Click Check e-invoice to confirm your GSTIN is registered for e-invoicing.",
+      "useTitle": "Day-to-day use",
+      "use1": "Invoices: open a GST tax invoice (not non-GST / Bill of Supply). You will see E-Invoice, E-Way Bill, and optionally E-Inv + EWB.",
+      "use2": "Click E-Invoice to generate IRN. Use QR to show the scannable code for the buyer.",
+      "use3": "For goods movement, open E-Way Bill, enter vehicle number and distance (km). Use Pin-to-pin when seller and buyer pincodes are available.",
+      "use4": "Distribution: on manufacturer/distributor tenants, the same toolbar appears on each GST batch when E-Invoice is enabled.",
+      "use5": "After changing the master toggle, refresh the page or log in again so buttons show or hide on all screens.",
+      "tipsTitle": "Tips",
+      "tip1": "Mock mode returns test IRNs instantly — nothing is filed with the government.",
+      "tip2": "Buyer or vendor address should include a 6-digit pincode for Pin-to-pin distance lookup.",
+      "tip3": "If Seller GSTIN is empty, company GSTIN from Tax Compliance is used automatically."
+    }
   },
   "business": {
     "vendors": "Vendors",
