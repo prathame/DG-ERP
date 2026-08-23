@@ -224,7 +224,8 @@ export function defaultDateRangeFromReportingPeriod(asOf = new Date()): { from: 
   // 'fy' / 'lastFy' presets must recalculate on every call so a new FY is picked up
   // automatically on April 1 without the user needing to re-select anything.
   if (saved?.preset === 'fy') {
-    const r = indianFyRange(asOf);
+    const startYear = saved.fyStartYear ?? indianFyRange(asOf).startYear;
+    const r = indianFyRangeForStartYear(startYear, asOf);
     return { from: r.from, to: r.to };
   }
   if (saved?.preset === 'lastFy') {

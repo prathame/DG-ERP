@@ -120,8 +120,7 @@ export function AnalyticsView({
   const outstandingLabel = t('dashboard.outstanding');
   const [range, setRange] = useState<RangeId>(() => {
     const saved = readReportingPeriod();
-    if (!saved?.preset || !RANGE_IDS.includes(saved.preset as RangeId)) return 'month';
-    // Dropdown replaced This FY / Last FY chips — treat lastFy as fy selection.
+    if (!saved?.preset || !RANGE_IDS.includes(saved.preset as RangeId)) return 'fy';
     if (saved.preset === 'lastFy') return 'fy';
     return saved.preset as RangeId;
   });
@@ -170,13 +169,17 @@ export function AnalyticsView({
     );
     const from = resolved.from;
     const to = resolved.to;
-    writeReportingPeriod({
-      preset: range as ReportingPeriodPreset,
-      from: from || '',
-      to: to || '',
-      label: resolved.label,
-      fyStartYear: resolved.fyStartYear,
-    });
+    // FY / custom persist globally for Invoices, Sales, Distribution, Accounts, etc.
+    // Quick pills (Today, Week, …) are Analytics-only and must not overwrite the global FY.
+    if (range === 'fy' || range === 'custom') {
+      writeReportingPeriod({
+        preset: range as ReportingPeriodPreset,
+        from: from || '',
+        to: to || '',
+        label: resolved.label,
+        fyStartYear: resolved.fyStartYear,
+      });
+    }
     api.dashboard
       .overview(from, to)
       .then(data => {

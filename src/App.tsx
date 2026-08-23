@@ -96,7 +96,7 @@ import { consumeAndroidBack } from './lib/androidBackStack';
 import { normalizeCompanySlug, validateCompanySlug, getLastCompanySlug, clearLastCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
 import { getApiOrigin, getPublicAppHostPrefix } from './platforms/shared';
-import { indianFyRange, readReportingPeriod } from './lib/reportingPeriod';
+import { indianFyRange, indianLastFyRange, readReportingPeriod } from './lib/reportingPeriod';
 
 const AppShutterIntro = lazy(() =>
   import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
@@ -1533,7 +1533,12 @@ export default function App() {
           (() => {
             const saved = readReportingPeriod();
             const fy = indianFyRange();
-            const label = saved?.label || fy.label;
+            const label =
+              saved?.preset === 'fy' && saved.label
+                ? saved.label
+                : saved?.preset === 'lastFy'
+                  ? indianLastFyRange().label
+                  : saved?.label || fy.label;
             return (
               <button
                 type="button"
