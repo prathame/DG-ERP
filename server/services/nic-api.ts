@@ -243,6 +243,8 @@ export function buildEwbPayload(opts: {
   transportMode?: string;
   transporterId?: string;
   transporterName?: string;
+  transDocNo?: string;
+  transDocDate?: string;
   distance: number;
 }) {
   const sellerPin = Number(opts.sellerPin);
@@ -274,8 +276,8 @@ export function buildEwbPayload(opts: {
     cessValue: 0,
     transporterId: opts.transporterId || '',
     transporterName: opts.transporterName || '',
-    transDocNo: '',
-    transDocDate: '',
+    transDocNo: opts.transDocNo || '',
+    transDocDate: opts.transDocDate || '',
     transMode: opts.transportMode || '1',
     distance: opts.distance,
     vehicleNo: opts.vehicleNo,
@@ -473,6 +475,36 @@ export class NicApiClient {
     if (data.Status !== 1 || !data.Data) throw new Error('EWB by IRN rejected by GST portal');
     const result = JSON.parse(aesDecrypt(data.Data, sek));
     return { ewbNo: String(result.EwbNo || result.ewayBillNo), ewbDt: result.EwbDt, ewbValidTill: result.EwbValidTill };
+  }
+
+  async cancelEwb(ewbNo: string, cancelReason: 1 | 2 | 3 | 4, cancelRemark: string): Promise<void> {
+    if (this.creds.mode === 'mock') return;
+    getGstnPublicKey(this.creds.mode);
+    const { authToken, sek } = await this.authenticate();
+    const body = { ewbNo: Number(ewbNo), cancelRsnCode: cancelReason, cancelRmrk: cancelRemark || 'Cancelled' };
+    const encPayload = aesEncrypt(JSON.stringify(body), sek);
+    const baseEwb = this.creds.mode === 'production' ? PRODUCTION_EWB : SANDBOX_EWB;
+    const res = await loggedFetch(
+      `${baseEwb}/ewayapi?action=CANEWB`,
+      {
+        method: 'POST',
+        headers: {
+          client_id: this.creds.clientId,
+          client_secret: this.creds.clientSecret,
+          user_name: this.creds.username,
+          authtoken: authToken,
+          Gstin: this.creds.gstin,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'CANEWB', data: encPayload }),
+        signal: AbortSignal.timeout(15000),
+      },
+      'nic.cancelEwb',
+    );
+    if (!res.ok) throw new Error(`Cancel EWB failed: ${res.status}`);
+    const data = (await res.json()) as { status?: number; Status?: number };
+    const st = data.status ?? data.Status;
+    if (st != null && st !== 1) throw new Error('Cancel EWB rejected by GST portal');
   }
 
   async cancelIrn(irn: string, cancelReason: 1 | 2 | 3 | 4, cancelRemark: string): Promise<void> {

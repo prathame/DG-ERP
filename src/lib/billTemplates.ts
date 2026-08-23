@@ -21,6 +21,13 @@ export function safeImgSrc(src: unknown): string {
   return '';
 }
 
+/** Full-page letterhead layer for print / preview (fixed on each printed page). */
+export function billBackgroundLayerHtml(billSettings: Record<string, unknown> | undefined | null): string {
+  const bg = safeImgSrc(billSettings?.backgroundBase64);
+  if (!bg) return '';
+  return `<div class="bill-bg" aria-hidden="true" style="background-image:url(${JSON.stringify(bg)});"></div>`;
+}
+
 /** Shared print/PDF CSS — full A4 width, boxed sections (Vyapar-style), no zebra fills. */
 function billDocCss(color: string): string {
   return `
@@ -58,8 +65,11 @@ function billDocCss(color: string): string {
   .reward-badge{display:inline-block;margin:8px auto;padding:6px 16px;background:transparent;border:1px solid #666;border-radius:4px;font-size:12px;font-weight:600;color:#333;}
   .repeat-banner th{background:transparent!important;border-bottom:1px solid #222;text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
   .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:2px solid #222;color:#111;background:transparent;border-radius:4px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;transform:rotate(-12deg);}
+  .bill-bg{position:fixed;inset:0;z-index:-1;background-size:100% 100%;background-repeat:no-repeat;background-position:center;pointer-events:none;}
+  .bill-content{position:relative;z-index:0;}
   @media print{body{padding:0;} @page{margin:8mm;size:A4;} thead{display:table-header-group;} .no-print{display:none;}
-    *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}}
+    *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}
+    .bill-bg{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}
 `;
 }
 
@@ -342,6 +352,8 @@ export function generateSalesInvoiceHtml(
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Invoice'} - ${esc(invPrefix)}${esc(bill.id)}</title>
 <style>${billDocCss(color)}</style></head><body>
+${billBackgroundLayerHtml(billConfig)}
+<div class="bill-content">
 <table class="outer title-box avoid-break"><tr><td>${showGst ? 'Tax Invoice' : 'Sales Invoice'}</td></tr></table>
 <table class="outer avoid-break" style="margin-top:-1px;">
   <tr class="hdr">
@@ -465,6 +477,7 @@ ${
     : ''
 }
 <div class="footer-text">${esc(footerText)}</div>
+</div>
 </div>
 </body></html>`;
 }
@@ -657,6 +670,8 @@ export function generateStandaloneInvoiceHtml(
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(docTitle)} — ${esc(invPrefix)}${esc(inv.invoiceNumber)}</title>
 <style>${billDocCss(color)}</style></head><body>
+${billBackgroundLayerHtml(billSettings)}
+<div class="bill-content">
 <table class="outer title-box avoid-break"><tr><td>${esc(docTitle)}</td></tr></table>
 <table class="outer avoid-break" style="margin-top:-1px;">
   <tr class="hdr">
@@ -822,6 +837,7 @@ ${
 }
 <div class="footer-text">${esc(footerText)}</div>
 </div>
+</div>
 </body></html>`;
 }
 
@@ -966,6 +982,8 @@ export function generateDistributionChallanHtml(
   .sig-section{margin-top:0;}
   .sig-section td{border:none;padding:6px 12px;vertical-align:bottom;height:60px;}
 </style></head><body>
+${billBackgroundLayerHtml(billConfig)}
+<div class="bill-content">
 <div style="position:relative;">
 ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
 <div class="doc-title">${docTitle}</div>
@@ -1133,6 +1151,7 @@ ${
 }
 
 <div class="footer-text">${esc(footerText)}</div>
+</div>
 </div>
 </div>
 </body></html>`;

@@ -273,6 +273,10 @@ export async function buildStandaloneInvoicePdfBlob(
   if (company.email) companyLines.push(`Email: ${company.email}`);
   if (company.gstNumber) companyLines.push(`GSTIN: ${company.gstNumber}`);
   if (tagline) companyLines.push(tagline);
+  const metaColW = contentW - leftW;
+  const metaLabelW = 26;
+  const metaValX = metaX + metaLabelW + 2;
+  const metaValueMaxW = metaColW - metaLabelW - 6;
   const metaEntries: { label: string; value: string; wrap?: boolean }[] = [
     { label: numberLabel, value: `${invPrefix}${inv.invoiceNumber}` },
     { label: 'Date', value: fmtDate(inv.invoiceDate) },
@@ -284,20 +288,21 @@ export async function buildStandaloneInvoicePdfBlob(
   if (!isQuote && hasGst && inv.ewbNumber) metaEntries.push({ label: 'E-Way Bill', value: String(inv.ewbNumber) });
   if (!isQuote && inv.irn) {
     metaEntries.push({ label: 'IRN', value: String(inv.irn), wrap: true });
-    if (inv.irnAckNo) metaEntries.push({ label: 'Ack No', value: String(inv.irnAckNo) });
+    if (inv.irnAckNo) metaEntries.push({ label: 'Ack No.', value: String(inv.irnAckNo) });
     if (inv.irnAckDt) metaEntries.push({ label: 'Ack Date', value: fmtDate(inv.irnAckDt) });
   }
-  const metaValueMaxW = contentW * 0.38 - 6;
   const metaLayouts = metaEntries.map(entry => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    const isIrn = entry.label === 'IRN';
+    doc.setFont('helvetica', isIrn ? 'normal' : 'bold');
+    doc.setFontSize(isIrn ? 7 : 9);
     const lines = entry.wrap ? wrapLines(doc, entry.value, metaValueMaxW) : [entry.value];
     const h = Math.max(5.5, 2.8 + lines.length * 3.6);
-    return { ...entry, lines, h };
+    return { ...entry, lines, h, isIrn };
   });
   const metaContentH = metaLayouts.reduce((sum, row) => sum + row.h, 0);
   const irnQrSize = irnQrDataUrl ? 18 : 0;
-  const hdrH = Math.max(22 + irnQrSize, 12 + companyLines.length * 3.6, 4 + metaContentH + irnQrSize);
+  const irnQrBlockH = irnQrDataUrl ? irnQrSize + 8 : 0;
+  const hdrH = Math.max(22, 12 + companyLines.length * 3.6, 4 + metaContentH + irnQrBlockH);
 
   setBorder();
   doc.rect(margin, y, contentW, hdrH);
@@ -333,28 +338,33 @@ export async function buildStandaloneInvoicePdfBlob(
   doc.setTextColor(0);
 
   let my = y + 5;
-  for (const row of metaLayouts) {
+  for (let i = 0; i < metaLayouts.length; i++) {
+    const row = metaLayouts[i];
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(MUTED);
     doc.text(row.label, metaX + 3, my);
     doc.setTextColor(0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFont('helvetica', row.isIrn ? 'normal' : 'bold');
+    doc.setFontSize(row.isIrn ? 7 : 9);
     let vy = my;
     for (const line of row.lines) {
-      doc.text(line, right - 3, vy, { align: 'right' });
+      doc.text(line, metaValX, vy);
       vy += 3.6;
     }
     my += row.h;
-    if (my < y + hdrH - 1) {
-      setBorder();
-      doc.line(metaX, my - 2.2, right, my - 2.2);
-    }
+    setBorder();
+    doc.line(metaX, my - 1.2, right, my - 1.2);
   }
-  // IRN QR code — bottom-right of header when E-Invoice is enabled
   if (irnQrDataUrl) {
-    tryAddImage(doc, irnQrDataUrl, right - irnQrSize - 1, y + hdrH - irnQrSize - 1, irnQrSize, irnQrSize);
+    my += 2;
+    const qrX = metaX + (metaColW - irnQrSize) / 2;
+    tryAddImage(doc, irnQrDataUrl, qrX, my, irnQrSize, irnQrSize);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(MUTED);
+    doc.text('E-Invoice QR', metaX + metaColW / 2, my + irnQrSize + 3.5, { align: 'center' });
+    doc.setTextColor(0);
   }
   y += hdrH;
 

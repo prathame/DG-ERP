@@ -397,13 +397,12 @@ export async function shareStandaloneInvoiceWhatsApp(
     options?.billSettings || ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
   const filename = standaloneInvoicePdfBasename(shareInv.customerName);
 
-  // Fetch QR codes in parallel — only fetch IRN QR if E-Invoice toggle is on
-  const einvoiceEnabled = !!(session.getUser() as { einvoiceEnabled?: boolean } | null)?.einvoiceEnabled;
-  const irnQrPayload = einvoiceEnabled
-    ? (shareInv as unknown as { irnQr?: string; irn?: string }).irnQr ||
-      (shareInv as unknown as { irn?: string }).irn ||
-      ''
-    : '';
+  // Fetch QR codes in parallel — use invoice IRN/QR when present (same as print path).
+  const irnQrPayload =
+    docType === 'quotation'
+      ? ''
+      : String((shareInv as { irnQr?: string }).irnQr || '').trim() ||
+        String((shareInv as { irn?: string }).irn || '').trim();
 
   const [upiQrDataUrl, irnQrDataUrl] = await Promise.all([
     resolveUpiQrDataUrl(billSettings),

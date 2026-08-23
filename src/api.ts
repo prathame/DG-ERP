@@ -1233,7 +1233,7 @@ export const api = {
       clientSecret?: string;
       sellerPin?: string;
       einvoiceEnabled?: boolean;
-      einvoiceMode?: 'manual' | 'auto';
+      einvoiceMode?: 'portal' | 'api' | 'manual' | 'auto';
       ewbWithEinvoice?: boolean;
     }) => fetchApi<{ ok: boolean }>('/gst/settings', { method: 'PUT', body: JSON.stringify(d) }),
     checkEligibility: (gstin?: string) =>
@@ -1346,8 +1346,133 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    /** Portal workflow — download NIC JSON (manual / portal mode). */
+    downloadInvoiceEinvoiceJson: (
+      invoiceId: string,
+      transport?: {
+        vehicleNo: string;
+        distance: number;
+        transportMode?: string;
+        transporterName?: string;
+        transporterId?: string;
+        transDocNo?: string;
+        transDocDate?: string;
+        vehicleType?: string;
+      },
+    ) => {
+      const params = new URLSearchParams({ invoiceId });
+      if (transport?.transporterName) {
+        params.set('transporterName', transport.transporterName);
+        params.set('vehicleNo', transport.vehicleNo);
+        params.set('distance', String(transport.distance));
+        if (transport.transportMode) params.set('transportMode', transport.transportMode);
+        if (transport.transporterId) params.set('transporterId', transport.transporterId);
+        if (transport.transDocNo) params.set('transDocNo', transport.transDocNo);
+        if (transport.transDocDate) params.set('transDocDate', transport.transDocDate);
+        if (transport.vehicleType) params.set('vehicleType', transport.vehicleType);
+      }
+      return fetchApi<Record<string, unknown>>(`/gst/einvoice-json/invoice?${params}`);
+    },
+    downloadInvoiceEwaybillJson: (q: {
+      invoiceId: string;
+      vehicleNo: string;
+      distance: number;
+      transportMode?: string;
+      transporterName?: string;
+      transporterId?: string;
+      transDocNo?: string;
+      transDocDate?: string;
+      subSupplyType?: string;
+      docType?: string;
+      vehicleType?: string;
+      dispatchMasterRequired?: boolean;
+      dispatchFromState?: string;
+    }) => {
+      const params = new URLSearchParams({
+        invoiceId: q.invoiceId,
+        vehicleNo: q.vehicleNo,
+        distance: String(q.distance),
+      });
+      if (q.transportMode) params.set('transportMode', q.transportMode);
+      if (q.transporterName) params.set('transporterName', q.transporterName);
+      if (q.transporterId) params.set('transporterId', q.transporterId);
+      if (q.transDocNo) params.set('transDocNo', q.transDocNo);
+      if (q.transDocDate) params.set('transDocDate', q.transDocDate);
+      if (q.subSupplyType) params.set('subSupplyType', q.subSupplyType);
+      if (q.docType) params.set('docType', q.docType);
+      if (q.vehicleType) params.set('vehicleType', q.vehicleType);
+      if (q.dispatchMasterRequired) params.set('dispatchMasterRequired', 'true');
+      if (q.dispatchFromState) params.set('dispatchFromState', q.dispatchFromState);
+      return fetchApi<Record<string, unknown>>(`/gst/ewaybill-json/invoice?${params}`);
+    },
+    downloadBatchEinvoiceJson: (batchId: string) =>
+      fetchApi<Record<string, unknown>>(`/distribution/einvoice?batchId=${encodeURIComponent(batchId)}`),
+    downloadBatchEwaybillJson: (q: {
+      batchId: string;
+      vehicleNo: string;
+      distance: number;
+      transportMode?: string;
+      transporterName?: string;
+      transporterId?: string;
+      transDocNo?: string;
+      transDocDate?: string;
+      subSupplyType?: string;
+      docType?: string;
+      vehicleType?: string;
+      dispatchMasterRequired?: boolean;
+      dispatchFromState?: string;
+      shipToGstin?: string;
+    }) => {
+      const params = new URLSearchParams({
+        batchId: q.batchId,
+        vehicleNo: q.vehicleNo,
+        distance: String(q.distance),
+      });
+      if (q.transportMode) params.set('transportMode', q.transportMode);
+      if (q.transporterName) params.set('transporterName', q.transporterName);
+      if (q.transporterId) params.set('transporterId', q.transporterId);
+      if (q.transDocNo) params.set('transDocNo', q.transDocNo);
+      if (q.transDocDate) params.set('transDocDate', q.transDocDate);
+      if (q.subSupplyType) params.set('subSupplyType', q.subSupplyType);
+      if (q.docType) params.set('docType', q.docType);
+      if (q.vehicleType) params.set('vehicleType', q.vehicleType);
+      if (q.dispatchMasterRequired) params.set('dispatchMasterRequired', 'true');
+      if (q.dispatchFromState) params.set('dispatchFromState', q.dispatchFromState);
+      if (q.shipToGstin) params.set('shipToGstin', q.shipToGstin);
+      return fetchApi<Record<string, unknown>>(`/distribution/ewaybill?${params}`);
+    },
+    importInvoiceIrn: (data: { invoiceId: string; irn: string; ackNo?: string; ackDt?: string; irnQr?: string }) =>
+      fetchApi<{ ok: boolean; irn: string }>('/gst/irn/import-invoice', { method: 'POST', body: JSON.stringify(data) }),
+    importInvoiceEwb: (data: { invoiceId: string; ewbNumber: string }) =>
+      fetchApi<{ ok: boolean; ewbNumber: string }>('/gst/ewb/import-invoice', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    importBatchIrn: (data: { batchId: string; irn: string; ackNo?: string; ackDt?: string; irnQr?: string }) =>
+      fetchApi<{ ok: boolean; irn: string }>('/gst/irn/import-batch', { method: 'POST', body: JSON.stringify(data) }),
+    importBatchEwb: (data: { batchId: string; ewbNumber: string }) =>
+      fetchApi<{ ok: boolean; ewbNumber: string }>('/gst/ewb/import-batch', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    importInvoicePortalResponse: (data: { invoiceId: string; response: unknown }) =>
+      fetchApi<{ ok: boolean; irn?: string; irnQr?: string; ewbNumber?: string; ackNo?: string; ackDt?: string }>(
+        '/gst/portal-response/import-invoice',
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
+    importBatchPortalResponse: (data: { batchId: string; response: unknown }) =>
+      fetchApi<{ ok: boolean; irn?: string; ewbNumber?: string }>('/gst/portal-response/import-batch', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     cancelIrn: (irn: string, reason: number, remark?: string) =>
       fetchApi<{ ok: boolean }>('/gst/irn/cancel', { method: 'POST', body: JSON.stringify({ irn, reason, remark }) }),
+    cancelEwb: (data: { ewbNumber: string; reason: number; remark?: string; invoiceId?: string; batchId?: string }) =>
+      fetchApi<{ ok: boolean }>('/gst/ewb/cancel', { method: 'POST', body: JSON.stringify(data) }),
+    clearInvoiceGstFiling: (data: { invoiceId: string; scope?: 'irn' | 'ewb' | 'all' }) =>
+      fetchApi<{ ok: boolean }>('/gst/filing/clear-invoice', { method: 'POST', body: JSON.stringify(data) }),
+    clearBatchGstFiling: (data: { batchId: string; scope?: 'irn' | 'ewb' | 'all' }) =>
+      fetchApi<{ ok: boolean }>('/gst/filing/clear-batch', { method: 'POST', body: JSON.stringify(data) }),
   },
   auth: {
     signup: (data: {

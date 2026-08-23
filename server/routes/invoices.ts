@@ -5,6 +5,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
+import { isEinvoiceApiMode } from '../../shared/gstEinvoiceMode';
 import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
@@ -574,7 +575,7 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
         .query('SELECT einvoice_enabled, einvoice_mode FROM tenants WHERE id = $1', [tenantId])
         .then(async tr => {
           const t = tr.rows[0] as { einvoice_enabled?: boolean; einvoice_mode?: string } | undefined;
-          if (!t?.einvoice_enabled || t.einvoice_mode !== 'auto') return;
+          if (!t?.einvoice_enabled || !isEinvoiceApiMode(t.einvoice_mode)) return;
           // Fire auto IRN generation (reuse existing route logic)
           const { generateStandaloneInvoiceIrn } = await import('../services/standaloneInvoiceGst').catch(() => ({
             generateStandaloneInvoiceIrn: null as unknown as null,
