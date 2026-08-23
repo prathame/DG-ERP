@@ -104,16 +104,13 @@ describe('Receipt voucher', () => {
   let voucherId: string;
 
   it('creates receipt: Dr Cash ₹1000, Cr Party ₹1000', async () => {
-    const res = await api()
-      .post('/api/books/vouchers')
-      .set(hdrs)
-      .send({
-        voucherType: 'receipt',
-        voucherDate: TODAY,
-        amount: 1000,
-        partyLedgerId: L_PARTY,
-        contraLedgerId: L_CASH,
-      });
+    const res = await api().post('/api/books/vouchers').set(hdrs).send({
+      voucherType: 'receipt',
+      voucherDate: TODAY,
+      amount: 1000,
+      partyLedgerId: L_PARTY,
+      contraLedgerId: L_CASH,
+    });
     expect(res.status).toBe(201);
     expect(res.body.amount).toBe(1000);
     voucherId = res.body.id;
@@ -150,16 +147,13 @@ describe('Payment voucher', () => {
   let voucherId: string;
 
   it('creates payment: Dr Party ₹500, Cr Cash ₹500', async () => {
-    const res = await api()
-      .post('/api/books/vouchers')
-      .set(hdrs)
-      .send({
-        voucherType: 'payment',
-        voucherDate: TODAY,
-        amount: 500,
-        partyLedgerId: L_PARTY,
-        contraLedgerId: L_CASH,
-      });
+    const res = await api().post('/api/books/vouchers').set(hdrs).send({
+      voucherType: 'payment',
+      voucherDate: TODAY,
+      amount: 500,
+      partyLedgerId: L_PARTY,
+      contraLedgerId: L_CASH,
+    });
     expect(res.status).toBe(201);
     expect(res.body.amount).toBe(500);
     voucherId = res.body.id;
@@ -206,16 +200,13 @@ describe('Purchase voucher', () => {
   let voucherId: string;
 
   it('creates purchase: Dr Purchase Account, Cr Party ₹200', async () => {
-    const res = await api()
-      .post('/api/books/vouchers')
-      .set(hdrs)
-      .send({
-        voucherType: 'purchase',
-        voucherDate: TODAY,
-        amount: 200,
-        partyLedgerId: L_PARTY,
-        contraLedgerId: L_PURCHASE,
-      });
+    const res = await api().post('/api/books/vouchers').set(hdrs).send({
+      voucherType: 'purchase',
+      voucherDate: TODAY,
+      amount: 200,
+      partyLedgerId: L_PARTY,
+      contraLedgerId: L_PURCHASE,
+    });
     expect(res.status).toBe(201);
     voucherId = res.body.id;
   });
@@ -459,5 +450,50 @@ describe('Balance Sheet', () => {
     const { totalAssets, totalLiabilitiesAndCapital } = res.body;
     const diff = Math.abs(Number(totalAssets) - Number(totalLiabilitiesAndCapital));
     expect(diff).toBeLessThan(0.05);
+  });
+});
+
+// ─── CSV export ───────────────────────────────────────────────────────────────
+
+describe('Books CSV export', () => {
+  it('GET /api/books/trial-balance?format=csv returns CSV with headers', async () => {
+    const res = await api().get('/api/books/trial-balance?format=csv').set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('"Ledger"');
+    expect(res.text).toContain('Opening Dr');
+    expect(res.text).toContain('TOTALS');
+  });
+
+  it('GET /api/books/profit-loss?format=csv returns income and expense sections', async () => {
+    const res = await api().get('/api/books/profit-loss?format=csv').set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('INCOME');
+    expect(res.text).toContain('EXPENSES');
+  });
+
+  it('GET /api/books/balance-sheet?format=csv returns asset section', async () => {
+    const res = await api().get(`/api/books/balance-sheet?format=csv&asOf=${TODAY}`).set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('ASSETS');
+    expect(res.text).toContain('Total assets');
+  });
+
+  it('GET /api/books/day-book?format=csv returns voucher lines with ISO dates', async () => {
+    const res = await api().get(`/api/books/day-book?format=csv&from=${TODAY}&to=${TODAY}`).set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('"Date"');
+    expect(res.text).toContain(TODAY);
+  });
+
+  it('GET /api/books/sales-register?format=csv returns register headers', async () => {
+    const res = await api().get(`/api/books/sales-register?format=csv&from=${TODAY}&to=${TODAY}`).set(hdrs);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toMatch(/csv/);
+    expect(res.text).toContain('"Party"');
+    expect(res.text).toContain(TODAY);
   });
 });
