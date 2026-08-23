@@ -129,6 +129,12 @@ describe('reportingPeriod', () => {
       to: '2026-03-31',
     });
 
+    applyFinancialYear(2023, asOf);
+    expect(defaultDateRangeFromReportingPeriod(asOf)).toEqual({
+      from: '2023-04-01',
+      to: '2024-03-31',
+    });
+
     writeReportingPeriod({ preset: 'overall', from: '', to: '', label: 'Overall' });
     expect(defaultDateRangeFromReportingPeriod(asOf)).toEqual({
       from: '2026-04-01',

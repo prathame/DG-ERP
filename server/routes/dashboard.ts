@@ -12,6 +12,21 @@ async function tenantBusinessType(tenantId: string): Promise<string> {
   return (row?.business_type as string) || 'manufacturer';
 }
 
+/** Filter recent-activity rows by reporting period (from/to query params). */
+function activityDateClause(from?: string, to?: string, paramIdx = 2): string {
+  if (from && to) return ` AND t.date::date BETWEEN $${paramIdx} AND $${paramIdx + 1}`;
+  if (from) return ` AND t.date::date >= $${paramIdx}`;
+  if (to) return ` AND t.date::date <= $${paramIdx}`;
+  return '';
+}
+
+function activityQueryParams(tenantId: string, from?: string, to?: string): unknown[] {
+  if (from && to) return [tenantId, from, to];
+  if (from) return [tenantId, from];
+  if (to) return [tenantId, to];
+  return [tenantId];
+}
+
 router.get('/api/dashboard/stats', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -443,8 +458,9 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
                ) ip ON si.id = ip.invoice_id
                WHERE si.tenant_id = $1
                  AND COALESCE(si.invoice_kind, 'sale') = 'sale'
-                 AND COALESCE(si.status,'') NOT IN ('paid','cancelled')`,
-              [tenantId],
+                 AND COALESCE(si.status,'') NOT IN ('paid','cancelled')
+                 ${dateFilter('si.invoice_date')}`,
+              rangeParams,
             )
             .then(r => Number(r.rows[0].v) || 0),
           pool.query(
@@ -466,8 +482,8 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
                UNION ALL
                SELECT 'expense', id, COALESCE(category,'Expense'), amount, expense_date::text
                FROM expenses WHERE tenant_id=$1
-             ) t ORDER BY date DESC NULLS LAST LIMIT 15`,
-            [tenantId],
+             ) t WHERE 1=1${activityDateClause(from, to, 2)} ORDER BY date DESC NULLS LAST LIMIT 15`,
+            activityQueryParams(tenantId, from, to),
           ),
           pool.query(
             `SELECT
@@ -584,8 +600,8 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
         .then(r => Number(r.rows[0].v) || 0),
       pool
         .query(
-          `SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`,
-          [tenantId],
+          `SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled') ${dateFilter('invoice_date')}`,
+          params([]),
         )
         .then(r => Number(r.rows[0].v) || 0),
       pool.query(
@@ -595,8 +611,8 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
         UNION ALL SELECT 'payment',id,vendor_id,amount,payment_date::text FROM vendor_payments WHERE tenant_id=$1
         UNION ALL SELECT 'distribution',COALESCE(batch_id,id),vendor_id,SUM(COALESCE(billed_price,net_price,0)),MIN(distribution_date)::text FROM product_distribution WHERE tenant_id=$1 GROUP BY COALESCE(batch_id,id),vendor_id
         UNION ALL SELECT 'expense',id,category,amount,expense_date::text FROM expenses WHERE tenant_id=$1
-      ) t ORDER BY date DESC LIMIT 15`,
-        [tenantId],
+      ) t WHERE 1=1${activityDateClause(from, to, 2)} ORDER BY date DESC LIMIT 15`,
+        activityQueryParams(tenantId, from, to),
       ),
       // Fix P1: vendor totals use separate CTEs to avoid row-multiplication bug
       pool.query(
