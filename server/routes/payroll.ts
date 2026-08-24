@@ -383,7 +383,8 @@ router.get('/api/payroll/summary', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    await ensureBooksSalaryMirrored(tenantId);
+    // Fire sync in background — don't block the read
+    void ensureBooksSalaryMirrored(tenantId);
     const { year } = req.query;
     const from = typeof req.query.from === 'string' ? req.query.from : '';
     const to = typeof req.query.to === 'string' ? req.query.to : '';
@@ -391,49 +392,37 @@ router.get('/api/payroll/summary', async (req, res) => {
     const useDateRange = !!from && !!to;
     const filterClause = useDateRange ? 'payment_date >= $2 AND payment_date <= $3' : 'year = $2';
     const filterParams: unknown[] = useDateRange ? [tenantId, from, to] : [tenantId, y];
-    const byStaff = (
-      await pool.query(
+
+    // Run all queries in parallel — previously 4 sequential awaits
+    const [byStaffRows, byMonthRows, grandTotalRow, advanceRow] = await Promise.all([
+      pool.query(
         `SELECT staff_name, SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) as total, COUNT(*) as payments
-         FROM staff_payments
-         WHERE tenant_id = $1 AND ${filterClause}
-         GROUP BY staff_name
-         ORDER BY total DESC`,
+         FROM staff_payments WHERE tenant_id = $1 AND ${filterClause}
+         GROUP BY staff_name ORDER BY total DESC`,
         filterParams,
-      )
-    ).rows as { staff_name: string; total: number; payments: number }[];
-    const byMonth = (
-      await pool.query(
+      ),
+      pool.query(
         `SELECT month, SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) as total, COUNT(*) as payments
-         FROM staff_payments
-         WHERE tenant_id = $1 AND ${filterClause}
-         GROUP BY month
-         ORDER BY month`,
+         FROM staff_payments WHERE tenant_id = $1 AND ${filterClause}
+         GROUP BY month ORDER BY month`,
         filterParams,
-      )
-    ).rows as { month: string; total: number; payments: number }[];
-    const grandTotal = Number(
-      (
-        await pool.query(
-          `SELECT COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END), 0) as t
-           FROM staff_payments
-           WHERE tenant_id = $1 AND ${filterClause}`,
-          filterParams,
-        )
-      ).rows[0]?.t ?? 0,
-    );
-    // Lifetime advance outstanding across all staff (not year-scoped — balances carry forward)
-    const advanceOutstanding = Number(
-      (
-        await pool.query(
-          `SELECT COALESCE(
-         SUM(CASE WHEN payment_type = 'advance' THEN amount ELSE 0 END)
-         - SUM(CASE WHEN payment_type = 'advance_repay' THEN amount ELSE 0 END)
-       , 0) AS bal
-       FROM staff_payments WHERE tenant_id = $1`,
-          [tenantId],
-        )
-      ).rows[0]?.bal ?? 0,
-    );
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END), 0) as t
+         FROM staff_payments WHERE tenant_id = $1 AND ${filterClause}`,
+        filterParams,
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END) - SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END), 0) AS bal
+         FROM staff_payments WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+    ]);
+
+    const byStaff = byStaffRows.rows as { staff_name: string; total: number; payments: number }[];
+    const byMonth = byMonthRows.rows as { month: string; total: number; payments: number }[];
+    const grandTotal = Number(grandTotalRow.rows[0]?.t ?? 0);
+    const advanceOutstanding = Number(advanceRow.rows[0]?.bal ?? 0);
     res.json({
       year: y,
       grandTotal,
