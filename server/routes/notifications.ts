@@ -56,7 +56,6 @@ async function buildDigests(
 ): Promise<NotificationDigest[]> {
   const isService = businessType === 'service';
   const bucket = todayBucket();
-  const items: NotificationDigest[] = [];
 
   const allow = (kind: string) => {
     const mod = KIND_MODULE[kind];
@@ -64,136 +63,157 @@ async function buildDigests(
     return canView(permissions, role, mod);
   };
 
-  if (allow('price_list_expiring')) {
-    const pl = await pool.query(
-      `SELECT COUNT(*)::int AS c,
-              MIN(valid_to)::text AS soonest
-       FROM price_lists
-       WHERE tenant_id = $1 AND is_active = true
-         AND valid_to IS NOT NULL
-         AND valid_to >= CURRENT_DATE
-         AND valid_to <= CURRENT_DATE + INTERVAL '7 days'`,
-      [tenantId],
-    );
-    const plCount = Number(pl.rows[0]?.c || 0);
-    if (plCount > 0) {
-      items.push({
-        id: `price_list_expiring:${bucket}`,
-        kind: 'price_list_expiring',
-        priority: 'high',
-        title: 'Price list rules expiring',
-        body: `${plCount} active rule${plCount === 1 ? '' : 's'} expire within 7 days${pl.rows[0]?.soonest ? ` (from ${String(pl.rows[0].soonest).slice(0, 10)})` : ''}.`,
-        count: plCount,
-        hrefTab: 'masters',
-      });
-    }
-  }
+  const canSeeSettings =
+    canView(permissions, role, 'settings') || ['Admin', 'Super Admin', 'Manager'].includes(role || '');
 
-  if (allow('quote_expiring')) {
-    const q = await pool.query(
-      `SELECT COUNT(*)::int AS c
-       FROM quotations
-       WHERE tenant_id = $1 AND status IN ('Sent','Accepted')
-         AND valid_until IS NOT NULL
-         AND valid_until >= CURRENT_DATE
-         AND valid_until <= CURRENT_DATE + INTERVAL '3 days'`,
-      [tenantId],
-    );
-    const qCount = Number(q.rows[0]?.c || 0);
-    if (qCount > 0) {
-      items.push({
-        id: `quote_expiring:${bucket}`,
-        kind: 'quote_expiring',
-        priority: 'high',
-        title: 'Quotations expiring soon',
-        body: `${qCount} quote${qCount === 1 ? '' : 's'} expire within 3 days.`,
-        count: qCount,
-        hrefTab: 'quotations',
-      });
-    }
-  }
+  // Run all independent queries in parallel — previously sequential (~150ms each = ~1s total)
+  const [pl, q, ls, w, od, sub] = await Promise.all([
+    allow('price_list_expiring')
+      ? pool.query(
+          `SELECT COUNT(*)::int AS c, MIN(valid_to)::text AS soonest
+           FROM price_lists
+           WHERE tenant_id = $1 AND is_active = true
+             AND valid_to IS NOT NULL
+             AND valid_to >= CURRENT_DATE
+             AND valid_to <= CURRENT_DATE + INTERVAL '7 days'`,
+          [tenantId],
+        )
+      : null,
+    allow('quote_expiring')
+      ? pool.query(
+          `SELECT COUNT(*)::int AS c
+           FROM quotations
+           WHERE tenant_id = $1 AND status IN ('Sent','Accepted')
+             AND valid_until IS NOT NULL
+             AND valid_until >= CURRENT_DATE
+             AND valid_until <= CURRENT_DATE + INTERVAL '3 days'`,
+          [tenantId],
+        )
+      : null,
+    !isService && allow('low_stock')
+      ? pool.query(
+          `SELECT COUNT(*)::int AS c FROM (
+             SELECT p.id,
+               CASE WHEN COALESCE(inv.total, 0) > 0 THEN COALESCE(inv.in_stock, 0) ELSE COALESCE(p.stock, 0) END AS remaining
+             FROM products p
+             LEFT JOIN (
+               SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock
+               FROM product_inventory WHERE tenant_id = $1 GROUP BY product_id
+             ) inv ON inv.product_id = p.id
+             WHERE p.tenant_id = $1
+           ) t WHERE remaining < 10`,
+          [tenantId],
+        )
+      : null,
+    !isService && allow('warranty_expiring')
+      ? pool.query(
+          `SELECT COUNT(*)::int AS c FROM warranties
+           WHERE tenant_id = $1 AND status = 'Active'
+             AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'`,
+          [tenantId],
+        )
+      : null,
+    allow('outstanding_overdue')
+      ? isService
+        ? pool.query(
+            `SELECT COUNT(*)::int AS c,
+                    COALESCE(SUM(GREATEST(si.grand_total - COALESCE(pay.paid, 0), 0)), 0) AS bal
+             FROM standalone_invoices si
+             LEFT JOIN (
+               SELECT invoice_id, SUM(amount) AS paid FROM invoice_payments WHERE tenant_id = $1 GROUP BY invoice_id
+             ) pay ON pay.invoice_id = si.id
+             WHERE si.tenant_id = $1
+               AND si.status = 'sent'
+               AND si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE
+               AND si.grand_total > COALESCE(pay.paid, 0)`,
+            [tenantId],
+          )
+        : pool.query(
+            `WITH bal AS (
+               SELECT v.id,
+                 COALESCE((SELECT SUM(COALESCE(pd.billed_price, pd.net_price, p.price))
+                           FROM product_distribution pd
+                           JOIN products p ON p.id = pd.product_id AND p.tenant_id = pd.tenant_id
+                           WHERE pd.tenant_id = $1 AND pd.vendor_id = v.id), 0) AS billed,
+                 COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id = $1 AND vendor_id = v.id), 0) AS paid,
+                 (SELECT MIN(pd.distribution_date) FROM product_distribution pd WHERE pd.tenant_id = $1 AND pd.vendor_id = v.id) AS oldest
+               FROM vendors v WHERE v.tenant_id = $1 AND v.id <> 'OWNER'
+             )
+             SELECT COUNT(*)::int AS c FROM bal
+             WHERE billed > paid AND oldest IS NOT NULL AND oldest < CURRENT_DATE - INTERVAL '30 days'`,
+            [tenantId],
+          )
+      : null,
+    canSeeSettings
+      ? pool.query('SELECT trial_ends_at, subscription_ends_at FROM tenants WHERE id = $1', [tenantId])
+      : null,
+  ]);
 
-  if (!isService) {
-    if (allow('low_stock')) {
-      const ls = await pool.query(
-        `SELECT COUNT(*)::int AS c FROM (
-           SELECT p.id,
-             CASE WHEN COALESCE(inv.total, 0) > 0 THEN COALESCE(inv.in_stock, 0) ELSE COALESCE(p.stock, 0) END AS remaining
-           FROM products p
-           LEFT JOIN (
-             SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock
-             FROM product_inventory WHERE tenant_id = $1 GROUP BY product_id
-           ) inv ON inv.product_id = p.id
-           WHERE p.tenant_id = $1
-         ) t WHERE remaining < 10`,
-        [tenantId],
-      );
-      const lsCount = Number(ls.rows[0]?.c || 0);
-      if (lsCount > 0) {
+  const items: NotificationDigest[] = [];
+
+  const plCount = Number(pl?.rows[0]?.c || 0);
+  if (plCount > 0)
+    items.push({
+      id: `price_list_expiring:${bucket}`,
+      kind: 'price_list_expiring',
+      priority: 'high',
+      title: 'Price list rules expiring',
+      body: `${plCount} active rule${plCount === 1 ? '' : 's'} expire within 7 days${pl?.rows[0]?.soonest ? ` (from ${String(pl.rows[0].soonest).slice(0, 10)})` : ''}.`,
+      count: plCount,
+      hrefTab: 'masters',
+    });
+
+  const qCount = Number(q?.rows[0]?.c || 0);
+  if (qCount > 0)
+    items.push({
+      id: `quote_expiring:${bucket}`,
+      kind: 'quote_expiring',
+      priority: 'high',
+      title: 'Quotations expiring soon',
+      body: `${qCount} quote${qCount === 1 ? '' : 's'} expire within 3 days.`,
+      count: qCount,
+      hrefTab: 'quotations',
+    });
+
+  const lsCount = Number(ls?.rows[0]?.c || 0);
+  if (lsCount > 0)
+    items.push({
+      id: `low_stock:${bucket}`,
+      kind: 'low_stock',
+      priority: 'high',
+      title: 'Low stock',
+      body: `${lsCount} product${lsCount === 1 ? '' : 's'} below threshold (10).`,
+      count: lsCount,
+      hrefTab: 'inventory',
+    });
+
+  const wCount = Number(w?.rows[0]?.c || 0);
+  if (wCount > 0)
+    items.push({
+      id: `warranty_expiring:${bucket}`,
+      kind: 'warranty_expiring',
+      priority: 'medium',
+      title: 'Warranties expiring',
+      body: `${wCount} active warrant${wCount === 1 ? 'y' : 'ies'} expire within 14 days.`,
+      count: wCount,
+      hrefTab: 'warranty',
+    });
+
+  if (od) {
+    const odCount = Number(od.rows[0]?.c || 0);
+    if (odCount > 0) {
+      if (isService) {
+        const bal = Number(od.rows[0]?.bal || 0);
         items.push({
-          id: `low_stock:${bucket}`,
-          kind: 'low_stock',
+          id: `outstanding_overdue:${bucket}`,
+          kind: 'outstanding_overdue',
           priority: 'high',
-          title: 'Low stock',
-          body: `${lsCount} product${lsCount === 1 ? '' : 's'} below threshold (10).`,
-          count: lsCount,
-          hrefTab: 'inventory',
+          title: 'Overdue invoices',
+          body: `${odCount} invoice${odCount === 1 ? '' : 's'} past due (≈ ₹${Math.round(bal).toLocaleString('en-IN')}).`,
+          count: odCount,
+          hrefTab: 'finance',
         });
-      }
-    }
-
-    if (allow('warranty_expiring')) {
-      const w = await pool.query(
-        `SELECT COUNT(*)::int AS c FROM warranties
-         WHERE tenant_id = $1 AND status = 'Active'
-           AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days'`,
-        [tenantId],
-      );
-      const wCount = Number(w.rows[0]?.c || 0);
-      if (wCount > 0) {
-        items.push({
-          id: `warranty_expiring:${bucket}`,
-          kind: 'warranty_expiring',
-          priority: 'medium',
-          title: 'Warranties expiring',
-          body: `${wCount} active warrant${wCount === 1 ? 'y' : 'ies'} expire within 14 days.`,
-          count: wCount,
-          hrefTab: 'warranty',
-        });
-      }
-    }
-
-    if (allow('outstanding_overdue')) {
-      // Vendors with positive balance whose oldest dispatch is > 30 days ago
-      const od = await pool.query(
-        `WITH bal AS (
-           SELECT v.id,
-             COALESCE((
-               SELECT SUM(COALESCE(pd.billed_price, pd.net_price, p.price))
-               FROM product_distribution pd
-               JOIN products p ON p.id = pd.product_id AND p.tenant_id = pd.tenant_id
-               WHERE pd.tenant_id = $1 AND pd.vendor_id = v.id
-             ), 0) AS billed,
-             COALESCE((
-               SELECT SUM(amount) FROM vendor_payments WHERE tenant_id = $1 AND vendor_id = v.id
-             ), 0) AS paid,
-             (
-               SELECT MIN(pd.distribution_date)
-               FROM product_distribution pd
-               WHERE pd.tenant_id = $1 AND pd.vendor_id = v.id
-             ) AS oldest
-           FROM vendors v
-           WHERE v.tenant_id = $1 AND v.id <> 'OWNER'
-         )
-         SELECT COUNT(*)::int AS c
-         FROM bal
-         WHERE billed > paid
-           AND oldest IS NOT NULL
-           AND oldest < CURRENT_DATE - INTERVAL '30 days'`,
-        [tenantId],
-      );
-      const odCount = Number(od.rows[0]?.c || 0);
-      if (odCount > 0) {
+      } else {
         items.push({
           id: `outstanding_overdue:${bucket}`,
           kind: 'outstanding_overdue',
@@ -205,57 +225,24 @@ async function buildDigests(
         });
       }
     }
-  } else if (allow('outstanding_overdue')) {
-    // Service: overdue unpaid *sent* invoices only (not drafts)
-    const inv = await pool.query(
-      `SELECT COUNT(*)::int AS c,
-              COALESCE(SUM(GREATEST(si.grand_total - COALESCE(pay.paid, 0), 0)), 0) AS bal
-       FROM standalone_invoices si
-       LEFT JOIN (
-         SELECT invoice_id, SUM(amount) AS paid FROM invoice_payments WHERE tenant_id = $1 GROUP BY invoice_id
-       ) pay ON pay.invoice_id = si.id
-       WHERE si.tenant_id = $1
-         AND si.status = 'sent'
-         AND si.due_date IS NOT NULL AND si.due_date < CURRENT_DATE
-         AND si.grand_total > COALESCE(pay.paid, 0)`,
-      [tenantId],
-    );
-    const invCount = Number(inv.rows[0]?.c || 0);
-    const bal = Number(inv.rows[0]?.bal || 0);
-    if (invCount > 0) {
-      items.push({
-        id: `outstanding_overdue:${bucket}`,
-        kind: 'outstanding_overdue',
-        priority: 'high',
-        title: 'Overdue invoices',
-        body: `${invCount} invoice${invCount === 1 ? '' : 's'} past due (≈ ₹${Math.round(bal).toLocaleString('en-IN')}).`,
-        count: invCount,
-        hrefTab: 'finance',
-      });
-    }
   }
 
-  // Subscription — Admin / Manager / anyone with settings access
-  if (canView(permissions, role, 'settings') || ['Admin', 'Super Admin', 'Manager'].includes(role || '')) {
-    const t = (await pool.query('SELECT trial_ends_at, subscription_ends_at FROM tenants WHERE id = $1', [tenantId]))
-      .rows[0] as { trial_ends_at?: string; subscription_ends_at?: string } | undefined;
-    if (t) {
-      const ends = t.subscription_ends_at || t.trial_ends_at;
-      if (ends) {
-        const endDate = new Date(ends);
-        const days = Math.ceil((endDate.getTime() - Date.now()) / 86400000);
-        if (days >= 0 && days <= 15) {
-          const label = t.subscription_ends_at ? 'Subscription' : 'Trial';
-          items.push({
-            id: `subscription:${bucket}`,
-            kind: 'subscription',
-            priority: 'high',
-            title: `${label} ending soon`,
-            body: `${label} ends in ${days} day${days === 1 ? '' : 's'}.`,
-            count: 1,
-            hrefTab: 'settings',
-          });
-        }
+  if (sub) {
+    const t = sub.rows[0] as { trial_ends_at?: string; subscription_ends_at?: string } | undefined;
+    const ends = t?.subscription_ends_at || t?.trial_ends_at;
+    if (ends) {
+      const days = Math.ceil((new Date(ends).getTime() - Date.now()) / 86400000);
+      if (days >= 0 && days <= 15) {
+        const label = t?.subscription_ends_at ? 'Subscription' : 'Trial';
+        items.push({
+          id: `subscription:${bucket}`,
+          kind: 'subscription',
+          priority: 'high',
+          title: `${label} ending soon`,
+          body: `${label} ends in ${days} day${days === 1 ? '' : 's'}.`,
+          count: 1,
+          hrefTab: 'settings',
+        });
       }
     }
   }
