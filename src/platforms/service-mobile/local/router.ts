@@ -1747,6 +1747,23 @@ export async function handleLocalApiRequest(
     }
     if (ctx.path === '/invoices' || ctx.path === '/standalone-invoices') {
       if (ctx.method === 'GET') {
+        const from = (query.get('from') || '').trim();
+        const to = (query.get('to') || '').trim();
+        const customer = (query.get('customer') || '').trim();
+        const clauses = ['si.tenant_id=$1'];
+        const params: unknown[] = [tid];
+        if (from) {
+          params.push(from);
+          clauses.push(`si.invoice_date >= $${params.length}`);
+        }
+        if (to) {
+          params.push(to);
+          clauses.push(`si.invoice_date <= $${params.length}`);
+        }
+        if (customer) {
+          params.push(`%${customer}%`);
+          clauses.push(`si.customer_name ILIKE $${params.length}`);
+        }
         const { rows } = await localQuery(
           `SELECT si.*,
                   COALESCE(ip.paid, 0) AS paid_amount,
@@ -1758,9 +1775,9 @@ export async function handleLocalApiRequest(
                     SUM(CASE WHEN COALESCE(is_advance,false) THEN amount ELSE 0 END) AS advance_applied
              FROM invoice_payments WHERE tenant_id=$1 GROUP BY invoice_id
            ) ip ON si.id = ip.invoice_id
-           WHERE si.tenant_id=$1
+           WHERE ${clauses.join(' AND ')}
            ORDER BY si.invoice_date DESC NULLS LAST, si.created_at DESC`,
-          [tid],
+          params,
         );
         return json(
           200,

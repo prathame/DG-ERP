@@ -375,7 +375,8 @@
     "invoiceCreated": "Invoice created",
     "editInvoice": "Edit Invoice",
     "saveChanges": "Save Changes",
-    "invoiceUpdated": "Invoice updated"
+    "invoiceUpdated": "Invoice updated",
+    "filterCustomer": "Search customer"
   },
   "quotations": {
     "title": "Quotations",

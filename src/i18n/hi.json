@@ -512,7 +512,8 @@
     "invoiceCreated": "चालान बनाया गया",
     "editInvoice": "चालान संपादित करें",
     "saveChanges": "बदलाव सहेजें",
-    "invoiceUpdated": "चालान अपडेट हुआ"
+    "invoiceUpdated": "चालान अपडेट हुआ",
+    "filterCustomer": "ग्राहक खोजें"
   },
   "quotations": {
     "title": "कोटेशन",

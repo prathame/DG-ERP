@@ -40,6 +40,64 @@ async function allocateNextInvoiceNumber(client: { query: typeof pool.query }, t
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
+function isoDateOnly(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const s = String(value || '');
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+}
+
+/** Customer sales (distribution batches) shaped like standalone invoices for the Invoices list. */
+function mapSaleBatchAsInvoice(
+  r: Record<string, unknown>,
+  paid: number,
+): ReturnType<typeof mapStandaloneInvoice> & {
+  source: 'sale';
+  batchId: string;
+  outstanding: number;
+} {
+  const batchId = String(r.batch_id || '');
+  const billValue = Number(r.bill_value) || 0;
+  const gstUnits = Number(r.gst_units) || 0;
+  const nonGstUnits = Number(r.non_gst_units) || 0;
+  const challanBase = `CH-${batchId.replace(/^D/, '').slice(0, 10)}`;
+  const invoiceNumber = gstUnits > 0 ? `${challanBase}-GST` : nonGstUnits > 0 ? `${challanBase}-BOS` : challanBase;
+  const outstanding = Math.max(0, Math.round((billValue - paid) * 100) / 100);
+  return {
+    id: `sale:${batchId}`,
+    source: 'sale',
+    batchId,
+    invoiceNumber,
+    customerName: String(r.vendor_name || ''),
+    customerGstin: (r.vendor_gstin as string) || null,
+    customerAddress: (r.vendor_address as string) || null,
+    customerPhone: (r.vendor_phone as string) || null,
+    partyType: 'vendor',
+    partyId: (r.vendor_id as string) || null,
+    items: [],
+    subtotal: billValue,
+    taxTotal: 0,
+    taxCgst: 0,
+    taxSgst: 0,
+    taxIgst: 0,
+    isInterstate: false,
+    gstEnabled: gstUnits > 0,
+    grandTotal: billValue,
+    notes: null,
+    terms: null,
+    status: outstanding <= 0.001 ? 'paid' : 'sent',
+    invoiceDate: isoDateOnly(r.distribution_date),
+    dueDate: null,
+    createdAt: r.distribution_date,
+    paidAmount: paid,
+    outstanding,
+    irn: (r.irn as string) || null,
+    irnAckNo: null,
+    irnAckDt: null,
+    irnQr: (r.irn_qr as string) || null,
+    ewbNumber: (r.ewb_number as string) || null,
+  };
+}
+
 function mapStandaloneInvoice(r: Record<string, unknown>) {
   let items = r.items;
   if (typeof items === 'string') {
@@ -212,39 +270,118 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
     const from = typeof req.query.from === 'string' ? req.query.from : '';
     const to = typeof req.query.to === 'string' ? req.query.to : '';
-    const dateParams: unknown[] = [tenantId];
-    let dateWhere = '';
+    const customer = typeof req.query.customer === 'string' ? req.query.customer.trim() : '';
+    const includeSales =
+      req.query.includeSales === '1' || req.query.includeSales === 'true' || req.query.includeSales === 'yes';
+
+    const invoiceParams: unknown[] = [tenantId];
+    let invoiceWhere = '';
     if (from) {
-      dateWhere += ` AND si.invoice_date >= $${dateParams.length + 1}`;
-      dateParams.push(from);
+      invoiceWhere += ` AND si.invoice_date >= $${invoiceParams.length + 1}`;
+      invoiceParams.push(from);
     }
     if (to) {
-      dateWhere += ` AND si.invoice_date <= $${dateParams.length + 1}`;
-      dateParams.push(to);
+      invoiceWhere += ` AND si.invoice_date <= $${invoiceParams.length + 1}`;
+      invoiceParams.push(to);
+    }
+    if (customer) {
+      invoiceWhere += ` AND si.customer_name ILIKE $${invoiceParams.length + 1}`;
+      invoiceParams.push(`%${customer}%`);
     }
     // Soft-deleted invoices stay as status=cancelled for audit; never list them here.
-    const total = Number(
-      (
-        await pool.query(
-          `SELECT COUNT(*)::int AS c FROM standalone_invoices si
-           WHERE si.tenant_id = $1 AND si.status != 'cancelled'${dateWhere}`,
-          dateParams,
-        )
-      ).rows[0]?.c ?? 0,
-    );
-    const { rows } = await pool.query(
-      `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
+    const invoiceSql = `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
        FROM standalone_invoices si
        LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
-       WHERE si.tenant_id = $1 AND si.status != 'cancelled'${dateWhere}
+       WHERE si.tenant_id = $1 AND si.status != 'cancelled'${invoiceWhere}
        GROUP BY si.id
-       ORDER BY si.created_at DESC LIMIT $${dateParams.length + 1} OFFSET $${dateParams.length + 2}`,
-      [...dateParams, limit, offset],
-    );
+       ORDER BY si.created_at DESC`;
+
+    if (!includeSales) {
+      const invoiceCount = Number(
+        (
+          await pool.query(
+            `SELECT COUNT(*)::int AS c FROM standalone_invoices si
+             WHERE si.tenant_id = $1 AND si.status != 'cancelled'${invoiceWhere}`,
+            invoiceParams,
+          )
+        ).rows[0]?.c ?? 0,
+      );
+      const { rows } = await pool.query(
+        `${invoiceSql} LIMIT $${invoiceParams.length + 1} OFFSET $${invoiceParams.length + 2}`,
+        [...invoiceParams, limit, offset],
+      );
+      res.setHeader('X-Total-Count', String(invoiceCount));
+      res.setHeader('X-Page', String(page));
+      res.setHeader('X-Limit', String(limit));
+      return res.json(rows.map((r: Record<string, unknown>) => mapStandaloneInvoice(r)));
+    }
+
+    const { rows: invoiceRows } = await pool.query(invoiceSql, invoiceParams);
+
+    const saleParams: unknown[] = [tenantId];
+    let saleWhere = '';
+    if (from) {
+      saleWhere += ` AND pd.distribution_date::date >= $${saleParams.length + 1}`;
+      saleParams.push(from);
+    }
+    if (to) {
+      saleWhere += ` AND pd.distribution_date::date <= $${saleParams.length + 1}`;
+      saleParams.push(to);
+    }
+    if (customer) {
+      saleWhere += ` AND v.name ILIKE $${saleParams.length + 1}`;
+      saleParams.push(`%${customer}%`);
+    }
+    const saleRows = (
+      await pool.query(
+        `SELECT
+           COALESCE(pd.batch_id, pd.id) as batch_id,
+           pd.vendor_id,
+           v.name as vendor_name,
+           v.phone as vendor_phone,
+           v.address as vendor_address,
+           v.gst_number as vendor_gstin,
+           MIN(pd.distribution_date)::date as distribution_date,
+           SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
+           SUM(CASE WHEN COALESCE(pd.gst_applied, false) THEN 1 ELSE 0 END) as gst_units,
+           SUM(CASE WHEN COALESCE(pd.gst_applied, false) THEN 0 ELSE 1 END) as non_gst_units,
+           MAX(pd.ewb_number) as ewb_number,
+           MAX(pd.irn) as irn,
+           MAX(pd.irn_qr) as irn_qr
+         FROM product_distribution pd
+         JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+         JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+         WHERE pd.tenant_id = $1${saleWhere}
+         GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id, v.name, v.phone, v.address, v.gst_number`,
+        saleParams,
+      )
+    ).rows as Record<string, unknown>[];
+    const batchIds = saleRows.map(r => String(r.batch_id));
+    const paymentMap: Record<string, number> = {};
+    if (batchIds.length > 0) {
+      const payRows = (
+        await pool.query(
+          `SELECT batch_id, SUM(amount) as total_paid FROM vendor_payments WHERE batch_id = ANY($1) AND tenant_id = $2 GROUP BY batch_id`,
+          [batchIds, tenantId],
+        )
+      ).rows as { batch_id: string; total_paid: string }[];
+      for (const pr of payRows) paymentMap[pr.batch_id] = Number(pr.total_paid);
+    }
+
+    const merged = [
+      ...invoiceRows.map((r: Record<string, unknown>) => mapStandaloneInvoice(r)),
+      ...saleRows.map(r => mapSaleBatchAsInvoice(r, paymentMap[String(r.batch_id)] ?? 0)),
+    ].sort((a, b) => {
+      const da = isoDateOnly(a.invoiceDate);
+      const db = isoDateOnly(b.invoiceDate);
+      if (da !== db) return db.localeCompare(da);
+      return String(b.id).localeCompare(String(a.id));
+    });
+    const total = merged.length;
     res.setHeader('X-Total-Count', String(total));
     res.setHeader('X-Page', String(page));
     res.setHeader('X-Limit', String(limit));
-    res.json(rows.map((r: Record<string, unknown>) => mapStandaloneInvoice(r)));
+    res.json(merged.slice(offset, offset + limit));
   } catch (err) {
     return handleApiError(req, res, err);
   }

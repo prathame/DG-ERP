@@ -665,4 +665,59 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
       await cleanupTestData(serviceTenant);
     }
   });
+
+  it('GET /api/invoices filters by customer name', async () => {
+    const acme = await api().get('/api/invoices?customer=Acme').set(authHeaders(token, TENANT));
+    expect(acme.status).toBe(200);
+    expect((acme.body as { customerName: string }[]).some(r => r.customerName === 'Acme Vendor')).toBe(true);
+
+    const miss = await api().get('/api/invoices?customer=NoSuchParty').set(authHeaders(token, TENANT));
+    expect(miss.status).toBe(200);
+    expect(miss.body).toEqual([]);
+  });
+
+  it('GET /api/invoices?includeSales lists customer sales on the invoice list', async () => {
+    const saleVendor = 'V-HTTP-INV-WALKIN';
+    const batch = 'D-HTTP-INV-SALE';
+    await pool.query(
+      `INSERT INTO vendors (id, tenant_id, name, phone)
+       VALUES ($1, $2, 'Walk-in Rajkot', '9876500000')
+       ON CONFLICT DO NOTHING`,
+      [saleVendor, TENANT],
+    );
+    await pool.query(
+      `INSERT INTO product_distribution
+         (id, batch_id, tenant_id, product_id, barcode, vendor_id, distribution_date, status, net_price, billed_price, gst_applied)
+       VALUES ($1, $2, $3, $4, $5, $6, '2026-08-20', 'Sold', 755, 755, true)
+       ON CONFLICT DO NOTHING`,
+      [`${batch}-1`, batch, TENANT, PRODUCT, 'INV-SALE-USB-1', saleVendor],
+    );
+
+    const without = await api().get('/api/invoices').set(authHeaders(token, TENANT));
+    expect(without.status).toBe(200);
+    expect((without.body as { id: string }[]).some(r => r.id === `sale:${batch}`)).toBe(false);
+
+    const withSales = await api()
+      .get('/api/invoices?includeSales=1&from=2026-08-01&to=2026-08-31')
+      .set(authHeaders(token, TENANT));
+    expect(withSales.status).toBe(200);
+    const sale = (withSales.body as { id: string; source?: string; customerName: string; grandTotal: number }[]).find(
+      r => r.id === `sale:${batch}`,
+    );
+    expect(sale).toBeTruthy();
+    expect(sale?.source).toBe('sale');
+    expect(sale?.customerName).toBe('Walk-in Rajkot');
+    expect(Number(sale?.grandTotal)).toBe(755);
+
+    const byName = await api().get('/api/invoices?includeSales=1&customer=Walk-in').set(authHeaders(token, TENANT));
+    expect(byName.status).toBe(200);
+    expect((byName.body as { id: string }[]).map(r => r.id)).toContain(`sale:${batch}`);
+    expect((byName.body as { customerName: string }[]).every(r => /walk-in/i.test(r.customerName))).toBe(true);
+
+    const wrongDate = await api()
+      .get('/api/invoices?includeSales=1&from=2025-01-01&to=2025-01-31&customer=Walk-in')
+      .set(authHeaders(token, TENANT));
+    expect(wrongDate.status).toBe(200);
+    expect((wrongDate.body as { id: string }[]).map(r => r.id)).not.toContain(`sale:${batch}`);
+  });
 });
