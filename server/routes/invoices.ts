@@ -6,7 +6,8 @@ import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { isEinvoiceApiMode } from '../../shared/gstEinvoiceMode';
-import { postStandaloneInvoiceToBooks } from '../services/opsToBooks';
+import { postStandaloneInvoiceToBooks, replaceStandaloneInvoiceBooks } from '../services/opsToBooks';
+import { invoiceEditBlockedReason } from '../../shared/invoiceEdit';
 import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
 import { logger } from '../utils/logger';
@@ -81,6 +82,121 @@ function mapStandaloneInvoice(r: Record<string, unknown>) {
     irnQr: (r.irn_qr as string) || null,
     ewbNumber: (r.ewb_number as string) || null,
   };
+}
+
+type InvoiceLineIn = {
+  description?: string;
+  hsnSac?: string;
+  qty?: number;
+  unit?: string;
+  rate?: number;
+  gstPercent?: number;
+  discountPercent?: number;
+  productId?: string;
+};
+
+async function buildInvoiceLineItems(
+  tenantId: string,
+  items: InvoiceLineIn[],
+  gstEnabled: boolean,
+  priceVendorId: string | null,
+): Promise<
+  | {
+      lineItems: Array<{
+        description: string;
+        hsnSac?: string;
+        qty: number;
+        unit: string;
+        rate: number;
+        gstPercent: number;
+        discountPercent: number;
+        productId?: string;
+        taxable: number;
+        tax: number;
+        total: number;
+      }>;
+      subtotal: number;
+      taxTotal: number;
+      grandTotal: number;
+    }
+  | { error: string }
+> {
+  if (!Array.isArray(items) || !items.length) return { error: 'Add at least one line item' };
+  const lineItems: Array<{
+    description: string;
+    hsnSac?: string;
+    qty: number;
+    unit: string;
+    rate: number;
+    gstPercent: number;
+    discountPercent: number;
+    productId?: string;
+    taxable: number;
+    tax: number;
+    total: number;
+  }> = [];
+  for (const raw of items) {
+    const qty = parseBillQty(raw.qty, 1);
+    const unit = normalizeLineUnit(raw.unit, DEFAULT_BILL_UNIT);
+    let rate = Number(raw.rate) || 0;
+    if (!Number.isFinite(rate) || rate < 0) {
+      return { error: 'Line rate cannot be negative' };
+    }
+    const productId = raw.productId || undefined;
+    let priceIncludesGst = false;
+    if (productId) {
+      const product = (
+        await pool.query('SELECT price, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2', [
+          productId,
+          tenantId,
+        ])
+      ).rows[0] as { price: number; price_includes_gst: boolean } | undefined;
+      if (product) {
+        priceIncludesGst = !!product.price_includes_gst && gstEnabled;
+        if (!raw.rate || rate <= 0) {
+          const resolved = await resolvePrice(tenantId, productId, priceVendorId, qty);
+          rate = resolved.price;
+        }
+      }
+    }
+    const disc = Math.min(100, Math.max(0, Number(raw.discountPercent) || 0));
+    const gstPercent = gstEnabled ? Number(raw.gstPercent) || 0 : 0;
+    let taxable: number;
+    let tax: number;
+    let total: number;
+    if (gstPercent > 0 && priceIncludesGst) {
+      const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
+        basePrice: rate,
+        discountPercent: disc,
+        withGst: true,
+        priceIncludesGst: true,
+        gstRate: gstPercent,
+      });
+      taxable = Math.round(netPricePerUnit * qty * 100) / 100;
+      total = Math.round(billedPricePerUnit * qty * 100) / 100;
+      tax = Math.round((total - taxable) * 100) / 100;
+    } else {
+      taxable = Math.round(((qty * rate * (100 - disc)) / 100) * 100) / 100;
+      tax = Math.round(((taxable * gstPercent) / 100) * 100) / 100;
+      total = taxable + tax;
+    }
+    lineItems.push({
+      description: raw.description || '',
+      hsnSac: raw.hsnSac,
+      qty,
+      unit,
+      rate,
+      gstPercent,
+      discountPercent: disc,
+      productId,
+      taxable,
+      tax,
+      total,
+    });
+  }
+  const subtotal = lineItems.reduce((s, it) => s + it.taxable, 0);
+  const taxTotal = lineItems.reduce((s, it) => s + it.tax, 0);
+  return { lineItems, subtotal, taxTotal, grandTotal: subtotal + taxTotal };
 }
 
 // List invoices
@@ -273,16 +389,6 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
         .json({ error: 'New invoices can only be draft or sent. Mark paid after recording payment.' });
     }
 
-    type LineIn = {
-      description?: string;
-      hsnSac?: string;
-      qty?: number;
-      unit?: string;
-      rate?: number;
-      gstPercent?: number;
-      discountPercent?: number;
-      productId?: string;
-    };
     // Freeze GST mode on this invoice (settings may change later; print must not flip)
     let gstEnabled = typeof req.body.gstEnabled === 'boolean' ? !!req.body.gstEnabled : null;
     if (gstEnabled == null) {
@@ -291,81 +397,9 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       gstEnabled = bsRow ? bsRow.show_hsn_sac !== false : true;
     }
     const priceVendorId = resolvedPartyType === 'vendor' ? resolvedPartyId : null;
-    const lineItems: {
-      description: string;
-      hsnSac?: string;
-      qty: number;
-      unit: string;
-      rate: number;
-      gstPercent: number;
-      discountPercent: number;
-      productId?: string;
-      taxable: number;
-      tax: number;
-      total: number;
-    }[] = [];
-    for (const raw of items as LineIn[]) {
-      const qty = parseBillQty(raw.qty, 1);
-      const unit = normalizeLineUnit(raw.unit, DEFAULT_BILL_UNIT);
-      let rate = Number(raw.rate) || 0;
-      if (!Number.isFinite(rate) || rate < 0) {
-        return res.status(400).json({ error: 'Line rate cannot be negative' });
-      }
-      const productId = raw.productId || undefined;
-      let priceIncludesGst = false;
-      if (productId) {
-        const product = (
-          await pool.query('SELECT price, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2', [
-            productId,
-            tenantId,
-          ])
-        ).rows[0] as { price: number; price_includes_gst: boolean } | undefined;
-        if (product) {
-          priceIncludesGst = !!product.price_includes_gst && gstEnabled;
-          if (!raw.rate || rate <= 0) {
-            const resolved = await resolvePrice(tenantId, productId, priceVendorId, qty);
-            rate = resolved.price;
-          }
-        }
-      }
-      const disc = Math.min(100, Math.max(0, Number(raw.discountPercent) || 0));
-      const gstPercent = gstEnabled ? Number(raw.gstPercent) || 0 : 0;
-      let taxable: number;
-      let tax: number;
-      let total: number;
-      if (gstPercent > 0 && priceIncludesGst) {
-        const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
-          basePrice: rate,
-          discountPercent: disc,
-          withGst: true,
-          priceIncludesGst: true,
-          gstRate: gstPercent,
-        });
-        taxable = Math.round(netPricePerUnit * qty * 100) / 100;
-        total = Math.round(billedPricePerUnit * qty * 100) / 100;
-        tax = Math.round((total - taxable) * 100) / 100;
-      } else {
-        taxable = Math.round(((qty * rate * (100 - disc)) / 100) * 100) / 100;
-        tax = Math.round(((taxable * gstPercent) / 100) * 100) / 100;
-        total = taxable + tax;
-      }
-      lineItems.push({
-        description: raw.description || '',
-        hsnSac: raw.hsnSac,
-        qty,
-        unit,
-        rate,
-        gstPercent,
-        discountPercent: disc,
-        productId,
-        taxable,
-        tax,
-        total,
-      });
-    }
-    const subtotal = lineItems.reduce((s, it) => s + it.taxable, 0);
-    const taxTotal = lineItems.reduce((s, it) => s + it.tax, 0);
-    const grandTotal = subtotal + taxTotal;
+    const built = await buildInvoiceLineItems(tenantId, items as InvoiceLineIn[], gstEnabled, priceVendorId);
+    if ('error' in built) return res.status(400).json({ error: built.error });
+    const { lineItems, subtotal, taxTotal, grandTotal } = built;
 
     let sellerGstin: string | null = null;
     const bs = (await pool.query('SELECT gst_api_gstin FROM bill_settings WHERE tenant_id = $1', [tenantId]))
@@ -489,6 +523,232 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       tenantId,
     ]);
     res.status(201).json(mapStandaloneInvoice(created[0] as Record<string, unknown>));
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Edit draft or unpaid sent invoice (blocked after payments, IRN, or E-Way). */
+router.put('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const invoiceId = req.params.id as string;
+    const current = (
+      await pool.query(
+        `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
+         FROM standalone_invoices si
+         LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $2
+         WHERE si.id = $1 AND si.tenant_id = $2
+         GROUP BY si.id`,
+        [invoiceId, tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
+    if (!current) return res.status(404).json({ error: 'Invoice not found' });
+    const blocked = invoiceEditBlockedReason({
+      status: String(current.status || ''),
+      paidAmount: Number(current.paid_amount) || 0,
+      irn: (current.irn as string) || null,
+      ewbNumber: (current.ewb_number as string) || null,
+    });
+    if (blocked) return res.status(400).json({ error: blocked });
+
+    const {
+      customerName,
+      customerGstin,
+      customerAddress,
+      customerPhone,
+      partyType,
+      partyId,
+      items,
+      notes,
+      terms,
+      invoiceDate,
+      dueDate,
+    } = req.body;
+    if (!customerName) return res.status(400).json({ error: 'Customer name is required' });
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Add at least one line item' });
+
+    let resolvedPartyType: string | null = null;
+    let resolvedPartyId: string | null = null;
+    if (partyType != null || partyId != null) {
+      if (partyType !== 'vendor' && partyType !== 'customer') {
+        return res.status(400).json({ error: 'partyType must be vendor or customer' });
+      }
+      if (!partyId || typeof partyId !== 'string') {
+        return res.status(400).json({ error: 'partyId is required when partyType is set' });
+      }
+      if (partyType === 'vendor') {
+        const v = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [partyId, tenantId]))
+          .rows[0];
+        if (!v) return res.status(400).json({ error: 'Vendor not found' });
+      } else {
+        const c = (await pool.query('SELECT id FROM customers WHERE id = $1 AND tenant_id = $2', [partyId, tenantId]))
+          .rows[0];
+        if (!c) return res.status(400).json({ error: 'Customer not found' });
+      }
+      resolvedPartyType = partyType;
+      resolvedPartyId = partyId;
+    }
+
+    if (resolvedPartyId == null) {
+      const partyName = String(customerName).trim();
+      const existing = (
+        await pool.query(`SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`, [
+          tenantId,
+          partyName,
+        ])
+      ).rows[0] as { id: string } | undefined;
+      if (existing) {
+        resolvedPartyType = 'vendor';
+        resolvedPartyId = existing.id;
+      } else {
+        const vendorLimitErr = await checkPlanLimit(tenantId, 'vendors');
+        if (vendorLimitErr) return res.status(403).json(vendorLimitErr);
+        const newId = uid('V');
+        await pool.query(
+          `INSERT INTO vendors (id, tenant_id, name, phone, address, gst_number)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            newId,
+            tenantId,
+            partyName,
+            typeof customerPhone === 'string' && customerPhone.trim() ? customerPhone.trim() : null,
+            typeof customerAddress === 'string' && customerAddress.trim() ? customerAddress.trim() : null,
+            typeof customerGstin === 'string' && customerGstin.trim() ? customerGstin.trim() : null,
+          ],
+        );
+        resolvedPartyType = 'vendor';
+        resolvedPartyId = newId;
+      }
+    }
+
+    let gstEnabled = typeof req.body.gstEnabled === 'boolean' ? !!req.body.gstEnabled : null;
+    if (gstEnabled == null) {
+      gstEnabled = current.gst_enabled == null ? Number(current.tax_total) > 0 : !!current.gst_enabled;
+    }
+    const priceVendorId = resolvedPartyType === 'vendor' ? resolvedPartyId : null;
+    const built = await buildInvoiceLineItems(tenantId, items as InvoiceLineIn[], gstEnabled, priceVendorId);
+    if ('error' in built) return res.status(400).json({ error: built.error });
+    const { lineItems, subtotal, taxTotal, grandTotal } = built;
+
+    let sellerGstin: string | null = null;
+    const bs = (await pool.query('SELECT gst_api_gstin FROM bill_settings WHERE tenant_id = $1', [tenantId]))
+      .rows[0] as { gst_api_gstin?: string } | undefined;
+    if (bs?.gst_api_gstin) sellerGstin = bs.gst_api_gstin;
+    else {
+      const t = (await pool.query('SELECT gst_number FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+        { gst_number?: string } | undefined;
+      sellerGstin = t?.gst_number || null;
+    }
+    const interstate = isInterstateSupply(sellerGstin, customerGstin || null);
+    const { taxCgst, taxSgst, taxIgst } = splitGstTax(taxTotal, interstate);
+
+    const invDate =
+      typeof invoiceDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(invoiceDate)
+        ? invoiceDate.slice(0, 10)
+        : typeof current.invoice_date === 'string'
+          ? String(current.invoice_date).slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
+    let resolvedDueDate: string | null =
+      typeof dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dueDate) ? dueDate.slice(0, 10) : null;
+    if (dueDate === undefined) {
+      resolvedDueDate =
+        current.due_date == null
+          ? null
+          : typeof current.due_date === 'string'
+            ? String(current.due_date).slice(0, 10)
+            : null;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setTenantContext(client, tenantId);
+      const upd = await client.query(
+        `UPDATE standalone_invoices SET
+           customer_name=$1, customer_gstin=$2, customer_address=$3, customer_phone=$4,
+           party_type=$5, party_id=$6, items=$7, subtotal=$8, tax_total=$9, grand_total=$10,
+           notes=$11, terms=$12, invoice_date=$13, due_date=$14,
+           tax_cgst=$15, tax_sgst=$16, tax_igst=$17, is_interstate=$18, gst_enabled=$19,
+           updated_at=NOW()
+         WHERE id=$20 AND tenant_id=$21 AND status IN ('draft','sent')
+         RETURNING *`,
+        [
+          customerName,
+          customerGstin || null,
+          customerAddress || null,
+          customerPhone || null,
+          resolvedPartyType,
+          resolvedPartyId,
+          JSON.stringify(lineItems),
+          subtotal,
+          taxTotal,
+          grandTotal,
+          notes !== undefined ? notes || null : current.notes,
+          terms !== undefined ? terms || null : current.terms,
+          invDate,
+          resolvedDueDate,
+          taxCgst,
+          taxSgst,
+          taxIgst,
+          interstate,
+          gstEnabled,
+          invoiceId,
+          tenantId,
+        ],
+      );
+      if (upd.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Only draft or unpaid invoices can be edited' });
+      }
+      const row = upd.rows[0] as Record<string, unknown>;
+      await withBooks(
+        () =>
+          replaceStandaloneInvoiceBooks(client, tenantId, {
+            id: invoiceId,
+            invoiceNumber: String(row.invoice_number || ''),
+            customerName,
+            partyId: resolvedPartyId,
+            grandTotal,
+            subtotal,
+            taxCgst,
+            taxSgst,
+            taxIgst,
+            invoiceDate: invDate,
+            notes: notes !== undefined ? notes || null : (current.notes as string | null),
+          }),
+        'invoice-edit',
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    await logAudit(
+      pool,
+      tenantId,
+      'Invoice Updated',
+      'invoice',
+      invoiceId,
+      `${current.invoice_number} — ${customerName} — ₹${grandTotal}`,
+    );
+    const { rows: updated } = await pool.query(
+      `SELECT si.*, COALESCE(SUM(ip.amount), 0) AS paid_amount
+       FROM standalone_invoices si
+       LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $2
+       WHERE si.id = $1 AND si.tenant_id = $2
+       GROUP BY si.id`,
+      [invoiceId, tenantId],
+    );
+    res.json(mapStandaloneInvoice(updated[0] as Record<string, unknown>));
   } catch (err) {
     return handleApiError(req, res, err);
   }

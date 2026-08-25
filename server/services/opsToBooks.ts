@@ -568,6 +568,33 @@ export async function postStandaloneInvoiceToBooks(
   });
 }
 
+/** Drop the ops sales voucher for an invoice so it can be re-posted after an edit. */
+export async function replaceStandaloneInvoiceBooks(
+  client: PoolClient,
+  tenantId: string,
+  invoice: Parameters<typeof postStandaloneInvoiceToBooks>[2],
+): Promise<string | null> {
+  const externalRef = `ops:si:${invoice.id}`;
+  const existing = (
+    await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2`, [
+      tenantId,
+      externalRef,
+    ])
+  ).rows[0] as { id: string } | undefined;
+  if (existing) {
+    await client.query(`DELETE FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2`, [
+      tenantId,
+      existing.id,
+    ]);
+    await client.query(`DELETE FROM book_voucher_items WHERE tenant_id = $1 AND voucher_id = $2`, [
+      tenantId,
+      existing.id,
+    ]);
+    await client.query(`DELETE FROM book_vouchers WHERE tenant_id = $1 AND id = $2`, [tenantId, existing.id]);
+  }
+  return postStandaloneInvoiceToBooks(client, tenantId, invoice);
+}
+
 /** Delete + re-post all ops sales vouchers from standalone_invoices (GST repair / resync). */
 export async function resyncOpsInvoiceBooks(
   client: PoolClient,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, Mail } from 'lucide-react';
+import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, Mail, Pencil } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -31,6 +31,7 @@ import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
+import { canEditInvoice } from '../../../shared/invoiceEdit';
 import {
   DEFAULT_BILL_UNIT,
   defaultBillUnit,
@@ -96,6 +97,8 @@ type Invoice = {
   irnAckDt?: string | null;
   irnQr?: string | null;
   ewbNumber?: string | null;
+  partyType?: 'vendor' | 'customer' | null;
+  partyId?: string | null;
 };
 type LineItem = {
   description: string;
@@ -243,6 +246,7 @@ export function InvoicesView({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [billSettings, setBillSettings] = useState<Record<string, unknown>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
@@ -264,6 +268,7 @@ export function InvoicesView({
     }
     if (createOpen) {
       setCreateOpen(false);
+      setEditingInvoice(null);
       return true;
     }
     return false;
@@ -342,6 +347,17 @@ export function InvoicesView({
       toast((err as Error).message, 'error');
       void reportActionFailed('invoice.status', err, { status, invoiceNumber: inv.invoiceNumber });
     }
+  };
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setEditingInvoice(null);
+  };
+
+  const openEdit = (inv: Invoice) => {
+    setSelectedInvoice(null);
+    setEditingInvoice(inv);
+    setCreateOpen(true);
   };
 
   const statusBadge = (s: string) => {
@@ -611,6 +627,17 @@ export function InvoicesView({
                     >
                       <Printer size={14} />
                     </button>
+                    {canEditInvoice(inv) && (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(inv)}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-lg"
+                        title={t('invoices.editInvoice')}
+                        aria-label={t('common.edit')}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={whatsappBusyId === inv.id}
@@ -707,6 +734,17 @@ export function InvoicesView({
                         >
                           <Printer size={15} />
                         </button>
+                        {canEditInvoice(inv) && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(inv)}
+                            className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg"
+                            title={t('invoices.editInvoice')}
+                            aria-label={t('common.edit')}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={whatsappBusyId === inv.id}
@@ -755,24 +793,33 @@ export function InvoicesView({
         </>
       )}
 
-      {invoices.length > 0 && <MobileFab label="Invoice" onClick={() => setCreateOpen(true)} />}
+      {invoices.length > 0 && (
+        <MobileFab
+          label="Invoice"
+          onClick={() => {
+            setEditingInvoice(null);
+            setCreateOpen(true);
+          }}
+        />
+      )}
 
-      {/* Create modal — non-service: unified sale/invoice; service: unchanged CreateInvoiceModal */}
+      {/* Create / edit modal — edit always uses standalone form; create stays unified for non-service */}
       <AnimatePresence>
         {createOpen &&
-          (useUnifiedCreate ? (
-            <CreateUnifiedBillModal
-              onClose={() => setCreateOpen(false)}
+          (editingInvoice || !useUnifiedCreate ? (
+            <CreateInvoiceModal
+              editingInvoice={editingInvoice}
+              onClose={closeCreate}
               onCreated={() => {
-                setCreateOpen(false);
+                closeCreate();
                 load();
               }}
             />
           ) : (
-            <CreateInvoiceModal
-              onClose={() => setCreateOpen(false)}
+            <CreateUnifiedBillModal
+              onClose={closeCreate}
               onCreated={() => {
-                setCreateOpen(false);
+                closeCreate();
                 load();
               }}
             />
@@ -867,6 +914,15 @@ export function InvoicesView({
                 )}
               </div>
               <div className="flex gap-2">
+                {canEditInvoice(selectedInvoice) && (
+                  <button
+                    type="button"
+                    onClick={() => openEdit(selectedInvoice)}
+                    className="flex-1 py-2.5 border border-gray-200 text-gray-800 rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <Pencil size={16} /> {t('common.edit')}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => printInvoice(selectedInvoice)}
@@ -985,10 +1041,12 @@ export function CreateInvoiceModal({
   onClose,
   onCreated,
   initialParty,
+  editingInvoice,
 }: {
   onClose: () => void;
   onCreated: () => void;
   initialParty?: InvoicePartyPrefill | null;
+  editingInvoice?: Invoice | null;
 }) {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -996,26 +1054,48 @@ export function CreateInvoiceModal({
   const isService = cfg.type === 'service';
   const serviceProductUx = isServiceProductUx(cfg.type);
   const vendorPartyKind = isService ? 'Client' : 'Vendor';
-  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState(() => editingInvoice?.invoiceNumber || '');
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
-    customerName: initialParty?.customerName || '',
-    customerGstin: initialParty?.customerGstin || '',
-    customerAddress: initialParty?.customerAddress || '',
-    customerPhone: initialParty?.customerPhone || '',
-    invoiceDate: new Date().toISOString().slice(0, 10),
-    notes: '',
-    terms: '',
+    customerName: editingInvoice?.customerName || initialParty?.customerName || '',
+    customerGstin: editingInvoice?.customerGstin || initialParty?.customerGstin || '',
+    customerAddress: editingInvoice?.customerAddress || initialParty?.customerAddress || '',
+    customerPhone: editingInvoice?.customerPhone || initialParty?.customerPhone || '',
+    invoiceDate: editingInvoice?.invoiceDate
+      ? String(editingInvoice.invoiceDate).slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+    notes: editingInvoice?.notes || '',
+    terms: editingInvoice?.terms || '',
   });
-  const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
+  const [gstBilling, setGstBilling] = useState(() =>
+    editingInvoice ? invoiceHasGst(editingInvoice) : isGstBillingEnabled(null),
+  );
   const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
-  const [rows, setRows] = useState<InvoiceLineRow[]>(() => [emptyRow(isGstBillingEnabled(null))]);
+  const [rows, setRows] = useState<InvoiceLineRow[]>(() => {
+    if (editingInvoice?.items?.length) {
+      const gstOn = invoiceHasGst(editingInvoice);
+      return editingInvoice.items.map(it => ({
+        description: it.description || '',
+        hsnSac: it.hsnSac || '',
+        qty: Number(it.qty) || 1,
+        unit: normalizeLineUnit(it.unit, DEFAULT_BILL_UNIT),
+        rate: Number(it.rate) || 0,
+        gstPercent: gstOn ? Number(it.gstPercent) || 0 : 0,
+        discountPercent: Number(it.discountPercent) || 0,
+        productId: it.productId || '',
+      }));
+    }
+    return [emptyRow(isGstBillingEnabled(null))];
+  });
   const [submitting, setSubmitting] = useState(false);
   const [parties, setParties] = useState<InvoiceParty[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
   const [quickAdd, setQuickAdd] = useState<{ idx: number; name: string } | null>(null);
   const [partyKey, setPartyKey] = useState(() => {
+    if (editingInvoice?.partyType && editingInvoice?.partyId) {
+      return `${editingInvoice.partyType}:${editingInvoice.partyId}`;
+    }
     if (initialParty?.partyType && initialParty?.partyId) {
       return `${initialParty.partyType}:${initialParty.partyId}`;
     }
@@ -1061,11 +1141,13 @@ export function CreateInvoiceModal({
 
   useEffect(() => {
     let cancelled = false;
-    fetchApi<{ number: string }>('/invoices/next-number')
-      .then(r => {
-        if (!cancelled) setInvoiceNumber(r.number);
-      })
-      .catch(() => {});
+    if (!editingInvoice) {
+      fetchApi<{ number: string }>('/invoices/next-number')
+        .then(r => {
+          if (!cancelled) setInvoiceNumber(r.number);
+        })
+        .catch(() => {});
+    }
     api.settings
       .getBillSettings()
       .then(s => {
@@ -1073,8 +1155,12 @@ export function CreateInvoiceModal({
         const on = isGstBillingEnabled(s);
         const units = normalizeBillUnits(s?.billUnits);
         const unitDefault = defaultBillUnit(units);
-        setGstBilling(on);
         setBillUnits(units);
+        if (editingInvoice) {
+          setRows(prev => prev.map(r => ({ ...r, unit: normalizeLineUnit(r.unit, unitDefault) })));
+          return;
+        }
+        setGstBilling(on);
         setRows(prev =>
           prev.map(r => ({
             ...r,
@@ -1152,7 +1238,7 @@ export function CreateInvoiceModal({
     return () => {
       cancelled = true;
     };
-  }, [initialParty?.partyType, initialParty?.partyId, vendorPartyKind, isService]);
+  }, [initialParty?.partyType, initialParty?.partyId, vendorPartyKind, isService, editingInvoice]);
 
   const selectParty = (key: string) => {
     setPartyKey(key);
@@ -1299,32 +1385,43 @@ export function CreateInvoiceModal({
         }
       }
       // Offline: Notes / T&C / bank / payment terms come from Bill Customization settings, not the form.
-      const created = await fetchApi<Invoice>('/invoices', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          ...(serviceProductUx ? { notes: '', terms: '' } : {}),
-          invoiceNumber,
-          gstEnabled: gstBilling,
-          items: validRows.map(({ description, hsnSac, qty, unit, rate, gstPercent, discountPercent, productId }) => ({
-            description,
-            hsnSac: gstBilling ? hsnSac : '',
-            qty,
-            unit: defaultBillUnit(billUnits),
-            rate,
-            gstPercent: gstBilling ? gstPercent : 0,
-            discountPercent: discountPercent || 0,
-            ...(productId ? { productId } : {}),
-          })),
-          status,
-          partyType,
-          partyId,
-        }),
-      });
-      toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');
+      const payload = {
+        ...form,
+        ...(serviceProductUx ? { notes: '', terms: '' } : {}),
+        gstEnabled: gstBilling,
+        items: validRows.map(({ description, hsnSac, qty, unit, rate, gstPercent, discountPercent, productId }) => ({
+          description,
+          hsnSac: gstBilling ? hsnSac : '',
+          qty,
+          unit: editingInvoice ? normalizeLineUnit(unit, defaultBillUnit(billUnits)) : defaultBillUnit(billUnits),
+          rate,
+          gstPercent: gstBilling ? gstPercent : 0,
+          discountPercent: discountPercent || 0,
+          ...(productId ? { productId } : {}),
+        })),
+        partyType,
+        partyId,
+      };
+      const created = editingInvoice
+        ? await fetchApi<Invoice>(`/invoices/${editingInvoice.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          })
+        : await fetchApi<Invoice>('/invoices', {
+            method: 'POST',
+            body: JSON.stringify({ ...payload, invoiceNumber, status }),
+          });
+      toast(
+        editingInvoice ? t('invoices.invoiceUpdated') : `Invoice ${created?.invoiceNumber || invoiceNumber} created`,
+        'success',
+      );
       // Cap: bake PDF under Documents/Dhandho/invoices/ for faster WhatsApp (failure ignored).
       if (created?.id) {
         scheduleBakeCapBillPdfCache(created);
+      }
+      if (editingInvoice) {
+        onCreated();
+        return;
       }
       // Stay open so vendor/client create can Print immediately
       if (created?.items && Array.isArray(created.items)) {
@@ -1601,6 +1698,10 @@ export function CreateInvoiceModal({
             <ModalActionButton variant="primary" onClick={goNext}>
               {t('common.next')}
             </ModalActionButton>
+          ) : editingInvoice ? (
+            <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('draft')}>
+              {submitting ? t('common.saving') : t('invoices.saveChanges')}
+            </ModalActionButton>
           ) : (
             <>
               <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
@@ -1619,12 +1720,20 @@ export function CreateInvoiceModal({
           <ModalActionButton variant="ghost" onClick={onClose}>
             {t('common.cancel')}
           </ModalActionButton>
-          <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
-            {submitting ? t('common.saving') : t('invoices.saveAsDraft')}
-          </ModalActionButton>
-          <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
-            {submitting ? t('common.saving') : t('invoices.createAndSend')}
-          </ModalActionButton>
+          {editingInvoice ? (
+            <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('draft')}>
+              {submitting ? t('common.saving') : t('invoices.saveChanges')}
+            </ModalActionButton>
+          ) : (
+            <>
+              <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
+                {submitting ? t('common.saving') : t('invoices.saveAsDraft')}
+              </ModalActionButton>
+              <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
+                {submitting ? t('common.saving') : t('invoices.createAndSend')}
+              </ModalActionButton>
+            </>
+          )}
         </ModalActions>
       </div>
     </>
@@ -1633,7 +1742,13 @@ export function CreateInvoiceModal({
   return (
     <>
       <AppModal
-        title={createdInvoice ? t('invoices.invoiceCreated') : t('invoices.newInvoice')}
+        title={
+          createdInvoice
+            ? t('invoices.invoiceCreated')
+            : editingInvoice
+              ? t('invoices.editInvoice')
+              : t('invoices.newInvoice')
+        }
         subtitle={<span className="font-mono">{createdInvoice?.invoiceNumber || invoiceNumber}</span>}
         onClose={createdInvoice ? finishCreated : onClose}
         footer={footer}

@@ -509,7 +509,10 @@
     "saveDraft": "मसुदा जतन करा",
     "saveAsDraft": "मसुदा म्हणून जतन करा",
     "createAndSend": "तयार करा आणि पाठवा",
-    "invoiceCreated": "इन्व्हॉइस तयार झाले"
+    "invoiceCreated": "इन्व्हॉइस तयार झाले",
+    "editInvoice": "इन्व्हॉइस संपादित करा",
+    "saveChanges": "बदल जतन करा",
+    "invoiceUpdated": "इन्व्हॉइस अपडेट झाले"
   },
   "quotations": {
     "title": "कोटेशन्स",

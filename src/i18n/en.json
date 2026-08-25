@@ -372,7 +372,10 @@
     "saveDraft": "Save Draft",
     "saveAsDraft": "Save as Draft",
     "createAndSend": "Create & Send",
-    "invoiceCreated": "Invoice created"
+    "invoiceCreated": "Invoice created",
+    "editInvoice": "Edit Invoice",
+    "saveChanges": "Save Changes",
+    "invoiceUpdated": "Invoice updated"
   },
   "quotations": {
     "title": "Quotations",
