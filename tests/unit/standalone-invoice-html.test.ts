@@ -82,6 +82,29 @@ describe('generateStandaloneInvoiceHtml', () => {
     expect(html).toContain('class="outer');
   });
 
+  it('purchase variant uses Purchase Bill title, supplier label, no sales prefix or bank', () => {
+    const html = generateStandaloneInvoiceHtml(
+      { ...baseInv, invoiceNumber: 'PI-001', customerName: 'Rajkot Accessories Supplier' },
+      { companyName: 'Shop' },
+      {
+        invoicePrefix: 'INV',
+        bankName: 'Demo Bank',
+        bankAccountNumber: '123',
+        footerText: 'Powered by Dhandho',
+      },
+      { hasGst: false, docType: 'purchase' },
+    );
+    expect(html).toContain('Purchase Bill');
+    expect(html).toContain('Bill No');
+    expect(html).toContain('PI-001');
+    expect(html).not.toContain('INVPI-001');
+    expect(html).toContain('Supplier');
+    expect(html).toContain('Rajkot Accessories Supplier');
+    expect(html).not.toContain('Bank Details');
+    expect(html).not.toContain('Tax Invoice');
+    expect(html).not.toContain('Bill To');
+  });
+
   it('quotation variant uses QUOTATION title and omits bank', () => {
     const html = generateStandaloneInvoiceHtml(
       baseInv,

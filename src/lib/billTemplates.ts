@@ -536,8 +536,8 @@ export type StandaloneInvoicePrintCompany = {
   gstNumber?: string;
 };
 
-/** Shared bill HTML/PDF variant — quotation = same template, title QUOTATION, no bank. */
-export type BillDocType = 'invoice' | 'quotation';
+/** Shared bill HTML/PDF variant — quotation / purchase = same template, different title, no bank. */
+export type BillDocType = 'invoice' | 'quotation' | 'purchase';
 
 export function generateStandaloneInvoiceHtml(
   inv: StandaloneInvoicePrint,
@@ -552,6 +552,7 @@ export function generateStandaloneInvoiceHtml(
   },
 ): string {
   const isQuote = options?.docType === 'quotation';
+  const isPurchase = options?.docType === 'purchase';
   const color = safeColor(billSettings.primaryColor as string);
   const logoSrc = safeImgSrc(billSettings.logoBase64);
   const sigSrc = safeImgSrc(billSettings.signatureBase64);
@@ -559,11 +560,11 @@ export function generateStandaloneInvoiceHtml(
     ? `<img src="${logoSrc}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div style="width:48px;height:48px;border:1px solid #222;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;">${esc((company.companyName || 'C').substring(0, 1))}</div>`;
   const tagline = String(billSettings.tagline || '');
-  const invPrefix = isQuote ? '' : String(billSettings.invoicePrefix || '');
+  const invPrefix = isQuote || isPurchase ? '' : String(billSettings.invoicePrefix || '');
   const footerText = String(billSettings.footerText || 'Powered by Dhandho Management');
   const hasGst = options?.hasGst ?? inv.gstEnabled === true;
-  const docTitle = isQuote ? 'Quotation' : hasGst ? 'Tax Invoice' : 'Invoice';
-  const numberLabel = isQuote ? 'Quotation No' : 'Invoice No';
+  const docTitle = isPurchase ? 'Purchase Bill' : isQuote ? 'Quotation' : hasGst ? 'Tax Invoice' : 'Invoice';
+  const numberLabel = isPurchase ? 'Bill No' : isQuote ? 'Quotation No' : 'Invoice No';
   const certText = isQuote
     ? 'This quotation is subject to confirmation.'
     : 'Certified that the particulars given above are true and correct.';
@@ -590,10 +591,10 @@ export function generateStandaloneInvoiceHtml(
     received > 0.001 ||
     (inv.advanceApplied || 0) > 0.001 ||
     (typeof inv.outstanding === 'number' && inv.outstanding > 0.001);
-  const irn = !isQuote && hasGst ? String(inv.irn || '') : '';
+  const irn = !isQuote && !isPurchase && hasGst ? String(inv.irn || '') : '';
   const irnAckNo = irn ? String(inv.irnAckNo || '') : '';
   const irnAckDt = irn ? String(inv.irnAckDt || '') : '';
-  const ewbNumber = !isQuote && hasGst ? String(inv.ewbNumber || '') : '';
+  const ewbNumber = !isQuote && !isPurchase && hasGst ? String(inv.ewbNumber || '') : '';
   const irnQrSrc = options?.irnQrDataUrl || '';
 
   // HSN-wise GST summary (end of bill — matches classic Tax Invoice layout)
@@ -621,6 +622,7 @@ export function generateStandaloneInvoiceHtml(
   // Quotations never show bank / UPI (invoice-only).
   const hasBank =
     !isQuote &&
+    !isPurchase &&
     !!(
       billSettings.bankAccountName ||
       billSettings.bankAccountNumber ||
@@ -628,7 +630,7 @@ export function generateStandaloneInvoiceHtml(
       billSettings.bankUpiId
     );
   const upiQr =
-    !isQuote && billSettings.bankUpiId && (options?.qrDataUrl || storedUpiQrDataUrl(billSettings))
+    !isQuote && !isPurchase && billSettings.bankUpiId && (options?.qrDataUrl || storedUpiQrDataUrl(billSettings))
       ? `<div style="text-align:center;"><img src="${options.qrDataUrl}" style="width:100px;height:100px;" /><div style="font-size:9px;color:#666;margin-top:2px;">Scan to pay via UPI</div></div>`
       : '';
 
@@ -709,7 +711,7 @@ ${billBackgroundLayerHtml(billSettings)}
   </tr>
 </table>
 <table class="outer avoid-break" style="margin-top:-1px;">
-  <tr><td class="section-head" style="color:#111;">Bill To</td></tr>
+  <tr><td class="section-head" style="color:#111;">${isPurchase ? 'Supplier' : 'Bill To'}</td></tr>
   <tr><td style="padding:8px 10px;">
     <strong>${esc(inv.customerName)}</strong>
     ${inv.customerPhone ? `<div style="font-size:10px;color:#555;margin-top:2px;">Ph: ${esc(inv.customerPhone)}</div>` : ''}
@@ -1270,4 +1272,55 @@ export function generatePurchaseSelfInvoiceHtml(opts: {
 </tbody></table>
 <p style="margin-top:12px;font-size:11px;color:#555">GST under reverse charge is payable by the recipient.</p>
 </body></html>`;
+}
+
+/** Purchase bill print — same A4 template as Tax Invoice, heading Purchase Bill, supplier as the other party. */
+export function generatePurchaseBillHtml(opts: {
+  invoiceNumber: string;
+  purchaseDate: string;
+  supplierName: string;
+  supplierAddress?: string | null;
+  supplierPhone?: string | null;
+  supplierGstin?: string | null;
+  items: { name: string; qty: number; rate: number; gstPercent: number; taxable: number; tax: number; total: number }[];
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  paidAmount?: number;
+  outstanding?: number;
+  company: StandaloneInvoicePrintCompany;
+  billSettings: Record<string, unknown>;
+}): string {
+  const hasGst = opts.taxTotal > 0.001;
+  return generateStandaloneInvoiceHtml(
+    {
+      invoiceNumber: opts.invoiceNumber,
+      invoiceDate: opts.purchaseDate,
+      customerName: opts.supplierName,
+      customerAddress: opts.supplierAddress || undefined,
+      customerPhone: opts.supplierPhone || undefined,
+      customerGstin: opts.supplierGstin || undefined,
+      items: opts.items.map(it => ({
+        description: it.name,
+        qty: it.qty,
+        rate: it.rate,
+        gstPercent: it.gstPercent,
+        taxable: it.taxable,
+        tax: it.tax,
+        total: it.total,
+      })),
+      subtotal: opts.subtotal,
+      taxTotal: opts.taxTotal,
+      taxCgst: hasGst ? Math.round((opts.taxTotal / 2) * 100) / 100 : 0,
+      taxSgst: hasGst ? Math.round((opts.taxTotal / 2) * 100) / 100 : 0,
+      gstEnabled: hasGst,
+      grandTotal: opts.grandTotal,
+      status: (opts.outstanding ?? 0) <= 0.001 ? 'paid' : 'sent',
+      paidAmount: opts.paidAmount,
+      outstanding: opts.outstanding,
+    },
+    opts.company,
+    opts.billSettings,
+    { hasGst, docType: 'purchase' },
+  );
 }

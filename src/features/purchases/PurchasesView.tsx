@@ -11,9 +11,10 @@ import {
   Receipt,
   Truck,
   UserPlus,
+  Printer,
 } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel, openPrintWindow, printBillInWindow } from '../../lib/utils';
-import { generatePurchaseSelfInvoiceHtml } from '../../lib/billTemplates';
+import { generatePurchaseSelfInvoiceHtml, generatePurchaseBillHtml } from '../../lib/billTemplates';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
@@ -42,6 +43,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { DesktopPurchasesModule } from './DesktopPurchasesModule';
 import { BooksExpensesHint } from './BooksExpensesHint';
 import type { CreateLaunch } from '../../lib/quickAdd';
+import { session } from '../../lib/session';
 
 interface Supplier {
   id: string;
@@ -65,6 +67,15 @@ interface PurchaseBatch {
   isRcm?: boolean;
   invoiceNumber?: string | null;
 }
+
+const emptyPurchaseRow = () => ({
+  productId: '',
+  quantity: 1,
+  packs: 0,
+  loosePieces: 0,
+  costPrice: '',
+  withGst: false,
+});
 
 export function PurchasesView({
   accessLevel = 'full',
@@ -114,7 +125,7 @@ export function PurchasesView({
   });
   const [purchaseRows, setPurchaseRows] = useState<
     { productId: string; quantity: number; packs: number; loosePieces: number; costPrice: string; withGst: boolean }[]
-  >([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]);
+  >([emptyPurchaseRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
@@ -310,6 +321,72 @@ export function PurchasesView({
     { gross: 0, gst: 0, billed: 0, items: 0 },
   );
 
+  const printPurchaseBill = async (bd: Record<string, unknown>) => {
+    const rawItems = (Array.isArray(bd.items) ? bd.items : []) as Record<string, unknown>[];
+    if (rawItems.length === 0) {
+      toast('This purchase has no line items to print', 'error');
+      return;
+    }
+    const supplier = suppliers.find(s => s.id === String(bd.supplierId || ''));
+    const items = rawItems.map(it => {
+      const qty = Number(it.quantity) || 0;
+      const cost = Number(it.costPrice) || 0;
+      const billed = Number(it.billedPrice ?? cost);
+      const taxable = Math.round(cost * qty * 100) / 100;
+      const total = Math.round(billed * qty * 100) / 100;
+      const tax = Math.round((total - taxable) * 100) / 100;
+      return {
+        name: String(it.productName || 'Item'),
+        qty,
+        rate: cost,
+        gstPercent: it.withGst ? defaultGstRate : 0,
+        taxable,
+        tax,
+        total,
+      };
+    });
+    const subtotal = items.reduce((s, it) => s + it.taxable, 0);
+    const taxTotal = items.reduce((s, it) => s + it.tax, 0);
+    const grandTotal = Number(bd.billValue) || items.reduce((s, it) => s + it.total, 0);
+    const billNo = String(bd.invoiceNumber || '').trim() || `Purchase ${formatDate(String(bd.purchaseDate || ''))}`;
+    try {
+      const billSettings = ((await api.settings.getBillSettings().catch(() => ({}))) || {}) as Record<string, unknown>;
+      const user = (session.getUser() || {}) as {
+        companyName?: string;
+        address?: string;
+        phone?: string;
+        email?: string;
+        gstNumber?: string;
+      };
+      const html = generatePurchaseBillHtml({
+        invoiceNumber: billNo,
+        purchaseDate: String(bd.purchaseDate || ''),
+        supplierName: String(bd.supplierName || supplier?.name || 'Supplier'),
+        supplierAddress: supplier?.address,
+        supplierPhone: supplier?.phone,
+        supplierGstin: supplier?.gstNumber,
+        items,
+        subtotal,
+        taxTotal,
+        grandTotal,
+        paidAmount: Number(bd.amountPaid) || 0,
+        outstanding: Number(bd.balanceRemaining) || 0,
+        company: {
+          companyName: user.companyName,
+          address: user.address,
+          phone: user.phone,
+          email: user.email,
+          gstNumber: user.gstNumber,
+        },
+        billSettings,
+      });
+      const w = openPrintWindow('Purchase Bill…');
+      if (w) printBillInWindow(w, html, billNo);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supplierForm.name) {
@@ -447,7 +524,7 @@ export function PurchasesView({
         }),
       })) as { invoiceNumber?: string | null; isRcm?: boolean };
       setModalOpen(false);
-      setPurchaseRows([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]);
+      setPurchaseRows([emptyPurchaseRow()]);
       setPurchaseForm({
         supplierId: '',
         date: new Date().toISOString().slice(0, 10),
@@ -567,6 +644,9 @@ export function PurchasesView({
                 </button>
                 <h3 className="font-bold text-lg">{supplierName}</h3>
                 {isBillFullyPaid(Number(bd.billValue), Number(bd.balanceRemaining)) && <PaidBadge />}
+                {bd.invoiceNumber ? (
+                  <span className="font-mono font-bold text-sm">{String(bd.invoiceNumber)}</span>
+                ) : null}
                 <span className="text-xs text-gray-500">Purchase — {formatDate(bd.purchaseDate as string)}</span>
                 {bd.isRcm ? (
                   <span className="text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
@@ -602,6 +682,13 @@ export function PurchasesView({
                     <Receipt size={16} /> Print self invoice
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => void printPurchaseBill(bd)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-brand bg-orange-50 hover:bg-orange-100 rounded-lg"
+                >
+                  <Printer size={16} /> Print purchase bill
+                </button>
                 {Number(bd.balanceRemaining) > 0 && (
                   <button
                     type="button"
@@ -822,17 +909,23 @@ export function PurchasesView({
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium">Purchase — {formatDate(batch.purchaseDate)}</p>
+                      <p className="font-medium">
+                        {batch.invoiceNumber ? (
+                          <span className="font-mono">{batch.invoiceNumber}</span>
+                        ) : (
+                          <>Purchase — {formatDate(batch.purchaseDate)}</>
+                        )}
+                      </p>
                       {batch.isRcm && (
                         <span className="text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                          RCM{batch.invoiceNumber ? ` · ${batch.invoiceNumber}` : ''}
+                          RCM
                         </span>
                       )}
                       {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹
-                      {batch.billValue.toLocaleString('en-IN')}
+                      {formatDate(batch.purchaseDate)} • {batch.productNames.join(' • ')} • {batch.total} item
+                      {batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString('en-IN')}
                       {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && (
                         <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString('en-IN')} paid</span>
                       )}
@@ -1797,12 +1890,7 @@ export function PurchasesView({
 
               <button
                 type="button"
-                onClick={() =>
-                  setPurchaseRows([
-                    ...purchaseRows,
-                    { productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true },
-                  ])
-                }
+                onClick={() => setPurchaseRows([...purchaseRows, emptyPurchaseRow()])}
                 className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
               >
                 + Add Product
