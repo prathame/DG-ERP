@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, Mail, Pencil } from 'lucide-react';
+import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, Mail, Pencil, Search } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -8,6 +8,7 @@ import { fetchApi } from '../../api';
 import {
   useToast,
   LoadingSpinner,
+  DateRangeFilter,
   AppModal,
   ModalActions,
   ModalActionButton,
@@ -50,7 +51,13 @@ import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionF
 import { session } from '../../lib/session';
 import { api } from '../../api';
 import type { CreateLaunch } from '../../lib/quickAdd';
-import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
+import {
+  defaultDateRangeFromReportingPeriod,
+  resolveReportingRange,
+  type ReportingPeriodPreset,
+} from '../../lib/reportingPeriod';
+import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
+import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
@@ -99,6 +106,9 @@ type Invoice = {
   ewbNumber?: string | null;
   partyType?: 'vendor' | 'customer' | null;
   partyId?: string | null;
+  /** Sale/distribution batch shown on Invoices (no second books posting). */
+  source?: 'invoice' | 'sale';
+  batchId?: string;
 };
 type LineItem = {
   description: string;
@@ -176,6 +186,25 @@ function invoiceHasPayments(inv: Invoice): boolean {
   return (Number(inv.paidAmount) || 0) > 0.001;
 }
 
+function isSaleInvoice(inv: { id: string; source?: string }): boolean {
+  return inv.source === 'sale' || inv.id.startsWith('sale:');
+}
+
+function saleBatchIdOf(inv: { id: string; batchId?: string }): string {
+  if (inv.batchId) return inv.batchId;
+  return inv.id.startsWith('sale:') ? inv.id.slice('sale:'.length) : inv.id;
+}
+
+function invoiceListDateBounds(filter: { range: string; from: string; to: string }): { from: string; to: string } {
+  if (filter.range === 'all') return { from: '', to: '' };
+  if (filter.range === 'custom') return { from: filter.from || '', to: filter.to || '' };
+  if (filter.range === 'today' || filter.range === 'week' || filter.range === 'month') {
+    const r = resolveReportingRange(filter.range as ReportingPeriodPreset);
+    return { from: r.from || '', to: r.to || '' };
+  }
+  return { from: filter.from || '', to: filter.to || '' };
+}
+
 function isPaymentsBlockDeleteError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? '');
   return /delete payments first|with payments/i.test(msg);
@@ -204,6 +233,7 @@ function InvoiceEInvoiceButtons({
   useEffect(() => {
     setBuyerAddress(invoice.customerAddress || '');
     if (invoice.customerAddress) return;
+    if (isSaleInvoice(invoice)) return;
     fetchApi<Invoice>(`/invoices/${invoice.id}`)
       .then(full => setBuyerAddress(full.customerAddress || ''))
       .catch(() => {});
@@ -250,6 +280,15 @@ export function InvoicesView({
   const [billSettings, setBillSettings] = useState<Record<string, unknown>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
+  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>('modern');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState(() => {
+    const { from, to } = defaultDateRangeFromReportingPeriod();
+    return { range: 'custom', from, to };
+  });
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (launchCreate !== 'invoice') return;
@@ -275,10 +314,12 @@ export function InvoicesView({
   });
 
   const load = () => {
-    const { from, to } = defaultDateRangeFromReportingPeriod();
+    const { from, to } = invoiceListDateBounds(dateFilter);
     const q = new URLSearchParams();
     if (from) q.set('from', from);
     if (to) q.set('to', to);
+    if (customerFilter) q.set('customer', customerFilter);
+    if (useUnifiedCreate) q.set('includeSales', '1');
     const qs = q.toString();
     fetchApi<Invoice[]>(`/invoices${qs ? `?${qs}` : ''}`)
       .then(rows => setInvoices(Array.isArray(rows) ? rows : []))
@@ -286,7 +327,14 @@ export function InvoicesView({
       .finally(() => setLoading(false));
   };
   useEffect(() => {
+    const t = setTimeout(() => setCustomerFilter(customerQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [customerQuery]);
+  useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when list filters change
+  }, [customerFilter, dateFilter.range, dateFilter.from, dateFilter.to, useUnifiedCreate]);
+  useEffect(() => {
     api.settings
       .getBillSettings()
       .then(s => {
@@ -306,6 +354,10 @@ export function InvoicesView({
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (isSaleInvoice(deleteTarget)) {
+      toast('Edit or delete this bill from Sales', 'error');
+      return;
+    }
     if (invoiceHasPayments(deleteTarget)) {
       const reason = 'Cannot delete invoice with payments. Delete payments in Finance first.';
       toast(reason, 'error');
@@ -370,13 +422,21 @@ export function InvoicesView({
     return <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full uppercase', m[s] || m.draft)}>{s}</span>;
   };
 
-  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>('modern');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
-
-  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+  const loadSaleBill = (inv: Invoice) =>
+    api.distribution.getBill({
+      batchId: saleBatchIdOf(inv),
+      vendorId: inv.partyId || undefined,
+    });
 
   const printInvoice = async (inv: Invoice) => {
     try {
+      if (isSaleInvoice(inv)) {
+        const bill = await loadSaleBill(inv);
+        const avail = deliveryPrintAvailability(bill);
+        const kind = avail.isDual ? 'both' : avail.hasGst ? 'gst' : 'bos';
+        await printDistributionDocs(bill, kind, (inv.outstanding || 0) < 0.01);
+        return;
+      }
       await printStandaloneInvoice(inv, { billSettings, businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
@@ -388,6 +448,18 @@ export function InvoicesView({
     if (whatsappBusyId) return;
     setWhatsappBusyId(inv.id);
     try {
+      if (isSaleInvoice(inv)) {
+        const bill = await loadSaleBill(inv);
+        const avail = deliveryPrintAvailability(bill);
+        const kind = avail.isDual ? 'both' : avail.hasGst ? 'gst' : 'bos';
+        const { how, errorHint } = await shareDistributionDocsWhatsApp(bill, kind, {
+          billSettings,
+          onPreparing: () => toast('Preparing PDF…', 'info'),
+        });
+        if (how === 'cancelled') return;
+        toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
+        return;
+      }
       const { how, errorHint } = await shareStandaloneInvoiceWhatsApp(inv, {
         billSettings,
         businessType: cfg.type,
@@ -408,6 +480,10 @@ export function InvoicesView({
 
   const shareInvoiceEmail = async (inv: Invoice) => {
     if (emailBusyId) return;
+    if (isSaleInvoice(inv)) {
+      toast('Email this bill from Sales', 'error');
+      return;
+    }
     const email = inv.customerEmail;
     if (!email) {
       toast('Customer email not set on this invoice', 'warn' as never);
@@ -469,6 +545,39 @@ export function InvoicesView({
       toast(err instanceof Error ? err.message : 'Email failed', 'error');
     } finally {
       setEmailBusyId(null);
+    }
+  };
+
+  const openInvoice = async (inv: Invoice) => {
+    if (!isSaleInvoice(inv) || (inv.items && inv.items.length > 0)) {
+      setSelectedInvoice(inv);
+      return;
+    }
+    try {
+      const bill = await loadSaleBill(inv);
+      const items: LineItem[] = (bill.groupedItems || []).map(g => ({
+        description: g.productName,
+        qty: g.quantity,
+        rate: g.netPrice,
+        gstPercent: bill.gstRate || 0,
+        discountPercent: g.discountPercent,
+        taxable: g.lineTotal,
+        tax: 0,
+        total: g.lineTotal,
+      }));
+      setSelectedInvoice({
+        ...inv,
+        items,
+        customerPhone: bill.vendor.phone || inv.customerPhone,
+        customerAddress: bill.vendor.address || inv.customerAddress,
+        customerGstin: bill.vendor.gstNumber || inv.customerGstin,
+        subtotal: bill.totalValue || inv.subtotal,
+        grandTotal: bill.totalBilled || bill.totalValue || inv.grandTotal,
+        gstEnabled: bill.items.some(i => i.gstApplied === true),
+      });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not open bill', 'error');
+      setSelectedInvoice(inv);
     }
   };
 
@@ -535,6 +644,21 @@ export function InvoicesView({
         </div>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-2.5 sm:p-3 space-y-2">
+        <label className="relative block">
+          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="search"
+            value={customerQuery}
+            onChange={e => setCustomerQuery(e.target.value)}
+            placeholder={t('invoices.filterCustomer')}
+            aria-label={t('invoices.filterCustomer')}
+            className="w-full min-h-10 h-10 pl-8 pr-2.5 border border-gray-200 rounded-lg text-[13px] sm:text-sm bg-white focus:ring-2 focus:ring-brand focus:outline-none"
+          />
+        </label>
+        <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
+      </div>
+
       {/* Phone summary + filters — Outstanding/Collected live on Analytics for Offline Mobile */}
       <div className="sm:hidden space-y-2">
         {!serviceProductUx && (
@@ -569,16 +693,20 @@ export function InvoicesView({
           <div className="sm:hidden">
             <MobileEmptyState
               icon={<FileText />}
-              title={t('invoices.noInvoicesYet')}
-              subtitle={t('invoices.emptySubtitle')}
+              title={customerFilter ? t('invoices.noMatching') : t('invoices.noInvoicesYet')}
+              subtitle={customerFilter ? t('invoices.noMatching') : t('invoices.emptySubtitle')}
               actionLabel={t('invoices.newInvoice')}
               onAction={() => setCreateOpen(true)}
             />
           </div>
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
             <FileText size={48} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500 font-medium text-lg">{t('invoices.noInvoicesYet')}</p>
-            <p className="text-gray-400 text-sm mt-1">{t('invoices.emptySubtitle')}</p>
+            <p className="text-gray-500 font-medium text-lg">
+              {customerFilter ? t('invoices.noMatching') : t('invoices.noInvoicesYet')}
+            </p>
+            <p className="text-gray-400 text-sm mt-1">
+              {customerFilter ? t('invoices.filterCustomer') : t('invoices.emptySubtitle')}
+            </p>
           </div>
         </>
       ) : (
@@ -593,7 +721,7 @@ export function InvoicesView({
                 <div key={inv.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                   <button
                     type="button"
-                    onClick={() => setSelectedInvoice(inv)}
+                    onClick={() => void openInvoice(inv)}
                     className="w-full text-left px-2.5 py-2 active:bg-gray-50"
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -627,7 +755,7 @@ export function InvoicesView({
                     >
                       <Printer size={14} />
                     </button>
-                    {canEditInvoice(inv) && (
+                    {canEditInvoice(inv) && !isSaleInvoice(inv) && (
                       <button
                         type="button"
                         onClick={() => openEdit(inv)}
@@ -648,17 +776,19 @@ export function InvoicesView({
                     >
                       <MessageCircle size={14} />
                     </button>
-                    <button
-                      type="button"
-                      disabled={emailBusyId === inv.id}
-                      onClick={() => shareInvoiceEmail(inv)}
-                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50"
-                      title="Send by Email"
-                      aria-label="Send invoice by email"
-                    >
-                      <Mail size={14} />
-                    </button>
-                    {inv.status === 'draft' && (
+                    {!isSaleInvoice(inv) && (
+                      <button
+                        type="button"
+                        disabled={emailBusyId === inv.id}
+                        onClick={() => shareInvoiceEmail(inv)}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50"
+                        title="Send by Email"
+                        aria-label="Send invoice by email"
+                      >
+                        <Mail size={14} />
+                      </button>
+                    )}
+                    {inv.status === 'draft' && !isSaleInvoice(inv) && (
                       <button
                         type="button"
                         onClick={() => handleStatus(inv, 'sent')}
@@ -669,7 +799,7 @@ export function InvoicesView({
                         <Send size={14} />
                       </button>
                     )}
-                    {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                    {inv.status !== 'paid' && inv.status !== 'cancelled' && !isSaleInvoice(inv) && (
                       <button
                         type="button"
                         onClick={() => handleStatus(inv, 'paid')}
@@ -680,15 +810,17 @@ export function InvoicesView({
                         <Check size={14} />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(inv)}
-                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
-                      title={invoiceHasPayments(inv) ? 'Has payments — delete payments in Finance first' : 'Delete'}
-                      aria-label={invoiceHasPayments(inv) ? 'Cannot delete invoice with payments' : 'Delete invoice'}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {!isSaleInvoice(inv) && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(inv)}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
+                        title={invoiceHasPayments(inv) ? 'Has payments — delete payments in Finance first' : 'Delete'}
+                        aria-label={invoiceHasPayments(inv) ? 'Cannot delete invoice with payments' : 'Delete invoice'}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -709,11 +841,11 @@ export function InvoicesView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {invoices.map(inv => (
+                {filteredInvoices.map(inv => (
                   <tr
                     key={inv.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => setSelectedInvoice(inv)}
+                    onClick={() => void openInvoice(inv)}
                   >
                     <td className="px-4 py-3 font-mono font-medium text-sm">{inv.invoiceNumber}</td>
                     <td className="px-4 py-3">
@@ -734,7 +866,7 @@ export function InvoicesView({
                         >
                           <Printer size={15} />
                         </button>
-                        {canEditInvoice(inv) && (
+                        {canEditInvoice(inv) && !isSaleInvoice(inv) && (
                           <button
                             type="button"
                             onClick={() => openEdit(inv)}
@@ -755,7 +887,7 @@ export function InvoicesView({
                         >
                           <MessageCircle size={15} />
                         </button>
-                        {inv.status === 'draft' && (
+                        {inv.status === 'draft' && !isSaleInvoice(inv) && (
                           <button
                             type="button"
                             onClick={() => handleStatus(inv, 'sent')}
@@ -765,7 +897,7 @@ export function InvoicesView({
                             <Send size={15} />
                           </button>
                         )}
-                        {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                        {inv.status !== 'paid' && inv.status !== 'cancelled' && !isSaleInvoice(inv) && (
                           <button
                             type="button"
                             onClick={() => handleStatus(inv, 'paid')}
@@ -775,14 +907,18 @@ export function InvoicesView({
                             <Check size={15} />
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(inv)}
-                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-                          title={invoiceHasPayments(inv) ? 'Has payments — delete payments in Finance first' : 'Delete'}
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        {!isSaleInvoice(inv) && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(inv)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                            title={
+                              invoiceHasPayments(inv) ? 'Has payments — delete payments in Finance first' : 'Delete'
+                            }
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -860,15 +996,19 @@ export function InvoicesView({
                   </button>
                 </div>
               </div>
-              {invoiceHasGst(selectedInvoice) && selectedInvoice.status !== 'cancelled' && (
-                <InvoiceEInvoiceButtons
-                  invoice={selectedInvoice}
-                  onUpdated={patch => {
-                    setSelectedInvoice(prev => (prev ? { ...prev, ...patch } : prev));
-                    setInvoices(prev => prev.map(inv => (inv.id === selectedInvoice.id ? { ...inv, ...patch } : inv)));
-                  }}
-                />
-              )}
+              {invoiceHasGst(selectedInvoice) &&
+                selectedInvoice.status !== 'cancelled' &&
+                !isSaleInvoice(selectedInvoice) && (
+                  <InvoiceEInvoiceButtons
+                    invoice={selectedInvoice}
+                    onUpdated={patch => {
+                      setSelectedInvoice(prev => (prev ? { ...prev, ...patch } : prev));
+                      setInvoices(prev =>
+                        prev.map(inv => (inv.id === selectedInvoice.id ? { ...inv, ...patch } : inv)),
+                      );
+                    }}
+                  />
+                )}
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm min-w-[420px]">
                   <thead>
@@ -914,7 +1054,7 @@ export function InvoicesView({
                 )}
               </div>
               <div className="flex gap-2">
-                {canEditInvoice(selectedInvoice) && (
+                {canEditInvoice(selectedInvoice) && !isSaleInvoice(selectedInvoice) && (
                   <button
                     type="button"
                     onClick={() => openEdit(selectedInvoice)}

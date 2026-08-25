@@ -150,8 +150,8 @@ function classifyLines(rows: BillLine[]) {
 
 /**
  * Non-service only: one create flow for Invoices.
- * Vendor + inventory → sale (createBatch); custom / unmatched vendor → standalone invoice.
- * Mixed inventory + custom with a matched vendor → choice dialog (split or remove one type).
+ * Inventory + party → sale (stock + books) and the bill also appears on Invoices.
+ * Custom lines → standalone invoice. Mixed → split dialog.
  */
 export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { toast } = useToast();
@@ -553,7 +553,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         toast(
           hasGst && hasNon
             ? `${isDirectSell ? 'Sale' : 'Distribution'} saved as Tax Invoice + Bill of Supply — ${inventory.length} line(s).`
-            : `${isDirectSell ? 'Sale' : 'Distribution'} saved — ${inventory.length} inventory line(s). See Sales for this ${partyLabel.toLowerCase()}.`,
+            : `${isDirectSell ? 'Sale' : 'Distribution'} saved — ${inventory.length} inventory line(s). It will show on Invoices.`,
           'success',
         );
         if (!invoiceRows.length) {
@@ -728,7 +728,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const routeHint = (() => {
     const { inventory, custom } = classifyLines(rows);
     if (vendorId && inventory.length > 0 && custom.length === 0) {
-      return `Matched ${partyLabel.toLowerCase()} + inventory → will record a ${saleLabel} under Sales.`;
+      return `Matched ${partyLabel.toLowerCase()} + inventory → tax invoice on Invoices (also recorded as a ${saleLabel}).`;
     }
     if (vendorId && custom.length > 0 && inventory.length === 0) {
       return `Matched ${partyLabel.toLowerCase()} + custom lines → standalone invoice (Invoices only).`;
