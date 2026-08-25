@@ -40,7 +40,8 @@ import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
 import { whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
-import { deliveryDocKind, deliveryDocLabel, deliveryDocNos } from '../../lib/deliveryDocKind';
+import { deliveryDocKind, deliveryDocLabel, deliveryDocNos, deliveryChallanDisplayNo } from '../../lib/deliveryDocKind';
+import type { CreateLaunch } from '../../lib/quickAdd';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -184,10 +185,14 @@ export function DistributionView({
   user,
   accessLevel = 'full',
   businessType = 'manufacturer',
+  launchCreate,
+  onLaunchConsumed,
 }: {
   user: { id: string; role?: string; vendorId?: string } | null;
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
   businessType?: string;
+  launchCreate?: CreateLaunch | null;
+  onLaunchConsumed?: () => void;
 }) {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -303,6 +308,7 @@ export function DistributionView({
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
   const [createInitialVendorId, setCreateInitialVendorId] = useState<string | undefined>();
   const [vendorAddress, setVendorAddress] = useState<string | null>(null);
+  const [listMode, setListMode] = useState<'parties' | 'challans'>('parties');
 
   useEscapeKey(() => {
     if (eWayBillModal) {
@@ -583,6 +589,18 @@ export function DistributionView({
   }, [vendorId]);
 
   useEffect(() => {
+    if (launchCreate !== 'challan') return;
+    setListMode('challans');
+    setSelectedVendorId(vendorId ?? null);
+    setSelectedBatchId(null);
+    if (!vendorId && canEdit) {
+      setCreateInitialVendorId(undefined);
+      setModalOpen(true);
+    }
+    onLaunchConsumed?.();
+  }, [launchCreate, onLaunchConsumed, vendorId, canEdit]);
+
+  useEffect(() => {
     if (!desktopGlass || !selectedVendorId || isVendorUser) {
       setVendorAddress(null);
       return;
@@ -759,6 +777,36 @@ export function DistributionView({
       }
       return true;
     }) ?? [];
+  const filteredChallans = batches.filter(b => {
+    const isPaid = isBillFullyPaid(b.billValue, b.balanceRemaining);
+    if (paymentFilter === 'paid' ? !isPaid : isPaid) return false;
+    if (distSearch) {
+      const q = distSearch.toLowerCase();
+      const no = deliveryChallanDisplayNo(b).toLowerCase();
+      return (
+        no.includes(q) ||
+        b.vendorName.toLowerCase().includes(q) ||
+        b.batchId.toLowerCase().includes(q) ||
+        b.productNames.some(n => n.toLowerCase().includes(q))
+      );
+    }
+    return true;
+  });
+  const printChallanRow = async (row: {
+    batchId: string;
+    vendorId: string;
+    billValue: number;
+    balanceRemaining: number;
+  }) => {
+    try {
+      const bill = await api.distribution.getBill({ batchId: row.batchId, vendorId: row.vendorId });
+      const avail = deliveryPrintAvailability(bill);
+      const kind = avail.isDual ? 'both' : avail.hasGst ? 'gst' : 'bos';
+      await printDistributionDocs(bill, kind, isBillFullyPaid(row.billValue, row.balanceRemaining));
+    } catch (err) {
+      toast((err as Error).message || 'Print failed', 'error');
+    }
+  };
   const remindAllCount =
     !isVendorUser && !isServiceBiz && reminderSettings.enabled && paymentFilter === 'unpaid'
       ? filterVendorsForReminder(
@@ -833,6 +881,30 @@ export function DistributionView({
             setSelectedBatchId(null);
             setSelectedBatchProductId(null);
           }}
+          listMode={listMode}
+          onListMode={mode => {
+            setListMode(mode);
+            setSelectedVendorId(null);
+            setSelectedBatchId(null);
+          }}
+          challans={filteredChallans.map(b => ({
+            batchId: b.batchId,
+            vendorId: b.vendorId,
+            vendorName: b.vendorName,
+            distributionDate: b.distributionDate,
+            docNo: deliveryChallanDisplayNo(b),
+            productNames: b.productNames,
+            billValue: b.billValue,
+            amountPaid: b.amountPaid,
+            balanceRemaining: b.balanceRemaining,
+          }))}
+          onSelectChallan={row => {
+            setSelectedVendorId(row.vendorId);
+            setSelectedBatchId(row.batchId);
+            setSelectedBatchProductId(null);
+          }}
+          onPrintChallan={row => void printChallanRow(row)}
+          canPrint={canPrint}
         />
       ) : !desktopGlass ? (
         <>
@@ -864,6 +936,23 @@ export function DistributionView({
 
           {/* Payment filter + search */}
           <div className="flex items-center gap-3 flex-wrap">
+            {(['parties', 'challans'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setListMode(mode);
+                  setSelectedVendorId(null);
+                  setSelectedBatchId(null);
+                }}
+                className={cn(
+                  'px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                  listMode === mode ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                )}
+              >
+                {mode === 'parties' ? 'Parties' : 'Challans'}
+              </button>
+            ))}
             {(['unpaid', 'paid'] as const).map(tab => (
               <button
                 key={tab}
@@ -885,7 +974,7 @@ export function DistributionView({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
                 type="text"
-                placeholder="Search vendor or product..."
+                placeholder={listMode === 'challans' ? 'Search challan or party...' : 'Search vendor or product...'}
                 value={distSearch}
                 onChange={e => setDistSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
@@ -2503,83 +2592,145 @@ export function DistributionView({
 
         return (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredVendorStats.map(v => (
-                <button
-                  key={v.vendorId}
-                  type="button"
-                  onClick={() => {
-                    setSelectedVendorId(v.vendorId);
-                    setSelectedBatchId(null);
-                    setSelectedBatchProductId(null);
-                  }}
-                  className={cn(
-                    'relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden',
-                    isServiceBiz && selectedVendorId === v.vendorId
-                      ? 'border-brand ring-2 ring-brand/30'
-                      : 'border-gray-100',
-                  )}
-                >
-                  {financeMap[v.vendorId] &&
-                    isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
-                      <div className="absolute top-2 right-2 z-10">
-                        <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
-                      </div>
-                    )}
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
-                  <div className="mt-2 flex gap-4 text-sm flex-wrap">
-                    <span>
-                      <strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}
-                    </span>
-                    {!isDirectSell && (
-                      <span className="text-emerald-600">
-                        <strong>{v.sold}</strong> sold
-                      </span>
-                    )}
-                    {(v.replaced ?? 0) > 0 && (
-                      <span className="text-amber-600">
-                        <strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {(v.damaged ?? 0) > 0 && (
-                      <span className="text-rose-600">
-                        <strong>{v.damaged}</strong> damaged
-                      </span>
-                    )}
-                    {!isDirectSell && (
-                      <span className="text-blue-600">
-                        <strong>{v.availableWithVendor}</strong> with vendor
-                      </span>
-                    )}
+            {listMode === 'challans' && !selectedVendorId ? (
+              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                {filteredChallans.length === 0 ? (
+                  <p className="p-8 text-center text-sm text-gray-400">
+                    {distSearch
+                      ? 'No challans match this search'
+                      : paymentFilter === 'paid'
+                        ? 'No fully paid challans'
+                        : 'No outstanding challans'}
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="text-[10px] font-bold text-gray-400 uppercase border-b border-gray-100">
+                          <th className="px-4 py-3">Challan</th>
+                          <th className="px-4 py-3">Party</th>
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3 text-right">Amount</th>
+                          <th className="px-4 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredChallans.map(b => (
+                          <tr
+                            key={b.batchId}
+                            className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                            onClick={() => {
+                              setSelectedVendorId(b.vendorId);
+                              setSelectedBatchId(b.batchId);
+                              setSelectedBatchProductId(null);
+                            }}
+                          >
+                            <td className="px-4 py-3 font-mono text-xs font-semibold">{deliveryChallanDisplayNo(b)}</td>
+                            <td className="px-4 py-3 font-medium">{b.vendorName}</td>
+                            <td className="px-4 py-3 text-gray-500">{formatDate(b.distributionDate)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              ₹{b.billValue.toLocaleString('en-IN')}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {canPrint && (
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    void printChallanRow(b);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:underline"
+                                >
+                                  <Printer size={14} /> Print
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  {financeMap[v.vendorId] &&
-                    (() => {
-                      const f = financeMap[v.vendorId];
-                      return (
-                        <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
-                          <span className="text-gray-500">
-                            Bill:{' '}
-                            <strong className="text-gray-700">
-                              ₹{f.totalDistributedValue.toLocaleString('en-IN')}
-                            </strong>
-                          </span>
-                          <span className="text-gray-500">
-                            Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString('en-IN')}</strong>
-                          </span>
-                          {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
-                            <PaidBadge size="sm" />
-                          ) : (
-                            <span className="text-gray-500">
-                              Due: <strong className="text-rose-600">₹{f.balance.toLocaleString('en-IN')}</strong>
-                            </span>
-                          )}
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredVendorStats.map(v => (
+                  <button
+                    key={v.vendorId}
+                    type="button"
+                    onClick={() => {
+                      setSelectedVendorId(v.vendorId);
+                      setSelectedBatchId(null);
+                      setSelectedBatchProductId(null);
+                    }}
+                    className={cn(
+                      'relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden',
+                      isServiceBiz && selectedVendorId === v.vendorId
+                        ? 'border-brand ring-2 ring-brand/30'
+                        : 'border-gray-100',
+                    )}
+                  >
+                    {financeMap[v.vendorId] &&
+                      isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
                         </div>
-                      );
-                    })()}
-                  <p className="text-xs text-gray-500 mt-1">Click to view distributions</p>
-                </button>
-              ))}
-            </div>
+                      )}
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
+                    <div className="mt-2 flex gap-4 text-sm flex-wrap">
+                      <span>
+                        <strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}
+                      </span>
+                      {!isDirectSell && (
+                        <span className="text-emerald-600">
+                          <strong>{v.sold}</strong> sold
+                        </span>
+                      )}
+                      {(v.replaced ?? 0) > 0 && (
+                        <span className="text-amber-600">
+                          <strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {(v.damaged ?? 0) > 0 && (
+                        <span className="text-rose-600">
+                          <strong>{v.damaged}</strong> damaged
+                        </span>
+                      )}
+                      {!isDirectSell && (
+                        <span className="text-blue-600">
+                          <strong>{v.availableWithVendor}</strong> with vendor
+                        </span>
+                      )}
+                    </div>
+                    {financeMap[v.vendorId] &&
+                      (() => {
+                        const f = financeMap[v.vendorId];
+                        return (
+                          <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
+                            <span className="text-gray-500">
+                              Bill:{' '}
+                              <strong className="text-gray-700">
+                                ₹{f.totalDistributedValue.toLocaleString('en-IN')}
+                              </strong>
+                            </span>
+                            <span className="text-gray-500">
+                              Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString('en-IN')}</strong>
+                            </span>
+                            {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
+                              <PaidBadge size="sm" />
+                            ) : (
+                              <span className="text-gray-500">
+                                Due: <strong className="text-rose-600">₹{f.balance.toLocaleString('en-IN')}</strong>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    <p className="text-xs text-gray-500 mt-1">Click to view distributions</p>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-6">
               {loading && (

@@ -48,6 +48,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
+import type { CreateLaunch } from '../../lib/quickAdd';
 import { isGstBillingEnabled, quotationLineWithGst } from '../../lib/billSettingsFlags';
 import {
   DEFAULT_BILL_UNIT,
@@ -99,7 +100,13 @@ interface Quotation {
   convertedInvoiceId?: string | null;
 }
 
-export function QuotationsView() {
+export function QuotationsView({
+  launchCreate,
+  onLaunchConsumed,
+}: {
+  launchCreate?: CreateLaunch | null;
+  onLaunchConsumed?: () => void;
+} = {}) {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -420,6 +427,20 @@ export function QuotationsView() {
       notes: '',
     });
   };
+
+  const openCreate = () => {
+    resetForm();
+    refreshVendors();
+    setModalOpen(true);
+  };
+
+  useEffect(() => {
+    if (launchCreate !== 'quote') return;
+    openCreate();
+    onLaunchConsumed?.();
+    // openCreate is a one-shot launch; resetForm/refreshVendors are not in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launchCreate, onLaunchConsumed]);
 
   const openEditDraft = (q: Quotation) => {
     setEditingId(q.id);
@@ -889,12 +910,6 @@ export function QuotationsView() {
         </div>
       </motion.div>
     ) : null;
-
-  const openCreate = () => {
-    resetForm();
-    refreshVendors();
-    setModalOpen(true);
-  };
 
   const listPane = (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2 sm:space-y-6 pb-14 sm:pb-0">

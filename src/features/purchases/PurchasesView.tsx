@@ -41,6 +41,7 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { DesktopPurchasesModule } from './DesktopPurchasesModule';
 import { BooksExpensesHint } from './BooksExpensesHint';
+import type { CreateLaunch } from '../../lib/quickAdd';
 
 interface Supplier {
   id: string;
@@ -68,10 +69,14 @@ interface PurchaseBatch {
 export function PurchasesView({
   accessLevel = 'full',
   onOpenAccountsStatement,
+  launchCreate,
+  onLaunchConsumed,
 }: {
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
   /** Deep-link into Accounts (e.g. pnl, cashbook) when Books expenses live there. */
   onOpenAccountsStatement?: (tab: string) => void;
+  launchCreate?: CreateLaunch | null;
+  onLaunchConsumed?: () => void;
 } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
@@ -114,6 +119,14 @@ export function PurchasesView({
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
   const [section, setSection] = useState<'purchases' | 'expenses'>('purchases');
+
+  useEffect(() => {
+    if (launchCreate !== 'purchase') return;
+    setSection('purchases');
+    setModalOpen(true);
+    onLaunchConsumed?.();
+  }, [launchCreate, onLaunchConsumed]);
+
   const [expenses, setExpenses] = useState<
     {
       id: string;

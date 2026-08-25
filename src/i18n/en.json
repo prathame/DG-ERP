@@ -24,6 +24,7 @@
     "invoiceShort": "Invoice",
     "quotesShort": "Quotes",
     "dispatch": "Dispatch",
+    "challans": "Challans",
     "stock": "Stock",
     "hospitality": "Hospitality",
     "hospFloor": "Floor",
@@ -57,6 +58,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "add": "Add",
+    "quickAdd": "Add",
     "search": "Search",
     "loading": "Loading...",
     "noData": "No data found",
@@ -543,5 +545,12 @@
     "passwordsDoNotMatch": "Passwords do not match",
     "authFailed": "Authentication failed",
     "enterpriseResourcePlanning": "Enterprise Resource Planning"
+  },
+  "quickAdd": {
+    "invoice": "Invoice",
+    "quote": "Quote",
+    "challan": "Challan",
+    "purchase": "Purchase",
+    "product": "Product"
   }
 }
