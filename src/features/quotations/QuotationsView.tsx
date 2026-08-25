@@ -178,11 +178,12 @@ export function QuotationsView({
   const businessType = String(sessionUser?.businessType || '');
   const isService = businessType === 'service';
   const isHotel = isHotelRestaurantBusiness(businessType);
+  const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
   const offlinePdf = isServiceProductUx(businessType);
   /** Free-text lines for service Cap / hotel party catering (no product barcodes). */
   const allowCustomLines = offlinePdf || isHotel;
-  const partyLabel = isHotel ? 'Customer' : isService ? 'Client' : 'Vendor';
-  const convertLabel = isService || isHotel ? 'Convert to Invoice' : 'Convert to Distribution';
+  const partyLabel = isHotel || isDirectSell ? 'Customer' : isService ? 'Client' : 'Vendor';
+  const convertLabel = isService || isHotel || isDirectSell ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
     if (csvImportOpen) {
@@ -612,9 +613,12 @@ export function QuotationsView({
       toast('Select at least one quantity to convert', 'error');
       return;
     }
-    const msg = isService
-      ? `Convert ${q.quotationNumber} to a standalone invoice?`
-      : `Convert ${q.quotationNumber}? This will deduct stock.`;
+    const msg =
+      isService || isHotel
+        ? `Convert ${q.quotationNumber} to a standalone invoice?`
+        : isDirectSell
+          ? `Convert ${q.quotationNumber} to a tax invoice? It will show on Invoices and deduct stock.`
+          : `Convert ${q.quotationNumber}? This will deduct stock.`;
     if (!(await confirm({ title: convertLabel, message: msg, confirmLabel: 'Convert', variant: 'warning' }))) return;
     try {
       const result = await fetchApi<{
@@ -633,6 +637,11 @@ export function QuotationsView({
       if (result.target === 'invoice') {
         toast(
           `Invoice ${result.invoiceNumber} created${result.fullyConverted ? '' : ' (partial)'} — ₹${result.grandTotal}`,
+          'success',
+        );
+      } else if (isDirectSell) {
+        toast(
+          `Invoice saved — it will show on Invoices. ₹${result.billValue}${result.fullyConverted ? '' : ' (partial)'}`,
           'success',
         );
       } else {
