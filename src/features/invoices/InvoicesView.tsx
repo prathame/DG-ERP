@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle, Mail, Pencil, Search } from 'lucide-react';
+import {
+  Plus,
+  FileText,
+  Trash2,
+  Send,
+  X,
+  Printer,
+  MessageCircle,
+  Mail,
+  Pencil,
+  Search,
+  IndianRupee,
+  Check,
+} from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -195,6 +208,15 @@ function saleBatchIdOf(inv: { id: string; batchId?: string }): string {
   return inv.id.startsWith('sale:') ? inv.id.slice('sale:'.length) : inv.id;
 }
 
+function invoiceDue(inv: Invoice): number {
+  if (typeof inv.outstanding === 'number') return Math.max(0, Math.round(inv.outstanding * 100) / 100);
+  return Math.max(0, Math.round(((inv.grandTotal || 0) - (Number(inv.paidAmount) || 0)) * 100) / 100);
+}
+
+function canRecordPayment(inv: Invoice): boolean {
+  return inv.status !== 'cancelled' && invoiceDue(inv) > 0.001;
+}
+
 function invoiceListDateBounds(filter: { range: string; from: string; to: string }): { from: string; to: string } {
   if (filter.range === 'all') return { from: '', to: '' };
   if (filter.range === 'custom') return { from: filter.from || '', to: filter.to || '' };
@@ -289,6 +311,15 @@ export function InvoicesView({
     return { range: 'custom', from, to };
   });
   const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+  const [payTarget, setPayTarget] = useState<Invoice | null>(null);
+  const [paySubmitting, setPaySubmitting] = useState(false);
+  const [payForm, setPayForm] = useState({
+    amount: '',
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMethod: 'Cash',
+    referenceNumber: '',
+    notes: '',
+  });
 
   useEffect(() => {
     if (launchCreate !== 'invoice') return;
@@ -297,6 +328,10 @@ export function InvoicesView({
   }, [launchCreate, onLaunchConsumed]);
 
   useEscapeKey(() => {
+    if (payTarget) {
+      setPayTarget(null);
+      return true;
+    }
     if (deleteTarget) {
       setDeleteTarget(null);
       return true;
@@ -410,6 +445,72 @@ export function InvoicesView({
     setSelectedInvoice(null);
     setEditingInvoice(inv);
     setCreateOpen(true);
+  };
+
+  const openRecordPayment = (inv: Invoice) => {
+    const due = invoiceDue(inv);
+    if (due <= 0.001) {
+      toast('This bill is already paid', 'info');
+      return;
+    }
+    if (isSaleInvoice(inv) && !inv.partyId) {
+      toast('Customer is missing on this sale', 'error');
+      return;
+    }
+    setSelectedInvoice(null);
+    setPayTarget(inv);
+    setPayForm({
+      amount: String(due),
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'Cash',
+      referenceNumber: '',
+      notes: '',
+    });
+  };
+
+  const submitRecordPayment = async () => {
+    if (!payTarget) return;
+    const amt = parseFloat(payForm.amount);
+    const due = invoiceDue(payTarget);
+    if (!amt || amt <= 0) {
+      toast('Enter a valid amount', 'error');
+      return;
+    }
+    if (amt > due + 0.01) {
+      toast(`Amount exceeds due of ₹${due.toLocaleString('en-IN')}`, 'error');
+      return;
+    }
+    setPaySubmitting(true);
+    try {
+      if (isSaleInvoice(payTarget)) {
+        await api.vendorFinance.recordPayment(payTarget.partyId as string, {
+          amount: amt,
+          paymentDate: payForm.paymentDate,
+          paymentMethod: payForm.paymentMethod,
+          referenceNumber: payForm.referenceNumber.trim() || undefined,
+          notes: payForm.notes.trim() || undefined,
+          batchId: saleBatchIdOf(payTarget),
+        });
+      } else {
+        await api.invoiceFinance.recordPayment({
+          invoiceId: payTarget.id,
+          amount: amt,
+          paymentDate: payForm.paymentDate,
+          paymentMethod: payForm.paymentMethod,
+          referenceNumber: payForm.referenceNumber.trim() || undefined,
+          notes: payForm.notes.trim() || undefined,
+        });
+      }
+      setPayTarget(null);
+      setSelectedInvoice(null);
+      load();
+      toast('Payment recorded', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.payment', err, { invoiceNumber: payTarget.invoiceNumber });
+    } finally {
+      setPaySubmitting(false);
+    }
   };
 
   const statusBadge = (s: string) => {
@@ -799,15 +900,15 @@ export function InvoicesView({
                         <Send size={14} />
                       </button>
                     )}
-                    {inv.status !== 'paid' && inv.status !== 'cancelled' && !isSaleInvoice(inv) && (
+                    {canRecordPayment(inv) && (
                       <button
                         type="button"
-                        onClick={() => handleStatus(inv, 'paid')}
+                        onClick={() => openRecordPayment(inv)}
                         className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                        title="Mark Paid"
-                        aria-label="Mark paid"
+                        title={t('finance.recordPayment')}
+                        aria-label={t('finance.recordPayment')}
                       >
-                        <Check size={14} />
+                        <IndianRupee size={14} />
                       </button>
                     )}
                     {!isSaleInvoice(inv) && (
@@ -897,14 +998,14 @@ export function InvoicesView({
                             <Send size={15} />
                           </button>
                         )}
-                        {inv.status !== 'paid' && inv.status !== 'cancelled' && !isSaleInvoice(inv) && (
+                        {canRecordPayment(inv) && (
                           <button
                             type="button"
-                            onClick={() => handleStatus(inv, 'paid')}
+                            onClick={() => openRecordPayment(inv)}
                             className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                            title="Mark Paid"
+                            title={t('finance.recordPayment')}
                           >
-                            <Check size={15} />
+                            <IndianRupee size={15} />
                           </button>
                         )}
                         {!isSaleInvoice(inv) && (
@@ -1047,13 +1148,22 @@ export function InvoicesView({
                     Advance payment: ₹{Number(selectedInvoice.advanceApplied).toLocaleString('en-IN')}
                   </p>
                 )}
-                {(selectedInvoice.outstanding || 0) > 0.001 && (
+                {(invoiceDue(selectedInvoice) || 0) > 0.001 && (
                   <p className="text-sm font-bold text-rose-600">
-                    Outstanding: ₹{Number(selectedInvoice.outstanding).toLocaleString('en-IN')}
+                    Outstanding: ₹{invoiceDue(selectedInvoice).toLocaleString('en-IN')}
                   </p>
                 )}
               </div>
               <div className="flex gap-2">
+                {canRecordPayment(selectedInvoice) && (
+                  <button
+                    type="button"
+                    onClick={() => openRecordPayment(selectedInvoice)}
+                    className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <IndianRupee size={16} /> {t('finance.recordPayment')}
+                  </button>
+                )}
                 {canEditInvoice(selectedInvoice) && !isSaleInvoice(selectedInvoice) && (
                   <button
                     type="button"
@@ -1084,6 +1194,108 @@ export function InvoicesView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Record Payment — sale bills use vendor-finance (same as Sales); standalone use invoice-finance */}
+      {payTarget && (
+        <AppModal
+          title={t('finance.recordPayment')}
+          onClose={() => setPayTarget(null)}
+          size="md"
+          zIndex={110}
+          footer={
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPayTarget(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                form="invoice-record-payment"
+                disabled={paySubmitting}
+                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold disabled:opacity-60"
+              >
+                {paySubmitting ? t('common.saving') : t('finance.recordPayment')}
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm text-gray-500 text-center mb-4">
+            {payTarget.invoiceNumber} — {payTarget.customerName}
+            <br />
+            Bill: ₹{payTarget.grandTotal.toLocaleString('en-IN')} • Due: ₹
+            {invoiceDue(payTarget).toLocaleString('en-IN')}
+          </p>
+          <form
+            id="invoice-record-payment"
+            onSubmit={e => {
+              e.preventDefault();
+              void submitRecordPayment();
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('finance.amount')} (₹)</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+                value={payForm.amount}
+                onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
+                className={formControlClass}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('finance.paymentDate')}</label>
+                <input
+                  type="date"
+                  value={payForm.paymentDate}
+                  onChange={e => setPayForm({ ...payForm, paymentDate: e.target.value })}
+                  className={formControlClass}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('finance.paymentMethod')}</label>
+                <select
+                  value={payForm.paymentMethod}
+                  onChange={e => setPayForm({ ...payForm, paymentMethod: e.target.value })}
+                  className={formControlClass}
+                >
+                  <option value="Cash">{t('finance.cash')}</option>
+                  <option value="Bank Transfer">{t('finance.bankTransfer')}</option>
+                  <option value="UPI">{t('finance.upi')}</option>
+                  <option value="Cheque">{t('finance.cheque')}</option>
+                  <option value="Other">{t('finance.other')}</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('finance.reference')}</label>
+              <input
+                type="text"
+                value={payForm.referenceNumber}
+                onChange={e => setPayForm({ ...payForm, referenceNumber: e.target.value })}
+                placeholder="Optional"
+                className={formControlClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('finance.notes')}</label>
+              <input
+                type="text"
+                value={payForm.notes}
+                onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
+                placeholder="Optional"
+                className={formControlClass}
+              />
+            </div>
+          </form>
+        </AppModal>
+      )}
 
       {/* Delete confirm — blocked when payments exist (ledger guard) */}
       {deleteTarget && (
