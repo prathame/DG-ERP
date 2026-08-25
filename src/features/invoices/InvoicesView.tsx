@@ -48,6 +48,7 @@ import {
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { api } from '../../api';
+import type { CreateLaunch } from '../../lib/quickAdd';
 import { defaultDateRangeFromReportingPeriod } from '../../lib/reportingPeriod';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -223,7 +224,15 @@ function InvoiceEInvoiceButtons({
   );
 }
 
-export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } = {}) {
+export function InvoicesView({
+  onOpenFinance,
+  launchCreate,
+  onLaunchConsumed,
+}: {
+  onOpenFinance?: () => void;
+  launchCreate?: CreateLaunch | null;
+  onLaunchConsumed?: () => void;
+} = {}) {
   const { toast } = useToast();
   const { t } = useTranslation();
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
@@ -237,6 +246,12 @@ export function InvoicesView({ onOpenFinance }: { onOpenFinance?: () => void } =
   const [billSettings, setBillSettings] = useState<Record<string, unknown>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    if (launchCreate !== 'invoice') return;
+    setCreateOpen(true);
+    onLaunchConsumed?.();
+  }, [launchCreate, onLaunchConsumed]);
 
   useEscapeKey(() => {
     if (deleteTarget) {

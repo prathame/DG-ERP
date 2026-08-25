@@ -32,3 +32,16 @@ export function deliveryDocLabel(kind: DeliveryDocKind): string {
   if (kind === 'mixed') return 'Mixed (GST + BoS)';
   return '';
 }
+
+/** List/search label: GST+BoS nos when present, else CH- base. */
+export function deliveryChallanDisplayNo(batch: {
+  batchId: string;
+  deliverySet?: { gstDocNo?: string | null; nonGstDocNo?: string | null };
+}): string {
+  const gst = batch.deliverySet?.gstDocNo;
+  const bos = batch.deliverySet?.nonGstDocNo;
+  if (gst && bos) return `${gst} · ${bos}`;
+  if (gst) return gst;
+  if (bos) return bos;
+  return deliveryChallanBase(batch.batchId);
+}

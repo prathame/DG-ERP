@@ -24,6 +24,7 @@
     "invoiceShort": "चालान",
     "quotesShort": "कोट्स",
     "dispatch": "डिस्पैच",
+    "challans": "डिलीवरी चालान",
     "stock": "स्टॉक",
     "hospitality": "हॉस्पिटैलिटी",
     "hospFloor": "फ्लोर",
@@ -46,6 +47,7 @@
     "delete": "हटाएं",
     "edit": "संपादित करें",
     "add": "जोड़ें",
+    "quickAdd": "जोड़ें",
     "search": "खोजें",
     "loading": "लोड हो रहा है...",
     "noData": "कोई डेटा नहीं मिला",
@@ -543,5 +545,12 @@
     "revenue": "राजस्व",
     "distributionRegister": "वितरण रजिस्टर",
     "salesRegister": "बिक्री रजिस्टर"
+  },
+  "quickAdd": {
+    "invoice": "इनवॉइस",
+    "quote": "कोट",
+    "challan": "डिलीवरी चालान",
+    "purchase": "खरीद",
+    "product": "उत्पाद"
   }
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { deliveryChallanBase, deliveryDocKind, deliveryDocLabel, deliveryDocNos } from '../../src/lib/deliveryDocKind';
+import {
+  deliveryChallanBase,
+  deliveryChallanDisplayNo,
+  deliveryDocKind,
+  deliveryDocLabel,
+  deliveryDocNos,
+} from '../../src/lib/deliveryDocKind';
 
 describe('deliveryDocKind', () => {
   it('classifies gst / bos / mixed from unit counts', () => {
@@ -22,5 +28,21 @@ describe('deliveryDocKind', () => {
       nonGstDocNo: 'CH-20260722AB-BOS',
     });
     expect(deliveryDocNos('D20260722AB', 2, 0).nonGstDocNo).toBeNull();
+  });
+
+  it('lists GST and BoS nos, else the CH- base', () => {
+    expect(
+      deliveryChallanDisplayNo({
+        batchId: 'D20260722AB',
+        deliverySet: { gstDocNo: 'CH-20260722AB-GST', nonGstDocNo: 'CH-20260722AB-BOS' },
+      }),
+    ).toBe('CH-20260722AB-GST · CH-20260722AB-BOS');
+    expect(
+      deliveryChallanDisplayNo({
+        batchId: 'D20260722AB',
+        deliverySet: { gstDocNo: 'CH-20260722AB-GST', nonGstDocNo: null },
+      }),
+    ).toBe('CH-20260722AB-GST');
+    expect(deliveryChallanDisplayNo({ batchId: 'D20260722AB' })).toBe('CH-20260722AB');
   });
 });

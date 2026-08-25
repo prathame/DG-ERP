@@ -35,6 +35,7 @@ import { DesktopInventoryPanel, type StockFilter } from './DesktopInventoryPanel
 import { MobileInventoryPanel } from './MobileInventoryPanel';
 import { ProductThumb } from './ProductThumb';
 import { fileToProductImageDataUrl } from '../../lib/productImage';
+import type { CreateLaunch } from '../../lib/quickAdd';
 
 const emptyAddForm = () => ({
   name: '',
@@ -56,7 +57,15 @@ const emptyAddForm = () => ({
   imageBase64: '' as string,
 });
 
-export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
+export function InventoryView({
+  accessLevel = 'full',
+  launchCreate,
+  onLaunchConsumed,
+}: {
+  accessLevel?: 'hidden' | 'view' | 'print' | 'full';
+  launchCreate?: CreateLaunch | null;
+  onLaunchConsumed?: () => void;
+} = {}) {
   const canEdit = accessLevel === 'full';
   // Read (view) includes print — warehouse staff can print without write.
   const canPrint = accessLevel === 'view' || accessLevel === 'print' || accessLevel === 'full';
@@ -117,6 +126,14 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [addForm, setAddForm] = useState(emptyAddForm);
   const [addSubmitting, setAddSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (launchCreate !== 'product') return;
+    setEditingProductId(null);
+    setAddForm(emptyAddForm());
+    setAddModalOpen(true);
+    onLaunchConsumed?.();
+  }, [launchCreate, onLaunchConsumed]);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
   const [barcodeDetailsModal, setBarcodeDetailsModal] = useState<{

@@ -24,6 +24,7 @@
     "invoiceShort": "ઇન્વૉઇસ",
     "quotesShort": "ક્વોટ્સ",
     "dispatch": "ડિસ્પેચ",
+    "challans": "ડિલિવરી ચલણ",
     "stock": "સ્ટોક",
     "hospitality": "હોસ્પિટાલિટી",
     "hospFloor": "ફ્લોર",
@@ -46,6 +47,7 @@
     "delete": "કાઢી નાખો",
     "edit": "ફેરફાર કરો",
     "add": "ઉમેરો",
+    "quickAdd": "ઉમેરો",
     "search": "શોધો",
     "loading": "લોડ થઈ રહ્યું છે...",
     "noData": "કોઈ ડેટા મળ્યો નથી",
@@ -543,5 +545,12 @@
     "revenue": "આવક",
     "distributionRegister": "વિતરણ રજિસ્ટર",
     "salesRegister": "વેચાણ રજિસ્ટર"
+  },
+  "quickAdd": {
+    "invoice": "ઇન્વૉઇસ",
+    "quote": "ક્વોટ",
+    "challan": "ડિલિવરી ચલણ",
+    "purchase": "ખરીદી",
+    "product": "પ્રોડક્ટ"
   }
 }

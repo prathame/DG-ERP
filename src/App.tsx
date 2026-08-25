@@ -4,6 +4,7 @@ import {
   shellDropdownAnchor,
   type ShellDropdownAnchor,
 } from './components/layout/ShellDropdownPortal';
+import { QuickAddMenu } from './components/layout/QuickAddMenu';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -46,6 +47,7 @@ import { startSessionHeartbeat, stopSessionHeartbeat } from './lib/singleSession
 import { isPwaStandalone } from './lib/deviceId';
 import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
+import { CREATE_LAUNCH_TABS, visibleCreateLaunches, type CreateLaunch } from './lib/quickAdd';
 import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
 import { canChangeDesktopMode, requestChangeDesktopMode } from './platforms/desktop/changeDesktopMode';
@@ -389,8 +391,18 @@ function cloudSlugHomeHref(): string {
   return isServiceCloudDesktop() ? '/?desktop=1' : '/';
 }
 
-function QuotationsAndOrdersView() {
+function QuotationsAndOrdersView({
+  launchCreate,
+  onLaunchConsumed,
+}: {
+  launchCreate?: CreateLaunch | null;
+  onLaunchConsumed?: () => void;
+} = {}) {
   const [view, setView] = React.useState<'quotations' | 'orders'>('quotations');
+  React.useEffect(() => {
+    if (launchCreate !== 'quote') return;
+    setView('quotations');
+  }, [launchCreate]);
   return (
     <div className="space-y-2 sm:space-y-4">
       {/* Compact Quotes | Orders segment — opt out of 44px bg-brand / phone min-heights */}
@@ -424,7 +436,11 @@ function QuotationsAndOrdersView() {
           );
         })}
       </div>
-      {view === 'quotations' ? <QuotationsView /> : <OrdersView />}
+      {view === 'quotations' ? (
+        <QuotationsView launchCreate={launchCreate} onLaunchConsumed={onLaunchConsumed} />
+      ) : (
+        <OrdersView />
+      )}
     </div>
   );
 }
@@ -612,6 +628,7 @@ export default function App() {
     staffId?: string;
     staffName?: string;
   } | null>(null);
+  const [createLaunch, setCreateLaunch] = useState<CreateLaunch | null>(null);
   const setActiveTab = (tab: Tab) => {
     const bookToAccounts: Record<string, string> = {
       books: 'ledger',
@@ -662,6 +679,11 @@ export default function App() {
       setMastersLaunch(null);
     }
     setActiveTab(nav.tab);
+  };
+  const consumeCreateLaunch = () => setCreateLaunch(null);
+  const launchCreate = (id: CreateLaunch) => {
+    setCreateLaunch(id);
+    setActiveTab(CREATE_LAUNCH_TABS[id]);
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -1501,6 +1523,16 @@ export default function App() {
             ⌘K
           </kbd>
         </button>
+        <QuickAddMenu
+          items={visibleCreateLaunches(tab => tv(tab) && getAccess(tab) === 'full' && companionAllows(tab)).map(id => ({
+            id,
+            label: t(`quickAdd.${id}`),
+          }))}
+          onSelect={launchCreate}
+          desktopGlass={desktopGlass}
+          capGlassHeader={capGlassHeader}
+          menuUp={menuUp}
+        />
         <div
           className={cn(
             'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border shrink-0',
@@ -2106,6 +2138,8 @@ export default function App() {
                         <PurchasesView
                           accessLevel={getAccess('purchases')}
                           onOpenAccountsStatement={openAccountsStatement}
+                          launchCreate={createLaunch}
+                          onLaunchConsumed={consumeCreateLaunch}
                         />
                       )}
                       {canAccess(activeTab) && activeTab === 'distribution' && (
@@ -2113,18 +2147,30 @@ export default function App() {
                           user={user}
                           accessLevel={getAccess('distribution')}
                           businessType={(userConfig?.businessType as string) || 'manufacturer'}
+                          launchCreate={createLaunch}
+                          onLaunchConsumed={consumeCreateLaunch}
                         />
                       )}
                       {canAccess(activeTab) && activeTab === 'warranty' && <WarrantyView user={user} />}
                       {canAccess(activeTab) && activeTab === 'replacements' && <ReplacementsView user={user} />}
                       {canAccess(activeTab) && activeTab === 'rewards' && <RewardsView user={user} />}
                       {canAccess(activeTab) && activeTab === 'inventory' && (
-                        <InventoryView accessLevel={getAccess('inventory')} />
+                        <InventoryView
+                          accessLevel={getAccess('inventory')}
+                          launchCreate={createLaunch}
+                          onLaunchConsumed={consumeCreateLaunch}
+                        />
                       )}
                       {canAccess(activeTab) && activeTab === 'verification' && <ProductVerificationView />}
-                      {canAccess(activeTab) && activeTab === 'quotations' && <QuotationsAndOrdersView />}
+                      {canAccess(activeTab) && activeTab === 'quotations' && (
+                        <QuotationsAndOrdersView launchCreate={createLaunch} onLaunchConsumed={consumeCreateLaunch} />
+                      )}
                       {canAccess(activeTab) && activeTab === 'invoices' && (
-                        <InvoicesView onOpenFinance={() => setActiveTab('finance')} />
+                        <InvoicesView
+                          onOpenFinance={() => setActiveTab('finance')}
+                          launchCreate={createLaunch}
+                          onLaunchConsumed={consumeCreateLaunch}
+                        />
                       )}
                       {canAccess(activeTab) &&
                         activeTab === 'finance' &&

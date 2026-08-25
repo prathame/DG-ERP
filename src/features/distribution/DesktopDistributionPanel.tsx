@@ -3,8 +3,19 @@
  * CRUD + detail navigation stay in DistributionView.
  */
 import React, { useMemo, useState } from 'react';
-import { ArrowUpDown, Download, LayoutGrid, List, MessageCircle, Package, Plus, Search } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import {
+  ArrowUpDown,
+  Download,
+  FileText,
+  LayoutGrid,
+  List,
+  MessageCircle,
+  Package,
+  Plus,
+  Printer,
+  Search,
+} from 'lucide-react';
+import { cn, formatDate } from '../../lib/utils';
 import { LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
 
 export type DesktopVendorCard = {
@@ -19,6 +30,20 @@ export type DesktopVendorCard = {
   paidAmount: number;
   balance: number;
 };
+
+export type DesktopChallanRow = {
+  batchId: string;
+  vendorId: string;
+  vendorName: string;
+  distributionDate: string;
+  docNo: string;
+  productNames: string[];
+  billValue: number;
+  amountPaid: number;
+  balanceRemaining: number;
+};
+
+type DistListMode = 'parties' | 'challans';
 
 type Props = {
   title: string;
@@ -40,6 +65,12 @@ type Props = {
   onRetry: () => void;
   vendors: DesktopVendorCard[];
   onSelectVendor: (vendorId: string) => void;
+  listMode: DistListMode;
+  onListMode: (mode: DistListMode) => void;
+  challans: DesktopChallanRow[];
+  onSelectChallan: (row: DesktopChallanRow) => void;
+  onPrintChallan: (row: DesktopChallanRow) => void;
+  canPrint: boolean;
 };
 
 type SortKey = 'vendorName' | 'distributed' | 'withVendor' | 'billAmount' | 'paidAmount' | 'balance' | 'status';
@@ -78,6 +109,12 @@ export function DesktopDistributionPanel({
   onRetry,
   vendors,
   onSelectVendor,
+  listMode,
+  onListMode,
+  challans,
+  onSelectChallan,
+  onPrintChallan,
+  canPrint,
 }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sortBy, setSortBy] = useState<SortKey>('balance');
@@ -187,6 +224,22 @@ export function DesktopDistributionPanel({
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex p-1 rounded-xl border border-[var(--dg-card-border)] dg-glass-card gap-0.5">
+          {(['parties', 'challans'] as const).map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onListMode(mode)}
+              className={cn(
+                'px-4 py-1.5 text-xs font-bold rounded-lg transition-all',
+                listMode === mode ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
+              )}
+              aria-pressed={listMode === mode}
+            >
+              {mode === 'parties' ? 'Parties' : 'Challans'}
+            </button>
+          ))}
+        </div>
+        <div className="flex p-1 rounded-xl border border-[var(--dg-card-border)] dg-glass-card gap-0.5">
           {(['unpaid', 'paid'] as const).map(tab => (
             <button
               key={tab}
@@ -205,36 +258,38 @@ export function DesktopDistributionPanel({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
           <input
             type="text"
-            placeholder="Search vendor or product..."
+            placeholder={listMode === 'challans' ? 'Search challan or party...' : 'Search vendor or product...'}
             value={search}
             onChange={e => onSearch(e.target.value)}
             className={fieldInput}
           />
         </div>
-        <div className="flex p-1 rounded-xl border border-[var(--dg-card-border)] dg-glass-card gap-0.5">
-          <button
-            type="button"
-            onClick={() => setViewMode('table')}
-            className={cn(
-              'px-3 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5',
-              viewMode === 'table' ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
-            )}
-            aria-pressed={viewMode === 'table'}
-          >
-            <List size={14} /> Table
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('cards')}
-            className={cn(
-              'px-3 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5',
-              viewMode === 'cards' ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
-            )}
-            aria-pressed={viewMode === 'cards'}
-          >
-            <LayoutGrid size={14} /> Cards
-          </button>
-        </div>
+        {listMode === 'parties' && (
+          <div className="flex p-1 rounded-xl border border-[var(--dg-card-border)] dg-glass-card gap-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={cn(
+                'px-3 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5',
+                viewMode === 'table' ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
+              )}
+              aria-pressed={viewMode === 'table'}
+            >
+              <List size={14} /> Table
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={cn(
+                'px-3 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5',
+                viewMode === 'cards' ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
+              )}
+              aria-pressed={viewMode === 'cards'}
+            >
+              <LayoutGrid size={14} /> Cards
+            </button>
+          </div>
+        )}
         {onRemindAll && remindAllCount > 0 && (
           <button
             type="button"
@@ -262,7 +317,7 @@ export function DesktopDistributionPanel({
         </div>
       )}
 
-      {!loading && !loadError && vendors.length === 0 && (
+      {!loading && !loadError && listMode === 'parties' && vendors.length === 0 && (
         <div className="dg-glass-card rounded-2xl p-12 text-center">
           <Package size={40} className="mx-auto mb-3 dg-faint" />
           <p className="font-medium dg-muted">
@@ -275,7 +330,7 @@ export function DesktopDistributionPanel({
         </div>
       )}
 
-      {!loading && !loadError && sorted.length > 0 && viewMode === 'table' && (
+      {!loading && !loadError && listMode === 'parties' && sorted.length > 0 && viewMode === 'table' && (
         <div className="dg-glass-card rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -349,7 +404,7 @@ export function DesktopDistributionPanel({
         </div>
       )}
 
-      {!loading && !loadError && sorted.length > 0 && viewMode === 'cards' && (
+      {!loading && !loadError && listMode === 'parties' && sorted.length > 0 && viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sorted.map(v => {
             const paidOff = isPaidOff(v);
@@ -421,6 +476,90 @@ export function DesktopDistributionPanel({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {!loading && !loadError && listMode === 'challans' && challans.length === 0 && (
+        <div className="dg-glass-card rounded-2xl p-12 text-center">
+          <FileText size={40} className="mx-auto mb-3 dg-faint" />
+          <p className="font-medium dg-muted">
+            {search
+              ? 'No challans match this search'
+              : paymentFilter === 'paid'
+                ? 'No fully paid challans'
+                : 'No outstanding challans'}
+          </p>
+        </div>
+      )}
+
+      {!loading && !loadError && listMode === 'challans' && challans.length > 0 && (
+        <div className="dg-glass-card rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-[10px] font-bold border-b border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-faint uppercase tracking-wider">
+                  <th className="px-4 py-3">Challan</th>
+                  <th className="px-4 py-3">Party</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-right">Paid</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--dg-card-border)]">
+                {challans.map(row => {
+                  const paidOff = isBillFullyPaid(row.billValue, row.balanceRemaining);
+                  return (
+                    <tr
+                      key={row.batchId}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onSelectChallan(row)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onSelectChallan(row);
+                        }
+                      }}
+                      className="hover:bg-[color-mix(in_srgb,var(--dg-primary)_5%,transparent)] transition-colors cursor-pointer"
+                    >
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs font-semibold dg-ink">{row.docNo}</span>
+                        {row.productNames.length > 0 && (
+                          <p className="text-[11px] dg-faint truncate max-w-[16rem]">{row.productNames.join(', ')}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-semibold dg-ink">{row.vendorName}</td>
+                      <td className="px-4 py-3 dg-muted whitespace-nowrap">{formatDate(row.distributionDate)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums dg-ink font-medium">{fmt(row.billValue)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {paidOff ? (
+                          <PaidBadge size="sm" />
+                        ) : (
+                          <span className="tabular-nums dg-success font-medium">{fmt(row.amountPaid)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {canPrint && (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              onPrintChallan(row);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold dg-muted hover:bg-[var(--dg-input)]"
+                            aria-label="Print challan"
+                          >
+                            <Printer size={14} /> Print
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

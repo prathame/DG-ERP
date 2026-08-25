@@ -24,6 +24,7 @@
     "invoiceShort": "इन्व्हॉइस",
     "quotesShort": "कोट्स",
     "dispatch": "डिस्पॅच",
+    "challans": "डिलिव्हरी चलन",
     "stock": "स्टॉक",
     "hospitality": "हॉस्पिटॅलिटी",
     "hospFloor": "फ्लोर",
@@ -46,6 +47,7 @@
     "delete": "हटवा",
     "edit": "संपादित करा",
     "add": "जोडा",
+    "quickAdd": "जोडा",
     "search": "शोधा",
     "loading": "लोड होत आहे...",
     "noData": "माहिती आढळली नाही",
@@ -543,5 +545,12 @@
     "revenue": "उत्पन्न",
     "distributionRegister": "वितरण रजिस्टर",
     "salesRegister": "विक्री रजिस्टर"
+  },
+  "quickAdd": {
+    "invoice": "इन्व्हॉइस",
+    "quote": "कोट",
+    "challan": "डिलिव्हरी चलन",
+    "purchase": "खरेदी",
+    "product": "उत्पादन"
   }
 }
