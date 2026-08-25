@@ -21,6 +21,7 @@ import {
   mapSupplier,
   mapVendor,
 } from './mappers';
+import { invoiceEditBlockedReason } from '../../../../shared/invoiceEdit';
 import { buildLineItems, mapOrderRow, mapQuoteRow, nextDocNumber } from './quoteOrderHelpers';
 import {
   buildStandaloneInvoiceLines,
@@ -1960,6 +1961,95 @@ export async function handleLocalApiRequest(
       const mapped = mapInvoice(rows[0] as Record<string, unknown>);
       const payInfo = await paymentTotalsForInvoice(tid!, invId);
       return json(200, { ...mapped, ...payInfo });
+    }
+    if (invMatch && (ctx.method === 'PUT' || ctx.method === 'PATCH')) {
+      const invId = invMatch[1]!;
+      const { rows: curRows } = await localQuery(`SELECT * FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`, [
+        invId,
+        tid,
+      ]);
+      const current = curRows[0] as Record<string, unknown> | undefined;
+      if (!current) return json(404, { error: 'Invoice not found' });
+      const payInfo = await paymentTotalsForInvoice(tid!, invId);
+      const blocked = invoiceEditBlockedReason({
+        status: String(current.status || ''),
+        paidAmount: payInfo.paidAmount,
+        irn: (current.irn as string) || null,
+        ewbNumber: (current.ewb_number as string) || null,
+      });
+      if (blocked) return json(400, { error: blocked });
+
+      const b = ctx.body as Record<string, unknown>;
+      const customerName = String(b.customerName ?? b.clientName ?? current.customer_name ?? '').trim();
+      if (!customerName) return json(400, { error: 'Customer name is required' });
+      if (!Array.isArray(b.items) || !b.items.length) return json(400, { error: 'Add at least one line item' });
+
+      let resolvedPartyType: string | null = (current.party_type as string) || null;
+      let resolvedPartyId: string | null = (current.party_id as string) || null;
+      if (b.partyType != null || b.partyId != null) {
+        if (b.partyType !== 'vendor' && b.partyType !== 'customer') {
+          return json(400, { error: 'partyType must be vendor or customer' });
+        }
+        if (!b.partyId || typeof b.partyId !== 'string') {
+          return json(400, { error: 'partyId is required when partyType is set' });
+        }
+        resolvedPartyType = String(b.partyType);
+        resolvedPartyId = String(b.partyId);
+      }
+
+      let gstEnabled = typeof b.gstEnabled === 'boolean' ? !!b.gstEnabled : null;
+      if (gstEnabled == null) {
+        gstEnabled = current.gst_enabled == null ? Number(current.tax_total ?? current.tax) > 0 : !!current.gst_enabled;
+      }
+      const priceVendorId = resolvedPartyType === 'vendor' ? resolvedPartyId : null;
+      const rawItems = ((b.items as InvoiceLineIn[]) || []).map(it => (gstEnabled ? it : { ...it, gstPercent: 0 }));
+      const built = await buildStandaloneInvoiceLines(tid!, rawItems, priceVendorId);
+      if ('error' in built) return json(400, { error: built.error });
+
+      const sellerGstin = await resolveSellerGstin(tid!);
+      const customerGstin = (b.customerGstin as string) || null;
+      const interstate = gstEnabled ? isInterstateSupply(sellerGstin, customerGstin) : false;
+      const { taxCgst, taxSgst, taxIgst } = splitGstTax(built.taxTotal, interstate);
+      const invDate = String(b.invoiceDate ?? b.invoice_date ?? current.invoice_date ?? '').slice(0, 10);
+
+      await localQuery(
+        `UPDATE standalone_invoices SET
+           customer_name=$1, client_name=$1, customer_gstin=$2, customer_address=$3, customer_phone=$4,
+           party_type=$5, party_id=$6, items=$7, subtotal=$8, tax=$9, tax_total=$9, grand_total=$10, total=$10,
+           notes=$11, terms=$12, invoice_date=$13, due_date=$14,
+           tax_cgst=$15, tax_sgst=$16, tax_igst=$17, is_interstate=$18, gst_enabled=$19
+         WHERE id=$20 AND tenant_id=$21`,
+        [
+          customerName,
+          customerGstin,
+          b.customerAddress ?? current.customer_address ?? null,
+          b.customerPhone ?? current.customer_phone ?? null,
+          resolvedPartyType,
+          resolvedPartyId,
+          JSON.stringify(built.lineItems),
+          built.subtotal,
+          built.taxTotal,
+          built.grandTotal,
+          b.notes !== undefined ? b.notes : current.notes,
+          b.terms !== undefined ? b.terms : current.terms,
+          invDate || current.invoice_date,
+          b.dueDate !== undefined ? b.dueDate : current.due_date,
+          taxCgst,
+          taxSgst,
+          taxIgst,
+          interstate,
+          gstEnabled,
+          invId,
+          tid,
+        ],
+      );
+      const { rows: updated } = await localQuery(`SELECT * FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`, [
+        invId,
+        tid,
+      ]);
+      const mapped = mapInvoice(updated[0] as Record<string, unknown>);
+      const nextPay = await paymentTotalsForInvoice(tid!, invId);
+      return json(200, { ...mapped, ...nextPay });
     }
     if (invMatch && ctx.method === 'DELETE') {
       const invId = invMatch[1]!;

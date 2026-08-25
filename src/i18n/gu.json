@@ -509,7 +509,10 @@
     "saveDraft": "ડ્રાફ્ટ સેવ કરો",
     "saveAsDraft": "ડ્રાફ્ટ તરીકે સેવ કરો",
     "createAndSend": "બનાવો અને મોકલો",
-    "invoiceCreated": "ઇન્વૉઇસ બનાવ્યું"
+    "invoiceCreated": "ઇન્વૉઇસ બનાવ્યું",
+    "editInvoice": "ઇન્વૉઇસ સંપાદિત કરો",
+    "saveChanges": "ફેરફાર સેવ કરો",
+    "invoiceUpdated": "ઇન્વૉઇસ અપડેટ થયું"
   },
   "quotations": {
     "title": "ક્વોટેશન્સ",

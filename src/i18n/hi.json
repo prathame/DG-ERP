@@ -509,7 +509,10 @@
     "saveDraft": "ड्राफ्ट सहेजें",
     "saveAsDraft": "ड्राफ्ट के रूप में सहेजें",
     "createAndSend": "बनाएं और भेजें",
-    "invoiceCreated": "चालान बनाया गया"
+    "invoiceCreated": "चालान बनाया गया",
+    "editInvoice": "चालान संपादित करें",
+    "saveChanges": "बदलाव सहेजें",
+    "invoiceUpdated": "चालान अपडेट हुआ"
   },
   "quotations": {
     "title": "कोटेशन",

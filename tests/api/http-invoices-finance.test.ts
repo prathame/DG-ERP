@@ -10,6 +10,7 @@ import { api, authHeaders } from '../http';
 const TENANT = 'T-TEST-HTTP-INV';
 const USER = 'U-HTTP-INV';
 const VENDOR = 'V-HTTP-INV-1';
+const VENDOR_EDIT = 'V-HTTP-INV-EDIT';
 const CUSTOMER = 'C-HTTP-INV-1';
 const PRODUCT = 'P-HTTP-INV-1';
 let token = '';
@@ -35,6 +36,12 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
        VALUES ($1, $2, 'Acme Vendor', '9999999999', 'Pune', '27AAAAA0000A1Z5')
        ON CONFLICT DO NOTHING`,
       [VENDOR, TENANT],
+    );
+    await pool.query(
+      `INSERT INTO vendors (id, tenant_id, name, phone, address, gst_number)
+       VALUES ($1, $2, 'Edit Vendor', '9111111111', 'Pune', '27AAAAA0000A1Z5')
+       ON CONFLICT DO NOTHING`,
+      [VENDOR_EDIT, TENANT],
     );
     await pool.query(
       `INSERT INTO customers (id, tenant_id, name, phone, address)
@@ -84,6 +91,54 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(rows[0].party_type).toBe('vendor');
     expect(rows[0].party_id).toBe(VENDOR);
     expect(rows[0].customer_name).toBe('Acme Vendor');
+  });
+
+  it('PUT /api/invoices/:id updates a sent unpaid invoice and rejects paid', async () => {
+    const created = await api()
+      .post('/api/invoices')
+      .set(authHeaders(token, TENANT))
+      .send({
+        invoiceNumber: 'INV/TEST/EDIT-1',
+        customerName: 'Edit Vendor',
+        partyType: 'vendor',
+        partyId: VENDOR_EDIT,
+        status: 'sent',
+        gstEnabled: false,
+        items: [{ description: 'Old line', qty: 1, rate: 100, gstPercent: 0 }],
+      });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+
+    const updated = await api()
+      .put(`/api/invoices/${id}`)
+      .set(authHeaders(token, TENANT))
+      .send({
+        customerName: 'Edit Vendor',
+        partyType: 'vendor',
+        partyId: VENDOR_EDIT,
+        gstEnabled: false,
+        items: [
+          { description: 'New line', qty: 2, rate: 50, gstPercent: 0 },
+          { description: 'Extra', qty: 1, rate: 10, gstPercent: 0 },
+        ],
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.invoiceNumber).toBe('INV/TEST/EDIT-1');
+    expect(updated.body.status).toBe('sent');
+    expect(Number(updated.body.grandTotal)).toBe(110);
+    expect(updated.body.items).toHaveLength(2);
+    expect(updated.body.items[0].description).toBe('New line');
+
+    await pool.query(`UPDATE standalone_invoices SET status = 'paid' WHERE id = $1 AND tenant_id = $2`, [id, TENANT]);
+    const paid = await api()
+      .put(`/api/invoices/${id}`)
+      .set(authHeaders(token, TENANT))
+      .send({
+        customerName: 'Edit Vendor',
+        items: [{ description: 'Nope', qty: 1, rate: 1, gstPercent: 0 }],
+      });
+    expect(paid.status).toBe(400);
+    expect(String(paid.body.error)).toMatch(/paid/i);
   });
 
   it('POST /api/invoices rejects unknown party', async () => {
