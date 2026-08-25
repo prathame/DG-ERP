@@ -1,6 +1,7 @@
+import { GST_PINCODE_DISTANCE_URL } from '../../shared/gstEwbValidation';
 import { isValidGstin } from '../utils/helpers';
 import { isValidPin } from './nic-api';
-import { estimatePinDistanceKm, pinFromAddress } from '../utils/pincode';
+import { pinFromAddress } from '../utils/pincode';
 
 export type GstEligibilityResult = {
   gstin: string;
@@ -68,16 +69,23 @@ export function lookupTransportDistance(input: {
   fromAddress?: string;
   toAddress?: string;
   mode: 'mock' | 'sandbox' | 'production';
-}): { fromPin: string; toPin: string; distanceKm: number; source: 'pin_estimate' | 'invalid_pin' } {
+}): {
+  fromPin: string;
+  toPin: string;
+  distanceKm: number;
+  source: 'gst_portal' | 'invalid_pin';
+  portalUrl: string;
+} {
   const fromPin = (input.fromPin || pinFromAddress(input.fromAddress) || '').trim();
   const toPin = (input.toPin || pinFromAddress(input.toAddress) || '').trim();
   if (!isValidPin(fromPin) || !isValidPin(toPin)) {
-    return { fromPin, toPin, distanceKm: 0, source: 'invalid_pin' };
+    return { fromPin, toPin, distanceKm: 0, source: 'invalid_pin', portalUrl: GST_PINCODE_DISTANCE_URL };
   }
   return {
     fromPin,
     toPin,
-    distanceKm: estimatePinDistanceKm(fromPin, toPin),
-    source: 'pin_estimate',
+    distanceKm: 0,
+    source: 'gst_portal',
+    portalUrl: GST_PINCODE_DISTANCE_URL,
   };
 }

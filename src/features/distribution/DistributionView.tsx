@@ -15,6 +15,7 @@ import {
   IndianRupee,
   MoreVertical,
   Truck,
+  ExternalLink,
 } from 'lucide-react';
 import {
   cn,
@@ -33,7 +34,7 @@ import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatch
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
-import { pinFromAddress } from '../../lib/pincode';
+import { pinFromAddress, openGstPinDistanceLookup } from '../../lib/pincode';
 import { useGstEinvoiceEnabled } from '../../lib/gstEinvoiceEnabled';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
@@ -3729,7 +3730,25 @@ export function DistributionView({
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Distance (km) *</label>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Distance (km) *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openGstPinDistanceLookup('', pinFromAddress(vendorAddress)).then(r => {
+                          toast(
+                            r.toPin
+                              ? `Opened GST PIN distance. Buyer PIN ${r.toPin} — paste From/To, then enter km (or 0).`
+                              : 'Opened GST PIN-to-PIN page. Enter From/To PINs, then km here (or 0).',
+                            'success',
+                          );
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline"
+                    >
+                      <ExternalLink size={12} /> GST PIN distance
+                    </button>
+                  </div>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -3737,7 +3756,7 @@ export function DistributionView({
                     value={eWayForm.distance}
                     onChange={e => setEWayForm({ ...eWayForm, distance: e.target.value.replace(/[^0-9]/g, '') })}
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
-                    placeholder="150"
+                    placeholder="0 = GST official PIN-to-PIN"
                   />
                 </div>
               </div>

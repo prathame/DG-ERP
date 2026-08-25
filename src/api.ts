@@ -1260,9 +1260,13 @@ export const api = {
       if (q.toPin) params.set('toPin', q.toPin);
       if (q.fromAddress) params.set('fromAddress', q.fromAddress);
       if (q.toAddress) params.set('toAddress', q.toAddress);
-      return fetchApi<{ fromPin: string; toPin: string; distanceKm: number; source: string }>(
-        `/gst/distance?${params}`,
-      );
+      return fetchApi<{
+        fromPin: string;
+        toPin: string;
+        distanceKm: number;
+        source: string;
+        portalUrl: string;
+      }>(`/gst/distance?${params}`);
     },
     generateIrn: (batchId: string) =>
       fetchApi<{

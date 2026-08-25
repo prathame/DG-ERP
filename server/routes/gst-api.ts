@@ -453,7 +453,12 @@ router.post('/api/gst/ewb/generate', requireAdmin, blockVendors, async (req: Aut
     } = req.body;
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
     if (!vehicleNo) return res.status(400).json({ error: 'vehicleNo required' });
-    if (!distance) return res.status(400).json({ error: 'distance (km) required' });
+    if (distance === undefined || distance === null || distance === '') {
+      return res.status(400).json({ error: 'distance (km) required' });
+    }
+    if (!Number.isFinite(Number(distance)) || Number(distance) < 0) {
+      return res.status(400).json({ error: 'distance (km) required' });
+    }
 
     const loaded = await loadGstCredentials(pool, tenantId);
     if (!loaded.ok) return res.status(400).json({ error: (loaded as { ok: false; error: string }).error });

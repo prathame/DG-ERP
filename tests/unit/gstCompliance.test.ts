@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { GST_PINCODE_DISTANCE_URL } from '../../shared/gstEwbValidation';
 import { checkEinvoiceEligibility, lookupTransportDistance } from '../../server/services/gstCompliance';
 
 describe('checkEinvoiceEligibility', () => {
@@ -30,10 +31,13 @@ describe('checkEinvoiceEligibility', () => {
 });
 
 describe('lookupTransportDistance', () => {
-  it('estimates distance from pins', () => {
+  it('points at the official GST PIN-to-PIN page', () => {
     const r = lookupTransportDistance({ fromPin: '380001', toPin: '395001', mode: 'mock' });
-    expect(r.source).toBe('pin_estimate');
-    expect(r.distanceKm).toBeGreaterThan(0);
+    expect(r.source).toBe('gst_portal');
+    expect(r.portalUrl).toBe(GST_PINCODE_DISTANCE_URL);
+    expect(r.distanceKm).toBe(0);
+    expect(r.fromPin).toBe('380001');
+    expect(r.toPin).toBe('395001');
   });
 
   it('extracts pins from addresses', () => {
@@ -44,12 +48,14 @@ describe('lookupTransportDistance', () => {
     });
     expect(r.fromPin).toBe('380001');
     expect(r.toPin).toBe('395001');
-    expect(r.distanceKm).toBeGreaterThan(0);
+    expect(r.source).toBe('gst_portal');
+    expect(r.portalUrl).toContain('einvoice1.gst.gov.in');
   });
 
   it('returns invalid_pin when pins missing', () => {
     const r = lookupTransportDistance({ fromPin: '12', toPin: '395001', mode: 'mock' });
     expect(r.source).toBe('invalid_pin');
     expect(r.distanceKm).toBe(0);
+    expect(r.portalUrl).toContain('GetPinCodeDistance');
   });
 });

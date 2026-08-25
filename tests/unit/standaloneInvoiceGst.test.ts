@@ -184,7 +184,7 @@ describe('standaloneInvoiceGst', () => {
       generateStandaloneInvoiceEwb(pool, TENANT, { invoiceId: b2cId, vehicleNo: '  ', distance: 10 }),
     ).rejects.toThrow(/vehicleNo/i);
     await expect(
-      generateStandaloneInvoiceEwb(pool, TENANT, { invoiceId: b2cId, vehicleNo: 'GJ01XX9999', distance: 0 }),
+      generateStandaloneInvoiceEwb(pool, TENANT, { invoiceId: b2cId, vehicleNo: 'GJ01XX9999', distance: -1 }),
     ).rejects.toThrow(/distance/i);
 
     const ewb = await generateStandaloneInvoiceEwb(pool, TENANT, {

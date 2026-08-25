@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Truck, Search } from 'lucide-react';
-import { api } from '../../api';
+import { Truck, ExternalLink } from 'lucide-react';
 import { useToast } from '../ui';
+import { isSixDigitPin, openGstPinDistanceLookup } from '../../lib/pincode';
 import {
   EWB_DOC_TYPES,
   EWB_SUB_SUPPLY_TYPES,
@@ -73,25 +73,24 @@ export function EwbGenerateModal({
   const { toast } = useToast();
   const [lookingUp, setLookingUp] = useState(false);
   const isRoad = form.transportMode === '1';
+  const canLookupPins = isSixDigitPin(fromPin) && isSixDigitPin(toPin);
 
   if (!open) return null;
 
   async function lookupDistance() {
-    if (!fromPin || !toPin) {
-      toast('Seller and buyer pincodes required for distance lookup', 'error');
+    if (!canLookupPins) {
+      toast('Seller and buyer pincodes required for GST PIN distance', 'error');
       return;
     }
     setLookingUp(true);
     try {
-      const r = await api.gst.lookupDistance({ fromPin, toPin });
-      if (!(r.distanceKm > 0)) {
-        toast('Could not estimate distance — enter manually', 'error');
-        return;
-      }
-      onChange({ ...form, distance: String(r.distanceKm) });
-      toast(`Distance ${r.distanceKm} km (${fromPin} → ${toPin})`, 'success');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Distance lookup failed', 'error');
+      const r = await openGstPinDistanceLookup(fromPin, toPin);
+      toast(
+        r.copied
+          ? `Copied ${r.fromPin} → ${r.toPin}. Paste From/To on the GST page, then enter km here (or leave 0).`
+          : `Opened GST PIN distance. From ${fromPin} To ${toPin} — enter km here (or leave 0).`,
+        'success',
+      );
     } finally {
       setLookingUp(false);
     }
@@ -204,25 +203,33 @@ export function EwbGenerateModal({
           <div>
             <div className="flex items-center justify-between gap-2 mb-1">
               <label className={lbl + ' mb-0'}>Distance (km) *</label>
-              {fromPin && toPin ? (
-                <button
-                  type="button"
-                  onClick={() => void lookupDistance()}
-                  disabled={lookingUp}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline disabled:opacity-50"
-                >
-                  <Search size={12} /> {lookingUp ? 'Looking…' : 'Pin-to-pin'}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => void lookupDistance()}
+                disabled={lookingUp || !canLookupPins}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline disabled:opacity-50"
+              >
+                <ExternalLink size={12} /> {lookingUp ? 'Opening…' : 'GST PIN distance'}
+              </button>
             </div>
             <input
               type="number"
               value={form.distance}
               onChange={e => onChange({ ...form, distance: e.target.value })}
               className={inp}
-              placeholder="0 = portal calculates from PIN"
+              placeholder="0 = GST official PIN-to-PIN"
               min="0"
             />
+            {canLookupPins ? (
+              <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                {fromPin} → {toPin} on einvoice1.gst.gov.in
+              </p>
+            ) : (
+              <p className="text-[10px] text-gray-400 mt-1">
+                Add seller and buyer 6-digit PINs, then open the GST PIN-to-PIN page. Distance 0 uses the same official
+                figure.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
