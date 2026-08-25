@@ -1,5 +1,8 @@
 /** Shared E-Way Bill compliance checks (Jan 2025+ rules). */
 
+/** Official NIC PIN-to-PIN distance (same master used when EWB distance is 0). */
+export const GST_PINCODE_DISTANCE_URL = 'https://einvoice1.gst.gov.in/Others/GetPinCodeDistance';
+
 export const EWB_INTERSTATE_THRESHOLD_INR = 50_000;
 export const EWB_MAX_DOC_AGE_DAYS = 180;
 export const EWB_MAX_DISTANCE_KM = 4000;

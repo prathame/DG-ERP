@@ -303,7 +303,9 @@ export async function generateStandaloneInvoiceEwb(
   },
 ): Promise<EwbResult & { mode: string; invoiceId: string }> {
   if (!input.vehicleNo?.trim()) throw new StandaloneInvoiceGstError('vehicleNo required');
-  if (!(Number(input.distance) > 0)) throw new StandaloneInvoiceGstError('distance (km) required');
+  if (!Number.isFinite(Number(input.distance)) || Number(input.distance) < 0) {
+    throw new StandaloneInvoiceGstError('distance (km) required');
+  }
 
   const loaded = await loadGstCredentials(pool, tenantId);
   if (loaded.ok === false) throw new StandaloneInvoiceGstError(loaded.error);
@@ -394,7 +396,9 @@ export async function generateStandaloneInvoiceEwbByIrn(
   },
 ): Promise<EwbResult & { mode: string; invoiceId: string }> {
   if (!input.vehicleNo?.trim()) throw new StandaloneInvoiceGstError('vehicleNo required');
-  if (!(Number(input.distance) > 0)) throw new StandaloneInvoiceGstError('distance (km) required');
+  if (!Number.isFinite(Number(input.distance)) || Number(input.distance) < 0) {
+    throw new StandaloneInvoiceGstError('distance (km) required');
+  }
 
   const loaded = await loadGstCredentials(pool, tenantId);
   if (loaded.ok === false) throw new StandaloneInvoiceGstError(loaded.error);
