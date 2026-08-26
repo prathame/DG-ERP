@@ -37,6 +37,7 @@ import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { pinFromAddress, openGstPinDistanceLookup } from '../../lib/pincode';
 import { useGstEinvoiceEnabled } from '../../lib/gstEinvoiceEnabled';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
+import { round2 } from '../../../shared/gstRound';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
@@ -2832,8 +2833,8 @@ export function DistributionView({
             const gstSubtotal = previewGstItems.reduce((s, i) => s + i.price, 0);
             const nonGstSubtotal = previewNonGstItems.reduce((s, i) => s + i.price, 0);
             const gstRate = bill.gstRate || 18;
-            const gstTax = gstQty > 0 ? Math.round((gstSubtotal * gstRate) / 100) : 0;
-            const halfGst = Math.round(gstTax / 2);
+            const gstTax = gstQty > 0 ? round2((gstSubtotal * gstRate) / 100) : 0;
+            const halfGst = round2(gstTax / 2);
             const gstGrandTotal = gstSubtotal + gstTax;
             const nonGstAmount = nonGstSubtotal;
             const combinedBillTotal = gstGrandTotal + nonGstAmount;

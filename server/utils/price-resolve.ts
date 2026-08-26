@@ -1,3 +1,4 @@
+import { round2 } from '../../shared/gstRound';
 import { pool } from '../pg-db';
 
 export type ResolvedPrice = { price: number; source: 'price_list' | 'default' };
@@ -81,7 +82,7 @@ export function unitPricesAfterDiscount(opts: {
   if (opts.withGst) {
     return {
       netPricePerUnit: priceAfterDisc,
-      billedPricePerUnit: Math.round((priceAfterDisc * (100 + opts.gstRate)) / 100),
+      billedPricePerUnit: round2((priceAfterDisc * (100 + opts.gstRate)) / 100),
     };
   }
   // GST off: basePrice is exclusive (UI strips inclusive MRP before send; catalog resolve

@@ -1,3 +1,5 @@
+import { round2 } from '../../shared/gstRound';
+
 /**
  * Inclusive-MRP helpers for create-time GST checkboxes (non-service).
  * When GST is toggled, inclusive products mutate the unit-price field (strip/restore).
@@ -62,13 +64,13 @@ export function linePricesAfterDiscount(opts: {
   // Inclusive field still holds MRP only while GST is on
   if (opts.withGst && opts.priceIncludesGst) {
     const billed = priceAfterDisc;
-    const net = Math.round(priceAfterDisc / (1 + rate / 100));
-    return { gross, discount: disc, net, gst: billed - net, billed };
+    const net = round2(priceAfterDisc / (1 + rate / 100));
+    return { gross, discount: disc, net, gst: round2(billed - net), billed };
   }
   if (opts.withGst) {
     const net = priceAfterDisc;
-    const gst = Math.round((net * rate) / 100);
-    return { gross, discount: disc, net, gst, billed: net + gst };
+    const gst = round2((net * rate) / 100);
+    return { gross, discount: disc, net, gst, billed: round2(net + gst) };
   }
   // GST off: unitPrice is exclusive (stripped if product was inclusive)
   return { gross, discount: disc, net: priceAfterDisc, gst: 0, billed: priceAfterDisc };
