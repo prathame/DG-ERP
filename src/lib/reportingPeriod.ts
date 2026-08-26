@@ -12,6 +12,8 @@ export type ReportingPeriod = {
   label?: string;
   /** When preset is fy / lastFy — which Apr-start year was chosen in the FY dropdown */
   fyStartYear?: number;
+  /** True when the shop picked a closed FY from the dropdown (keep until they pick another). */
+  pinned?: boolean;
 };
 
 export type IndianFyOption = {
@@ -73,6 +75,52 @@ export function listIndianFinancialYears(asOf = new Date(), count = 12): IndianF
     out.push(indianFyRangeForStartYear(current - i, asOf));
   }
   return out;
+}
+
+/** True when `asOf` is after that FY’s 31 Mar close. */
+export function isIndianFyClosed(startYear: number, asOf = new Date()): boolean {
+  return localDateISO(asOf) > `${startYear + 1}-03-31`;
+}
+
+/**
+ * FY to show when the shop opens the app: current Indian year (Apr–Mar).
+ * A saved FY is kept only while that year is still open. Last-year leftovers
+ * (and the old Last FY chip) do not hide this year’s bills.
+ */
+export function openFinancialYear(asOf = new Date()): IndianFyOption {
+  const current = indianFyRange(asOf);
+  const saved = readReportingPeriod();
+  if (saved?.preset === 'lastFy') return current;
+  const start =
+    saved?.preset === 'fy' && typeof saved.fyStartYear === 'number'
+      ? saved.fyStartYear
+      : matchFyStartYear(saved?.from, saved?.to, asOf);
+  if (typeof start === 'number' && (saved?.pinned || !isIndianFyClosed(start, asOf))) {
+    return indianFyRangeForStartYear(start, asOf);
+  }
+  return current;
+}
+
+/** If storage is on a closed FY, rewrite it to the current year so all screens match. */
+export function ensureOpenOnCurrentFy(asOf = new Date()): IndianFyOption {
+  const open = openFinancialYear(asOf);
+  const saved = readReportingPeriod();
+  const staleLastFy = saved?.preset === 'lastFy';
+  const staleClosedFy =
+    saved?.preset === 'fy' &&
+    typeof saved.fyStartYear === 'number' &&
+    !saved.pinned &&
+    isIndianFyClosed(saved.fyStartYear, asOf);
+  if (!saved || staleLastFy || staleClosedFy) {
+    writeReportingPeriod({
+      preset: 'fy',
+      from: open.from,
+      to: open.to,
+      label: open.label,
+      fyStartYear: open.startYear,
+    });
+  }
+  return open;
 }
 
 /** Match a date range back to an FY start year for the dropdown selection. */
@@ -214,6 +262,7 @@ export function applyFinancialYear(
     to: fy.to,
     label: fy.label,
     fyStartYear: fy.startYear,
+    pinned: isIndianFyClosed(startYear, asOf),
   });
   return fy;
 }
@@ -223,13 +272,8 @@ export function defaultDateRangeFromReportingPeriod(asOf = new Date()): { from: 
   const saved = readReportingPeriod();
   // 'fy' / 'lastFy' presets must recalculate on every call so a new FY is picked up
   // automatically on April 1 without the user needing to re-select anything.
-  if (saved?.preset === 'fy') {
-    const startYear = saved.fyStartYear ?? indianFyRange(asOf).startYear;
-    const r = indianFyRangeForStartYear(startYear, asOf);
-    return { from: r.from, to: r.to };
-  }
-  if (saved?.preset === 'lastFy') {
-    const r = indianLastFyRange(asOf);
+  if (saved?.preset === 'fy' || saved?.preset === 'lastFy') {
+    const r = openFinancialYear(asOf);
     return { from: r.from, to: r.to };
   }
   if (saved?.from && saved?.to) return { from: saved.from, to: saved.to };

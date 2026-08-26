@@ -98,7 +98,7 @@ import { consumeAndroidBack } from './lib/androidBackStack';
 import { normalizeCompanySlug, validateCompanySlug, getLastCompanySlug, clearLastCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
 import { getApiOrigin, getPublicAppHostPrefix } from './platforms/shared';
-import { indianFyRange, indianLastFyRange, readReportingPeriod } from './lib/reportingPeriod';
+import { readReportingPeriod, ensureOpenOnCurrentFy } from './lib/reportingPeriod';
 
 const AppShutterIntro = lazy(() =>
   import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
@@ -1564,13 +1564,13 @@ export default function App() {
         {user &&
           !servicePhoneUx &&
           (() => {
+            const fy = ensureOpenOnCurrentFy();
             const saved = readReportingPeriod();
-            const fy = indianFyRange();
             const label =
               saved?.preset === 'fy' && saved.label
                 ? saved.label
                 : saved?.preset === 'lastFy'
-                  ? indianLastFyRange().label
+                  ? fy.label
                   : saved?.label || fy.label;
             return (
               <button
