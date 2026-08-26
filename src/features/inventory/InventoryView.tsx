@@ -40,7 +40,7 @@ import type { CreateLaunch } from '../../lib/quickAdd';
 const emptyAddForm = () => ({
   name: '',
   barcodePrefix: '',
-  quantity: 10,
+  quantity: 0,
   packs: 0,
   loosePieces: 0,
   description: '',
@@ -48,6 +48,7 @@ const emptyAddForm = () => ({
   warrantyApplicable: true,
   warrantyMonths: 24,
   price: 0,
+  costPrice: 0,
   hsnCode: '',
   gstRate: 18,
   packSize: 1,
@@ -164,6 +165,7 @@ export function InventoryView({
       warrantyApplicable: p.warrantyApplicable !== false && (p.warrantyMonths ?? 0) > 0,
       warrantyMonths: p.warrantyMonths ?? 0,
       price: p.price ?? 0,
+      costPrice: p.costPrice ?? 0,
       hsnCode: p.hsnCode || '',
       gstRate: p.gstRate ?? 18,
       packSize: p.packSize && p.packSize > 1 ? p.packSize : 1,
@@ -831,16 +833,11 @@ export function InventoryView({
                 onSubmit={async e => {
                   e.preventDefault();
                   const isEdit = !!editingProductId;
-                  if (!isEdit && inventoryTrackingEnabled && !addForm.barcodePrefix.trim()) {
+                  const totalQty = addForm.packSize > 1 ? addForm.packs : addForm.quantity;
+                  const mintBarcodes = !isEdit && inventoryTrackingEnabled && totalQty > 0;
+                  if (mintBarcodes && !addForm.barcodePrefix.trim()) {
                     toast('Enter barcode prefix', 'error');
                     return;
-                  }
-                  if (!isEdit) {
-                    const totalQty = addForm.packSize > 1 ? addForm.packs : addForm.quantity;
-                    if (!totalQty || totalQty < 1) {
-                      toast('Enter quantity', 'error');
-                      return;
-                    }
                   }
                   setAddSubmitting(true);
                   try {
@@ -852,10 +849,11 @@ export function InventoryView({
                         rewardPointsValue: addForm.rewardPointsValue,
                         warrantyMonths,
                         price: addForm.price,
+                        costPrice: addForm.costPrice,
                         hsnCode: addForm.hsnCode || undefined,
                         gstRate: addForm.gstRate,
-                        packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
-                        packName: addForm.packSize > 1 ? addForm.packName : undefined,
+                        packSize: addForm.packSize > 1 ? addForm.packSize : 1,
+                        packName: addForm.packName || 'Piece',
                         priceIncludesGst: addForm.priceIncludesGst,
                         imageBase64: addForm.imageBase64 || null,
                       });
@@ -863,18 +861,19 @@ export function InventoryView({
                     } else {
                       await api.products.create({
                         name: addForm.name,
-                        barcodeMode: 'prefix',
-                        barcodePrefix: addForm.barcodePrefix.trim() || undefined,
-                        quantity: addForm.packSize > 1 ? addForm.packs : addForm.quantity,
+                        barcodeMode: mintBarcodes ? 'prefix' : 'none',
+                        barcodePrefix: mintBarcodes ? addForm.barcodePrefix.trim() : undefined,
+                        quantity: totalQty,
                         description: addForm.description || undefined,
                         rewardPointsValue: addForm.rewardPointsValue,
                         warrantyApplicable: addForm.warrantyApplicable,
                         warrantyMonths,
                         price: addForm.price,
+                        costPrice: addForm.costPrice,
                         hsnCode: addForm.hsnCode || undefined,
                         gstRate: addForm.gstRate,
-                        packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
-                        packName: addForm.packSize > 1 ? addForm.packName : undefined,
+                        packSize: addForm.packSize > 1 ? addForm.packSize : 1,
+                        packName: addForm.packName || 'Piece',
                         barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
                         priceIncludesGst: addForm.priceIncludesGst || undefined,
                         imageBase64: addForm.imageBase64 || undefined,
@@ -932,19 +931,20 @@ export function InventoryView({
                     </div>
                   </div>
                 </div>
-                {!editingProductId && inventoryTrackingEnabled && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label>
-                    <input
-                      required
-                      placeholder="e.g. SP, PUMP, A"
-                      value={addForm.barcodePrefix}
-                      onChange={e => setAddForm({ ...addForm, barcodePrefix: e.target.value })}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
-                      autoComplete="off"
-                    />
-                  </div>
-                )}
+                {!editingProductId &&
+                  inventoryTrackingEnabled &&
+                  (addForm.packSize > 1 ? addForm.packs : addForm.quantity) > 0 && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label>
+                      <input
+                        placeholder="e.g. SP, PUMP, A"
+                        value={addForm.barcodePrefix}
+                        onChange={e => setAddForm({ ...addForm, barcodePrefix: e.target.value })}
+                        className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
                 {editingProductId && (
                   <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                     Stock and barcodes are unchanged here — use Add Stock to increase quantity.
@@ -1015,10 +1015,22 @@ export function InventoryView({
                   </div>
                 </div>
 
-                {/* Unit Type: Piece or Box */}
+                {/* Unit: Nos / Piece / Box */}
                 <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Unit Type</label>
+                  <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Unit</label>
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAddForm({ ...addForm, packSize: 1, packName: 'Nos', packs: 0, loosePieces: 0 })}
+                      className={cn(
+                        'flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all',
+                        addForm.packSize <= 1 && addForm.packName === 'Nos'
+                          ? 'bg-brand text-white border-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand',
+                      )}
+                    >
+                      Nos
+                    </button>
                     <button
                       type="button"
                       onClick={() =>
@@ -1026,7 +1038,7 @@ export function InventoryView({
                       }
                       className={cn(
                         'flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all',
-                        addForm.packSize <= 1
+                        addForm.packSize <= 1 && addForm.packName !== 'Nos'
                           ? 'bg-brand text-white border-brand'
                           : 'border-gray-200 text-gray-600 hover:border-brand',
                       )}
@@ -1083,19 +1095,24 @@ export function InventoryView({
                           </label>
                           <input
                             type="number"
-                            min={1}
+                            min={0}
                             max={10000}
                             value={addForm.packs || ''}
                             onChange={e => setAddForm({ ...addForm, packs: parseInt(e.target.value) || 0 })}
                             className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                             placeholder="0"
                           />
-                          <p className="text-xs text-emerald-600 font-medium mt-1">
-                            = {(addForm.packs || 0) * addForm.packSize} pieces ({addForm.packs || 0} ×{' '}
-                            {addForm.packSize} pcs)
+                          <p className="text-xs text-gray-500 mt-1">
+                            Leave 0 to save the product without stock. Add stock later when you buy it.
                           </p>
+                          {(addForm.packs || 0) > 0 && (
+                            <p className="text-xs text-emerald-600 font-medium mt-1">
+                              = {(addForm.packs || 0) * addForm.packSize} pieces ({addForm.packs || 0} ×{' '}
+                              {addForm.packSize} pcs)
+                            </p>
+                          )}
                         </div>
-                        {inventoryTrackingEnabled && (
+                        {inventoryTrackingEnabled && addForm.packs > 0 && (
                           <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                             📦 {addForm.packs || 0} barcode labels (1 per {addForm.packName || 'box'}):{' '}
                             <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to{' '}
@@ -1107,37 +1124,53 @@ export function InventoryView({
                         )}
                       </>
                     )}
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                        Price per {addForm.packName || 'Box'} (₹)
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={addForm.price || ''}
-                        onChange={e =>
-                          setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })
-                        }
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                        placeholder={`Price per ${addForm.packName || 'box'}`}
-                      />
-                      {addForm.price > 0 && addForm.packSize > 0 && (
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          = ₹{Math.round(addForm.price / (addForm.packSize || 1))} per piece
-                        </p>
-                      )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                          Purchase rate (₹ / {addForm.packName || 'Box'})
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={addForm.costPrice || ''}
+                          onChange={e =>
+                            setAddForm({ ...addForm, costPrice: e.target.value === '' ? 0 : Number(e.target.value) })
+                          }
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                          Selling price (₹ / {addForm.packName || 'Box'})
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={addForm.price || ''}
+                          onChange={e =>
+                            setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })
+                          }
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="0"
+                        />
+                        {addForm.price > 0 && addForm.packSize > 0 && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            = ₹{Math.round(addForm.price / (addForm.packSize || 1))} per piece
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    {!editingProductId && inventoryTrackingEnabled && (
+                    {!editingProductId && (
                       <>
                         <div>
-                          <label className="text-xs font-bold text-gray-400 uppercase">Quantity</label>
+                          <label className="text-xs font-bold text-gray-400 uppercase">Opening stock</label>
                           <input
                             type="number"
-                            required
-                            min={1}
+                            min={0}
                             max={10000}
                             value={addForm.quantity || ''}
                             onChange={e =>
@@ -1147,28 +1180,55 @@ export function InventoryView({
                               })
                             }
                             className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                            placeholder="0"
                           />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Leave 0 to only save the product. Stock can be added later from Purchase or Add Stock.
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
-                          Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to{' '}
-                          <span className="font-mono font-medium">
-                            {addForm.barcodePrefix || 'SP'}
-                            {String(addForm.quantity || 10).padStart(3, '0')}
-                          </span>
-                        </p>
+                        {inventoryTrackingEnabled && addForm.quantity > 0 && (
+                          <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                            Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span>{' '}
+                            to{' '}
+                            <span className="font-mono font-medium">
+                              {addForm.barcodePrefix || 'SP'}
+                              {String(addForm.quantity || 1).padStart(3, '0')}
+                            </span>
+                          </p>
+                        )}
                       </>
                     )}
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">Price (₹ per Piece)</label>
-                      <input
-                        type="number"
-                        required
-                        value={addForm.price || ''}
-                        onChange={e =>
-                          setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })
-                        }
-                        className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase">
+                          Purchase rate (₹ / {addForm.packName || 'Piece'})
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={addForm.costPrice || ''}
+                          onChange={e =>
+                            setAddForm({ ...addForm, costPrice: e.target.value === '' ? 0 : Number(e.target.value) })
+                          }
+                          className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase">
+                          Selling price (₹ / {addForm.packName || 'Piece'})
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={addForm.price || ''}
+                          onChange={e =>
+                            setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })
+                          }
+                          className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
                   </>
                 )}

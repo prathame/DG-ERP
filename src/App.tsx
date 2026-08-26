@@ -629,6 +629,7 @@ export default function App() {
     staffName?: string;
   } | null>(null);
   const [createLaunch, setCreateLaunch] = useState<CreateLaunch | null>(null);
+  const [editSaleBatchId, setEditSaleBatchId] = useState<string | null>(null);
   const setActiveTab = (tab: Tab) => {
     const bookToAccounts: Record<string, string> = {
       books: 'ledger',
@@ -2149,6 +2150,8 @@ export default function App() {
                           businessType={(userConfig?.businessType as string) || 'manufacturer'}
                           launchCreate={createLaunch}
                           onLaunchConsumed={consumeCreateLaunch}
+                          launchEditBatchId={editSaleBatchId}
+                          onLaunchEditConsumed={() => setEditSaleBatchId(null)}
                         />
                       )}
                       {canAccess(activeTab) && activeTab === 'warranty' && <WarrantyView user={user} />}
@@ -2168,6 +2171,10 @@ export default function App() {
                       {canAccess(activeTab) && activeTab === 'invoices' && (
                         <InvoicesView
                           onOpenFinance={() => setActiveTab('finance')}
+                          onEditSale={batchId => {
+                            setEditSaleBatchId(batchId);
+                            setActiveTab('distribution');
+                          }}
                           launchCreate={createLaunch}
                           onLaunchConsumed={consumeCreateLaunch}
                         />

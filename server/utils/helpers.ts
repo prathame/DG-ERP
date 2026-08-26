@@ -293,6 +293,7 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   status: r.status ?? 'Active',
   warrantyMonths: r.warranty_months ?? 12,
   price: r.price ?? 0,
+  costPrice: Number(r.cost_price) || 0,
   hsnCode: r.hsn_code ?? null,
   gstRate: r.gst_rate ?? 18,
   stock: r.stock ?? 0,

@@ -459,10 +459,11 @@ export const api = {
         rangeStart?: string;
         rangeEnd?: string;
         barcodePrefix?: string;
-        barcodeMode?: 'prefix' | 'range' | 'auto';
+        barcodeMode?: 'prefix' | 'range' | 'auto' | 'none';
         quantity?: number;
         barcodePerBox?: boolean;
         priceIncludesGst?: boolean;
+        costPrice?: number;
       },
     ) => fetchApi<import('./types').Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
     addStock: (

@@ -42,6 +42,8 @@ export interface Product {
   status?: 'Active' | 'Sold' | 'Returned';
   warrantyMonths: number;
   price: number;
+  /** What the shop pays the supplier. 0 if not bought yet. */
+  costPrice?: number;
   hsnCode?: string | null;
   gstRate?: number;
   stock: number;
