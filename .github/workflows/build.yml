@@ -7,8 +7,11 @@ on:
     branches: [main]
 
 jobs:
+  # PRs already run the same postgres tests in PR Quality Gate. Running them
+  # again here can sit queued forever and skip the actual build job.
   test:
     name: Tests on main
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -41,6 +44,7 @@ jobs:
     name: Build + TypeScript + Bundle
     runs-on: ubuntu-latest
     needs: test
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
 
     steps:
       - uses: actions/checkout@v7
