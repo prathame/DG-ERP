@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
-import { uid, logAudit } from '../utils/helpers';
+import { uid, logAudit, phoneValidationError } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
@@ -460,6 +460,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     } = req.body;
     if (!customerName) return res.status(400).json({ error: 'Customer name is required' });
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Add at least one line item' });
+    const createPhoneErr = phoneValidationError(typeof customerPhone === 'string' ? customerPhone : null);
+    if (createPhoneErr) return res.status(400).json({ error: createPhoneErr });
 
     let resolvedPartyType: string | null = null;
     let resolvedPartyId: string | null = null;
@@ -705,6 +707,8 @@ router.put('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
     } = req.body;
     if (!customerName) return res.status(400).json({ error: 'Customer name is required' });
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Add at least one line item' });
+    const editPhoneErr = phoneValidationError(typeof customerPhone === 'string' ? customerPhone : null);
+    if (editPhoneErr) return res.status(400).json({ error: editPhoneErr });
 
     let resolvedPartyType: string | null = null;
     let resolvedPartyId: string | null = null;

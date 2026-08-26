@@ -8,7 +8,7 @@ import {
   vendorScopeId,
 } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
-import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
+import { uid, parsePagination, applyDateFilter, logAudit, phoneValidationError } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { computeMetalSalePrice } from '../../shared/metal';
 import { postSaleToBooks } from '../services/opsToBooks';
@@ -128,6 +128,10 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { barcode, customerName, customerPhone, customerEmail, purchaseDate, salePrice } = req.body;
+    const phoneNorm = String(customerPhone ?? '').trim();
+    const phoneErr = phoneValidationError(phoneNorm);
+    if (phoneErr) return res.status(400).json({ error: phoneErr });
+    const phoneStore = phoneNorm || null;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
     const id = uid('S');
 
@@ -254,7 +258,6 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
       const { productId, vendorId, points, warrantyMonths } = saleDataTxn;
 
       // Find or create customer - match by phone AND name to avoid merging different people
-      const phoneNorm = String(customerPhone ?? '').trim();
       const existingCustomer = phoneNorm
         ? ((
             await client.query(
@@ -274,7 +277,7 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
         customerId = uid('C');
         await client.query(
           'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-          [customerId, tenantId, customerName, customerPhone, customerEmail || null, null, vendorId],
+          [customerId, tenantId, customerName, phoneStore, customerEmail || null, null, vendorId],
         );
       }
       let priceVal = salePrice !== undefined && salePrice !== '' ? parseFloat(String(salePrice)) : null;
@@ -303,7 +306,7 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
           vendorId,
           customerId,
           customerName,
-          customerPhone,
+          phoneNorm,
           customerEmail || null,
           date,
           points,
@@ -350,7 +353,7 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
           INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
         `,
-          [warrantyId, tenantId, productId, barcode, customerName, customerPhone, activationDate, expiryDate],
+          [warrantyId, tenantId, productId, barcode, customerName, phoneNorm, activationDate, expiryDate],
         );
       }
 

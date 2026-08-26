@@ -28,6 +28,7 @@ import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { phoneValidationError } from '../../../shared/phone';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
@@ -402,11 +403,17 @@ export function VendorMasterView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const phone = form.phone.trim();
+    const phoneErr = phoneValidationError(phone);
+    if (phoneErr) {
+      toast(phoneErr, 'error');
+      return;
+    }
     setSubmitting(true);
     const payload = {
       name: form.name,
       contactPerson: form.contactPerson,
-      phone: form.phone,
+      phone: phone || undefined,
       email: form.email,
       address: form.address,
       gstNumber: form.gstNumber,
@@ -1232,15 +1239,15 @@ export function VendorMasterView({
                     </div>
                     <div>
                       <label className={fieldLabel} htmlFor="vendor-form-phone">
-                        Phone * <span className="normal-case font-normal dg-muted">(for WhatsApp)</span>
+                        Phone <span className="normal-case font-normal dg-muted">(optional — for WhatsApp)</span>
                       </label>
                       <input
                         id="vendor-form-phone"
-                        required
+                        type="tel"
                         value={form.phone}
                         onChange={e => setForm({ ...form, phone: e.target.value })}
                         className={fieldInput}
-                        placeholder="+91 98765 43210"
+                        placeholder="Optional"
                       />
                     </div>
                   </div>
@@ -1278,15 +1285,15 @@ export function VendorMasterView({
                     </div>
                     <div>
                       <label className={fieldLabel} htmlFor="vendor-form-phone">
-                        Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span>
+                        Phone <span className="text-gray-400 normal-case font-normal">(optional — for WhatsApp)</span>
                       </label>
                       <input
                         id="vendor-form-phone"
-                        required
+                        type="tel"
                         value={form.phone}
                         onChange={e => setForm({ ...form, phone: e.target.value })}
                         className={fieldInput}
-                        placeholder="+91 98765 43210"
+                        placeholder="Optional"
                       />
                     </div>
                   </>
