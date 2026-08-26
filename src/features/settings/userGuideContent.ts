@@ -142,7 +142,7 @@ export const ACCOUNTANT_GUIDE_TOPICS: UserGuideTopic[] = [
       'Trial Balance — debit total should match credit.',
       'Profit & Loss and Balance Sheet — set From / To (Balance Sheet uses To as “as on”).',
       'Cash Book / Bank Book — running balances; Bank Recon to match the statement.',
-      'GST Summary, GSTR-2B / 3B, Sales Register — under Accounts (Compliance). Set dates or month, then Generate.',
+      'GSTR-1 (B2B / B2C / HSN), GSTR-2B / 3B, Sales Register — under Accounts (Compliance). Set dates or month, then Generate.',
     ],
   },
   {

@@ -39,6 +39,24 @@ function daysSince(dateStr: string, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - t) / 86400000));
 }
 
+type B2cRateRow = { rate: number; taxable: number; cgst: number; sgst: number; total: number };
+
+function addB2cRate(
+  map: Record<number, B2cRateRow>,
+  rate: number,
+  taxable: number,
+  cgst: number,
+  sgst: number,
+  total: number,
+) {
+  const r = Number.isFinite(rate) ? rate : 0;
+  if (!map[r]) map[r] = { rate: r, taxable: 0, cgst: 0, sgst: 0, total: 0 };
+  map[r].taxable += taxable;
+  map[r].cgst += cgst;
+  map[r].sgst += sgst;
+  map[r].total += total;
+}
+
 router.get('/api/reports/sales-register', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -782,6 +800,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       b2cCgst = 0,
       b2cSgst = 0,
       b2cTotal = 0;
+    const b2cRateMap: Record<number, B2cRateRow> = {};
     const hsnMap: Record<
       string,
       { hsn: string; description: string; qty: number; taxable: number; cgst: number; sgst: number; total: number }
@@ -818,6 +837,15 @@ router.get('/api/reports/gst-summary', async (req, res) => {
         b2cCgst += halfGst;
         b2cSgst += gstAmt - halfGst;
         b2cTotal += billed;
+        const rate = Number(r.gst_rate);
+        addB2cRate(
+          b2cRateMap,
+          Number.isFinite(rate) ? rate : net > 0 ? Math.round((gstAmt / net) * 100) : 0,
+          net,
+          halfGst,
+          gstAmt - halfGst,
+          billed,
+        );
       }
 
       if (!hsnMap[hsn])
@@ -870,6 +898,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
         b2cCgst += cgst;
         b2cSgst += sgst;
         b2cTotal += billed;
+        addB2cRate(b2cRateMap, taxable > 0 ? Math.round((tax / taxable) * 100) : 0, taxable, cgst, sgst, billed);
       }
       const items = Array.isArray(inv.items) ? inv.items : [];
       for (const it of items as {
@@ -930,6 +959,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       period: `${String(m).padStart(2, '0')}/${y}`,
       b2b: Object.values(b2b),
       b2c: { taxable: b2cTaxable, cgst: b2cCgst, sgst: b2cSgst, total: b2cTotal },
+      b2cRates: Object.values(b2cRateMap).sort((a, b) => a.rate - b.rate),
       hsnSummary: Object.values(hsnMap),
       totalTaxable: Object.values(b2b).reduce((s, v) => s + v.taxable, 0) + b2cTaxable,
       totalTax: Object.values(b2b).reduce((s, v) => s + v.cgst + v.sgst, 0) + b2cCgst + b2cSgst,

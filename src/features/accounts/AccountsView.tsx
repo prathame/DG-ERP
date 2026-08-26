@@ -68,6 +68,7 @@ import {
   type ReportingPeriodPreset,
 } from '../../lib/reportingPeriod';
 import { AccountsGuideModal, AccountsHelpButton } from './AccountsGuideModal';
+import { Gstr1Sections, type Gstr1Section, type Gstr1SummaryData } from './Gstr1Sections';
 import { BooksView } from '../books/BooksView';
 import { BooksReportsPanel } from '../books/BooksReportsPanel';
 import { DayBookPanel } from '../books/DayBookPanel';
@@ -170,6 +171,7 @@ export function AccountsView({
   const now = new Date();
   const [gstMonth, setGstMonth] = useState(now.getMonth() + 1);
   const [gstYear, setGstYear] = useState(now.getFullYear());
+  const [gstSection, setGstSection] = useState<Gstr1Section>('b2b');
   /** Prefer double-entry panels when COA exists — same tab labels, no ops+books duplicates. */
   const [booksDeskReady, setBooksDeskReady] = useState(false);
   const [voucherDetailId, setVoucherDetailId] = useState<string | null>(null);
@@ -285,7 +287,7 @@ export function AccountsView({
       payments: 'Payment Register',
       stock: 'Stock Summary',
       fineledger: 'Fine Metal Ledger',
-      gst: 'GST Summary',
+      gst: 'GSTR-1',
     };
     const win = openPrintWindow();
     if (!win) {
@@ -473,7 +475,7 @@ export function AccountsView({
       group: 'reports',
       hide: !cfg.features.metalInventory,
     },
-    { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt, group: 'reports' },
+    { key: 'gst', label: 'GSTR-1', shortLabel: 'GSTR-1', icon: Receipt, group: 'reports' },
     { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
     { key: 'gstr3b', label: 'GSTR-3B Computation', shortLabel: '3B', icon: FileCheck, group: 'reports' },
   ];
@@ -597,7 +599,14 @@ export function AccountsView({
           {tab === 'daybook' && <DayBook data={data} ds={ds} />}
           {tab === 'notes' && <NotesView data={data} onRefresh={loadData} partySingular={partySingular} />}
           {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && (
-            <ReportTable tab={tab} data={data} ds={ds} partySingular={partySingular} />
+            <ReportTable
+              tab={tab}
+              data={data}
+              ds={ds}
+              partySingular={partySingular}
+              gstSection={gstSection}
+              onGstSection={setGstSection}
+            />
           )}
           {tab === 'fineledger' && <FineMetalLedger data={data} />}
         </div>
@@ -680,7 +689,7 @@ export function AccountsView({
             : t.key === 'gstr3b'
               ? 'GSTR-3B Comp'
               : t.key === 'gst'
-                ? 'GST Summary'
+                ? 'GSTR-1'
                 : t.label,
       icon: t.icon,
     }));
@@ -1888,11 +1897,15 @@ function ReportTable({
   data,
   ds,
   partySingular,
+  gstSection,
+  onGstSection,
 }: {
   tab: string;
   data: Record<string, unknown>;
   ds: boolean;
   partySingular: string;
+  gstSection: Gstr1Section;
+  onGstSection: (s: Gstr1Section) => void;
 }) {
   const [outstandingView, setOutstandingView] = useState<'party' | 'bills'>('party');
   const partyRows = (data.rows as Record<string, unknown>[]) || [];
@@ -1903,111 +1916,13 @@ function ReportTable({
   const count = billWise ? (data.billCount as number) || billRows.length : (data.count as number) || partyRows.length;
 
   if (tab === 'gst') {
-    const b2b = (data.b2b as Record<string, unknown>[]) || [];
-    const b2c = (data.b2c as Record<string, number>) || {};
-    const hsn = (data.hsnSummary as Record<string, unknown>[]) || [];
     return (
-      <div className="space-y-4">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-xs text-gray-400 uppercase font-bold">Taxable</p>
-              <p className="text-lg font-bold text-blue-600">{fmtCurrency((data.totalTaxable as number) || 0)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase font-bold">Tax</p>
-              <p className="text-lg font-bold text-amber-600">{fmtCurrency((data.totalTax as number) || 0)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase font-bold">Total</p>
-              <p className="text-lg font-bold text-emerald-600">{fmtCurrency((data.totalValue as number) || 0)}</p>
-            </div>
-          </div>
-        </div>
-        {b2b.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-2 bg-gray-50 border-b text-sm font-bold text-gray-600">B2B (with GSTIN)</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase">
-                    <th className="px-3 py-2 text-left">{partySingular}</th>
-                    <th className="px-3 py-2 text-left">GSTIN</th>
-                    <th className="px-3 py-2 text-right">Taxable</th>
-                    <th className="px-3 py-2 text-right">CGST</th>
-                    <th className="px-3 py-2 text-right">SGST</th>
-                    <th className="px-3 py-2 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {b2b.map((r, i) => (
-                    <tr key={i} className="border-t border-gray-50">
-                      <td className="px-3 py-2">{r.vendorName as string}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{r.gstin as string}</td>
-                      <td className="px-3 py-2 text-right">{fmtCurrency(r.taxable as number)}</td>
-                      <td className="px-3 py-2 text-right">{fmtCurrency(r.cgst as number)}</td>
-                      <td className="px-3 py-2 text-right">{fmtCurrency(r.sgst as number)}</td>
-                      <td className="px-3 py-2 text-right font-bold">{fmtCurrency(r.total as number)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-        {b2c.total > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <p className="text-sm font-bold text-gray-600 mb-2">B2C (without GSTIN)</p>
-            <div className="grid grid-cols-4 gap-4 text-center">
-              <div>
-                <p className="text-xs text-gray-400">Taxable</p>
-                <p className="font-bold">{fmtCurrency(b2c.taxable)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">CGST</p>
-                <p className="font-bold">{fmtCurrency(b2c.cgst)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">SGST</p>
-                <p className="font-bold">{fmtCurrency(b2c.sgst)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Total</p>
-                <p className="font-bold">{fmtCurrency(b2c.total)}</p>
-              </div>
-            </div>
-          </div>
-        )}
-        {hsn.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-2 bg-gray-50 border-b text-sm font-bold text-gray-600">HSN Summary</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase">
-                    <th className="px-3 py-2 text-left">HSN</th>
-                    <th className="px-3 py-2 text-left">Description</th>
-                    <th className="px-3 py-2 text-right">Qty</th>
-                    <th className="px-3 py-2 text-right">Taxable</th>
-                    <th className="px-3 py-2 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {hsn.map((r, i) => (
-                    <tr key={i} className="border-t border-gray-50">
-                      <td className="px-3 py-2 font-mono">{r.hsn as string}</td>
-                      <td className="px-3 py-2">{r.description as string}</td>
-                      <td className="px-3 py-2 text-right">{r.qty as number}</td>
-                      <td className="px-3 py-2 text-right">{fmtCurrency(r.taxable as number)}</td>
-                      <td className="px-3 py-2 text-right font-bold">{fmtCurrency(r.total as number)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+      <Gstr1Sections
+        data={data as Gstr1SummaryData}
+        partySingular={partySingular}
+        section={gstSection}
+        onSection={onGstSection}
+      />
     );
   }
 

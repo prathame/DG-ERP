@@ -3543,6 +3543,8 @@ export async function handleLocalApiRequest(
         b2cCgst = 0,
         b2cSgst = 0,
         b2cTotal = 0;
+      const b2cRateMap: Record<number, { rate: number; taxable: number; cgst: number; sgst: number; total: number }> =
+        {};
       const hsnMap: Record<
         string,
         { hsn: string; description: string; qty: number; taxable: number; cgst: number; sgst: number; total: number }
@@ -3579,6 +3581,12 @@ export async function handleLocalApiRequest(
           b2cCgst += cgst;
           b2cSgst += sgst;
           b2cTotal += billed;
+          const rate = taxable > 0 ? Math.round((tax / taxable) * 100) : 0;
+          if (!b2cRateMap[rate]) b2cRateMap[rate] = { rate, taxable: 0, cgst: 0, sgst: 0, total: 0 };
+          b2cRateMap[rate].taxable += taxable;
+          b2cRateMap[rate].cgst += cgst;
+          b2cRateMap[rate].sgst += sgst;
+          b2cRateMap[rate].total += billed;
         }
         let items: unknown[] = [];
         try {
@@ -3620,6 +3628,7 @@ export async function handleLocalApiRequest(
         period: `${String(month).padStart(2, '0')}/${year}`,
         b2b: Object.values(b2b),
         b2c: { taxable: b2cTaxable, cgst: b2cCgst, sgst: b2cSgst, total: b2cTotal },
+        b2cRates: Object.values(b2cRateMap).sort((a, b) => a.rate - b.rate),
         hsnSummary: Object.values(hsnMap),
         totalTaxable: Object.values(b2b).reduce((s, v) => s + v.taxable, 0) + b2cTaxable,
         totalTax: Object.values(b2b).reduce((s, v) => s + v.cgst + v.sgst, 0) + b2cCgst + b2cSgst,

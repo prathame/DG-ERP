@@ -195,10 +195,10 @@ export const ACCOUNTS_GUIDE_ENTRIES: AccountsGuideEntry[] = [
   },
   {
     key: 'gst',
-    label: 'GST Summary',
+    label: 'GSTR-1',
     group: 'compliance',
-    shows: 'GST totals for one month (B2B, B2C, HSN).',
-    steps: 'Pick Month and Year, then Generate. Use GSTR-1 JSON if you need a portal draft file.',
+    shows: 'GSTR-1 sections for one month: B2B (GSTIN), B2C (no GSTIN), and HSN.',
+    steps: 'Pick Month and Year, then Generate. Open B2B / B2C / HSN. Use GSTR-1 JSON for the portal draft file.',
   },
   {
     key: 'gstr2b',

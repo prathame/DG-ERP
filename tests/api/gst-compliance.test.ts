@@ -260,6 +260,10 @@ describe('GST Summary', () => {
   it('HSN summary is present', () => {
     expect(Array.isArray(summary.hsnSummary)).toBe(true);
   });
+
+  it('b2cRates is a rate-wise B2C list', () => {
+    expect(Array.isArray(summary.b2cRates)).toBe(true);
+  });
 });
 
 // ─── GSTR-1 JSON ─────────────────────────────────────────────────────────────
