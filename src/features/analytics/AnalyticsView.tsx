@@ -39,8 +39,8 @@ import {
   writeReportingPeriod,
   readReportingPeriod,
   applyFinancialYear,
-  matchFyStartYear,
-  indianLastFyRange,
+  ensureOpenOnCurrentFy,
+  isIndianFyClosed,
   type ReportingPeriodPreset,
 } from '../../lib/reportingPeriod';
 
@@ -119,6 +119,7 @@ export function AnalyticsView({
   ];
   const outstandingLabel = t('dashboard.outstanding');
   const [range, setRange] = useState<RangeId>(() => {
+    ensureOpenOnCurrentFy();
     const saved = readReportingPeriod();
     if (!saved?.preset || !RANGE_IDS.includes(saved.preset as RangeId)) return 'fy';
     if (saved.preset === 'lastFy') return 'fy';
@@ -126,12 +127,7 @@ export function AnalyticsView({
   });
   const [fromDate, setFromDate] = useState(() => readReportingPeriod()?.from || '');
   const [toDate, setToDate] = useState(() => readReportingPeriod()?.to || '');
-  const [fyStartYear, setFyStartYear] = useState<number | null>(() => {
-    const saved = readReportingPeriod();
-    if (saved?.fyStartYear) return saved.fyStartYear;
-    if (saved?.preset === 'lastFy') return indianLastFyRange().startYear;
-    return matchFyStartYear(saved?.from, saved?.to);
-  });
+  const [fyStartYear, setFyStartYear] = useState<number | null>(() => ensureOpenOnCurrentFy().startYear);
   const [money, setMoney] = useState<{
     collections: number;
     revenue: number;
@@ -189,6 +185,7 @@ export function AnalyticsView({
         to: to || '',
         label: resolved.label,
         fyStartYear: resolved.fyStartYear,
+        pinned: range === 'fy' && resolved.fyStartYear != null && isIndianFyClosed(resolved.fyStartYear),
       });
     }
     api.dashboard

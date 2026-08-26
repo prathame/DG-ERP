@@ -3,13 +3,16 @@ import {
   applyFinancialYear,
   applyReportingPreset,
   defaultDateRangeFromReportingPeriod,
+  ensureOpenOnCurrentFy,
   indianFyRange,
   indianFyRangeForStartYear,
   indianLastFyRange,
   indianQuarterRange,
+  isIndianFyClosed,
   listIndianFinancialYears,
   localDateISO,
   matchFyStartYear,
+  openFinancialYear,
   readReportingPeriod,
   resolveReportingRange,
   writeReportingPeriod,
@@ -125,11 +128,12 @@ describe('reportingPeriod', () => {
     expect(applied?.from).toBe('2025-04-01');
     expect(readReportingPeriod()?.preset).toBe('lastFy');
     expect(defaultDateRangeFromReportingPeriod(asOf)).toEqual({
-      from: '2025-04-01',
-      to: '2026-03-31',
+      from: '2026-04-01',
+      to: '2026-08-16',
     });
 
     applyFinancialYear(2023, asOf);
+    expect(readReportingPeriod()?.pinned).toBe(true);
     expect(defaultDateRangeFromReportingPeriod(asOf)).toEqual({
       from: '2023-04-01',
       to: '2024-03-31',
@@ -140,5 +144,32 @@ describe('reportingPeriod', () => {
       from: '2026-04-01',
       to: '2026-08-16',
     });
+  });
+
+  it('openFinancialYear ignores a closed saved FY and leftover lastFy', () => {
+    const asOf = new Date(2026, 7, 26, 12);
+    writeReportingPeriod({
+      preset: 'fy',
+      from: '2025-04-01',
+      to: '2026-03-31',
+      label: 'FY 2025-26',
+      fyStartYear: 2025,
+    });
+    expect(openFinancialYear(asOf).label).toBe('FY 2026-27');
+    expect(isIndianFyClosed(2025, asOf)).toBe(true);
+    expect(isIndianFyClosed(2026, asOf)).toBe(false);
+
+    const bumped = ensureOpenOnCurrentFy(asOf);
+    expect(bumped.label).toBe('FY 2026-27');
+    expect(readReportingPeriod()?.fyStartYear).toBe(2026);
+
+    writeReportingPeriod({
+      preset: 'fy',
+      from: '2026-04-01',
+      to: '2026-08-26',
+      label: 'FY 2026-27',
+      fyStartYear: 2026,
+    });
+    expect(openFinancialYear(asOf).startYear).toBe(2026);
   });
 });
