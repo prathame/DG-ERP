@@ -46,6 +46,7 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { canEditInvoice } from '../../../shared/invoiceEdit';
+import { phoneValidationError } from '../../../shared/phone';
 import {
   DEFAULT_BILL_UNIT,
   defaultBillUnit,
@@ -1706,6 +1707,12 @@ export function CreateInvoiceModal({
       setStep(0);
       return;
     }
+    const phoneErr = phoneValidationError(form.customerPhone);
+    if (phoneErr) {
+      toast(phoneErr, 'error');
+      setStep(0);
+      return;
+    }
     const validRows = rows.filter(r => r.description.trim() && r.rate > 0);
     if (!validRows.length) {
       toast('Add at least one line item', 'error');
@@ -1812,6 +1819,13 @@ export function CreateInvoiceModal({
       reportActionBlocked('invoice.save', 'Customer name is required');
       toast('Customer name is required', 'error');
       return;
+    }
+    if (step === 0) {
+      const phoneErr = phoneValidationError(form.customerPhone);
+      if (phoneErr) {
+        toast(phoneErr, 'error');
+        return;
+      }
     }
     if (step === 1) {
       const validRows = rows.filter(r => r.description.trim() && r.rate > 0);

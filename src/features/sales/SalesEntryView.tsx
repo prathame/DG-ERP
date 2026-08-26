@@ -25,6 +25,7 @@ import { resolveUpiQrDataUrl } from '../../lib/upiQr';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { phoneValidationError } from '../../../shared/phone';
 
 export function SalesEntryView({
   user,
@@ -157,13 +158,19 @@ export function SalesEntryView({
 
   const handleSale = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validation?.valid || !barcode.trim() || !form.customerName || !form.customerPhone) return;
+    if (!validation?.valid || !barcode.trim() || !form.customerName) return;
+    const phone = form.customerPhone.trim();
+    const phoneErr = phoneValidationError(phone);
+    if (phoneErr) {
+      toast(phoneErr, 'error');
+      return;
+    }
     setSubmitting(true);
     api.sales
       .create({
         barcode: barcode.trim(),
         customerName: form.customerName,
-        customerPhone: form.customerPhone,
+        customerPhone: phone || undefined,
         customerEmail: form.customerEmail || undefined,
         purchaseDate: form.purchaseDate,
         salePrice: form.salePrice ? parseFloat(form.salePrice) : undefined,
@@ -348,12 +355,13 @@ export function SalesEntryView({
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Phone</label>
+                <label className="text-xs font-bold text-gray-400 uppercase">Phone (optional)</label>
                 <input
-                  required
+                  type="tel"
                   value={form.customerPhone}
                   onChange={e => setForm({ ...form, customerPhone: e.target.value })}
                   className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  placeholder="For WhatsApp — leave blank for walk-in"
                 />
               </div>
               <div>
@@ -522,7 +530,12 @@ export function SalesEntryView({
                       </button>
                       <button
                         type="button"
+                        disabled={!s.customerPhone}
                         onClick={async () => {
+                          if (!s.customerPhone) {
+                            toast('Add a phone number to send WhatsApp', 'error');
+                            return;
+                          }
                           try {
                             const bill = await api.sales.getBill(s.id);
                             const bs = await api.settings
@@ -568,8 +581,8 @@ export function SalesEntryView({
                             toast((err as Error).message, 'error');
                           }
                         }}
-                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                        title="Send via WhatsApp (PDF)"
+                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
+                        title={s.customerPhone ? 'Send via WhatsApp (PDF)' : 'Add a phone number to send WhatsApp'}
                       >
                         <MessageCircle size={15} />
                       </button>

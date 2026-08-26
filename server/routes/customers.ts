@@ -89,7 +89,17 @@ router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
     const id = uid('C');
     await pool.query(
       'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id, credit_limit, credit_period_days) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-      [id, tenantId, name.trim(), phone, email, address, vendorId || null, creditLimit, creditPeriodDays],
+      [
+        id,
+        tenantId,
+        name.trim(),
+        phone?.trim() || null,
+        email,
+        address,
+        vendorId || null,
+        creditLimit,
+        creditPeriodDays,
+      ],
     );
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json(mapCustomer(row));

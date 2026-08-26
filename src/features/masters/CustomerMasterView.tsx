@@ -10,6 +10,7 @@ import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { phoneValidationError } from '../../../shared/phone';
 
 export function CustomerMasterView({
   onBack,
@@ -126,10 +127,16 @@ export function CustomerMasterView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const phoneErr = phoneValidationError(form.phone);
+    if (phoneErr) {
+      toast(phoneErr, 'error');
+      return;
+    }
     setSubmitting(true);
     const { vendorId: formVendorId, creditLimit, creditPeriodDays, ...rest } = form;
     const payload = {
       ...rest,
+      phone: form.phone.trim() || undefined,
       vendorId: formVendorId || null,
       creditLimit: creditLimit.trim() === '' ? null : Number(creditLimit),
       creditPeriodDays: creditPeriodDays.trim() === '' ? null : Number(creditPeriodDays),

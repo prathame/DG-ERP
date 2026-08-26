@@ -809,7 +809,7 @@ export const api = {
     create: (data: {
       barcode: string;
       customerName: string;
-      customerPhone: string;
+      customerPhone?: string;
       customerEmail?: string;
       purchaseDate?: string;
       salePrice?: number | string;

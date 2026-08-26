@@ -39,6 +39,7 @@ import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import type { DistributionBillData, DistributionBatch } from '../../api';
+import { phoneValidationError } from '../../../shared/phone';
 
 type Invoice = {
   id: string;
@@ -517,6 +518,11 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const runSave = async (status: 'draft' | 'sent', mode: 'auto' | 'split' = 'auto') => {
     if (!form.customerName.trim()) {
       toast(`${partyLabel} name is required`, 'error');
+      return;
+    }
+    const phoneErr = phoneValidationError(form.customerPhone);
+    if (phoneErr) {
+      toast(phoneErr, 'error');
       return;
     }
     const { inventory, custom } = classifyLines(rows);
