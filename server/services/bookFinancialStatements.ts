@@ -303,6 +303,47 @@ export async function getTradingAccount(pool: Pool, tenantId: string, from: stri
   };
 }
 
+/** Cash-in-hand (drawer) — never a loan, even when the drawer is overdrawn. Bank OD stays a liability. */
+export function isCashInHandLedger(ledgerType?: string | null, groupName?: string | null): boolean {
+  const t = String(ledgerType || '')
+    .trim()
+    .toUpperCase();
+  if (t === 'CS') return true;
+  const g = String(groupName || '').toLowerCase();
+  return /\bcash[\s-]?in[\s-]?hand\b/.test(g);
+}
+
+/** Where a non-P&L ledger sits on the balance sheet. Amount is signed for cash (negative = overdrawn drawer). */
+export function placeBalanceSheetLine(r: {
+  statementClass: StatementClass;
+  ledgerType: string | null;
+  groupName: string | null;
+  closingBalance: number;
+}): { side: 'assets' | 'liabilities' | 'capital'; amount: number } | null {
+  if (r.statementClass === 'income' || r.statementClass === 'expense' || r.statementClass === 'trading') {
+    return null;
+  }
+  const { debit, credit } = splitDrCr(r.closingBalance);
+  if (isCashInHandLedger(r.ledgerType, r.groupName)) {
+    const signed = round2(debit - credit);
+    if (Math.abs(signed) < 0.005) return null;
+    return { side: 'assets', amount: signed };
+  }
+  if (r.statementClass === 'capital') {
+    if (credit >= 0.005) return { side: 'capital', amount: credit };
+    if (debit >= 0.005) return { side: 'assets', amount: debit };
+    return null;
+  }
+  if (r.statementClass === 'liability') {
+    if (credit >= 0.005) return { side: 'liabilities', amount: credit };
+    if (debit >= 0.005) return { side: 'assets', amount: debit };
+    return null;
+  }
+  if (debit >= 0.005) return { side: 'assets', amount: debit };
+  if (credit >= 0.005) return { side: 'liabilities', amount: credit };
+  return null;
+}
+
 export async function getBooksBalanceSheet(pool: Pool, tenantId: string, asOf: string | null) {
   // BS uses all movements through asOf; income/expense closed via net profit plug
   const rows = toTbRows(await loadLedgerAggregates(pool, tenantId, null, asOf));
@@ -312,23 +353,12 @@ export async function getBooksBalanceSheet(pool: Pool, tenantId: string, asOf: s
   const pnl = await getBooksProfitLoss(pool, tenantId, null, asOf);
 
   for (const r of rows) {
-    if (r.statementClass === 'income' || r.statementClass === 'expense' || r.statementClass === 'trading') {
-      continue;
-    }
-    const { debit, credit } = splitDrCr(r.closingBalance);
-    if (r.statementClass === 'capital') {
-      if (credit >= 0.005) capital.push({ name: r.name, groupName: r.groupName, amount: credit });
-      else if (debit >= 0.005) assets.push({ name: r.name, groupName: r.groupName, amount: debit });
-      continue;
-    }
-    if (r.statementClass === 'liability') {
-      if (credit >= 0.005) liabilities.push({ name: r.name, groupName: r.groupName, amount: credit });
-      else if (debit >= 0.005) assets.push({ name: r.name, groupName: r.groupName, amount: debit });
-      continue;
-    }
-    // asset + other
-    if (debit >= 0.005) assets.push({ name: r.name, groupName: r.groupName, amount: debit });
-    else if (credit >= 0.005) liabilities.push({ name: r.name, groupName: r.groupName, amount: credit });
+    const placed = placeBalanceSheetLine(r);
+    if (!placed) continue;
+    if (placed.side === 'assets') assets.push({ name: r.name, groupName: r.groupName, amount: placed.amount });
+    else if (placed.side === 'liabilities')
+      liabilities.push({ name: r.name, groupName: r.groupName, amount: placed.amount });
+    else capital.push({ name: r.name, groupName: r.groupName, amount: placed.amount });
   }
 
   if (pnl.netProfit >= 0.005) {
