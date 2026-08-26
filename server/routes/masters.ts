@@ -26,13 +26,17 @@ router.get('/api/masters/counts', async (req, res) => {
       [tenantId],
     );
 
+    const n = (v: unknown) => {
+      const x = Number(v);
+      return Number.isFinite(x) ? x : 0;
+    };
     res.json({
-      customerMaster: r.customers,
-      vendorMaster: r.vendors,
-      itemMaster: r.products,
-      bankMaster: r.banks,
-      categoryMaster: r.categories,
-      staffCount: r.staff,
+      customerMaster: n(r.customers),
+      vendorMaster: n(r.vendors),
+      itemMaster: n(r.products),
+      bankMaster: n(r.banks),
+      categoryMaster: n(r.categories),
+      staffCount: n(r.staff),
     });
   } catch (err) {
     return handleApiError(req, res, err);

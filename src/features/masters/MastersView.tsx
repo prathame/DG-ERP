@@ -26,6 +26,7 @@ import { tb } from '../../i18n/businessLabels';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { asMasterCount } from '../../lib/masterCount';
 import { DesktopMastersHub } from './DesktopMastersHub';
 import { MobileMastersHub } from './MobileMastersHub';
 import {
@@ -139,19 +140,20 @@ export function MastersView({
       .counts()
       .then(c => {
         setMasterCounts({
-          customer: c.customerMaster,
-          vendor: c.vendorMaster,
-          item: c.itemMaster,
-          bank: c.bankMaster,
-          staff: (c as Record<string, number>).staffCount ?? 0,
+          customer: asMasterCount(c.customerMaster),
+          vendor: asMasterCount(c.vendorMaster),
+          item: asMasterCount(c.itemMaster),
+          bank: asMasterCount(c.bankMaster),
+          staff: asMasterCount(c.staffCount),
         });
       })
       .catch(() => {});
   };
 
   useEffect(() => {
+    if (selectedMaster) return;
     refreshCounts();
-  }, []);
+  }, [selectedMaster]);
 
   useEffect(() => {
     api.settings
@@ -222,7 +224,7 @@ export function MastersView({
     ? [
         {
           id: 'item' as const,
-          name: 'Products',
+          name: tabConfig['inventory']?.label || t('masters.products'),
           count: masterCounts.item as number | string,
           icon: Package,
           color: 'text-orange-600',
@@ -565,7 +567,9 @@ export function MastersView({
                     <div className="min-w-0">
                       <h3 className="font-bold text-lg truncate">{m.name}</h3>
                       <p className="text-sm text-gray-500 truncate">
-                        {typeof m.count === 'number' ? `${m.count} records found` : m.count || 'View & manage mapping'}
+                        {m.count !== '' && m.count != null
+                          ? `${asMasterCount(m.count)} records found`
+                          : m.count || 'View & manage mapping'}
                       </p>
                     </div>
                   </div>

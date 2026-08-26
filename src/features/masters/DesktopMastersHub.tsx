@@ -7,6 +7,7 @@ import type { MasterType } from './MastersView';
 import { useTranslation } from '../../i18n';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
+import { asMasterCount, openMasterCta } from '../../lib/masterCount';
 
 export type DesktopMasterCard = {
   id: MasterType;
@@ -25,7 +26,7 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const serviceCatalogUx = isServiceProductUx(cfg.type);
-  const total = totalRecords ?? masters.reduce((s, m) => s + (typeof m.count === 'number' ? m.count : 0), 0);
+  const total = totalRecords ?? masters.reduce((s, m) => s + asMasterCount(m.count), 0);
 
   const descriptions: Partial<Record<MasterType, string>> = {
     item: 'Products, SKUs, and item configuration for inventory.',
@@ -38,19 +39,6 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
     priceList: t('masters.pricesDesc'),
     rewardRules: 'Loyalty points, thresholds, and reward campaigns.',
     mapping: 'Link vendors to customers for sales and distribution.',
-  };
-
-  const cta: Partial<Record<MasterType, string>> = {
-    item: t('masters.openProducts'),
-    customer: 'Open Customers',
-    vendor: serviceCatalogUx ? t('masters.openClients') : t('masters.openVendors'),
-    bank: t('masters.openBanks'),
-    staff: t('masters.openStaff'),
-    expenses: t('masters.openExpenses'),
-    collections: t('masters.openCollections'),
-    priceList: t('masters.openPriceList'),
-    rewardRules: 'Open Reward Rules',
-    mapping: 'Open Mapping',
   };
 
   return (
@@ -66,7 +54,9 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
         {masters.map(m => {
           const Icon = m.icon;
           const desc = descriptions[m.id] || 'View and manage master records for this category.';
-          const ctaLabel = cta[m.id] || 'Open';
+          const ctaLabel = openMasterCta(m.name);
+          const records = asMasterCount(m.count);
+          const showCount = m.count !== '' && m.count != null;
           return (
             <div key={m.id} className="dg-glass-card group p-6 rounded-2xl flex flex-col justify-between min-h-[220px]">
               <div>
@@ -75,8 +65,8 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
                 </div>
                 <h4 className="text-lg font-bold dg-ink mb-2">{m.name}</h4>
                 <p className="text-sm dg-muted mb-2 leading-relaxed">{desc}</p>
-                {typeof m.count === 'number' ? (
-                  <p className="text-[11px] dg-faint font-bold uppercase tracking-wider">{m.count} records</p>
+                {showCount ? (
+                  <p className="text-[11px] dg-faint font-bold uppercase tracking-wider">{records} records</p>
                 ) : null}
               </div>
               <div className="flex items-center justify-between mt-6 pt-2">
