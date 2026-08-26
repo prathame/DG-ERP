@@ -839,9 +839,13 @@ export const api = {
   },
   masters: {
     counts: () =>
-      fetchApi<{ customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number }>(
-        '/masters/counts',
-      ),
+      fetchApi<{
+        customerMaster: number;
+        vendorMaster: number;
+        itemMaster: number;
+        bankMaster: number;
+        staffCount?: number;
+      }>('/masters/counts'),
   },
   customers: {
     list: (search?: string, vendorId?: string) => {

@@ -5,6 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { Search, type LucideIcon } from 'lucide-react';
 import { MobileFab } from '../../components/ui';
+import { asMasterCount } from '../../lib/masterCount';
 import type { MasterType } from './MastersView';
 
 export type MobileMasterTile = {
@@ -72,9 +73,9 @@ export function MobileMastersHub({ masters, onOpen, subtitle }: Props) {
           const Icon = m.icon;
           const suffix = COUNT_SUFFIX[m.id];
           const countLine =
-            typeof m.count === 'number'
-              ? `${m.count.toLocaleString('en-IN')}${suffix ? ` ${suffix}` : ' records'}`
-              : m.count || 'Open';
+            m.count === '' || m.count == null
+              ? m.count || 'Open'
+              : `${asMasterCount(m.count).toLocaleString('en-IN')}${suffix ? ` ${suffix}` : ' records'}`;
           return (
             <button
               key={m.id}
