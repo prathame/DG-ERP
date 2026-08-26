@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
+import { round2 } from '../../shared/gstRound';
 import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
@@ -241,7 +242,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       // RCM still needs gst_applied + billed>cost so tax SQL can derive liability/ITC;
       // supplier payable stays at cost (tax remitted to govt, not supplier).
       const gstApplied = isRcm ? true : item.withGst !== false;
-      const billedPricePerUnit = gstApplied ? Math.round((costPricePerUnit * (100 + gstRate)) / 100) : costPricePerUnit;
+      const billedPricePerUnit = gstApplied ? round2((costPricePerUnit * (100 + gstRate)) / 100) : costPricePerUnit;
       const supplierUnit = isRcm ? costPricePerUnit : billedPricePerUnit;
 
       productNames.push(product.name);

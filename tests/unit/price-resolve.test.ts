@@ -43,6 +43,31 @@ describe('unitPricesAfterDiscount', () => {
     expect(r.billedPricePerUnit).toBe(1180);
   });
 
+  it('keeps exclusive GST on paisa (USB ₹120 + earphones ₹399 @ 18%)', () => {
+    const usb = unitPricesAfterDiscount({
+      basePrice: 120,
+      discountPercent: 0,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    const earphones = unitPricesAfterDiscount({
+      basePrice: 399,
+      discountPercent: 0,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    expect(usb.billedPricePerUnit).toBe(141.6);
+    expect(earphones.billedPricePerUnit).toBe(470.82);
+    const net = 120 * 2 + 399;
+    const billed = Math.round((usb.billedPricePerUnit * 2 + earphones.billedPricePerUnit) * 100) / 100;
+    const tax = Math.round((billed - net) * 100) / 100;
+    expect(net).toBe(639);
+    expect(tax).toBe(115.02);
+    expect(billed).toBe(754.02);
+  });
+
   it('back-calculates net when price includes GST', () => {
     const r = unitPricesAfterDiscount({
       basePrice: 1180,

@@ -1,5 +1,6 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 import { formatBillQty } from '../../shared/billUnits';
+import { round2 } from '../../shared/gstRound';
 import { storedUpiQrDataUrl } from './upiQr';
 
 export function esc(text: unknown): string {
@@ -300,9 +301,10 @@ export function generateSalesInvoiceHtml(
 
   const gstRate = bill.gstRate || 18;
   const basePrice = Number(bill.salePrice);
-  const gstAmount = showGst ? Math.round((basePrice * gstRate) / 100) : 0;
-  const halfGst = Math.round(gstAmount / 2);
-  const grandTotal = basePrice + gstAmount;
+  const gstAmount = showGst ? round2((basePrice * gstRate) / 100) : 0;
+  const halfGst = round2(gstAmount / 2);
+  const sgstAmt = round2(gstAmount - halfGst);
+  const grandTotal = round2(basePrice + gstAmount);
   const sellerGstin = String((bill as unknown as Record<string, unknown>).companyGstin || billConfig.gstNumber || '');
   const buyerGstin = String((bill as unknown as Record<string, unknown>).customerGstin || '');
   const posLabel = placeOfSupplyLabel(buyerGstin, sellerGstin);
@@ -431,7 +433,7 @@ ${billBackgroundLayerHtml(billConfig)}
         ${
           showGst
             ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
-        <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${(gstAmount - halfGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
+        <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${sgstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
             : ''
         }
         <tr><td style="padding:3px 8px;">Total Tax</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
@@ -925,11 +927,12 @@ export function generateDistributionChallanHtml(
     }, 0) ?? 0;
   const gstAmount = showGst
     ? billedFromItems > netVal
-      ? Math.round(billedFromItems - netVal)
-      : Math.round((netVal * gstRate) / 100)
+      ? round2(billedFromItems - netVal)
+      : round2((netVal * gstRate) / 100)
     : 0;
-  const halfGst = Math.round(gstAmount / 2);
-  const grandTotal = netVal + gstAmount;
+  const halfGst = round2(gstAmount / 2);
+  const sgstAmt = round2(gstAmount - halfGst);
+  const grandTotal = round2(netVal + gstAmount);
   const vendorGstin = ((bill.vendor as Record<string, unknown>).gstNumber as string) || '';
   const sellerGstin = String(billConfig.gstNumber || (bill as unknown as Record<string, unknown>).companyGstin || '');
   const posLabel = placeOfSupplyLabel(vendorGstin, sellerGstin);
@@ -1064,7 +1067,7 @@ ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
   <tbody>
   ${bill.groupedItems
     .map(g => {
-      const lineGst = showGst ? Math.round((g.lineTotal * gstRate) / 100) : 0;
+      const lineGst = showGst ? round2((g.lineTotal * gstRate) / 100) : 0;
       return `<tr>
       <td>${g.sno}</td>
       <td class="left"><strong>${esc(g.productName)}</strong>${(g as Record<string, unknown>).packQuantity ? ` <span style="font-size:9px;color:#666;">${esc((g as Record<string, unknown>).packQuantity)}</span>` : ''}</td>
@@ -1104,7 +1107,7 @@ ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
           showGst
             ? vendorGstin
               ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
-             <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${(gstAmount - halfGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
+             <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${sgstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
               : `<tr><td style="padding:3px 8px;">Add : IGST</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
             : ''
         }
@@ -1311,8 +1314,8 @@ export function generatePurchaseBillHtml(opts: {
       })),
       subtotal: opts.subtotal,
       taxTotal: opts.taxTotal,
-      taxCgst: hasGst ? Math.round((opts.taxTotal / 2) * 100) / 100 : 0,
-      taxSgst: hasGst ? Math.round((opts.taxTotal / 2) * 100) / 100 : 0,
+      taxCgst: hasGst ? round2(opts.taxTotal / 2) : 0,
+      taxSgst: hasGst ? round2(opts.taxTotal - round2(opts.taxTotal / 2)) : 0,
       gstEnabled: hasGst,
       grandTotal: opts.grandTotal,
       status: (opts.outstanding ?? 0) <= 0.001 ? 'paid' : 'sent',

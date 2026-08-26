@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
+import { round2 } from '../../shared/gstRound';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
@@ -336,7 +337,7 @@ router.post('/api/orders/:id/fulfill', blockVendors, async (req: AuthRequest, re
         const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
         const netPrice = Math.round(((basePrice * (100 - disc)) / 100) * 100) / 100;
         const gstApplied = item.withGst !== false ? 1 : 0;
-        const billedPrice = gstApplied ? Math.round((netPrice * (100 + gstRate)) / 100) : netPrice;
+        const billedPrice = gstApplied ? round2((netPrice * (100 + gstRate)) / 100) : netPrice;
 
         const invRows = (
           await client.query(

@@ -96,4 +96,27 @@ describe('gstInclusivePrice', () => {
     });
     expect(off.billed).toBe(1000);
   });
+
+  it('preview: exclusive 2×₹120 + ₹399 @ 18% bills ₹754.02 not ₹755', () => {
+    const usb = linePricesAfterDiscount({
+      unitPrice: 120,
+      quantity: 2,
+      discountPercent: 0,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    const earphones = linePricesAfterDiscount({
+      unitPrice: 399,
+      quantity: 1,
+      discountPercent: 0,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    expect(usb.billed).toBe(283.2);
+    expect(earphones.billed).toBe(470.82);
+    expect(Math.round((usb.billed + earphones.billed) * 100) / 100).toBe(754.02);
+    expect(Math.round((usb.gst + earphones.gst) * 100) / 100).toBe(115.02);
+  });
 });

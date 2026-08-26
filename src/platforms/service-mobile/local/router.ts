@@ -22,6 +22,7 @@ import {
   mapVendor,
 } from './mappers';
 import { invoiceEditBlockedReason } from '../../../../shared/invoiceEdit';
+import { round2 } from '../../../../shared/gstRound';
 import { buildLineItems, mapOrderRow, mapQuoteRow, nextDocNumber } from './quoteOrderHelpers';
 import {
   buildStandaloneInvoiceLines,
@@ -3403,7 +3404,7 @@ export async function handleLocalApiRequest(
         const qty = Number(item.quantity) || 1;
         const price = Number(item.price) || 0;
         const net = qty * price;
-        const gst = item.withGst !== false ? Math.round((net * rate) / 100) : 0;
+        const gst = item.withGst !== false ? round2((net * rate) / 100) : 0;
         subtotal += net;
         gstAmount += gst;
         return {

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { isHotelRestaurantBusiness } from '../../../shared/hotelMasters';
+import { round2 } from '../../../shared/gstRound';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
@@ -396,7 +397,7 @@ export function QuotationsView({
       netPer = Math.round((afterDisc / (1 + defaultGstRate / 100)) * 100) / 100;
     } else if (withGst) {
       netPer = afterDisc;
-      billedPer = Math.round((afterDisc * (100 + defaultGstRate)) / 100);
+      billedPer = round2((afterDisc * (100 + defaultGstRate)) / 100);
     }
     const net = Math.round(netPer * qty * 100) / 100;
     const total = Math.round(billedPer * qty * 100) / 100;

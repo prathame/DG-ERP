@@ -19,6 +19,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { splitGstTax } from '../../server/utils/gst-place';
+import { round2 as sharedRound2 } from '../../shared/gstRound';
+import { unitPricesAfterDiscount } from '../../server/utils/price-resolve';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -203,5 +205,36 @@ describe('Credit/debit note GST formula (P0-3 fix verification)', () => {
   it('Fix: Math.round(((100.50 * 18) / 100) * 100) / 100 = 18.09', () => {
     const correct = Math.round(((100.5 * 18) / 100) * 100) / 100;
     expect(correct).toBe(18.09);
+  });
+});
+
+describe('shop bill — exclusive GST to paisa, not whole rupees', () => {
+  it('2× USB ₹120 + earphones ₹399 @ 18% → tax ₹115.02, bill ₹754.02, CGST/SGST ₹57.51', () => {
+    expect(sharedRound2(115.02)).toBe(115.02);
+    const usb = unitPricesAfterDiscount({
+      basePrice: 120,
+      discountPercent: 0,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    const earphones = unitPricesAfterDiscount({
+      basePrice: 399,
+      discountPercent: 0,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    const net = 639;
+    const billed = sharedRound2(usb.billedPricePerUnit * 2 + earphones.billedPricePerUnit);
+    const tax = sharedRound2(billed - net);
+    expect(usb.billedPricePerUnit).toBe(141.6);
+    expect(earphones.billedPricePerUnit).toBe(470.82);
+    expect(tax).toBe(115.02);
+    expect(billed).toBe(754.02);
+    const { taxCgst, taxSgst } = splitGstTax(tax, false);
+    expect(taxCgst).toBe(57.51);
+    expect(taxSgst).toBe(57.51);
+    expect(sharedRound2(taxCgst + taxSgst)).toBe(115.02);
   });
 });
