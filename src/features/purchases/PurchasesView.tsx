@@ -20,6 +20,13 @@ import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
+
+function purchaseUnitCost(rowCost: string, product?: Product): number {
+  if (rowCost) return parseFloat(rowCost) || 0;
+  const buy = Number(product?.costPrice);
+  if (buy > 0) return buy;
+  return Number(product?.price) || 0;
+}
 import {
   useToast,
   LoadingSpinner,
@@ -308,7 +315,7 @@ export function PurchasesView({
       const p = products.find(x => x.id === r.productId);
       const ps = p?.packSize ?? 1;
       const actualQty = ps > 1 ? r.packs * ps + r.loosePieces : r.quantity;
-      const cost = r.costPrice ? parseFloat(r.costPrice) : (p?.price ?? 0);
+      const cost = purchaseUnitCost(r.costPrice, p);
       const gross = cost * (actualQty || 0);
       const gst = r.withGst || purchaseForm.isRcm ? Math.round((gross * defaultGstRate) / 100) : 0;
       acc.gross += gross;
@@ -1589,7 +1596,7 @@ export function PurchasesView({
                   const ps = p?.packSize ?? 1;
                   const hasPack = ps > 1;
                   const actualQty = hasPack ? row.packs * ps + row.loosePieces : row.quantity;
-                  const cost = row.costPrice ? parseFloat(row.costPrice) : (p?.price ?? 0);
+                  const cost = purchaseUnitCost(row.costPrice, p);
                   const gross = cost * (actualQty || 0);
                   const gst = row.withGst ? Math.round((gross * defaultGstRate) / 100) : 0;
                   const billed = gross + gst;
@@ -1759,7 +1766,7 @@ export function PurchasesView({
                       const ps = p?.packSize ?? 1;
                       const hasPack = ps > 1;
                       const actualQty = hasPack ? row.packs * ps + row.loosePieces : row.quantity;
-                      const cost = row.costPrice ? parseFloat(row.costPrice) : (p?.price ?? 0);
+                      const cost = purchaseUnitCost(row.costPrice, p);
                       const gross = cost * (actualQty || 0);
                       const gst = row.withGst ? Math.round((gross * defaultGstRate) / 100) : 0;
                       const billed = gross + gst;

@@ -776,6 +776,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       gstRate,
       barcodePerBox,
       priceIncludesGst,
+      costPrice,
       imageBase64: imageBase64Raw,
     } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
@@ -823,6 +824,16 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
             !!priceIncludesGst,
           ],
         );
+      };
+      const persistCostPrice = async () => {
+        if (costPrice === undefined || costPrice === null || costPrice === '') return;
+        const cost = Number(costPrice);
+        if (!Number.isFinite(cost) || cost < 0) return;
+        await client.query('UPDATE products SET cost_price = $1 WHERE id = $2 AND tenant_id = $3', [
+          cost,
+          id,
+          tenantId,
+        ]);
       };
       const saveProductImage = async () => {
         if (!imageBase64) return;
@@ -872,7 +883,14 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
         }
       };
 
-      if (mode === 'prefix') {
+      const quantityProvided = quantity !== undefined && quantity !== null && quantity !== '';
+      const qtyRequested = quantityProvided ? Math.floor(Number(quantity) || 0) : null;
+      const masterOnly = mode === 'none' || qtyRequested === 0;
+
+      if (masterOnly) {
+        await insertProductRow();
+        await persistCostPrice();
+      } else if (mode === 'prefix') {
         const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
         const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
         // H5: must ROLLBACK before early return — connection is mid-transaction
@@ -883,6 +901,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
         const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
         await insertProductRow();
         await insertBarcodes(barcodes);
+        await persistCostPrice();
       } else if (mode === 'auto') {
         const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
         const batchId = uid('B');
@@ -890,6 +909,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
         const barcodes = Array.from({ length: qty }, (_, i) => `${base}-${String(i + 1).padStart(4, '0')}`);
         await insertProductRow();
         await insertBarcodes(barcodes);
+        await persistCostPrice();
       } else if (
         mode === 'range' &&
         typeof rangeStart === 'string' &&
@@ -904,6 +924,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
         }
         await insertProductRow();
         await insertBarcodes(barcodes);
+        await persistCostPrice();
       } else {
         await client.query(
           `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
@@ -927,6 +948,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
             !!priceIncludesGst,
           ],
         );
+        await persistCostPrice();
         invStock = stock ?? 0;
       }
       const createdPSize = Number(packSize) || 1;
@@ -1086,6 +1108,7 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
       hsnCode,
       gstRate,
       priceIncludesGst,
+      costPrice,
       imageBase64: imageBase64Raw,
     } = req.body;
     const parsedImage = parseProductImage(imageBase64Raw);
@@ -1120,7 +1143,8 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
         pack_name = COALESCE($13, pack_name),
         hsn_code = COALESCE($14, hsn_code),
         gst_rate = COALESCE($15, gst_rate),
-        price_includes_gst = COALESCE($16, price_includes_gst)
+        price_includes_gst = COALESCE($16, price_includes_gst),
+        cost_price = COALESCE($17, cost_price)
       WHERE id = $10 AND tenant_id = $11
     `,
       [
@@ -1140,6 +1164,9 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
         hsnCode ?? null,
         gstRate ?? null,
         priceIncludesGst !== undefined ? !!priceIncludesGst : null,
+        costPrice !== undefined && costPrice !== null && costPrice !== '' && Number.isFinite(Number(costPrice))
+          ? Number(costPrice)
+          : null,
       ],
     );
     if (parsedImage.value !== undefined) {

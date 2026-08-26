@@ -188,12 +188,16 @@ export function DistributionView({
   businessType = 'manufacturer',
   launchCreate,
   onLaunchConsumed,
+  launchEditBatchId,
+  onLaunchEditConsumed,
 }: {
   user: { id: string; role?: string; vendorId?: string } | null;
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
   businessType?: string;
   launchCreate?: CreateLaunch | null;
   onLaunchConsumed?: () => void;
+  launchEditBatchId?: string | null;
+  onLaunchEditConsumed?: () => void;
 }) {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -654,7 +658,7 @@ export function DistributionView({
     }
   };
 
-  const openEdit = (batch: DistributionBatch) => {
+  const openEdit = (batch: { batchId: string }) => {
     api.distribution
       .getBatch(batch.batchId)
       .then(detail => {
@@ -690,6 +694,12 @@ export function DistributionView({
       })
       .catch(err => toast(err.message, 'error'));
   };
+
+  useEffect(() => {
+    if (!launchEditBatchId || loading) return;
+    openEdit({ batchId: launchEditBatchId });
+    onLaunchEditConsumed?.();
+  }, [launchEditBatchId, loading]);
 
   const updateEditRow = (idx: number, field: string, value: string | number | boolean) => {
     setEditRows(rows => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));

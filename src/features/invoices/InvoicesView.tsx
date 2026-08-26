@@ -281,10 +281,13 @@ function InvoiceEInvoiceButtons({
 
 export function InvoicesView({
   onOpenFinance,
+  onEditSale,
   launchCreate,
   onLaunchConsumed,
 }: {
   onOpenFinance?: () => void;
+  /** Open Sales edit for a bill that was created as a customer sale (not a standalone invoice). */
+  onEditSale?: (batchId: string) => void;
   launchCreate?: CreateLaunch | null;
   onLaunchConsumed?: () => void;
 } = {}) {
@@ -443,6 +446,11 @@ export function InvoicesView({
 
   const openEdit = (inv: Invoice) => {
     setSelectedInvoice(null);
+    if (isSaleInvoice(inv)) {
+      onEditSale?.(saleBatchIdOf(inv));
+      if (!onEditSale) toast('Edit this bill from Sales', 'info');
+      return;
+    }
     setEditingInvoice(inv);
     setCreateOpen(true);
   };
@@ -856,7 +864,7 @@ export function InvoicesView({
                     >
                       <Printer size={14} />
                     </button>
-                    {canEditInvoice(inv) && !isSaleInvoice(inv) && (
+                    {canEditInvoice(inv) && (
                       <button
                         type="button"
                         onClick={() => openEdit(inv)}
@@ -967,7 +975,7 @@ export function InvoicesView({
                         >
                           <Printer size={15} />
                         </button>
-                        {canEditInvoice(inv) && !isSaleInvoice(inv) && (
+                        {canEditInvoice(inv) && (
                           <button
                             type="button"
                             onClick={() => openEdit(inv)}
@@ -1164,7 +1172,7 @@ export function InvoicesView({
                     <IndianRupee size={16} /> {t('finance.recordPayment')}
                   </button>
                 )}
-                {canEditInvoice(selectedInvoice) && !isSaleInvoice(selectedInvoice) && (
+                {canEditInvoice(selectedInvoice) && (
                   <button
                     type="button"
                     onClick={() => openEdit(selectedInvoice)}

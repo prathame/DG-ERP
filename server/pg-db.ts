@@ -1030,6 +1030,7 @@ export async function initSchema() {
     // Missing performance indexes
     await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS price_includes_gst BOOLEAN DEFAULT false');
     await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS image_base64 TEXT');
+    await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) DEFAULT 0');
     await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS ewb_number TEXT');
     await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS irn TEXT');
     await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS irn_ack_no TEXT');
