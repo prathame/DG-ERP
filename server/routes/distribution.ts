@@ -484,7 +484,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
         const hasInv = await productHasInventory(client, tenantId, item.product.id);
         if (!hasInv) {
           const taken = await takeProductQtyStock(client, tenantId, item.product.id, item.qty);
-          if (!taken.ok) {
+          if (taken.ok === false) {
             await client.query('ROLLBACK');
             return res.status(400).json({
               error: `Insufficient stock for ${item.product.name}. Available: ${taken.available}, requested: ${item.qty}`,
@@ -793,7 +793,7 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       const hasInv = await productHasInventory(client, tenantId, product.id);
       if (!hasInv) {
         const taken = await takeProductQtyStock(client, tenantId, product.id, qty);
-        if (!taken.ok) {
+        if (taken.ok === false) {
           await client.query('ROLLBACK');
           return res
             .status(400)
@@ -1538,7 +1538,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
           let invRows: { id: string; barcode: string }[] = [];
           if (!hasInv) {
             const taken = await takeProductQtyStock(client, tenantId, item.productId, toAdd);
-            if (!taken.ok) {
+            if (taken.ok === false) {
               const name = productRows[0]?.product_name ?? item.productId;
               throw new Error(`Insufficient stock for ${name}. Available: ${taken.available}, need ${toAdd} more`);
             }

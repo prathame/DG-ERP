@@ -473,7 +473,7 @@ export const api = {
         rangeStart?: string;
         rangeEnd?: string;
         quantity: number;
-        barcodeMode?: 'prefix' | 'range' | 'auto';
+        barcodeMode?: 'prefix' | 'range' | 'auto' | 'none';
         barcodePerBox?: boolean;
         packSize?: number;
       },
