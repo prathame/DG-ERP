@@ -673,7 +673,7 @@ export function PurchasesView({
     if (
       !(await confirm({
         title: 'Delete supplier',
-        message: `Delete ${name}? This cannot be undone.`,
+        message: `Delete ${name}? Their purchase bills will also be removed. This cannot be undone.`,
         confirmLabel: 'Delete',
         variant: 'danger',
       }))

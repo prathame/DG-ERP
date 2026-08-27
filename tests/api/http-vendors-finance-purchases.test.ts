@@ -144,9 +144,14 @@ describe('HTTP: vendors / finance / purchases', () => {
     expect(pay.status).toBe(201);
   });
 
-  it('DELETE /api/suppliers/:id blocked when purchases exist, allowed when empty', async () => {
-    const blocked = await api().delete(`/api/suppliers/${supplierId}`).set(authHeaders(token, TENANT));
-    expect(blocked.status).toBe(400);
+  it('DELETE /api/suppliers/:id removes purchase bills', async () => {
+    const withBills = await api().delete(`/api/suppliers/${supplierId}`).set(authHeaders(token, TENANT));
+    expect(withBills.status).toBe(204);
+    const leftover = await pool.query(
+      'SELECT COUNT(*)::int AS c FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2',
+      [supplierId, TENANT],
+    );
+    expect(leftover.rows[0].c).toBe(0);
 
     const empty = await api()
       .post('/api/suppliers')
