@@ -516,6 +516,7 @@ export function InvoicesView({
   };
 
   const openEdit = (inv: Invoice) => {
+    if (!canEdit) return;
     setSelectedInvoice(null);
     if (isSaleInvoice(inv)) {
       onEditSale?.(saleBatchIdOf(inv));
@@ -527,6 +528,7 @@ export function InvoicesView({
   };
 
   const openRecordPayment = (inv: Invoice) => {
+    if (!canEdit) return;
     const due = invoiceDue(inv);
     if (due <= 0.001) {
       toast('This bill is already paid', 'info');
@@ -957,7 +959,7 @@ export function InvoicesView({
                         <Undo2 size={14} />
                       </button>
                     )}
-                    {canEditInvoice(inv) && (
+                    {canEdit && canEditInvoice(inv) && (
                       <button
                         type="button"
                         onClick={() => openEdit(inv)}
@@ -1001,7 +1003,7 @@ export function InvoicesView({
                         <Send size={14} />
                       </button>
                     )}
-                    {canRecordPayment(inv) && (
+                    {canEdit && canRecordPayment(inv) && (
                       <button
                         type="button"
                         onClick={() => openRecordPayment(inv)}
@@ -1079,7 +1081,7 @@ export function InvoicesView({
                             <Undo2 size={15} /> Return
                           </button>
                         )}
-                        {canEditInvoice(inv) && (
+                        {canEdit && canEditInvoice(inv) && (
                           <button
                             type="button"
                             onClick={() => openEdit(inv)}
@@ -1110,7 +1112,7 @@ export function InvoicesView({
                             <Send size={15} />
                           </button>
                         )}
-                        {canRecordPayment(inv) && (
+                        {canEdit && canRecordPayment(inv) && (
                           <button
                             type="button"
                             onClick={() => openRecordPayment(inv)}
@@ -1267,7 +1269,7 @@ export function InvoicesView({
                 )}
               </div>
               <div className="flex gap-2">
-                {canRecordPayment(selectedInvoice) && (
+                {canEdit && canRecordPayment(selectedInvoice) && (
                   <button
                     type="button"
                     onClick={() => openRecordPayment(selectedInvoice)}
@@ -1285,7 +1287,7 @@ export function InvoicesView({
                     <Undo2 size={16} /> Return
                   </button>
                 )}
-                {canEditInvoice(selectedInvoice) && (
+                {canEdit && canEditInvoice(selectedInvoice) && (
                   <button
                     type="button"
                     onClick={() => openEdit(selectedInvoice)}
