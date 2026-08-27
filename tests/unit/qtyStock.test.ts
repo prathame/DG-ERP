@@ -6,13 +6,14 @@ describe('qtyStock', () => {
     expect(isQtyStockUnit('Bag')).toBe(true);
     expect(isQtyStockUnit('kg')).toBe(true);
     expect(isQtyStockUnit('Packet')).toBe(true);
-    expect(isQtyStockUnit('Litre')).toBe(true);
+    expect(isQtyStockUnit('Box')).toBe(true);
+    expect(isQtyStockUnit('Bottle')).toBe(true);
+    expect(isQtyStockUnit('ml')).toBe(true);
   });
 
   it('leaves serial units on barcodes', () => {
     expect(isQtyStockUnit('Piece')).toBe(false);
     expect(isQtyStockUnit('Nos')).toBe(false);
-    expect(isQtyStockUnit('Box')).toBe(false);
   });
 
   it('uses qty stock when barcodeMode is none', () => {

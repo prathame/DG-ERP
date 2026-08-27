@@ -65,7 +65,7 @@ function moneyTileInfo(id: string, serviceProductUx: boolean): string {
     case 'revenue':
       return serviceProductUx
         ? 'Party sales invoiced in this period (billed amount — not always paid yet).'
-        : 'Sales / revenue booked in this period.';
+        : 'Sales billed in this period.';
     case 'cashIncome':
       return 'Non-party cash income (rent, scrap, misc) recorded or imported in this period.';
     case 'dispatched':
@@ -268,13 +268,20 @@ export function AnalyticsView({
           {
             id: 'netIn',
             label: t('dashboard.netIn'),
-            // Service: party collections + cash income − expenses (revenue is party sales, not double-counted).
+            // Service: collections + cash income − expenses.
+            // Dealer/silver: Sales tile already includes distribution — don't add it again.
             value: serviceProductUx
               ? money.collections + (Number(money.cashIncome) || 0) - money.expenses
-              : money.collections + money.revenue - money.expenses,
+              : money.collections +
+                money.revenue +
+                (cfg.analytics.showDispatched ? money.distribution : 0) -
+                money.expenses,
             accent: ((serviceProductUx
               ? money.collections + (Number(money.cashIncome) || 0) - money.expenses
-              : money.collections + money.revenue - money.expenses) >= 0
+              : money.collections +
+                money.revenue +
+                (cfg.analytics.showDispatched ? money.distribution : 0) -
+                money.expenses) >= 0
               ? 'green'
               : 'rose') as 'green' | 'rose',
             show: true,
@@ -366,7 +373,9 @@ export function AnalyticsView({
                 : tile.id === 'collections'
                   ? 'Verified Credits'
                   : tile.id === 'revenue'
-                    ? 'Direct Billing'
+                    ? cfg.analytics.showDispatched
+                      ? 'Direct Billing'
+                      : 'Sales billed this period'
                     : tile.id === 'dispatched'
                       ? 'In-transit Value'
                       : tile.id === 'expenses'
@@ -387,6 +396,8 @@ export function AnalyticsView({
           onNavigateEntity={navigateEntity}
           revenueHighlight={money?.collections ?? money?.revenue ?? 0}
           payrollPeriodLabel={payrollPeriodLabel}
+          vendorsLabel={tb(cfg.labels.vendors, t)}
+          hideCustomerMaster={!cfg.features.customerTracking}
         />
       </motion.div>
     );
@@ -680,16 +691,20 @@ export function AnalyticsView({
           <MobileSectionTitle title={t('dashboard.masterSummary')} className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             {[
+              ...(cfg.features.customerTracking
+                ? [
+                    {
+                      label: t('masters.customers'),
+                      count: counts.customerMaster,
+                      icon: Users,
+                      color: 'text-blue-600',
+                      bg: 'bg-blue-50',
+                      tab: 'sales' as Tab,
+                    },
+                  ]
+                : []),
               {
-                label: t('masters.customers'),
-                count: counts.customerMaster,
-                icon: Users,
-                color: 'text-blue-600',
-                bg: 'bg-blue-50',
-                tab: 'sales' as Tab,
-              },
-              {
-                label: t('masters.vendors'),
+                label: tb(cfg.labels.vendors, t),
                 count: counts.vendorMaster,
                 icon: UserRound,
                 color: 'text-purple-600',

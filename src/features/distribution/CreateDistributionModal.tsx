@@ -14,6 +14,7 @@ import {
   adjustUnitPriceForGstToggle,
   displayUnitPriceForGst,
   linePricesAfterDiscount,
+  normalizeGstRate,
 } from '../../lib/gstInclusivePrice';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
@@ -82,6 +83,7 @@ export function CreateDistributionModal({
       finishCreated();
       return true;
     }
+    if (document.querySelector('[data-search-select-open="true"]')) return true;
     onClose();
     return true;
   });
@@ -114,7 +116,7 @@ export function CreateDistributionModal({
   const updateDistRow = (idx: number, field: string, value: string | number | boolean) =>
     setDistRows(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
 
-  const rowGstRate = (p?: Product) => p?.gstRate ?? defaultGstRate;
+  const rowGstRate = (p?: Product) => normalizeGstRate(p?.gstRate, defaultGstRate);
 
   const applyDistProduct = (idx: number, selPr: Product) => {
     const shown = displayUnitPriceForGst(selPr.price, {
@@ -857,7 +859,11 @@ export function CreateDistributionModal({
                     disabled={submitting}
                     className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
                   >
-                    {submitting ? 'Saving...' : `Distribute ${distTotals.items} Items`}
+                    {submitting
+                      ? 'Saving...'
+                      : isDirectSell
+                        ? `Save sale · ${distTotals.items} items`
+                        : `Distribute ${distTotals.items} Items`}
                   </button>
                 </div>
               </>

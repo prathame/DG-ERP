@@ -186,6 +186,8 @@ type TradingLine = {
 };
 
 function stockLike(name: string, groupName: string | null): boolean {
+  // Perpetual ops stock stays on the BS; trading uses Purchase Account as COGS.
+  if (name.trim().toLowerCase() === 'stock-in-hand') return false;
   return /\bstock\b|\binventory\b/.test(`${name} ${groupName || ''}`.toLowerCase());
 }
 

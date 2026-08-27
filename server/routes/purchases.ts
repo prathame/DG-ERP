@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
-import { round2 } from '../../shared/gstRound';
+import { round2, purchaseUnitPrices, normalizeGstRate } from '../../shared/gstRound';
 import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
@@ -198,6 +198,11 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         costPrice?: number;
         discountPercent?: number;
         withGst?: boolean;
+        gstRate?: number;
+        priceIncludesGst?: boolean;
+        lotNumber?: string;
+        mfgDate?: string;
+        expiryDate?: string;
       }[];
     };
     const isRcm = !!reqIsRcm;
@@ -205,8 +210,11 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Add at least one product' });
 
     const supplier = (
-      await pool.query('SELECT id, name FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])
-    ).rows[0] as { id: string; name: string } | undefined;
+      await pool.query('SELECT id, name, gst_number FROM suppliers WHERE id = $1 AND tenant_id = $2', [
+        supplierId,
+        tenantId,
+      ])
+    ).rows[0] as { id: string; name: string; gst_number?: string | null } | undefined;
     if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
     const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
 
@@ -217,6 +225,8 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     let resolvedInvoiceNumber = typeof invoiceNumber === 'string' ? invoiceNumber.trim() : '';
 
     let totalBilled = 0;
+    let totalTaxable = 0;
+    let totalTax = 0;
     let totalQty = 0;
     const productNames: string[] = [];
     const purchaseRows: {
@@ -228,39 +238,69 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       billedPrice: number;
       disc: number;
       qtyStock: boolean;
+      lotNumber: string | null;
+      mfgDate: string | null;
+      expiryDate: string | null;
     }[] = [];
 
     for (const item of items) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
       const product = (
-        await pool.query('SELECT id, name, price, pack_name FROM products WHERE id = $1 AND tenant_id = $2', [
-          item.productId,
-          tenantId,
-        ])
-      ).rows[0] as { id: string; name: string; price: number; pack_name: string | null } | undefined;
+        await pool.query(
+          'SELECT id, name, price, cost_price, pack_name, gst_rate, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2',
+          [item.productId, tenantId],
+        )
+      ).rows[0] as
+        | {
+            id: string;
+            name: string;
+            price: number;
+            cost_price: number | null;
+            pack_name: string | null;
+            gst_rate: number | null;
+            price_includes_gst: boolean | null;
+          }
+        | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
 
-      const basePrice = item.costPrice ? Number(item.costPrice) : Number(product.price);
+      const typed = item.costPrice != null && String(item.costPrice).trim() !== '' ? Number(item.costPrice) : NaN;
+      const entered =
+        Number.isFinite(typed) && typed > 0
+          ? typed
+          : Number(product.cost_price) > 0
+            ? Number(product.cost_price)
+            : Number(product.price) || 0;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-      const costPricePerUnit = Math.round(((basePrice * (100 - disc)) / 100) * 100) / 100;
-      // RCM still needs gst_applied + billed>cost so tax SQL can derive liability/ITC;
-      // supplier payable stays at cost (tax remitted to govt, not supplier).
+      const afterDisc = Math.round(((entered * (100 - disc)) / 100) * 100) / 100;
+      const lineRate = normalizeGstRate(item.gstRate ?? product.gst_rate, gstRate);
+      const inclusive = item.priceIncludesGst != null ? !!item.priceIncludesGst : !!product.price_includes_gst;
       const gstApplied = isRcm ? true : item.withGst !== false;
-      const billedPricePerUnit = gstApplied ? round2((costPricePerUnit * (100 + gstRate)) / 100) : costPricePerUnit;
-      const supplierUnit = isRcm ? costPricePerUnit : billedPricePerUnit;
+      const unit = purchaseUnitPrices({
+        enteredCost: afterDisc,
+        gstRate: lineRate,
+        withGst: gstApplied,
+        priceIncludesGst: inclusive,
+        isRcm,
+      });
+      const supplierUnit = isRcm ? unit.cost : unit.billed;
 
       productNames.push(product.name);
       purchaseRows.push({
         id: `${batchId}-${totalQty + 1}`,
         productId: product.id,
         qty,
-        costPrice: costPricePerUnit,
+        costPrice: unit.cost,
         gstApplied,
-        billedPrice: billedPricePerUnit,
+        billedPrice: unit.billed,
         disc,
         qtyStock: isQtyStockUnit(product.pack_name) || !barcodeAddonOn,
+        lotNumber: typeof item.lotNumber === 'string' && item.lotNumber.trim() ? item.lotNumber.trim() : null,
+        mfgDate: typeof item.mfgDate === 'string' && item.mfgDate.trim() ? item.mfgDate.trim() : null,
+        expiryDate: typeof item.expiryDate === 'string' && item.expiryDate.trim() ? item.expiryDate.trim() : null,
       });
       totalBilled += supplierUnit * qty;
+      totalTaxable += unit.cost * qty;
+      totalTax += unit.gst * qty;
       totalQty += qty;
     }
 
@@ -286,7 +326,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         for (let i = 0; i < u.qty; i++) {
           seq++;
           purchaseVals.push(
-            `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10},$${pIdx + 11})`,
+            `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10},$${pIdx + 11},$${pIdx + 12},$${pIdx + 13},$${pIdx + 14})`,
           );
           purchasePs.push(
             `${batchId}-${seq}`,
@@ -301,13 +341,16 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
             u.disc,
             resolvedInvoiceNumber || null,
             isRcm,
+            u.lotNumber,
+            u.mfgDate,
+            u.expiryDate,
           );
-          pIdx += 12;
+          pIdx += 15;
         }
       }
       if (purchaseVals.length > 0) {
         await client.query(
-          `INSERT INTO product_purchases (id,tenant_id,batch_id,product_id,supplier_id,purchase_date,cost_price,gst_applied,billed_price,discount_percent,invoice_number,is_rcm) VALUES ${purchaseVals.join(',')}`,
+          `INSERT INTO product_purchases (id,tenant_id,batch_id,product_id,supplier_id,purchase_date,cost_price,gst_applied,billed_price,discount_percent,invoice_number,is_rcm,lot_number,mfg_date,expiry_date) VALUES ${purchaseVals.join(',')}`,
           purchasePs,
         );
       }
@@ -348,6 +391,17 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
           tenantId,
         ]);
       }
+      for (const u of purchaseRows) {
+        if (!u.lotNumber && !u.mfgDate && !u.expiryDate) continue;
+        await client.query(
+          `UPDATE products SET
+             batch_number = COALESCE($1, batch_number),
+             manufacturing_date = COALESCE($2::date, manufacturing_date),
+             expiry_date = COALESCE($3::date, expiry_date)
+           WHERE id = $4 AND tenant_id = $5`,
+          [u.lotNumber, u.mfgDate, u.expiryDate, u.productId, tenantId],
+        );
+      }
 
       if (paidAmount > 0) {
         const payId = uid('SP');
@@ -362,6 +416,10 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
             supplierName: supplier.name,
             billValue: totalBilled,
             purchaseDate: date,
+            taxableValue: totalTaxable,
+            taxAmount: totalTax,
+            isRcm,
+            buyerGstin: supplier.gst_number,
           });
           await postSupplierPaymentToBooks(client, tenantId, {
             id: payId,
@@ -382,6 +440,10 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
               supplierName: supplier.name,
               billValue: totalBilled,
               purchaseDate: date,
+              taxableValue: totalTaxable,
+              taxAmount: totalTax,
+              isRcm,
+              buyerGstin: supplier.gst_number,
             }),
           'purchase-batch',
         );

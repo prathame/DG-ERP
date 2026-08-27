@@ -39,6 +39,7 @@ export interface Product {
   rewardPointsValue?: number;
   manufacturingDate?: string | null;
   batchNumber?: string | null;
+  expiryDate?: string | null;
   status?: 'Active' | 'Sold' | 'Returned';
   warrantyMonths: number;
   price: number;

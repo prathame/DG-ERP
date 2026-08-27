@@ -258,7 +258,13 @@ export function DesktopDistributionPanel({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
           <input
             type="text"
-            placeholder={listMode === 'challans' ? 'Search challan or party...' : 'Search vendor or product...'}
+            placeholder={
+              listMode === 'challans'
+                ? 'Search challan or party...'
+                : isDirectSell
+                  ? 'Search customer or product...'
+                  : 'Search vendor or product...'
+            }
             value={search}
             onChange={e => onSearch(e.target.value)}
             className={fieldInput}
@@ -322,10 +328,16 @@ export function DesktopDistributionPanel({
           <Package size={40} className="mx-auto mb-3 dg-faint" />
           <p className="font-medium dg-muted">
             {search
-              ? 'No vendors match this search'
+              ? isDirectSell
+                ? 'No customers match this search'
+                : 'No vendors match this search'
               : paymentFilter === 'paid'
-                ? 'No fully paid vendors'
-                : 'No outstanding vendors'}
+                ? isDirectSell
+                  ? 'No fully paid customers'
+                  : 'No fully paid vendors'
+                : isDirectSell
+                  ? 'No outstanding customers'
+                  : 'No outstanding vendors'}
           </p>
         </div>
       )}
@@ -336,7 +348,7 @@ export function DesktopDistributionPanel({
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="text-[10px] font-bold border-b border-[var(--dg-card-border)] bg-[var(--dg-input)]">
-                  <SortTh label="Vendor" sortKey="vendorName" />
+                  <SortTh label={isDirectSell ? 'Customer' : 'Vendor'} sortKey="vendorName" />
                   <SortTh label="Distributed" sortKey="distributed" align="right" />
                   {!isDirectSell && <SortTh label="With vendor" sortKey="withVendor" align="right" />}
                   <SortTh label="Bill" sortKey="billAmount" align="right" />

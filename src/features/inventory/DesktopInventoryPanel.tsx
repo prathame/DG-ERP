@@ -22,6 +22,7 @@ import type { Product } from '../../types';
 import { TableSkeleton } from '../../components/ui';
 import { ColumnPickerButton } from '../../components/ui/ColumnPicker';
 import { ProductThumb } from './ProductThumb';
+import { stockUnitLabel } from '../../../shared/qtyStock';
 
 export type StockFilter = 'all' | 'low' | 'out';
 
@@ -329,7 +330,7 @@ export function DesktopInventoryPanel({
                     const isBoxBarcode = p.barcodeUnitType === 'box';
                     const boxCount = isBoxBarcode ? rem : Math.floor(rem / ps);
                     const totalBoxCount = isBoxBarcode ? tot : Math.floor(tot / ps);
-                    const unitLabel = isBoxProduct ? `${p.packName || 'Box'}es` : 'pcs';
+                    const unitLabel = isBoxProduct ? `${p.packName || 'Box'}es` : stockUnitLabel(p.packName);
 
                     return (
                       <tr
@@ -422,7 +423,7 @@ export function DesktopInventoryPanel({
                                 Admin
                               </span>
                               <p className="text-sm font-medium dg-ink tabular-nums">
-                                {isBoxProduct ? `${boxCount} ${unitLabel}` : `${rem} pcs`}
+                                {isBoxProduct ? `${boxCount} ${unitLabel}` : `${rem} ${unitLabel}`}
                               </p>
                             </div>
                           </td>

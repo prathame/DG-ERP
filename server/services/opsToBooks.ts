@@ -5,7 +5,7 @@
  * Does not call createBookVoucher receipt dual-write (would loop into invoice_payments).
  */
 import type { PoolClient } from 'pg';
-import { uid } from '../utils/helpers';
+import { splitGst, uid } from '../utils/helpers';
 import { round2 } from './bookReports';
 import { assertBooksDatesUnlocked } from './bookPeriodLock';
 
@@ -22,6 +22,8 @@ export async function ensureNativeBooksDesk(client: PoolClient, tenantId: string
   await ensureLedger(client, tenantId, 'ops:SALES_INCOME', 'Sales Income', 'I', 'IN', 'ops:G-INCOME', 'Income');
   await ensureLedger(client, tenantId, 'ops:PURCHASE', 'Purchase Account', 'E', 'EX', 'ops:G-PURCHASE', 'Purchases');
   await ensureOutputGstLedgers(client, tenantId);
+  await ensureInputGstLedgers(client, tenantId);
+  await ensureStockLedger(client, tenantId);
   const vendors = (
     await client.query(`SELECT id, name FROM vendors WHERE tenant_id = $1 ORDER BY name LIMIT 500`, [tenantId])
   ).rows as { id: string; name: string }[];
@@ -118,6 +120,82 @@ async function ensureOutputGstLedgers(
     'Duties & Taxes',
   );
   return { cgst, sgst, igst };
+}
+
+/** Input GST (ITC) — Duties & Taxes, debit on purchase. */
+async function ensureInputGstLedgers(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ cgst: string; sgst: string; igst: string }> {
+  const cgst = await ensureLedger(
+    client,
+    tenantId,
+    'ops:CGST_IN',
+    'Input CGST',
+    'L',
+    'LI',
+    'ops:G-DUTIES',
+    'Duties & Taxes',
+  );
+  const sgst = await ensureLedger(
+    client,
+    tenantId,
+    'ops:SGST_IN',
+    'Input SGST',
+    'L',
+    'LI',
+    'ops:G-DUTIES',
+    'Duties & Taxes',
+  );
+  const igst = await ensureLedger(
+    client,
+    tenantId,
+    'ops:IGST_IN',
+    'Input IGST',
+    'L',
+    'LI',
+    'ops:G-DUTIES',
+    'Duties & Taxes',
+  );
+  return { cgst, sgst, igst };
+}
+
+async function ensureStockLedger(client: PoolClient, tenantId: string): Promise<string> {
+  return ensureLedger(client, tenantId, 'ops:STOCK', 'Stock-in-Hand', 'A', 'AS', 'ops:G-CURRENT', 'Current Assets');
+}
+
+async function ensureOpeningCapitalLedger(client: PoolClient, tenantId: string): Promise<string> {
+  return ensureLedger(
+    client,
+    tenantId,
+    'ops:OPENING_CAPITAL',
+    'Opening Capital',
+    'C',
+    'CA',
+    'ops:G-CAPITAL',
+    'Capital Account',
+  );
+}
+
+async function tenantGstin(client: PoolClient, tenantId: string): Promise<string | null> {
+  const row = (await client.query(`SELECT gst_number FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
+    { gst_number?: string | null } | undefined;
+  return row?.gst_number ?? null;
+}
+
+function pushGstLines(
+  entries: Array<{ ledgerId: string; debit: number; credit: number }>,
+  ledgers: { cgst: string; sgst: string; igst: string },
+  split: { cgst: number; sgst: number; igst: number },
+  side: 'debit' | 'credit',
+): void {
+  const add = (ledgerId: string, amt: number) => {
+    if (!(amt > 0)) return;
+    entries.push(side === 'debit' ? { ledgerId, debit: amt, credit: 0 } : { ledgerId, debit: 0, credit: amt });
+  };
+  add(ledgers.cgst, round2(split.cgst));
+  add(ledgers.sgst, round2(split.sgst));
+  add(ledgers.igst, round2(split.igst));
 }
 
 /** Delete all Books rows for a tenant, then re-seed Cash / Bank / Sales + party ledgers. */
@@ -802,7 +880,7 @@ export async function postExpenseToBooks(
 
 /**
  * Distribution / dispatch batch → Books.
- * Manufacturer / dealer: Dr Party, Cr Sales Income.
+ * Manufacturer / dealer: Dr Party, Cr Sales (taxable) + Output GST; COGS Dr Purchase Cr Stock.
  * Retail (UI label “Purchase”): Dr Purchase Account, Cr Party (AP).
  */
 export async function postDistributionBatchToBooks(
@@ -850,24 +928,87 @@ export async function postDistributionBatchToBooks(
     });
   }
 
+  const totals = (
+    await client.query(
+      `SELECT
+         COALESCE(SUM(pd.billed_price), 0)::float AS billed,
+         COALESCE(SUM(pd.net_price), 0)::float AS taxable,
+         COALESCE(SUM(CASE WHEN COALESCE(pd.gst_applied, false)
+           THEN GREATEST(0, COALESCE(pd.billed_price, 0) - COALESCE(pd.net_price, 0)) ELSE 0 END), 0)::float AS tax
+       FROM product_distribution pd
+       WHERE pd.tenant_id = $1 AND pd.batch_id = $2`,
+      [tenantId, batch.batchId],
+    )
+  ).rows[0] as { billed: number; taxable: number; tax: number };
+  const billed = round2(Number(totals?.billed) || amt);
+  const tax = round2(Number(totals?.tax) || 0);
+  let taxable = tax > 0 ? round2(Number(totals?.taxable) || billed - tax) : billed;
+  if (Math.abs(round2(taxable + tax) - billed) > 0.009) taxable = round2(billed - tax);
+
+  const vendorGst = (
+    await client.query(`SELECT gst_number FROM vendors WHERE id = $1 AND tenant_id = $2`, [batch.vendorId, tenantId])
+  ).rows[0] as { gst_number?: string | null } | undefined;
+  const split = splitGst(tax, await tenantGstin(client, tenantId), vendorGst?.gst_number);
   const salesLedgerId = await resolveSalesIncomeLedger(client, tenantId);
-  return insertVoucher(client, tenantId, {
+  const entries: Array<{ ledgerId: string; debit: number; credit: number }> = [
+    { ledgerId: partyLedgerId, debit: billed, credit: 0 },
+  ];
+  if (taxable > 0) entries.push({ ledgerId: salesLedgerId, debit: 0, credit: taxable });
+  if (tax > 0) {
+    pushGstLines(entries, await ensureOutputGstLedgers(client, tenantId), split, 'credit');
+  }
+
+  const voucherId = await insertVoucher(client, tenantId, {
     voucherType: 'sales',
     voucherDate: batch.distributionDate,
     voucherNumber: batch.batchId,
     partyLedgerId,
     contraLedgerId: salesLedgerId,
-    amount: amt,
+    amount: billed,
     narration: batch.notes || `Ops distribution ${batch.batchId}`,
     externalRef: `ops:dist:${batch.batchId}`,
-    entries: [
-      { ledgerId: partyLedgerId, debit: amt, credit: 0 },
-      { ledgerId: salesLedgerId, debit: 0, credit: amt },
-    ],
+    entries,
   });
+
+  const cogsRow = (
+    await client.query(
+      `SELECT COALESCE(SUM(
+         COALESCE(
+           (SELECT AVG(pp.cost_price) FROM product_purchases pp
+             WHERE pp.product_id = pd.product_id AND pp.tenant_id = pd.tenant_id AND pp.cost_price > 0),
+           NULLIF(p.cost_price, 0)
+         )
+       ), 0)::float AS cogs
+       FROM product_distribution pd
+       JOIN products p ON p.id = pd.product_id AND p.tenant_id = pd.tenant_id
+       WHERE pd.tenant_id = $1 AND pd.batch_id = $2`,
+      [tenantId, batch.batchId],
+    )
+  ).rows[0] as { cogs: number };
+  const cogs = round2(Number(cogsRow?.cogs) || 0);
+  if (cogs > 0) {
+    const stockLedgerId = await ensureStockLedger(client, tenantId);
+    const purchaseLedgerId = await resolvePurchaseAccountLedger(client, tenantId);
+    await insertVoucher(client, tenantId, {
+      voucherType: 'journal',
+      voucherDate: batch.distributionDate,
+      voucherNumber: batch.batchId,
+      partyLedgerId: purchaseLedgerId,
+      contraLedgerId: stockLedgerId,
+      amount: cogs,
+      narration: `COGS ${batch.batchId}`,
+      externalRef: `ops:cogs:${batch.batchId}`,
+      entries: [
+        { ledgerId: purchaseLedgerId, debit: cogs, credit: 0 },
+        { ledgerId: stockLedgerId, debit: 0, credit: cogs },
+      ],
+    });
+  }
+
+  return voucherId;
 }
 
-/** Supplier purchase batch → Dr Purchase Account, Cr Supplier (creditor). */
+/** Supplier purchase → Dr Stock + Input GST, Cr Supplier. Not a P&L expense until sold. */
 export async function postPurchaseBatchToBooks(
   client: PoolClient,
   tenantId: string,
@@ -878,25 +1019,87 @@ export async function postPurchaseBatchToBooks(
     billValue: number;
     purchaseDate: string;
     notes?: string | null;
+    taxableValue?: number;
+    taxAmount?: number;
+    isRcm?: boolean;
+    sellerGstin?: string | null;
+    buyerGstin?: string | null;
   },
 ): Promise<string | null> {
   await ensureNativeBooksDesk(client, tenantId);
-  const amt = round2(batch.billValue);
-  if (!(amt > 0)) return null;
+  const billed = round2(batch.billValue);
+  if (!(billed > 0)) return null;
+  const tax = round2(Math.max(0, Number(batch.taxAmount) || 0));
+  let taxable = round2(
+    batch.taxableValue != null && Number.isFinite(Number(batch.taxableValue))
+      ? Number(batch.taxableValue)
+      : billed - tax,
+  );
+  if (taxable < 0) taxable = 0;
+  if (!batch.isRcm && Math.abs(round2(taxable + tax) - billed) > 0.009) {
+    taxable = round2(billed - tax);
+  }
+
   const supplierLedgerId = await resolveSupplierLedgerId(client, tenantId, batch.supplierId, batch.supplierName);
-  const purchaseLedgerId = await resolvePurchaseAccountLedger(client, tenantId);
+  const stockLedgerId = await ensureStockLedger(client, tenantId);
+  const sellerGstin = batch.sellerGstin ?? (await tenantGstin(client, tenantId));
+  const split = splitGst(tax, sellerGstin, batch.buyerGstin);
+  const entries: Array<{ ledgerId: string; debit: number; credit: number }> = [];
+  if (taxable > 0) entries.push({ ledgerId: stockLedgerId, debit: taxable, credit: 0 });
+  if (tax > 0) {
+    pushGstLines(entries, await ensureInputGstLedgers(client, tenantId), split, 'debit');
+  }
+  if (batch.isRcm) {
+    entries.push({ ledgerId: supplierLedgerId, debit: 0, credit: taxable > 0 ? taxable : billed });
+    if (tax > 0) {
+      pushGstLines(entries, await ensureOutputGstLedgers(client, tenantId), split, 'credit');
+    }
+  } else {
+    entries.push({ ledgerId: supplierLedgerId, debit: 0, credit: billed });
+  }
+
   return insertVoucher(client, tenantId, {
     voucherType: 'purchase',
     voucherDate: batch.purchaseDate,
     voucherNumber: batch.batchId,
     partyLedgerId: supplierLedgerId,
-    contraLedgerId: purchaseLedgerId,
-    amount: amt,
+    contraLedgerId: stockLedgerId,
+    amount: batch.isRcm ? taxable || billed : billed,
     narration: batch.notes || `Ops purchase ${batch.batchId}`,
     externalRef: `ops:pur:${batch.batchId}`,
+    entries,
+  });
+}
+
+/** Opening qty × cost → Dr Stock-in-Hand, Cr Opening Capital. Idempotent per product. */
+export async function postOpeningStockToBooks(
+  client: PoolClient,
+  tenantId: string,
+  opts: {
+    productId: string;
+    productName: string;
+    qty: number;
+    unitCost: number;
+    asOfDate: string;
+  },
+): Promise<string | null> {
+  const amt = round2((Number(opts.qty) || 0) * (Number(opts.unitCost) || 0));
+  if (!(amt > 0)) return null;
+  await ensureNativeBooksDesk(client, tenantId);
+  const stockLedgerId = await ensureStockLedger(client, tenantId);
+  const capitalLedgerId = await ensureOpeningCapitalLedger(client, tenantId);
+  return insertVoucher(client, tenantId, {
+    voucherType: 'journal',
+    voucherDate: opts.asOfDate,
+    voucherNumber: null,
+    partyLedgerId: stockLedgerId,
+    contraLedgerId: capitalLedgerId,
+    amount: amt,
+    narration: `Opening stock — ${opts.productName}`,
+    externalRef: `ops:openstock:${opts.productId}`,
     entries: [
-      { ledgerId: purchaseLedgerId, debit: amt, credit: 0 },
-      { ledgerId: supplierLedgerId, debit: 0, credit: amt },
+      { ledgerId: stockLedgerId, debit: amt, credit: 0 },
+      { ledgerId: capitalLedgerId, debit: 0, credit: amt },
     ],
   });
 }

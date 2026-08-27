@@ -60,6 +60,8 @@ type Props = {
   onNavigateEntity: (nav: GlobalSearchNavigate) => void;
   revenueHighlight: number;
   payrollPeriodLabel?: string;
+  vendorsLabel?: string;
+  hideCustomerMaster?: boolean;
 };
 
 const ACCENT_BORDER: Record<MoneyTile['accent'], string> = {
@@ -102,6 +104,8 @@ export function DesktopAnalyticsDashboard({
   onNavigateEntity,
   revenueHighlight,
   payrollPeriodLabel,
+  vendorsLabel,
+  hideCustomerMaster,
 }: Props) {
   const { t } = useTranslation();
 
@@ -365,14 +369,18 @@ export function DesktopAnalyticsDashboard({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pb-6">
           {(
             [
+              ...(!hideCustomerMaster
+                ? [
+                    {
+                      label: t('masters.customers'),
+                      count: counts.customerMaster,
+                      icon: Users,
+                      nav: { tab: 'masters' as Tab, master: 'customer' as const },
+                    },
+                  ]
+                : []),
               {
-                label: t('masters.customers'),
-                count: counts.customerMaster,
-                icon: Users,
-                nav: { tab: 'masters' as Tab, master: 'customer' as const },
-              },
-              {
-                label: t('masters.vendors'),
+                label: vendorsLabel || t('masters.vendors'),
                 count: counts.vendorMaster,
                 icon: UserRound,
                 nav: { tab: 'masters' as Tab, master: 'vendor' as const },
