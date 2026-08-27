@@ -27,6 +27,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
+import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { phoneValidationError } from '../../../shared/phone';
 import { useTranslation } from '../../i18n';
@@ -56,6 +57,7 @@ export function VendorMasterView({
   onRefresh,
   businessType: _businessType = 'manufacturer',
   initialVendorId,
+  accessLevel = 'full',
 }: {
   onBack: () => void;
   onRefresh: () => void;
@@ -63,7 +65,9 @@ export function VendorMasterView({
   businessType?: string;
   /** Open this client’s invoice hub immediately (e.g. Masters hub row tap). */
   initialVendorId?: string;
+  accessLevel?: AccessLevel;
 }) {
+  const canWrite = canWriteAccess(accessLevel);
   const cfg = useBusinessConfig();
   const { t } = useTranslation();
   // service → Client | dealer/retail → Customer | manufacturer → Vendor
@@ -220,6 +224,7 @@ export function VendorMasterView({
   });
 
   const openNewInvoice = () => {
+    if (!canWrite) return;
     if (!selected) return;
     setCreatePrefill({
       partyType: 'vendor',
@@ -263,6 +268,7 @@ export function VendorMasterView({
   };
 
   const openPay = (inv: ClientDetail['invoices'][0]) => {
+    if (!canWrite) return;
     setPayForm({
       amount: String(inv.balance > 0 ? inv.balance : ''),
       paymentDate: new Date().toISOString().slice(0, 10),
@@ -297,6 +303,7 @@ export function VendorMasterView({
 
   /** Hub: pay first unpaid invoice, or (Offline Cap) record advance when none outstanding. */
   const openRecordPayment = () => {
+    if (!canWrite) return;
     const invoices = detail?.invoices || [];
     const unpaid = invoices.find(i => i.balance > 0);
     if (unpaid) {
@@ -316,7 +323,7 @@ export function VendorMasterView({
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!payModal || !selected) return;
+    if (!canWrite || !payModal || !selected) return;
     const amount = parseFloat(payForm.amount);
     if (!amount || amount <= 0) {
       toast('Enter a valid amount', 'error');
@@ -353,6 +360,7 @@ export function VendorMasterView({
   };
 
   const handleDeletePayment = async (paymentId: string, amount: number) => {
+    if (!canWrite) return;
     if (!selected) return;
     if (
       !(await confirm({
@@ -373,6 +381,7 @@ export function VendorMasterView({
   };
 
   const openAdd = () => {
+    if (!canWrite) return;
     setEditing(null);
     setForm({
       name: '',
@@ -387,6 +396,7 @@ export function VendorMasterView({
     setModalOpen(true);
   };
   const openEdit = (v: Vendor) => {
+    if (!canWrite) return;
     setEditing(v);
     setForm({
       name: v.name,
@@ -403,6 +413,7 @@ export function VendorMasterView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWrite) return;
     const phone = form.phone.trim();
     const phoneErr = phoneValidationError(phone);
     if (phoneErr) {
@@ -453,7 +464,7 @@ export function VendorMasterView({
   };
 
   const handleDelete = () => {
-    if (!deleteTarget) return;
+    if (!canWrite || !deleteTarget) return;
     api.vendors
       .delete(deleteTarget.id)
       .then(() => {
@@ -502,22 +513,26 @@ export function VendorMasterView({
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={openRecordPayment}
-              disabled={!offlineAdvance && !!detail && detail.balance <= 0}
-              className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <IndianRupee size={16} /> Record Payment
-            </button>
-            {isServiceBusiness && (
-              <button
-                type="button"
-                onClick={openNewInvoice}
-                className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
-              >
-                <Plus size={16} /> New Invoice
-              </button>
+            {canWrite && (
+              <>
+                <button
+                  type="button"
+                  onClick={openRecordPayment}
+                  disabled={!offlineAdvance && !!detail && detail.balance <= 0}
+                  className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <IndianRupee size={16} /> Record Payment
+                </button>
+                {isServiceBusiness && (
+                  <button
+                    type="button"
+                    onClick={openNewInvoice}
+                    className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
+                  >
+                    <Plus size={16} /> New Invoice
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -638,7 +653,7 @@ export function VendorMasterView({
                             <MessageCircle size={12} />
                             {whatsappBusyId === inv.id ? '…' : 'WhatsApp'}
                           </button>
-                          {!paid && inv.balance > 0 && (
+                          {!paid && inv.balance > 0 && canWrite && (
                             <button
                               type="button"
                               onClick={() => openPay(inv)}
@@ -677,14 +692,16 @@ export function VendorMasterView({
                             : `Invoice ${p.invoiceNumber}`}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePayment(p.id, p.amount)}
-                        className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-rose-400 hover:text-rose-600"
-                        aria-label="Delete payment"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canWrite && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePayment(p.id, p.amount)}
+                          className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-rose-400 hover:text-rose-600"
+                          aria-label="Delete payment"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -880,7 +897,7 @@ export function VendorMasterView({
           >
             <Download size={18} /> Export CSV
           </button>
-          {list.length > 0 && (
+          {canWrite && list.length > 0 && (
             <button
               type="button"
               onClick={async () => {
@@ -906,12 +923,16 @@ export function VendorMasterView({
               <Trash2 size={16} /> Delete All
             </button>
           )}
-          <button type="button" onClick={() => setCsvImportOpen(true)} className={btnGhost}>
-            <Upload size={18} /> Import CSV
-          </button>
-          <button type="button" onClick={openAdd} className={btnPrimary}>
-            <Plus size={18} /> Add {label}
-          </button>
+          {canWrite && (
+            <>
+              <button type="button" onClick={() => setCsvImportOpen(true)} className={btnGhost}>
+                <Upload size={18} /> Import CSV
+              </button>
+              <button type="button" onClick={openAdd} className={btnPrimary}>
+                <Plus size={18} /> Add {label}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -944,24 +965,26 @@ export function VendorMasterView({
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-bold text-gray-800 truncate">{v.name}</span>
-                    <div className="flex gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(v)}
-                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
-                        aria-label={`Edit ${v.name}`}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(v)}
-                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
-                        aria-label={`Delete ${v.name}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    {canWrite && (
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(v)}
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
+                          aria-label={`Edit ${v.name}`}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(v)}
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                          aria-label={`Delete ${v.name}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
                   {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
@@ -1112,39 +1135,41 @@ export function VendorMasterView({
                         </>
                       )}
                       <td className="px-3 py-3 sm:px-6 sm:py-4">
-                        <div
-                          className={cn(
-                            'flex gap-2',
-                            desktopGlass ? 'justify-end opacity-0 group-hover:opacity-100 transition-opacity' : '',
-                          )}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => openEdit(v)}
+                        {canWrite && (
+                          <div
                             className={cn(
-                              'rounded-full',
-                              desktopGlass
-                                ? 'w-8 h-8 flex items-center justify-center text-[var(--dg-primary)] hover:bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)]'
-                                : 'p-2 text-brand hover:bg-orange-50 rounded-lg',
+                              'flex gap-2',
+                              desktopGlass ? 'justify-end opacity-0 group-hover:opacity-100 transition-opacity' : '',
                             )}
-                            aria-label={`Edit ${v.name}`}
                           >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(v)}
-                            className={cn(
-                              'rounded-full',
-                              desktopGlass
-                                ? 'w-8 h-8 flex items-center justify-center dg-error hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)]'
-                                : 'p-2 text-rose-600 hover:bg-rose-50 rounded-lg',
-                            )}
-                            aria-label={`Delete ${v.name}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => openEdit(v)}
+                              className={cn(
+                                'rounded-full',
+                                desktopGlass
+                                  ? 'w-8 h-8 flex items-center justify-center text-[var(--dg-primary)] hover:bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)]'
+                                  : 'p-2 text-brand hover:bg-orange-50 rounded-lg',
+                              )}
+                              aria-label={`Edit ${v.name}`}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(v)}
+                              className={cn(
+                                'rounded-full',
+                                desktopGlass
+                                  ? 'w-8 h-8 flex items-center justify-center dg-error hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)]'
+                                  : 'p-2 text-rose-600 hover:bg-rose-50 rounded-lg',
+                              )}
+                              aria-label={`Delete ${v.name}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

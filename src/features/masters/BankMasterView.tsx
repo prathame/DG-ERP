@@ -7,8 +7,18 @@ import type { Bank } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
+import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
 
-export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRefresh: () => void }) {
+export function BankMasterView({
+  onBack,
+  onRefresh,
+  accessLevel = 'full',
+}: {
+  onBack: () => void;
+  onRefresh: () => void;
+  accessLevel?: AccessLevel;
+}) {
+  const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
   const [list, setList] = useState<Bank[]>([]);
   const [search, setSearch] = useState('');
@@ -35,11 +45,13 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
   }, [debouncedSearch]);
 
   const openAdd = () => {
+    if (!canWrite) return;
     setEditing(null);
     setForm({ name: '', accountNumber: '', bankName: '', branch: '', ifscCode: '' });
     setModalOpen(true);
   };
   const openEdit = (b: Bank) => {
+    if (!canWrite) return;
     setEditing(b);
     setForm({
       name: b.name,
@@ -53,6 +65,7 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWrite) return;
     setSubmitting(true);
     (editing ? api.banks.update(editing.id, form) : api.banks.create(form))
       .then(() => {
@@ -64,7 +77,7 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
   };
 
   const handleDelete = () => {
-    if (!deleteTarget) return;
+    if (!canWrite || !deleteTarget) return;
     api.banks
       .delete(deleteTarget.id)
       .then(() => {
@@ -106,20 +119,24 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
           >
             <Download size={18} /> Export CSV
           </button>
-          <button
-            type="button"
-            onClick={() => setCsvImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
-          >
-            <Upload size={18} /> Import CSV
-          </button>
-          <button
-            type="button"
-            onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-          >
-            <Plus size={18} /> Add Bank
-          </button>
+          {canWrite && (
+            <>
+              <button
+                type="button"
+                onClick={() => setCsvImportOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
+              >
+                <Upload size={18} /> Import CSV
+              </button>
+              <button
+                type="button"
+                onClick={openAdd}
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+              >
+                <Plus size={18} /> Add Bank
+              </button>
+            </>
+          )}
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -163,20 +180,24 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{b.branch || '-'}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600 font-mono">{b.ifscCode || '-'}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(b)}
-                        className="p-2 text-brand hover:bg-orange-50 rounded-lg"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(b)}
-                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {canWrite && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(b)}
+                            className="p-2 text-brand hover:bg-orange-50 rounded-lg"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(b)}
+                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))

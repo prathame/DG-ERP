@@ -19,6 +19,7 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
+import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
 
 type PriceTab = 'generic' | 'vendor';
 /** Offline: create sellable item from Price List (no separate Masters Catalog pill). */
@@ -64,7 +65,8 @@ type TenantHeader = {
   email?: string | null;
 };
 
-export function PriceListView({ onBack }: { onBack: () => void }) {
+export function PriceListView({ onBack, accessLevel = 'full' }: { onBack: () => void; accessLevel?: AccessLevel }) {
+  const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
@@ -116,12 +118,14 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   };
 
   const openCreate = () => {
+    if (!canWrite) return;
     setEditingId(null);
     setForm(emptyForm());
     setModalOpen(true);
   };
 
   const openEdit = (rule: PriceRule) => {
+    if (!canWrite) return;
     setEditingId(rule.id);
     const prod = products.find(p => p.id === rule.productId);
     setForm({
@@ -175,6 +179,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   }, []);
 
   const handleSave = async () => {
+    if (!canWrite) return;
     if (!form.price) {
       toast('Price is required', 'error');
       return;
@@ -268,6 +273,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canWrite) return;
     try {
       await fetchApi(`/price-lists/${id}`, { method: 'DELETE' });
       load();
@@ -278,6 +284,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   };
 
   const handleDeleteProduct = async (id: string, name: string) => {
+    if (!canWrite) return;
     if (!window.confirm(`Delete "${name}" from catalog? This cannot be undone.`)) return;
     try {
       await api.products.delete(id);
@@ -289,6 +296,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   };
 
   const handleEditProductPrice = async (p: Product) => {
+    if (!canWrite) return;
     const input = window.prompt(`Edit price for "${p.name}":`, String(p.price ?? ''));
     if (input === null) return;
     const price = parseFloat(input);
@@ -566,13 +574,15 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             </button>
           </>
         )}
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center gap-1 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold bg-brand text-white shrink-0 ml-auto"
-        >
-          <Plus size={14} /> Add Rule
-        </button>
+        {canWrite && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-1 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold bg-brand text-white shrink-0 ml-auto"
+          >
+            <Plus size={14} /> Add Rule
+          </button>
+        )}
       </div>
 
       {/* Scope tabs — same pill size as Masters Products/Vendors */}
@@ -646,7 +656,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                   <span className="font-bold text-sm text-gray-800 truncate">{p.name}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-bold text-brand">₹{(Number(p.price) || 0).toLocaleString('en-IN')}</span>
-                    {productRules.length === 0 && (
+                    {canWrite && productRules.length === 0 && (
                       <button
                         type="button"
                         onClick={() => handleEditProductPrice(p)}
@@ -656,7 +666,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                         <Pencil size={14} />
                       </button>
                     )}
-                    {productRules.length === 0 && (
+                    {canWrite && productRules.length === 0 && (
                       <button
                         type="button"
                         onClick={() => handleDeleteProduct(p.id, p.name)}
@@ -678,22 +688,26 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                           {rule.name ? ` · ${rule.name}` : ''}
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(rule)}
-                            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(rule.id)}
-                            className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {canWrite && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEdit(rule)}
+                                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(rule.id)}
+                                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -736,22 +750,26 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       {rule.name && <span className="text-xs text-gray-400">{rule.name}</span>}
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(rule)}
-                        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(rule.id)}
-                        className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canWrite && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(rule)}
+                            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(rule.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -769,22 +787,26 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                       {rule.vendorName || `All ${partyLabel}`})
                     </span>
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(rule)}
-                        className="p-1.5 text-gray-500 hover:text-gray-700 rounded-lg"
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(rule.id)}
-                        className="p-1.5 text-rose-400 hover:text-rose-600 rounded-lg"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canWrite && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(rule)}
+                            className="p-1.5 text-gray-500 hover:text-gray-700 rounded-lg"
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(rule.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-600 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}

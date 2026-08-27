@@ -11,16 +11,20 @@ import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { phoneValidationError } from '../../../shared/phone';
+import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
 
 export function CustomerMasterView({
   onBack,
   onRefresh,
   user,
+  accessLevel = 'full',
 }: {
   onBack: () => void;
   onRefresh: () => void;
   user?: { role?: string; vendorId?: string } | null;
+  accessLevel?: AccessLevel;
 }) {
+  const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
@@ -99,6 +103,7 @@ export function CustomerMasterView({
   }, [debouncedSearch, vendorId]);
 
   const openAdd = () => {
+    if (!canWrite) return;
     setEditing(null);
     setForm({
       name: '',
@@ -112,6 +117,7 @@ export function CustomerMasterView({
     setModalOpen(true);
   };
   const openEdit = (c: Customer) => {
+    if (!canWrite) return;
     setEditing(c);
     setForm({
       name: c.name,
@@ -127,6 +133,7 @@ export function CustomerMasterView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWrite) return;
     const phoneErr = phoneValidationError(form.phone);
     if (phoneErr) {
       toast(phoneErr, 'error');
@@ -151,7 +158,7 @@ export function CustomerMasterView({
   };
 
   const handleDelete = () => {
-    if (!deleteTarget) return;
+    if (!canWrite || !deleteTarget) return;
     api.customers
       .delete(deleteTarget.id)
       .then(() => {
@@ -193,7 +200,7 @@ export function CustomerMasterView({
           >
             <Download size={18} /> Export CSV
           </button>
-          {!vendorId && (
+          {!vendorId && canWrite && (
             <button
               type="button"
               onClick={openAdd}
@@ -231,22 +238,26 @@ export function CustomerMasterView({
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
                   <div className="flex gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(c)}
-                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-brand"
-                      aria-label={`Edit ${c.name}`}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(c)}
-                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
-                      aria-label={`Delete ${c.name}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {canWrite && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(c)}
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-brand"
+                          aria-label={`Edit ${c.name}`}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(c)}
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                          aria-label={`Delete ${c.name}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
@@ -319,20 +330,24 @@ export function CustomerMasterView({
                       </button>
                     </td>
                     <td className="px-6 py-4 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(c)}
-                        className="p-2 text-brand hover:bg-orange-50 rounded-lg"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(c)}
-                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {canWrite && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(c)}
+                            className="p-2 text-brand hover:bg-orange-50 rounded-lg"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(c)}
+                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
