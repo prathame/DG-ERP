@@ -20,6 +20,7 @@ import {
 import { postDistributionBatchToBooks, postVendorPaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import type { PoolClient } from 'pg';
+import { expiredProductSaleError, isProductExpired } from '../../shared/dateOnly';
 
 const router = Router();
 
@@ -429,7 +430,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
       const product = (
         await pool.query(
-          'SELECT id, name, price, pack_size, stock, price_includes_gst, gst_rate FROM products WHERE id = $1 AND tenant_id = $2',
+          'SELECT id, name, price, pack_size, stock, price_includes_gst, gst_rate, expiry_date FROM products WHERE id = $1 AND tenant_id = $2',
           [item.productId, tenantId],
         )
       ).rows[0] as
@@ -441,9 +442,13 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             stock: number;
             price_includes_gst: boolean;
             gst_rate: number | null;
+            expiry_date: string | Date | null;
           }
         | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
+      if (isProductExpired(product.expiry_date)) {
+        return res.status(400).json({ error: expiredProductSaleError(product.name) });
+      }
       const explicit = hasExplicitUnitPrice(item.customPrice);
       let basePrice = explicit
         ? Number(item.customPrice)
@@ -742,11 +747,23 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
     const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
     const product = (
       await pool.query(
-        'SELECT id, price, price_includes_gst, gst_rate FROM products WHERE id = $1 AND tenant_id = $2',
+        'SELECT id, name, price, price_includes_gst, gst_rate, expiry_date FROM products WHERE id = $1 AND tenant_id = $2',
         [productId, tenantId],
       )
-    ).rows[0] as { id: string; price: number; price_includes_gst: boolean; gst_rate: number | null } | undefined;
+    ).rows[0] as
+      | {
+          id: string;
+          name: string;
+          price: number;
+          price_includes_gst: boolean;
+          gst_rate: number | null;
+          expiry_date: string | Date | null;
+        }
+      | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    if (isProductExpired(product.expiry_date)) {
+      return res.status(400).json({ error: expiredProductSaleError(product.name) });
+    }
     const explicit = hasExplicitUnitPrice(customPrice);
     let basePrice = explicit ? Number(customPrice) : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
     const disc = Math.min(100, Math.max(0, Number(discountPercent) || 0));
@@ -1534,6 +1551,15 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
 
         if (newQty > productRows.length) {
           const toAdd = newQty - productRows.length;
+          const expRow = (
+            await client.query('SELECT name, expiry_date FROM products WHERE id = $1 AND tenant_id = $2', [
+              item.productId,
+              tenantId,
+            ])
+          ).rows[0] as { name: string; expiry_date: string | Date | null } | undefined;
+          if (isProductExpired(expRow?.expiry_date)) {
+            throw new Error(expiredProductSaleError(expRow?.name ?? item.productId));
+          }
           const hasInv = await productHasInventory(client, tenantId, item.productId);
           let invRows: { id: string; barcode: string }[] = [];
           if (!hasInv) {

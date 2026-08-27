@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarDateIST } from '../../shared/dateOnly';
+import { calendarDateIST, isProductExpired } from '../../shared/dateOnly';
 import { formatDate } from '../../src/lib/utils';
 
 describe('calendarDateIST', () => {
@@ -20,5 +20,18 @@ describe('calendarDateIST', () => {
 describe('formatDate', () => {
   it('formats a date-only string on the local calendar (no UTC shift)', () => {
     expect(formatDate('2026-08-27')).toBe('27 Aug 2026');
+  });
+});
+
+describe('isProductExpired', () => {
+  it('blocks sale after the expiry date, allows sale on the expiry day', () => {
+    expect(isProductExpired('2026-08-26', '2026-08-27')).toBe(true);
+    expect(isProductExpired('2026-08-27', '2026-08-27')).toBe(false);
+    expect(isProductExpired('2026-08-28', '2026-08-27')).toBe(false);
+  });
+
+  it('allows sale when expiry is blank', () => {
+    expect(isProductExpired(null, '2026-08-27')).toBe(false);
+    expect(isProductExpired('', '2026-08-27')).toBe(false);
   });
 });
