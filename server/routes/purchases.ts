@@ -7,6 +7,7 @@ import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { isQtyStockUnit } from '../../shared/qtyStock';
+import { isBarcodeAddonOn } from '../utils/barcode';
 
 const router = Router();
 
@@ -207,6 +208,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       await pool.query('SELECT id, name FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])
     ).rows[0] as { id: string; name: string } | undefined;
     if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+    const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
 
     const gstRate = Number(reqGstRate) || 18;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
@@ -256,7 +258,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         gstApplied,
         billedPrice: billedPricePerUnit,
         disc,
-        qtyStock: isQtyStockUnit(product.pack_name),
+        qtyStock: isQtyStockUnit(product.pack_name) || !barcodeAddonOn,
       });
       totalBilled += supplierUnit * qty;
       totalQty += qty;

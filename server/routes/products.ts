@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool, setTenantContext } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
+import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix, isBarcodeAddonOn } from '../utils/barcode';
 import { requireAdmin, blockVendors, AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
 import { checkPlanLimit } from '../utils/planLimits';
 import { withTenantClient } from '../pg-db';
@@ -702,11 +702,12 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
       );
 
       // Generate barcodes per new product (still per-product since prefix varies)
+      const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
       for (const { r, id: productId } of productIds) {
         const prefix = r.barcodePrefix ? String(r.barcodePrefix).trim() : '';
         const qty = Number(r.quantity) || 0;
         const ps = Number(r.packSize) || 1;
-        if (prefix && qty > 0 && !isQtyStockUnit(r.packName as string | undefined)) {
+        if (barcodeAddonOn && prefix && qty > 0 && !isQtyStockUnit(r.packName as string | undefined)) {
           const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, Math.min(qty, 10000));
           const unitType = ps > 1 ? 'box' : 'piece';
           const batchId = uid('B');
@@ -887,7 +888,8 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       const quantityProvided = quantity !== undefined && quantity !== null && quantity !== '';
       const qtyRequested = quantityProvided ? Math.floor(Number(quantity) || 0) : null;
       const masterOnly = mode === 'none' || qtyRequested === 0;
-      const qtyStock = usesQtyStock(packName, mode);
+      const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
+      const qtyStock = usesQtyStock(packName, mode) || !barcodeAddonOn;
 
       if (qtyStock || masterOnly) {
         await insertProductRow();
@@ -1009,7 +1011,8 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
       ])
     ).rows[0] as { id: string; pack_size: number; pack_name: string | null; stock: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    if (usesQtyStock(product.pack_name, barcodeMode)) {
+    const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
+    if (usesQtyStock(product.pack_name, barcodeMode) || !barcodeAddonOn) {
       const addQty = Math.min(Math.max(1, Math.floor(Number(quantity))), 1000000);
       const nextStock = (Number(product.stock) || 0) + addQty;
       await pool.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [nextStock, id, tenantId]);

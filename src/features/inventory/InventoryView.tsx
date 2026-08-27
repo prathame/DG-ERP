@@ -301,6 +301,7 @@ export function InventoryView({
           loading={loading}
           canEdit={canEdit}
           inventoryTrackingEnabled={inventoryTrackingEnabled}
+          barcodeSystemEnabled={barcodeSystemEnabled}
           metalMode={metalMode}
           barcodeSearch={barcodeSearch}
           onBarcodeSearch={setBarcodeSearch}
@@ -339,6 +340,7 @@ export function InventoryView({
           loading={loading}
           canEdit={canEdit}
           inventoryTrackingEnabled={inventoryTrackingEnabled}
+          barcodeSystemEnabled={barcodeSystemEnabled}
           stockWithVendors={stockWithVendors}
           metalMode={metalMode}
           barcodeSearch={barcodeSearch}
@@ -388,17 +390,19 @@ export function InventoryView({
                 </button>
               )}
               <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
-              <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
-                <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  placeholder="Scan or enter barcode..."
-                  value={barcodeSearch}
-                  onChange={e => setBarcodeSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                  autoComplete="off"
-                />
-              </div>
+              {barcodeSystemEnabled && (
+                <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
+                  <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Scan or enter barcode..."
+                    value={barcodeSearch}
+                    onChange={e => setBarcodeSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
               {canEdit && (
                 <button
                   type="button"
@@ -408,7 +412,7 @@ export function InventoryView({
                   <Upload size={18} /> Import CSV
                 </button>
               )}
-              {canEdit && metalMode && (
+              {canEdit && metalMode && barcodeSystemEnabled && (
                 <button
                   type="button"
                   onClick={() => setMetalIntakeOpen(true)}
@@ -657,19 +661,21 @@ export function InventoryView({
                             })()}
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  api.products
-                                    .barcodeDetails(p.id)
-                                    .then(batches => setBarcodeDetailsModal({ product: p, batches }))
-                                    .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
-                                }
-                                className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                                title="Barcode Details"
-                              >
-                                <Barcode size={16} />
-                              </button>
+                              {barcodeSystemEnabled && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    api.products
+                                      .barcodeDetails(p.id)
+                                      .then(batches => setBarcodeDetailsModal({ product: p, batches }))
+                                      .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
+                                  }
+                                  className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
+                                  title="Barcode Details"
+                                >
+                                  <Barcode size={16} />
+                                </button>
+                              )}
                               {canEdit && inventoryTrackingEnabled && (
                                 <button
                                   type="button"
@@ -767,19 +773,21 @@ export function InventoryView({
                         </div>
                       )}
                       <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            api.products
-                              .barcodeDetails(p.id)
-                              .then(batches => setBarcodeDetailsModal({ product: p, batches }))
-                              .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
-                          }
-                          className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title="Barcode Details"
-                        >
-                          <Barcode size={16} />
-                        </button>
+                        {barcodeSystemEnabled && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              api.products
+                                .barcodeDetails(p.id)
+                                .then(batches => setBarcodeDetailsModal({ product: p, batches }))
+                                .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
+                            }
+                            className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
+                            title="Barcode Details"
+                          >
+                            <Barcode size={16} />
+                          </button>
+                        )}
                         {inventoryTrackingEnabled && (
                           <button
                             type="button"
@@ -836,7 +844,11 @@ export function InventoryView({
                   const isEdit = !!editingProductId;
                   const totalQty = addForm.packSize > 1 ? addForm.packs : addForm.quantity;
                   const mintBarcodes =
-                    !isEdit && inventoryTrackingEnabled && totalQty > 0 && !isQtyStockUnit(addForm.packName);
+                    !isEdit &&
+                    inventoryTrackingEnabled &&
+                    barcodeSystemEnabled &&
+                    totalQty > 0 &&
+                    !isQtyStockUnit(addForm.packName);
                   if (mintBarcodes && !addForm.barcodePrefix.trim()) {
                     toast('Enter barcode prefix', 'error');
                     return;
@@ -935,6 +947,7 @@ export function InventoryView({
                 </div>
                 {!editingProductId &&
                   inventoryTrackingEnabled &&
+                  barcodeSystemEnabled &&
                   !isQtyStockUnit(addForm.packName) &&
                   (addForm.packSize > 1 ? addForm.packs : addForm.quantity) > 0 && (
                     <div>
@@ -1139,7 +1152,7 @@ export function InventoryView({
                             </p>
                           )}
                         </div>
-                        {inventoryTrackingEnabled && addForm.packs > 0 && (
+                        {inventoryTrackingEnabled && barcodeSystemEnabled && addForm.packs > 0 && (
                           <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                             📦 {addForm.packs || 0} barcode labels (1 per {addForm.packName || 'box'}):{' '}
                             <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to{' '}
@@ -1213,16 +1226,19 @@ export function InventoryView({
                             Leave 0 to only save the product. Stock can be added later from Purchase or Add Stock.
                           </p>
                         </div>
-                        {inventoryTrackingEnabled && addForm.quantity > 0 && !isQtyStockUnit(addForm.packName) && (
-                          <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
-                            Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span>{' '}
-                            to{' '}
-                            <span className="font-mono font-medium">
-                              {addForm.barcodePrefix || 'SP'}
-                              {String(addForm.quantity || 1).padStart(3, '0')}
-                            </span>
-                          </p>
-                        )}
+                        {inventoryTrackingEnabled &&
+                          barcodeSystemEnabled &&
+                          addForm.quantity > 0 &&
+                          !isQtyStockUnit(addForm.packName) && (
+                            <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                              Barcodes:{' '}
+                              <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to{' '}
+                              <span className="font-mono font-medium">
+                                {addForm.barcodePrefix || 'SP'}
+                                {String(addForm.quantity || 1).padStart(3, '0')}
+                              </span>
+                            </p>
+                          )}
                       </>
                     )}
                     <div className="grid grid-cols-2 gap-4">
@@ -1327,7 +1343,7 @@ export function InventoryView({
             >
               <h3 className="text-lg font-bold mb-2">Add stock to {addStockModal.name}</h3>
               <p className="text-sm text-gray-500 mb-4">
-                {isQtyStockUnit(addStockModal.packName)
+                {isQtyStockUnit(addStockModal.packName) || !barcodeSystemEnabled
                   ? `Adds ${addStockModal.packName || 'qty'} to this product — no barcodes.`
                   : 'New barcodes will continue from where the existing range left off — no overlaps.'}
               </p>
@@ -1344,7 +1360,7 @@ export function InventoryView({
                   try {
                     await api.products.addStock(addStockModal.id, {
                       quantity: stockQty,
-                      barcodeMode: isQtyStockUnit(addStockModal.packName) ? 'none' : 'prefix',
+                      barcodeMode: isQtyStockUnit(addStockModal.packName) || !barcodeSystemEnabled ? 'none' : 'prefix',
                       barcodePerBox: hasPack,
                       packSize: addStockModal.packSize,
                     });
@@ -1400,7 +1416,7 @@ export function InventoryView({
                     />
                   </div>
                 )}
-                {addStockModal.barcodeRange && !isQtyStockUnit(addStockModal.packName) && (
+                {addStockModal.barcodeRange && barcodeSystemEnabled && !isQtyStockUnit(addStockModal.packName) && (
                   <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                     Current range: <span className="font-mono font-medium">{addStockModal.barcodeRange.first}</span> to{' '}
                     <span className="font-mono font-medium">{addStockModal.barcodeRange.last}</span> — new barcodes will

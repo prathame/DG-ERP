@@ -206,4 +206,24 @@ describe('HTTP: qty + UOM stock (no barcodes)', () => {
     );
     expect(inv.rows[0].c).toBe(0);
   });
+
+  it('Super Admin barcode off does not mint Piece barcodes', async () => {
+    await pool.query('UPDATE tenants SET barcode_system_enabled = false WHERE id = $1', [TENANT]);
+    const res = await api().post('/api/products').set(authHeaders(token, TENANT)).send({
+      name: 'Loose Pump (no addon)',
+      barcodeMode: 'prefix',
+      barcodePrefix: 'NOP',
+      quantity: 5,
+      price: 900,
+      packName: 'Piece',
+    });
+    expect(res.status).toBe(201);
+    expect(Number(res.body.stock)).toBe(5);
+    const inv = await pool.query(
+      'SELECT COUNT(*)::int AS c FROM product_inventory WHERE product_id = $1 AND tenant_id = $2',
+      [res.body.id, TENANT],
+    );
+    expect(inv.rows[0].c).toBe(0);
+    await pool.query('UPDATE tenants SET barcode_system_enabled = true WHERE id = $1', [TENANT]);
+  });
 });

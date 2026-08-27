@@ -33,6 +33,7 @@ type Props = {
   loading: boolean;
   canEdit: boolean;
   inventoryTrackingEnabled: boolean;
+  barcodeSystemEnabled?: boolean;
   metalMode: boolean;
   barcodeSearch: string;
   onBarcodeSearch: (v: string) => void;
@@ -106,6 +107,7 @@ export function DesktopInventoryPanel({
   loading,
   canEdit,
   inventoryTrackingEnabled,
+  barcodeSystemEnabled = true,
   metalMode,
   barcodeSearch,
   onBarcodeSearch,
@@ -189,17 +191,19 @@ export function DesktopInventoryPanel({
             </button>
           )}
           <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
-          <div className="relative min-w-[180px] flex-1 sm:flex-none sm:w-56">
-            <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
-            <input
-              type="text"
-              placeholder="Scan or enter barcode..."
-              value={barcodeSearch}
-              onChange={e => onBarcodeSearch(e.target.value)}
-              className={fieldInput}
-              autoComplete="off"
-            />
-          </div>
+          {barcodeSystemEnabled && (
+            <div className="relative min-w-[180px] flex-1 sm:flex-none sm:w-56">
+              <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
+              <input
+                type="text"
+                placeholder="Scan or enter barcode..."
+                value={barcodeSearch}
+                onChange={e => onBarcodeSearch(e.target.value)}
+                className={fieldInput}
+                autoComplete="off"
+              />
+            </div>
+          )}
           {canEdit && (
             <button
               type="button"
@@ -209,7 +213,7 @@ export function DesktopInventoryPanel({
               <Upload size={16} /> Import CSV
             </button>
           )}
-          {canEdit && metalMode && (
+          {canEdit && metalMode && barcodeSystemEnabled && (
             <button
               type="button"
               onClick={onMetalIntake}
@@ -435,14 +439,16 @@ export function DesktopInventoryPanel({
                         )}
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => onBarcodeDetails(p)}
-                              className="p-2 rounded-lg dg-primary hover:bg-[var(--dg-input)]"
-                              title="Barcode Details"
-                            >
-                              <Barcode size={16} />
-                            </button>
+                            {barcodeSystemEnabled && (
+                              <button
+                                type="button"
+                                onClick={() => onBarcodeDetails(p)}
+                                className="p-2 rounded-lg dg-primary hover:bg-[var(--dg-input)]"
+                                title="Barcode Details"
+                              >
+                                <Barcode size={16} />
+                              </button>
+                            )}
                             {canEdit && inventoryTrackingEnabled && (
                               <button
                                 type="button"
