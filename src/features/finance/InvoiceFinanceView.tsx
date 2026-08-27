@@ -22,6 +22,7 @@ import {
   LoadingSpinner,
   isBillFullyPaid,
   isBillPartiallyPaid,
+  partyBillDue,
   PaidBadge,
   PartialBadge,
   PaidStamp,
@@ -1398,6 +1399,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <>
           <div className="sm:hidden space-y-2">
             {filtered.map(c => {
+              const due = partyBillDue(c.billDue, c.balance);
               const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
               const partial = isBillPartiallyPaid(
                 Number(c.totalInvoiced) || 0,
@@ -1424,10 +1426,10 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                       paid ? (
                         <span className="text-emerald-600">Paid</span>
                       ) : (
-                        <span className={c.balance > 0 ? 'text-rose-600' : undefined}>{fmt(c.balance)}</span>
+                        <span className={due > 0 ? 'text-rose-600' : undefined}>{fmt(due)}</span>
                       )
                     }
-                    meta={paid ? undefined : partial ? 'Partial' : c.balance > 0 ? 'Due' : undefined}
+                    meta={paid ? undefined : partial ? 'Partial' : due > 0 ? 'Due' : undefined}
                     onClick={() => openClient(c.partyKey)}
                   />
                 </Fragment>
@@ -1437,6 +1439,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
 
           <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(c => {
+              const due = partyBillDue(c.billDue, c.balance);
               const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
               const partial = isBillPartiallyPaid(
                 Number(c.totalInvoiced) || 0,
@@ -1499,12 +1502,12 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                       <>
                         <PartialBadge size="sm" />
                         <span className="text-gray-500">
-                          Due: <strong className="text-rose-600">{fmt(c.balance)}</strong>
+                          Due: <strong className={due > 0 ? 'text-rose-600' : 'text-gray-700'}>{fmt(due)}</strong>
                         </span>
                       </>
                     ) : (
                       <span className="text-gray-500">
-                        Due: <strong className="text-rose-600">{fmt(c.balance)}</strong>
+                        Due: <strong className={due > 0 ? 'text-rose-600' : 'text-gray-700'}>{fmt(due)}</strong>
                       </span>
                     )}
                   </div>

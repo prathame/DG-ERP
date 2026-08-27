@@ -5,6 +5,16 @@ export function isBillFullyPaid(billValue: number, balance: number): boolean {
   return billValue > 0 && balance <= 0;
 }
 
+/**
+ * Amount still to collect from a party. Never the absolute value of a credit/advance.
+ * Miracle cash with no matching invoice is an advance (net balance negative) — due stays 0.
+ * When there are bills and advances, use net balance (bill due minus advances), not gross bill due.
+ */
+export function partyBillDue(billDue: number | null | undefined, balance: number | null | undefined): number {
+  if (balance != null && Number.isFinite(Number(balance))) return Math.max(0, Number(balance));
+  return Math.max(0, Number(billDue) || 0);
+}
+
 /** Some money received, but not fully cleared — common after collective / partial pay. */
 export function isBillPartiallyPaid(billValue: number, balance: number, paid = billValue - balance): boolean {
   return billValue > 0 && balance > 0.001 && paid > 0.001;

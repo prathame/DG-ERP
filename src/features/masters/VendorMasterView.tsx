@@ -22,7 +22,7 @@ import {
 import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
-import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge } from '../../components/ui';
+import { useToast, LoadingSpinner, isBillFullyPaid, partyBillDue, PaidBadge } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -564,7 +564,7 @@ export function VendorMasterView({
                 </p>
                 {detail.advanceBalance && detail.advanceBalance > 0.005 ? (
                   <p className="text-[11px] text-gray-500 mt-1">
-                    Bill due {fmt(detail.billDue ?? detail.balance)} · Advance {fmt(detail.advanceBalance)}
+                    Bill due {fmt(partyBillDue(detail.billDue, detail.balance))} · Advance {fmt(detail.advanceBalance)}
                   </p>
                 ) : null}
               </div>
