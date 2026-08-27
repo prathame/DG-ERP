@@ -21,6 +21,9 @@ import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { purchaseUnitPrices } from '../../lib/gstInclusivePrice';
+import { SearchSelect } from '../../components/ui/SearchSelect';
+import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
+import { supplierMatchesPurchaseSearch } from '../../lib/purchaseSearch';
 
 function purchaseUnitCost(rowCost: string, product?: Product): number {
   if (rowCost) return parseFloat(rowCost) || 0;
@@ -31,6 +34,7 @@ function purchaseUnitCost(rowCost: string, product?: Product): number {
 
 type PurchaseRow = {
   productId: string;
+  productQuery: string;
   quantity: number;
   packs: number;
   loosePieces: number;
@@ -42,6 +46,7 @@ type PurchaseRow = {
 
 const emptyPurchaseRow = (): PurchaseRow => ({
   productId: '',
+  productQuery: '',
   quantity: 1,
   packs: 0,
   loosePieces: 0,
@@ -57,6 +62,7 @@ function applyProductToRow(row: PurchaseRow, productId: string, products: Produc
   return {
     ...row,
     productId,
+    productQuery: prod?.name ?? row.productQuery,
     costPrice: productId ? cost : '',
     withGst: prod ? Number(prod.gstRate) > 0 : true,
   };
@@ -177,6 +183,8 @@ export function PurchasesView({
     isRcm: false,
   });
   const [purchaseRows, setPurchaseRows] = useState<PurchaseRow[]>([emptyPurchaseRow()]);
+  const [supplierQuery, setSupplierQuery] = useState('');
+  const [quickAddProduct, setQuickAddProduct] = useState<{ idx: number; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
@@ -367,6 +375,69 @@ export function PurchasesView({
     { gross: 0, gst: 0, billed: 0, items: 0 },
   );
 
+  const createSupplierFromTypedName = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const existing = suppliers.find(s => s.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      setPurchaseForm(f => ({ ...f, supplierId: existing.id }));
+      setSupplierQuery(existing.name);
+      return;
+    }
+    try {
+      const created = (await fetchApi('/suppliers', {
+        method: 'POST',
+        body: JSON.stringify({ name: trimmed }),
+      })) as Supplier;
+      toast('Supplier added', 'success');
+      setSuppliers(prev => [...prev, created]);
+      setPurchaseForm(f => ({ ...f, supplierId: created.id }));
+      setSupplierQuery(created.name);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
+  const purchaseProductOptions = products
+    .filter(pr => pr && pr.id && pr.name)
+    .map(pr => ({
+      value: pr.id,
+      label: pr.name,
+      sublabel: `₹${Number(pr.price || 0).toLocaleString('en-IN')}${(pr.packSize ?? 1) > 1 ? ` · ${pr.packName}=${pr.packSize}` : ''}`,
+    }));
+
+  const purchaseProductSelect = (row: PurchaseRow, idx: number, className?: string) => (
+    <SearchSelect
+      allowCustom
+      value={row.productId}
+      inputValue={row.productQuery}
+      onInputChange={text =>
+        setPurchaseRows(prev =>
+          prev.map((r, i) => {
+            if (i !== idx) return r;
+            const exact = products.find(p => p.name.toLowerCase() === text.trim().toLowerCase());
+            if (exact) return applyProductToRow({ ...r, productQuery: text }, exact.id, products);
+            return { ...r, productQuery: text, productId: '' };
+          }),
+        )
+      }
+      onChange={pid => {
+        if (!pid) {
+          setPurchaseRows(prev => prev.map((r, i) => (i === idx ? { ...r, productId: '' } : r)));
+          return;
+        }
+        setPurchaseRows(prev => prev.map((r, i) => (i === idx ? applyProductToRow(r, pid, products) : r)));
+      }}
+      onCreateNew={typed => setQuickAddProduct({ idx, name: typed })}
+      placeholder="Type product name…"
+      createNewLabel="product"
+      customLabel="product"
+      emptyHint={products.length === 0 ? 'No products yet — type a name to add one' : undefined}
+      options={purchaseProductOptions}
+      className={className || 'w-full'}
+    />
+  );
+
   const printPurchaseBill = async (bd: Record<string, unknown>) => {
     const rawItems = (Array.isArray(bd.items) ? bd.items : []) as Record<string, unknown>[];
     if (rawItems.length === 0) {
@@ -532,7 +603,13 @@ export function PurchasesView({
   ) : null;
 
   const handleCreatePurchase = async () => {
-    if (!purchaseForm.supplierId) {
+    const typedSupplier = supplierQuery.trim();
+    let supplierId = purchaseForm.supplierId;
+    if (!supplierId && typedSupplier) {
+      const existing = suppliers.find(s => s.name.toLowerCase() === typedSupplier.toLowerCase());
+      if (existing) supplierId = existing.id;
+    }
+    if (!supplierId && !typedSupplier) {
       toast('Select a supplier', 'error');
       return;
     }
@@ -548,10 +625,18 @@ export function PurchasesView({
     }
     setSubmitting(true);
     try {
+      if (!supplierId) {
+        const createdSupplier = (await fetchApi('/suppliers', {
+          method: 'POST',
+          body: JSON.stringify({ name: typedSupplier }),
+        })) as Supplier;
+        supplierId = createdSupplier.id;
+        setSuppliers(prev => [...prev, createdSupplier]);
+      }
       const created = (await fetchApi('/purchases/batch', {
         method: 'POST',
         body: JSON.stringify({
-          supplierId: purchaseForm.supplierId,
+          supplierId,
           purchaseDate: purchaseForm.date,
           gstRate: defaultGstRate,
           invoiceNumber: purchaseForm.invoiceNumber || undefined,
@@ -575,6 +660,7 @@ export function PurchasesView({
       })) as { invoiceNumber?: string | null; isRcm?: boolean };
       setModalOpen(false);
       setPurchaseRows([emptyPurchaseRow()]);
+      setSupplierQuery('');
       setPurchaseForm({
         supplierId: '',
         date: new Date().toISOString().slice(0, 10),
@@ -642,7 +728,14 @@ export function PurchasesView({
         if (s.totalPurchased > 0 && isPaid) return false;
         if (s.totalPurchased === 0 && s.batchCount === 0) return false;
       }
-      if (searchText && !s.name.toLowerCase().includes(searchText.toLowerCase())) return false;
+      if (
+        !supplierMatchesPurchaseSearch(
+          s.name,
+          batches.filter(b => b.supplierId === s.id),
+          searchText,
+        )
+      )
+        return false;
       return true;
     });
 
@@ -1124,7 +1217,7 @@ export function PurchasesView({
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search supplier..."
+                  placeholder="Search supplier or bill no…"
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   className="w-full h-9 pl-9 pr-3 rounded-xl border border-gray-200 text-[13px] focus:ring-2 focus:ring-brand focus:outline-none"
@@ -1134,10 +1227,14 @@ export function PurchasesView({
               {supplierStats.length === 0 ? (
                 <MobileEmptyState
                   icon={<ShoppingBag />}
-                  title="No suppliers yet"
-                  subtitle="Add your first supplier to start recording purchases"
-                  actionLabel="Add Supplier"
-                  onAction={openAddSupplier}
+                  title={searchText.trim() ? 'No matching bills' : 'No suppliers yet'}
+                  subtitle={
+                    searchText.trim()
+                      ? 'Try another supplier name or bill number'
+                      : 'Add your first supplier to start recording purchases'
+                  }
+                  actionLabel={searchText.trim() ? undefined : 'Add Supplier'}
+                  onAction={searchText.trim() ? undefined : openAddSupplier}
                 />
               ) : (
                 <div className="space-y-1.5">
@@ -1413,7 +1510,7 @@ export function PurchasesView({
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input
                     type="text"
-                    placeholder="Search supplier..."
+                    placeholder="Search supplier or bill no…"
                     value={searchText}
                     onChange={e => setSearchText(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
@@ -1421,18 +1518,26 @@ export function PurchasesView({
                 </div>
               </div>
 
-              {suppliers.length === 0 ? (
+              {suppliers.length === 0 || supplierStats.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
                   <ShoppingBag size={48} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-medium mb-2">No suppliers yet</p>
-                  <p className="text-sm mb-4">Add your first supplier to start recording purchases</p>
-                  <button
-                    type="button"
-                    onClick={openAddSupplier}
-                    className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
-                  >
-                    + Add Supplier
-                  </button>
+                  <p className="font-medium mb-2">
+                    {suppliers.length === 0 ? 'No suppliers yet' : 'No matching bills'}
+                  </p>
+                  <p className="text-sm mb-4">
+                    {suppliers.length === 0
+                      ? 'Add your first supplier to start recording purchases'
+                      : 'Try another supplier name or bill number'}
+                  </p>
+                  {suppliers.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={openAddSupplier}
+                      className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
+                    >
+                      + Add Supplier
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1646,19 +1751,36 @@ export function PurchasesView({
           >
             <div className="space-y-4">
               <FormGrid className="sm:grid-cols-3">
-                <FormField label="Supplier" required>
-                  <select
+                <FormField label="Supplier" required className="sm:col-span-1">
+                  <SearchSelect
+                    allowCustom
                     value={purchaseForm.supplierId}
-                    onChange={e => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })}
-                    className={formControlClass}
-                  >
-                    <option value="">Select supplier</option>
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                    inputValue={supplierQuery}
+                    onInputChange={text => {
+                      setSupplierQuery(text);
+                      const match = suppliers.find(s => s.name.toLowerCase() === text.trim().toLowerCase());
+                      setPurchaseForm(f => ({ ...f, supplierId: match?.id ?? '' }));
+                    }}
+                    onChange={id => {
+                      if (!id) return;
+                      const s = suppliers.find(x => x.id === id);
+                      setPurchaseForm(f => ({ ...f, supplierId: id }));
+                      setSupplierQuery(s?.name ?? supplierQuery);
+                    }}
+                    onCreateNew={name => void createSupplierFromTypedName(name)}
+                    placeholder="Type supplier name…"
+                    createNewLabel="supplier"
+                    customLabel="supplier"
+                    emptyHint={suppliers.length === 0 ? 'No suppliers yet — type a name to add one' : undefined}
+                    options={suppliers
+                      .filter(s => s.id && s.name)
+                      .map(s => ({
+                        value: s.id,
+                        label: s.name,
+                        sublabel: s.gstNumber || s.phone || undefined,
+                      }))}
+                    className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3"
+                  />
                 </FormField>
                 <FormField label={purchaseForm.isRcm ? 'Self-invoice no.' : 'Invoice No.'}>
                   <input
@@ -1700,26 +1822,7 @@ export function PurchasesView({
                       key: 'product',
                       label: 'Product',
                       wide: true,
-                      node: (
-                        <select
-                          value={row.productId}
-                          onChange={e =>
-                            setPurchaseRows(
-                              purchaseRows.map((r, i) =>
-                                i === idx ? applyProductToRow(r, e.target.value, products) : r,
-                              ),
-                            )
-                          }
-                          className={formControlClass}
-                        >
-                          <option value="">Select product</option>
-                          {products.map(pr => (
-                            <option key={pr.id} value={pr.id}>
-                              {pr.name} (₹{pr.price.toLocaleString('en-IN')})
-                            </option>
-                          ))}
-                        </select>
-                      ),
+                      node: purchaseProductSelect(row, idx),
                     },
                   ];
                   if (hasPack) {
@@ -1902,27 +2005,7 @@ export function PurchasesView({
                       return (
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={row.productId}
-                              onChange={e =>
-                                setPurchaseRows(
-                                  purchaseRows.map((r, i) =>
-                                    i === idx ? applyProductToRow(r, e.target.value, products) : r,
-                                  ),
-                                )
-                              }
-                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
-                            >
-                              <option value="">Select product</option>
-                              {products.map(pr => (
-                                <option key={pr.id} value={pr.id}>
-                                  {pr.name} (₹{pr.price.toLocaleString('en-IN')})
-                                  {(pr.packSize ?? 1) > 1 ? ` [${pr.packName}=${pr.packSize}]` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
+                          <td className="px-3 py-2">{purchaseProductSelect(row, idx)}</td>
                           <td className="px-3 py-2">
                             {hasPack ? (
                               <div className="flex items-center gap-1">
@@ -2090,6 +2173,21 @@ export function PurchasesView({
       </AnimatePresence>
 
       {supplierModalNode}
+      {quickAddProduct && (
+        <QuickAddProductModal
+          initialName={quickAddProduct.name}
+          defaultGstRate={defaultGstRate}
+          onClose={() => setQuickAddProduct(null)}
+          onCreated={prod => {
+            const next = products.some(p => p.id === prod.id) ? products : [prod, ...products];
+            setProducts(next);
+            setPurchaseRows(prev =>
+              prev.map((r, i) => (i === quickAddProduct.idx ? applyProductToRow(r, prod.id, next) : r)),
+            );
+            setQuickAddProduct(null);
+          }}
+        />
+      )}
       {ConfirmRenderer}
     </motion.div>
   );

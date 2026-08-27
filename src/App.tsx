@@ -2175,6 +2175,9 @@ export default function App() {
                             setEditSaleBatchId(batchId);
                             setActiveTab('distribution');
                           }}
+                          onCreatePurchase={
+                            getAccess('purchases') === 'full' ? () => launchCreate('purchase') : undefined
+                          }
                           launchCreate={createLaunch}
                           onLaunchConsumed={consumeCreateLaunch}
                         />
