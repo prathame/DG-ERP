@@ -24,6 +24,22 @@ function parseProductImage(raw: unknown): { error: string } | { value: string | 
   return { value: raw };
 }
 
+function csvPositiveNumber(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function csvTrim(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  return s || null;
+}
+
+function csvIsoDate(raw: unknown): string | null {
+  const s = csvTrim(raw);
+  if (!s) return null;
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+}
+
 // ============ CATEGORIES ============
 router.get('/api/categories', async (req, res) => {
   try {
@@ -634,13 +650,13 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
 
     // Split into new vs existing
     const toInsert: typeof items = [];
-    const toUpdate: { id: string; qty: number; name: string }[] = [];
+    const toUpdate: { id: string; qty: number; name: string; r: Record<string, unknown> }[] = [];
     for (const r of items) {
       const name = String(r.name).trim();
       const qty = Number(r.quantity) || 0;
       const ex = existingMap.get(name.toLowerCase());
       if (ex) {
-        toUpdate.push({ id: ex.id, qty, name });
+        toUpdate.push({ id: ex.id, qty, name, r });
         details.push({ name, action: 'stock_added', quantity: qty });
         stockAdded++;
       } else {
@@ -660,6 +676,20 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
       `,
         [toUpdate.map(u => u.id), toUpdate.map(u => u.qty), tenantId],
       );
+      for (const u of toUpdate) {
+        const cost = csvPositiveNumber(u.r.costPrice);
+        const lot = csvTrim(u.r.batchNumber);
+        const expiry = csvIsoDate(u.r.expiryDate);
+        if (!cost && !lot && !expiry) continue;
+        await client.query(
+          `UPDATE products SET
+             cost_price = COALESCE($1, cost_price),
+             batch_number = COALESCE($2, batch_number),
+             expiry_date = COALESCE($3::date, expiry_date)
+           WHERE id = $4 AND tenant_id = $5`,
+          [cost > 0 ? cost : null, lot, expiry, u.id, tenantId],
+        );
+      }
     }
 
     // Bulk INSERT new products
@@ -675,7 +705,7 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
         const productId = uid('P');
         productIds.push({ r, id: productId });
         vals.push(
-          `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10},$${pIdx + 11},$${pIdx + 12},$${pIdx + 13},$${pIdx + 14},$${pIdx + 15},$${pIdx + 16})`,
+          `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10},$${pIdx + 11},$${pIdx + 12},$${pIdx + 13},$${pIdx + 14},$${pIdx + 15},$${pIdx + 16},$${pIdx + 17},$${pIdx + 18})`,
         );
         params.push(
           productId,
@@ -684,7 +714,7 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
           r.description || null,
           Number(r.rewardPointsValue) || 0,
           null,
-          null,
+          csvTrim(r.batchNumber),
           'Active',
           Number(r.warrantyMonths) || 12,
           Number(r.price) || 0,
@@ -695,11 +725,13 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
           r.hsnCode || null,
           r.gstRate != null ? Number(r.gstRate) : 18,
           !!r.priceIncludesGst,
+          csvPositiveNumber(r.costPrice) || null,
+          csvIsoDate(r.expiryDate),
         );
-        pIdx += 17;
+        pIdx += 19;
       }
       await client.query(
-        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ${vals.join(',')}`,
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst, cost_price, expiry_date) VALUES ${vals.join(',')}`,
         params,
       );
 
@@ -728,6 +760,20 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
             );
         }
       }
+      await withBooks(async () => {
+        for (const { r, id: productId } of productIds) {
+          const qty = Number(r.quantity) || 0;
+          const cost = csvPositiveNumber(r.costPrice);
+          if (!(qty > 0 && cost > 0)) continue;
+          await postOpeningStockToBooks(client, tenantId, {
+            productId,
+            productName: String(r.name).trim(),
+            qty,
+            unitCost: cost,
+            asOfDate: new Date().toISOString().slice(0, 10),
+          });
+        }
+      }, 'csv-opening-stock');
     }
     await client.query('COMMIT');
     await logAudit(

@@ -93,9 +93,12 @@ describe('HTTP: qty + UOM stock (no barcodes)', () => {
           {
             name: 'Tomato Seeds 10g',
             price: 45,
+            costPrice: 28,
             quantity: 50,
             barcodePrefix: 'ZTS',
             packName: 'Packet',
+            batchNumber: 'TS-2401',
+            expiryDate: '2027-12-31',
           },
           {
             name: 'Battery Sprayer',
@@ -107,11 +110,20 @@ describe('HTTP: qty + UOM stock (no barcodes)', () => {
         ],
       });
     expect(res.status).toBe(201);
-    const seeds = await pool.query('SELECT id, stock FROM products WHERE tenant_id = $1 AND name = $2', [
-      TENANT,
-      'Tomato Seeds 10g',
-    ]);
+    const seeds = await pool.query(
+      `SELECT id, stock, cost_price, batch_number, to_char(expiry_date, 'YYYY-MM-DD') AS expiry_date
+       FROM products WHERE tenant_id = $1 AND name = $2`,
+      [TENANT, 'Tomato Seeds 10g'],
+    );
     expect(Number(seeds.rows[0].stock)).toBe(50);
+    expect(Number(seeds.rows[0].cost_price)).toBe(28);
+    expect(seeds.rows[0].batch_number).toBe('TS-2401');
+    expect(String(seeds.rows[0].expiry_date).slice(0, 10)).toBe('2027-12-31');
+    const openV = await pool.query(`SELECT amount FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2`, [
+      TENANT,
+      `ops:openstock:${seeds.rows[0].id}`,
+    ]);
+    expect(Number(openV.rows[0]?.amount)).toBe(1400);
     const seedInv = await pool.query(
       'SELECT COUNT(*)::int AS c FROM product_inventory WHERE product_id = $1 AND tenant_id = $2',
       [seeds.rows[0].id, TENANT],
