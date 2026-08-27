@@ -20,6 +20,7 @@ import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
 import type { StockFilter } from './DesktopInventoryPanel';
 import { ProductThumb } from './ProductThumb';
+import { stockUnitLabel } from '../../../shared/qtyStock';
 
 type SortKey = 'name' | 'price' | 'stock';
 
@@ -253,7 +254,7 @@ export function MobileInventoryPanel({
             const isBoxBarcode = p.barcodeUnitType === 'box';
             const boxCount = isBoxBarcode ? rem : Math.floor(rem / ps);
             const totalBoxCount = isBoxBarcode ? tot : Math.floor(tot / ps);
-            const unitLabel = isBoxProduct ? `${p.packName || 'Box'}es` : 'pcs';
+            const unitLabel = isBoxProduct ? `${p.packName || 'Box'}es` : stockUnitLabel(p.packName);
             const displayTotal = isBoxProduct ? totalBoxCount : tot;
             const displayAdmin = isBoxProduct ? boxCount : rem;
 

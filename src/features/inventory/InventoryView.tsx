@@ -36,7 +36,7 @@ import { MobileInventoryPanel } from './MobileInventoryPanel';
 import { ProductThumb } from './ProductThumb';
 import { fileToProductImageDataUrl } from '../../lib/productImage';
 import type { CreateLaunch } from '../../lib/quickAdd';
-import { isQtyStockUnit } from '../../../shared/qtyStock';
+import { isQtyStockUnit, stockUnitLabel } from '../../../shared/qtyStock';
 
 const emptyAddForm = () => ({
   name: '',
@@ -621,7 +621,9 @@ export function InventoryView({
                                           >
                                             {rawTotal}
                                           </span>
-                                          <span className="block text-[10px] text-gray-400">pcs</span>
+                                          <span className="block text-[10px] text-gray-400">
+                                            {stockUnitLabel(p.packName)}
+                                          </span>
                                         </>
                                       )}
                                     </td>
@@ -639,7 +641,9 @@ export function InventoryView({
                                       ) : (
                                         <>
                                           <span className="font-semibold text-sm text-blue-700">{rawStock}</span>
-                                          <span className="block text-[10px] text-gray-400">pcs</span>
+                                          <span className="block text-[10px] text-gray-400">
+                                            {stockUnitLabel(p.packName)}
+                                          </span>
                                         </>
                                       )}
                                     </td>
@@ -1063,17 +1067,10 @@ export function InventoryView({
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        setAddForm({
-                          ...addForm,
-                          packSize: addForm.packSize > 1 ? addForm.packSize : 10,
-                          packName: 'Box',
-                          quantity: 0,
-                        })
-                      }
+                      onClick={() => setAddForm({ ...addForm, packSize: 1, packName: 'Box', packs: 0, loosePieces: 0 })}
                       className={cn(
                         'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
-                        addForm.packSize > 1
+                        addForm.packSize <= 1 && addForm.packName === 'Box'
                           ? 'bg-brand text-white border-brand'
                           : 'border-gray-200 text-gray-600 hover:border-brand',
                       )}
@@ -1104,6 +1101,31 @@ export function InventoryView({
                     >
                       Kg
                     </button>
+                    {(
+                      [
+                        ['Packet', 'Packet'],
+                        ['Bottle', 'Bottle'],
+                        ['L', 'Litre'],
+                        ['ml', 'ml'],
+                        ['g', 'g'],
+                      ] as const
+                    ).map(([label, pack]) => (
+                      <button
+                        key={pack}
+                        type="button"
+                        onClick={() =>
+                          setAddForm({ ...addForm, packSize: 1, packName: pack, packs: 0, loosePieces: 0 })
+                        }
+                        className={cn(
+                          'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
+                          addForm.packSize <= 1 && addForm.packName === pack
+                            ? 'bg-brand text-white border-brand'
+                            : 'border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

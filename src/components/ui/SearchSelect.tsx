@@ -48,7 +48,22 @@ export function SearchSelect({
   const triggerRef = useRef<HTMLButtonElement | HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const instanceId = useRef(`ss-${Math.random().toString(36).slice(2)}`);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const openMenu = () => {
+    window.dispatchEvent(new CustomEvent('dhandho-searchselect-open', { detail: instanceId.current }));
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    const onOther = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (id !== instanceId.current) setOpen(false);
+    };
+    window.addEventListener('dhandho-searchselect-open', onOther);
+    return () => window.removeEventListener('dhandho-searchselect-open', onOther);
+  }, []);
 
   const selected = options.find(o => o.value === value);
   const query = allowCustom ? (inputValue ?? '') : search;
@@ -118,6 +133,7 @@ export function SearchSelect({
     ? ReactDOM.createPortal(
         <div
           ref={dropRef}
+          data-search-select-open="true"
           className="fixed bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden"
           style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 10050 }}
         >
@@ -133,7 +149,11 @@ export function SearchSelect({
                   placeholder="Type to search..."
                   className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
                   onKeyDown={e => {
-                    if (e.key === 'Escape') setOpen(false);
+                    if (e.key === 'Escape') {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setOpen(false);
+                    }
                     if (e.key === 'Enter' && filtered.length === 1) {
                       pickOption(filtered[0]!.value);
                     }
@@ -246,8 +266,8 @@ export function SearchSelect({
             type="text"
             value={inputValue ?? ''}
             placeholder={placeholder}
-            onFocus={() => setOpen(true)}
-            onClick={() => setOpen(true)}
+            onFocus={() => openMenu()}
+            onClick={() => openMenu()}
             onChange={e => {
               const text = e.target.value;
               onInputChange?.(text);
@@ -258,10 +278,14 @@ export function SearchSelect({
                 );
                 if (!stillMatches) onChange('');
               }
-              setOpen(true);
+              openMenu();
             }}
             onKeyDown={e => {
-              if (e.key === 'Escape') setOpen(false);
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.preventDefault();
+                setOpen(false);
+              }
               if (e.key === 'Enter') {
                 e.preventDefault();
                 if (filtered.length === 1) pickOption(filtered[0]!.value);
@@ -288,8 +312,11 @@ export function SearchSelect({
           ref={triggerRef as React.RefObject<HTMLButtonElement>}
           type="button"
           onClick={() => {
-            setOpen(!open);
-            setSearch('');
+            if (open) setOpen(false);
+            else {
+              setSearch('');
+              openMenu();
+            }
           }}
           className={cn(
             'w-full px-3 py-2 border rounded-lg text-sm text-left flex items-center gap-2 transition-colors',

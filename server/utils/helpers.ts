@@ -286,6 +286,7 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   rewardPointsValue: r.reward_points_value ?? 0,
   manufacturingDate: r.manufacturing_date ?? null,
   batchNumber: r.batch_number ?? null,
+  expiryDate: r.expiry_date ?? null,
   status: r.status ?? 'Active',
   warrantyMonths: r.warranty_months ?? 12,
   price: r.price ?? 0,

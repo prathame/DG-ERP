@@ -1,4 +1,6 @@
-import { round2 } from '../../shared/gstRound';
+import { round2, normalizeGstRate, purchaseUnitPrices } from '../../shared/gstRound';
+
+export { normalizeGstRate, purchaseUnitPrices };
 
 /**
  * Inclusive-MRP helpers for create-time GST checkboxes (non-service).
@@ -6,15 +8,15 @@ import { round2 } from '../../shared/gstRound';
  * Exclusive products keep the base price; GST is only added in billed totals when on.
  */
 
-export function stripInclusiveGst(unitPrice: number, gstRate: number): number {
+export function stripInclusiveGst(unitPrice: number, gstRate: unknown): number {
   if (!Number.isFinite(unitPrice) || unitPrice <= 0) return unitPrice;
-  const rate = Number.isFinite(gstRate) ? gstRate : 18;
+  const rate = normalizeGstRate(gstRate);
   return Math.round((unitPrice / (1 + rate / 100)) * 100) / 100;
 }
 
-export function restoreInclusiveGst(unitPrice: number, gstRate: number): number {
+export function restoreInclusiveGst(unitPrice: number, gstRate: unknown): number {
   if (!Number.isFinite(unitPrice) || unitPrice <= 0) return unitPrice;
-  const rate = Number.isFinite(gstRate) ? gstRate : 18;
+  const rate = normalizeGstRate(gstRate);
   return Math.round(unitPrice * (1 + rate / 100) * 100) / 100;
 }
 
@@ -59,7 +61,7 @@ export function linePricesAfterDiscount(opts: {
   const gross = opts.unitPrice * qty;
   const disc = Math.round((gross * Math.min(100, Math.max(0, opts.discountPercent || 0))) / 100);
   const priceAfterDisc = gross - disc;
-  const rate = Number.isFinite(opts.gstRate) ? opts.gstRate : 18;
+  const rate = normalizeGstRate(opts.gstRate);
 
   // Inclusive field still holds MRP only while GST is on
   if (opts.withGst && opts.priceIncludesGst) {

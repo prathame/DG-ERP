@@ -125,7 +125,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
     },
     financeView: 'vendor',
     analytics: {
-      showDispatched: true,
+      showDispatched: false,
       outstandingLabel: 'Outstanding',
       outstandingKey: 'outstanding',
       collectionsLabel: 'Collected',

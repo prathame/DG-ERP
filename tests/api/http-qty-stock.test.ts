@@ -1,6 +1,6 @@
 /**
- * Qty+UOM stock: bags/kg/packets keep a count, no barcodes.
- * Piece/Box with a prefix still mint barcodes.
+ * Qty+UOM stock: bags/kg/packets/boxes keep a count, no barcodes.
+ * Piece/Nos with a prefix still mint barcodes.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import bcrypt from 'bcrypt';

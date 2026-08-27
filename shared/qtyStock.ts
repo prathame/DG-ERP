@@ -1,10 +1,14 @@
 /**
- * Bulk units keep a quantity on the product (urea bags, seed packets).
- * Piece / Nos / Box stay barcode-per-unit unless barcodeMode is none.
+ * Bulk units keep a quantity on the product (urea bags, seed packets, boxes of bottles).
+ * Piece / Nos stay barcode-per-unit unless barcodeMode is none.
  */
 const QTY_STOCK_UNITS = new Set([
   'bag',
   'bags',
+  'box',
+  'boxes',
+  'bottle',
+  'bottles',
   'kg',
   'kgs',
   'kilogram',
@@ -12,6 +16,7 @@ const QTY_STOCK_UNITS = new Set([
   'litre',
   'liter',
   'ltr',
+  'l',
   'litres',
   'liters',
   'packet',
@@ -29,9 +34,19 @@ const QTY_STOCK_UNITS = new Set([
   'mt',
   'gram',
   'gm',
+  'g',
   'grams',
   'ml',
 ]);
+
+/** Inventory column label: Bag stays Bag, Piece/Nos stay pcs. */
+export function stockUnitLabel(packName?: string | null): string {
+  const n = String(packName || '').trim();
+  if (!n) return 'pcs';
+  const key = n.toLowerCase();
+  if (key === 'piece' || key === 'pieces' || key === 'nos' || key === 'no') return 'pcs';
+  return n;
+}
 
 export function isQtyStockUnit(packName?: string | null): boolean {
   return QTY_STOCK_UNITS.has(

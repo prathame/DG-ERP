@@ -1368,6 +1368,10 @@ export async function initSchema() {
     await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT');
     // Reverse charge (RCM) — liability + ITC on GSTR-3B; excluded from forward-charge PURCHASE_TAX_SQL
     await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS is_rcm BOOLEAN DEFAULT false');
+    await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS lot_number TEXT');
+    await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS mfg_date DATE');
+    await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS expiry_date DATE');
+    await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS expiry_date DATE');
 
     // Local IMS-lite decisions on GSTR-2B reconcile (Accept / Hold / Reject) — not portal push
     await client.query(`

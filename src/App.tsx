@@ -2095,7 +2095,7 @@ export default function App() {
                         capGlassHeader && 'dg-m-ink',
                       )}
                     >
-                      {t(`nav.${activeTab}`)}
+                      {tc(activeTab, t(`nav.${activeTab}`))}
                     </h1>
                     <p
                       className={cn(

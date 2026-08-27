@@ -20,12 +20,67 @@ import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
+import { purchaseUnitPrices } from '../../lib/gstInclusivePrice';
 
 function purchaseUnitCost(rowCost: string, product?: Product): number {
   if (rowCost) return parseFloat(rowCost) || 0;
   const buy = Number(product?.costPrice);
   if (buy > 0) return buy;
   return Number(product?.price) || 0;
+}
+
+type PurchaseRow = {
+  productId: string;
+  quantity: number;
+  packs: number;
+  loosePieces: number;
+  costPrice: string;
+  withGst: boolean;
+  lotNumber: string;
+  expiryDate: string;
+};
+
+const emptyPurchaseRow = (): PurchaseRow => ({
+  productId: '',
+  quantity: 1,
+  packs: 0,
+  loosePieces: 0,
+  costPrice: '',
+  withGst: true,
+  lotNumber: '',
+  expiryDate: '',
+});
+
+function applyProductToRow(row: PurchaseRow, productId: string, products: Product[]): PurchaseRow {
+  const prod = products.find(x => x.id === productId);
+  const cost = prod && Number(prod.costPrice) > 0 ? String(prod.costPrice) : '';
+  return {
+    ...row,
+    productId,
+    costPrice: productId ? cost : '',
+    withGst: prod ? Number(prod.gstRate) > 0 : true,
+  };
+}
+
+function linePurchase(row: PurchaseRow, p: Product | undefined, isRcm: boolean) {
+  const ps = p?.packSize ?? 1;
+  const actualQty = ps > 1 ? row.packs * ps + row.loosePieces : row.quantity;
+  const entered = purchaseUnitCost(row.costPrice, p);
+  const unit = purchaseUnitPrices({
+    enteredCost: entered,
+    gstRate: p?.gstRate,
+    withGst: row.withGst || isRcm,
+    priceIncludesGst: !!p?.priceIncludesGst,
+    isRcm,
+  });
+  const qty = actualQty || 0;
+  return {
+    actualQty: qty,
+    unit,
+    gross: unit.cost * qty,
+    gst: unit.gst * qty,
+    billed: (isRcm ? unit.cost : unit.billed) * qty,
+  };
 }
 import {
   useToast,
@@ -75,15 +130,6 @@ interface PurchaseBatch {
   invoiceNumber?: string | null;
 }
 
-const emptyPurchaseRow = () => ({
-  productId: '',
-  quantity: 1,
-  packs: 0,
-  loosePieces: 0,
-  costPrice: '',
-  withGst: false,
-});
-
 export function PurchasesView({
   accessLevel = 'full',
   onOpenAccountsStatement,
@@ -130,9 +176,7 @@ export function PurchasesView({
     invoiceNumber: '',
     isRcm: false,
   });
-  const [purchaseRows, setPurchaseRows] = useState<
-    { productId: string; quantity: number; packs: number; loosePieces: number; costPrice: string; withGst: boolean }[]
-  >([emptyPurchaseRow()]);
+  const [purchaseRows, setPurchaseRows] = useState<PurchaseRow[]>([emptyPurchaseRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
@@ -313,16 +357,11 @@ export function PurchasesView({
   const purchaseTotals = purchaseRows.reduce(
     (acc, r) => {
       const p = products.find(x => x.id === r.productId);
-      const ps = p?.packSize ?? 1;
-      const actualQty = ps > 1 ? r.packs * ps + r.loosePieces : r.quantity;
-      const cost = purchaseUnitCost(r.costPrice, p);
-      const gross = cost * (actualQty || 0);
-      const gst = r.withGst || purchaseForm.isRcm ? Math.round((gross * defaultGstRate) / 100) : 0;
-      acc.gross += gross;
-      acc.gst += gst;
-      // RCM: pay supplier excl. GST; GST is remitted to govt separately
-      acc.billed += purchaseForm.isRcm ? gross : gross + gst;
-      acc.items += actualQty || 0;
+      const line = linePurchase(r, p, purchaseForm.isRcm);
+      acc.gross += line.gross;
+      acc.gst += line.gst;
+      acc.billed += line.billed;
+      acc.items += line.actualQty;
       return acc;
     },
     { gross: 0, gst: 0, billed: 0, items: 0 },
@@ -526,6 +565,10 @@ export function PurchasesView({
               quantity: ps > 1 ? r.packs * ps + r.loosePieces : r.quantity,
               costPrice: r.costPrice ? parseFloat(r.costPrice) : undefined,
               withGst: purchaseForm.isRcm ? true : r.withGst,
+              gstRate: rp?.gstRate,
+              priceIncludesGst: rp?.priceIncludesGst,
+              lotNumber: r.lotNumber || undefined,
+              expiryDate: r.expiryDate || undefined,
             };
           }),
         }),
@@ -1595,11 +1638,8 @@ export function PurchasesView({
                   const p = products.find(x => x.id === row.productId);
                   const ps = p?.packSize ?? 1;
                   const hasPack = ps > 1;
-                  const actualQty = hasPack ? row.packs * ps + row.loosePieces : row.quantity;
-                  const cost = purchaseUnitCost(row.costPrice, p);
-                  const gross = cost * (actualQty || 0);
-                  const gst = row.withGst ? Math.round((gross * defaultGstRate) / 100) : 0;
-                  const billed = gross + gst;
+                  const line = linePurchase(row, p, purchaseForm.isRcm);
+                  const billed = line.billed;
                   const fields: LineItemCardField[] = [
                     {
                       key: 'product',
@@ -1610,7 +1650,9 @@ export function PurchasesView({
                           value={row.productId}
                           onChange={e =>
                             setPurchaseRows(
-                              purchaseRows.map((r, i) => (i === idx ? { ...r, productId: e.target.value } : r)),
+                              purchaseRows.map((r, i) =>
+                                i === idx ? applyProductToRow(r, e.target.value, products) : r,
+                              ),
                             )
                           }
                           className={formControlClass}
@@ -1706,7 +1748,7 @@ export function PurchasesView({
                               purchaseRows.map((r, i) => (i === idx ? { ...r, costPrice: e.target.value } : r)),
                             )
                           }
-                          placeholder={p ? `₹${p.price}` : '—'}
+                          placeholder={p ? `₹${Number(p.costPrice) > 0 ? p.costPrice : p.price}` : '—'}
                           className={formControlClass}
                         />
                       ),
@@ -1726,8 +1768,41 @@ export function PurchasesView({
                             }
                             className="rounded text-brand w-5 h-5"
                           />
-                          Include GST
+                          Include GST{p?.gstRate != null ? ` ${p.gstRate}%` : ''}
                         </label>
+                      ),
+                    },
+                    {
+                      key: 'lot',
+                      label: 'Batch / lot',
+                      node: (
+                        <input
+                          type="text"
+                          value={row.lotNumber}
+                          onChange={e =>
+                            setPurchaseRows(
+                              purchaseRows.map((r, i) => (i === idx ? { ...r, lotNumber: e.target.value } : r)),
+                            )
+                          }
+                          placeholder="Batch no."
+                          className={formControlClass}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'expiry',
+                      label: 'Expiry',
+                      node: (
+                        <input
+                          type="date"
+                          value={row.expiryDate}
+                          onChange={e =>
+                            setPurchaseRows(
+                              purchaseRows.map((r, i) => (i === idx ? { ...r, expiryDate: e.target.value } : r)),
+                            )
+                          }
+                          className={formControlClass}
+                        />
                       ),
                     },
                   );
@@ -1756,6 +1831,7 @@ export function PurchasesView({
                       <th className="px-3 py-3 w-20">Qty</th>
                       <th className="px-3 py-3 w-24">Cost Price</th>
                       <th className="px-3 py-3 w-12 text-center">GST</th>
+                      <th className="px-3 py-3 w-24">Batch / expiry</th>
                       <th className="px-3 py-3 w-28 text-right">Billed</th>
                       <th className="px-3 py-3 w-10"></th>
                     </tr>
@@ -1765,11 +1841,9 @@ export function PurchasesView({
                       const p = products.find(x => x.id === row.productId);
                       const ps = p?.packSize ?? 1;
                       const hasPack = ps > 1;
-                      const actualQty = hasPack ? row.packs * ps + row.loosePieces : row.quantity;
-                      const cost = purchaseUnitCost(row.costPrice, p);
-                      const gross = cost * (actualQty || 0);
-                      const gst = row.withGst ? Math.round((gross * defaultGstRate) / 100) : 0;
-                      const billed = gross + gst;
+                      const line = linePurchase(row, p, purchaseForm.isRcm);
+                      const actualQty = line.actualQty;
+                      const billed = line.billed;
                       return (
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
@@ -1778,7 +1852,9 @@ export function PurchasesView({
                               value={row.productId}
                               onChange={e =>
                                 setPurchaseRows(
-                                  purchaseRows.map((r, i) => (i === idx ? { ...r, productId: e.target.value } : r)),
+                                  purchaseRows.map((r, i) =>
+                                    i === idx ? applyProductToRow(r, e.target.value, products) : r,
+                                  ),
                                 )
                               }
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
@@ -1855,7 +1931,7 @@ export function PurchasesView({
                                   purchaseRows.map((r, i) => (i === idx ? { ...r, costPrice: e.target.value } : r)),
                                 )
                               }
-                              placeholder={p ? `₹${p.price}` : '—'}
+                              placeholder={p ? `₹${Number(p.costPrice) > 0 ? p.costPrice : p.price}` : '—'}
                               className={cn(
                                 'w-full px-2 py-1.5 border rounded-lg text-sm text-center',
                                 row.costPrice ? 'border-amber-300 bg-amber-50' : 'border-gray-200',
@@ -1872,6 +1948,30 @@ export function PurchasesView({
                                 )
                               }
                               className="rounded text-brand"
+                              title={p?.gstRate != null ? `${p.gstRate}%` : 'GST'}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={row.lotNumber}
+                              onChange={e =>
+                                setPurchaseRows(
+                                  purchaseRows.map((r, i) => (i === idx ? { ...r, lotNumber: e.target.value } : r)),
+                                )
+                              }
+                              placeholder="Lot"
+                              className="w-full px-2 py-1 mb-1 border border-gray-200 rounded-lg text-sm"
+                            />
+                            <input
+                              type="date"
+                              value={row.expiryDate}
+                              onChange={e =>
+                                setPurchaseRows(
+                                  purchaseRows.map((r, i) => (i === idx ? { ...r, expiryDate: e.target.value } : r)),
+                                )
+                              }
+                              className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm"
                             />
                           </td>
                           <td className="px-3 py-2 text-right text-sm font-bold">

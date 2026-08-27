@@ -7,6 +7,8 @@ import { requireAdmin, blockVendors, AuthRequest, vendorScopeId, assertVendorLin
 import { checkPlanLimit } from '../utils/planLimits';
 import { withTenantClient } from '../pg-db';
 import { isQtyStockUnit, usesQtyStock } from '../../shared/qtyStock';
+import { postOpeningStockToBooks } from '../services/opsToBooks';
+import { withBooks } from '../utils/booksStrict';
 
 const router = Router();
 
@@ -966,6 +968,24 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       if (invStock > 0)
         await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [invStock, id, tenantId]);
       await saveProductImage();
+      const openCost = Number(costPrice);
+      if (invStock > 0 && Number.isFinite(openCost) && openCost > 0) {
+        const asOf =
+          typeof manufacturingDate === 'string' && manufacturingDate.trim()
+            ? manufacturingDate.trim().slice(0, 10)
+            : new Date().toISOString().slice(0, 10);
+        await withBooks(
+          () =>
+            postOpeningStockToBooks(client, tenantId, {
+              productId: id,
+              productName: String(name).trim(),
+              qty: invStock,
+              unitCost: openCost,
+              asOfDate: asOf,
+            }),
+          'opening-stock',
+        );
+      }
       await client.query('COMMIT');
       const row = (await pool.query('SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1', [tenantId, id]))
         .rows[0] as Record<string, unknown>;

@@ -9,6 +9,7 @@ import {
   postVendorPaymentToBooks,
   postPurchaseBatchToBooks,
   postSupplierPaymentToBooks,
+  postOpeningStockToBooks,
   ensureNativeBooksDesk,
 } from '../../server/services/opsToBooks';
 import {
@@ -511,7 +512,7 @@ describe('opsToBooks + CA statements', () => {
     expect(bs.assets.some(a => a.name.includes('Net loss'))).toBe(true);
   });
 
-  it('posts purchase batch + supplier payment (Dr Purchase / Cr Supplier)', async () => {
+  it('posts purchase batch + supplier payment (Dr Stock / Cr Supplier)', async () => {
     await cleanupTestData(TENANT);
     await seedBooksShell();
     const supplierId = uid('S');
@@ -554,7 +555,7 @@ describe('opsToBooks + CA statements', () => {
       client.release();
     }
     const purchase = (
-      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:PURCHASE'`, [TENANT])
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:STOCK'`, [TENANT])
     ).rows[0] as { id: string };
     const supplier = (
       await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref=$2`, [
@@ -577,6 +578,97 @@ describe('opsToBooks + CA statements', () => {
     );
     const tb = await getTrialBalance(pool, TENANT, '2025-07-01', '2025-07-31');
     expect(tb.balanced).toBe(true);
+  });
+
+  it('purchase GST is stock + input tax, not a P&L expense', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const supplierId = uid('S');
+    await pool.query(
+      `INSERT INTO suppliers (id, tenant_id, name) VALUES ($1,$2,'GST Supplier') ON CONFLICT DO NOTHING`,
+      [supplierId, TENANT],
+    );
+    const batchId = uid('PB');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await postPurchaseBatchToBooks(client, TENANT, {
+        batchId,
+        supplierId,
+        supplierName: 'GST Supplier',
+        billValue: 11800,
+        purchaseDate: '2025-07-01',
+        taxableValue: 10000,
+        taxAmount: 1800,
+      });
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const stock = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:STOCK'`, [TENANT])
+    ).rows[0] as { id: string };
+    const cgst = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:CGST_IN'`, [TENANT])
+    ).rows[0] as { id: string };
+    const lines = await pool.query(
+      `SELECT e.ledger_id, e.debit::float AS debit, e.credit::float AS credit
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id
+       WHERE e.tenant_id=$1 AND v.external_ref=$2`,
+      [TENANT, `ops:pur:${batchId}`],
+    );
+    expect(lines.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ledger_id: stock.id, debit: 10000, credit: 0 }),
+        expect.objectContaining({ ledger_id: cgst.id, debit: 900, credit: 0 }),
+      ]),
+    );
+    const pnl = await getBooksProfitLoss(pool, TENANT, '2025-07-01', '2025-07-31');
+    expect(pnl.netProfit).toBe(0);
+  });
+
+  it('posts opening stock to the balance sheet', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const productId = uid('P');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await postOpeningStockToBooks(client, TENANT, {
+        productId,
+        productName: 'Urea 45kg',
+        qty: 50,
+        unitCost: 400,
+        asOfDate: '2025-04-01',
+      });
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const stock = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:STOCK'`, [TENANT])
+    ).rows[0] as { id: string };
+    const capital = (
+      await pool.query(`SELECT id FROM book_ledgers WHERE tenant_id=$1 AND external_ref='ops:OPENING_CAPITAL'`, [
+        TENANT,
+      ])
+    ).rows[0] as { id: string };
+    const lines = await pool.query(
+      `SELECT e.ledger_id, e.debit::float AS debit, e.credit::float AS credit
+       FROM book_voucher_entries e
+       JOIN book_vouchers v ON v.id = e.voucher_id
+       WHERE e.tenant_id=$1 AND v.external_ref=$2`,
+      [TENANT, `ops:openstock:${productId}`],
+    );
+    expect(lines.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ledger_id: stock.id, debit: 20000, credit: 0 }),
+        expect.objectContaining({ ledger_id: capital.id, debit: 0, credit: 20000 }),
+      ]),
+    );
+    const pnl = await getBooksProfitLoss(pool, TENANT, '2025-04-01', '2025-04-30');
+    expect(pnl.netProfit).toBe(0);
   });
 
   it('retail distribution posts purchase (not sales)', async () => {

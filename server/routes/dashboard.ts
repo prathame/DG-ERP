@@ -681,8 +681,16 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
     }
 
     const c = counts.rows[0] as Record<string, string>;
+    const distIsSale = businessType === 'dealer' || businessType === 'silver_casting';
     res.json({
-      money: { collections, revenue: salesRev + invoiceRev, distribution, expenses, outstanding, invoiceOutstanding },
+      money: {
+        collections,
+        revenue: distIsSale ? salesRev + invoiceRev + distribution : salesRev + invoiceRev,
+        distribution: distIsSale ? 0 : distribution,
+        expenses,
+        outstanding,
+        invoiceOutstanding,
+      },
       recentActivity: activityRows.rows.map((r: Record<string, unknown>) => ({
         ...r,
         amount: Number(r.amount) || 0,
