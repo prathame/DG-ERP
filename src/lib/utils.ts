@@ -76,7 +76,13 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  const d = new Date(dateStr);
+  const s = String(dateStr);
+  const dayOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})(?!T)/);
+  if (dayOnly) {
+    const d = new Date(Number(dayOnly[1]), Number(dayOnly[2]) - 1, Number(dayOnly[3]));
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  const d = new Date(s);
   if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 }

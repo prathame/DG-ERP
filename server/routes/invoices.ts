@@ -13,6 +13,7 @@ import { checkPlanLimit } from '../utils/planLimits';
 import { logger } from '../utils/logger';
 import { addCalendarDaysIso } from '../utils/partyCreditTerms';
 import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
+import { calendarDateIST } from '../../shared/dateOnly';
 
 const router = Router();
 
@@ -41,9 +42,7 @@ async function allocateNextInvoiceNumber(client: { query: typeof pool.query }, t
 }
 
 function isoDateOnly(value: unknown): string {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
-  const s = String(value || '');
-  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+  return calendarDateIST(value);
 }
 
 /** Customer sales (distribution batches) shaped like standalone invoices for the Invoices list. */
@@ -129,8 +128,8 @@ function mapStandaloneInvoice(r: Record<string, unknown>) {
     notes: r.notes,
     terms: r.terms,
     status: r.status,
-    invoiceDate: r.invoice_date,
-    dueDate: r.due_date,
+    invoiceDate: isoDateOnly(r.invoice_date),
+    dueDate: r.due_date ? isoDateOnly(r.due_date) : null,
     createdAt: r.created_at,
     // Only present when the query joins invoice_payments (list/get below) — else 0.
     paidAmount: Number(r.paid_amount) || 0,

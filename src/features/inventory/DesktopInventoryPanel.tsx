@@ -144,7 +144,10 @@ export function DesktopInventoryPanel({
   });
 
   const totalSkus = products.length;
-  const inventoryValue = products.reduce((s, p) => s + p.price * totalOf(p), 0);
+  const inventoryValue = products.reduce((s, p) => {
+    const unit = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price) || 0;
+    return s + unit * totalOf(p);
+  }, 0);
   const outOfStock = inventoryTrackingEnabled ? products.filter(p => remainingOf(p) <= 0).length : 0;
 
   const filters: { id: StockFilter; label: string }[] = [
@@ -519,7 +522,7 @@ export function DesktopInventoryPanel({
             <IndianRupee size={22} />
           </div>
           <div>
-            <p className="text-[10px] font-bold dg-faint uppercase tracking-widest">Inventory Value</p>
+            <p className="text-[10px] font-bold dg-faint uppercase tracking-widest">Inventory Value (cost)</p>
             <p className="text-2xl font-bold dg-ink tabular-nums mt-0.5">{fmtCompact(inventoryValue)}</p>
           </div>
         </div>

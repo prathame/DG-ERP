@@ -523,6 +523,7 @@
     "sales": "Sales",
     "vendorPayments": "Vendor Payments",
     "dealerPayments": "Dealer Payments",
+    "payments": "Payments",
     "invoiceFinance": "Invoice Finance",
     "partyPayments": "Party Payments",
     "purchaseCost": "Purchase Cost",

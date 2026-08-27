@@ -9,7 +9,7 @@ export interface BusinessConfig {
   labels: {
     vendors: string; // 'Vendors' | 'Customers' | 'Clients' | 'Parties'
     distribution: string; // 'Dispatch' | 'Sales' | 'Purchase'
-    finance: string; // 'Vendor Payments' | 'Dealer Payments' | 'Invoice Finance' | 'Party Payments'
+    finance: string; // 'Vendor Payments' | 'Payments' | 'Invoice Finance' | 'Party Payments'
     purchaseCost: string; // 'Purchase Cost' | 'Material / Purchase Cost'
     distributionRevenue: string; // 'Distribution Revenue' | 'Sales Revenue'
   };
@@ -101,7 +101,7 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
     labels: {
       vendors: 'Customers',
       distribution: 'Sales',
-      finance: 'Dealer Payments',
+      finance: 'Payments',
       purchaseCost: 'Purchase Cost',
       distributionRevenue: 'Sales Revenue',
     },

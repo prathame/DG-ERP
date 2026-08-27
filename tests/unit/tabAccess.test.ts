@@ -34,6 +34,20 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('analytics', null)).toBe('hidden');
   });
 
+  it('Accountant role defaults: books and accounts write, settings hidden', () => {
+    const user = { role: 'Accountant', permissions: null };
+    expect(resolveTabAccess('books', user)).toBe('full');
+    expect(resolveTabAccess('book_ledgers', user)).toBe('full');
+    expect(resolveTabAccess('accounts', user)).toBe('full');
+    expect(resolveTabAccess('finance', user)).toBe('full');
+    expect(resolveTabAccess('purchases', user)).toBe('full');
+    expect(resolveTabAccess('invoices', user)).toBe('view');
+    expect(resolveTabAccess('inventory', user)).toBe('view');
+    expect(resolveTabAccess('settings', user)).toBe('hidden');
+    expect(resolveTabAccess('masters', user)).toBe('hidden');
+    expect(resolveTabAccess('quotations', user)).toBe('hidden');
+  });
+
   it('maps hospitality module permission onto hosp_* tabs', () => {
     const user = { role: 'Staff', permissions: { hospitality: 'full', inventory: 'view' } };
     expect(resolveTabAccess('hosp_floor', user)).toBe('full');

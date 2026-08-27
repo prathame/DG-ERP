@@ -121,5 +121,23 @@ export function resolveTabAccess(
   }
   if (role === 'Vendor')
     return ['analytics', 'dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
+  if (role === 'Accountant') {
+    if (tabId === 'settings' || tabId === 'masters') return 'hidden';
+    if (
+      [
+        'books',
+        'book_ledgers',
+        'book_vouchers',
+        'book_products',
+        'book_import',
+        'accounts',
+        'finance',
+        'purchases',
+      ].includes(tabId)
+    )
+      return 'full';
+    if (['analytics', 'dashboard', 'inventory', 'invoices', 'sales', 'distribution'].includes(tabId)) return 'view';
+    return 'hidden';
+  }
   return 'hidden';
 }
