@@ -318,7 +318,7 @@ export function DesktopAnalyticsDashboard({
                 <div className="absolute left-[19px] top-4 bottom-4 w-px bg-[var(--dg-card-border)]" />
                 {activity.slice(0, 8).map(a => {
                   const Icon = activityIcon(a.type);
-                  const outflow = a.type === 'expense';
+                  const outflow = a.type === 'expense' || a.amount < 0;
                   return (
                     <div key={a.id + a.type} className="relative flex items-start gap-4">
                       <div
