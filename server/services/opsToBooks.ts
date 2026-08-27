@@ -1276,3 +1276,103 @@ export async function postStaffPaymentToBooks(
     ],
   });
 }
+
+/** Sales return / credit note: reverse party AR, sales, output GST, and COGS. */
+export async function postSaleReturnToBooks(
+  client: PoolClient,
+  tenantId: string,
+  ret: {
+    noteId: string;
+    vendorId: string;
+    vendorName: string;
+    billed: number;
+    taxable: number;
+    tax: number;
+    cogs: number;
+    noteDate: string;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const billed = round2(ret.billed);
+  if (!(billed > 0)) return null;
+  const tax = round2(Math.max(0, ret.tax));
+  const taxable = round2(Math.max(0, ret.taxable));
+  const partyLedgerId = await resolvePartyLedgerId(client, tenantId, ret.vendorId, ret.vendorName);
+  const salesLedgerId = await resolveSalesIncomeLedger(client, tenantId);
+  const split = splitGst(tax);
+  const entries: Array<{ ledgerId: string; debit: number; credit: number }> = [];
+  if (taxable > 0) entries.push({ ledgerId: salesLedgerId, debit: taxable, credit: 0 });
+  if (tax > 0) pushGstLines(entries, await ensureOutputGstLedgers(client, tenantId), split, 'debit');
+  entries.push({ ledgerId: partyLedgerId, debit: 0, credit: billed });
+  const voucherId = await insertVoucher(client, tenantId, {
+    voucherType: 'credit_note',
+    voucherDate: ret.noteDate,
+    voucherNumber: ret.noteId,
+    partyLedgerId,
+    contraLedgerId: salesLedgerId,
+    amount: billed,
+    narration: `Sales return ${ret.noteId}`,
+    externalRef: `ops:cn:${ret.noteId}`,
+    entries,
+  });
+  const cogs = round2(ret.cogs);
+  if (cogs > 0) {
+    const stockLedgerId = await ensureStockLedger(client, tenantId);
+    const purchaseLedgerId = await resolvePurchaseAccountLedger(client, tenantId);
+    await insertVoucher(client, tenantId, {
+      voucherType: 'journal',
+      voucherDate: ret.noteDate,
+      voucherNumber: ret.noteId,
+      partyLedgerId: stockLedgerId,
+      contraLedgerId: purchaseLedgerId,
+      amount: cogs,
+      narration: `Return COGS ${ret.noteId}`,
+      externalRef: `ops:cogs-ret:${ret.noteId}`,
+      entries: [
+        { ledgerId: stockLedgerId, debit: cogs, credit: 0 },
+        { ledgerId: purchaseLedgerId, debit: 0, credit: cogs },
+      ],
+    });
+  }
+  return voucherId;
+}
+
+/** Purchase return: Dr supplier, Cr stock + input GST. */
+export async function postPurchaseReturnToBooks(
+  client: PoolClient,
+  tenantId: string,
+  ret: {
+    noteId: string;
+    supplierId: string;
+    supplierName: string;
+    billed: number;
+    taxable: number;
+    tax: number;
+    noteDate: string;
+  },
+): Promise<string | null> {
+  await ensureNativeBooksDesk(client, tenantId);
+  const billed = round2(ret.billed);
+  if (!(billed > 0)) return null;
+  const tax = round2(Math.max(0, ret.tax));
+  const taxable = round2(Math.max(0, ret.taxable));
+  const supplierLedgerId = await resolveSupplierLedgerId(client, tenantId, ret.supplierId, ret.supplierName);
+  const stockLedgerId = await ensureStockLedger(client, tenantId);
+  const split = splitGst(tax);
+  const entries: Array<{ ledgerId: string; debit: number; credit: number }> = [
+    { ledgerId: supplierLedgerId, debit: billed, credit: 0 },
+  ];
+  if (taxable > 0) entries.push({ ledgerId: stockLedgerId, debit: 0, credit: taxable });
+  if (tax > 0) pushGstLines(entries, await ensureInputGstLedgers(client, tenantId), split, 'credit');
+  return insertVoucher(client, tenantId, {
+    voucherType: 'purchase_return',
+    voucherDate: ret.noteDate,
+    voucherNumber: ret.noteId,
+    partyLedgerId: supplierLedgerId,
+    contraLedgerId: stockLedgerId,
+    amount: billed,
+    narration: `Purchase return ${ret.noteId}`,
+    externalRef: `ops:pr:${ret.noteId}`,
+    entries,
+  });
+}

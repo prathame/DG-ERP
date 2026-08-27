@@ -26,6 +26,7 @@ import superAdminRouter from './routes/super-admin';
 import productsRouter from './routes/products';
 import salesRouter from './routes/sales';
 import distributionRouter from './routes/distribution';
+import opsReturnsRouter from './routes/opsReturns';
 import warrantiesRouter from './routes/warranties';
 import replacementsRouter from './routes/replacements';
 import rewardsRouter from './routes/rewards';
@@ -683,6 +684,7 @@ export function createApp(): express.Application {
   app.use(productsRouter);
   app.use(salesRouter);
   app.use(distributionRouter);
+  app.use(opsReturnsRouter);
   app.use(warrantiesRouter);
   app.use(replacementsRouter);
   app.use(rewardsRouter);

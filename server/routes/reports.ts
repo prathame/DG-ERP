@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { DISTRIBUTION_BILL_UNIT_SQL, INVOICE_IS_GST_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
+import { round2 } from '../../shared/gstRound';
 import { handleApiError } from '../utils/http-error';
 import { foldVendorAdvancesIntoOutstanding, type OutstandingPartyAgg } from '../services/outstandingAdvances';
 import { toCsv, sendCsv } from '../utils/csv-export';
@@ -1089,7 +1090,9 @@ router.get('/api/reports/gstr1', async (req, res) => {
       const net = Number(r.net_price) || Number(r.product_price) || 0;
       const billed = Number(r.billed_price) || net;
       const gstAmt = billed - net;
-      const halfGst = Math.round((gstAmt / 2) * 100) / 100;
+      const split = splitGst(gstAmt);
+      const halfGst = split.cgst;
+      const sgstAmt = split.sgst;
       const gstin = (r.vendor_gstin as string) || '';
       const hsn = (r.hsn_code as string) || '';
       const gstRate = Number(r.gst_rate) || 18;
@@ -1112,7 +1115,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
         hsnMap[hsn].qty++;
         hsnMap[hsn].taxable += net;
         hsnMap[hsn].cgst += halfGst;
-        hsnMap[hsn].sgst += gstAmt - halfGst;
+        hsnMap[hsn].sgst += sgstAmt;
       }
 
       if (gstin && gstin.length >= 15) {
@@ -1131,7 +1134,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
           existing.qty++;
           existing.taxable += net;
           existing.cgst += halfGst;
-          existing.sgst += gstAmt - halfGst;
+          existing.sgst += sgstAmt;
           existing.total += billed;
         } else {
           invoiceMap[key].items.push({
@@ -1141,7 +1144,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
             rate: gstRate,
             taxable: net,
             cgst: halfGst,
-            sgst: gstAmt - halfGst,
+            sgst: sgstAmt,
             total: billed,
           });
         }
@@ -1153,7 +1156,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
           qty: 1,
           taxable: net,
           cgst: halfGst,
-          sgst: gstAmt - halfGst,
+          sgst: sgstAmt,
           total: billed,
         });
       }
@@ -1191,7 +1194,13 @@ router.get('/api/reports/gstr1', async (req, res) => {
         inv_typ: 'R',
         itms: inv.items.map((item, idx) => ({
           num: idx + 1,
-          itm_det: { rt: item.rate, txval: item.taxable, camt: item.cgst, samt: item.sgst, iamt: 0 },
+          itm_det: {
+            rt: item.rate,
+            txval: round2(item.taxable),
+            camt: round2(item.cgst),
+            samt: round2(item.sgst),
+            iamt: 0,
+          },
         })),
       });
     }
@@ -1214,10 +1223,10 @@ router.get('/api/reports/gstr1', async (req, res) => {
       desc: h.desc,
       uqc: h.uqc,
       qty: h.qty,
-      txval: h.taxable,
+      txval: round2(h.taxable),
       iamt: 0,
-      camt: h.cgst,
-      samt: h.sgst,
+      camt: round2(h.cgst),
+      samt: round2(h.sgst),
       rt: h.rate,
     }));
 
@@ -1307,7 +1316,11 @@ router.get('/api/reports/gstr1', async (req, res) => {
       disclaimer: 'Working draft for internal use — verify before GST portal upload.',
       b2b: Object.values(b2bByGstin),
       b2cs: Object.values(b2csGrouped).map(g => ({
-        ...g,
+        rt: g.rt,
+        txval: round2(g.txval),
+        camt: round2(g.camt),
+        samt: round2(g.samt),
+        iamt: round2(g.iamt),
         sply_ty: g.iamt > 0 ? 'INTER' : 'INTRA',
         pos: sellerGstin.substring(0, 2) || '24',
         typ: 'OE',

@@ -2180,6 +2180,7 @@ export default function App() {
                           }
                           launchCreate={createLaunch}
                           onLaunchConsumed={consumeCreateLaunch}
+                          accessLevel={getAccess('invoices')}
                         />
                       )}
                       {canAccess(activeTab) &&

@@ -7,7 +7,7 @@ import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
 import { deleteBookVoucher } from '../services/bookVouchers';
 import { withBooks } from '../utils/booksStrict';
-import { isQtyStockUnit } from '../../shared/qtyStock';
+import { isQtyStockUnit, parseStockQty } from '../../shared/qtyStock';
 import { isBarcodeAddonOn } from '../utils/barcode';
 
 const router = Router();
@@ -315,7 +315,10 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     }[] = [];
 
     for (const item of items) {
-      const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
+      const qty = parseStockQty(item.quantity);
+      if (qty == null) {
+        return res.status(400).json({ error: 'Quantity must be at least 1' });
+      }
       const product = (
         await pool.query(
           'SELECT id, name, price, cost_price, pack_name, gst_rate, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2',
@@ -751,6 +754,7 @@ router.get('/api/supplier-finance/summary', async (req, res) => {
       SELECT s.id, s.name, s.phone,
         COALESCE((SELECT SUM(COALESCE(pp.billed_price, pp.cost_price)) FROM product_purchases pp WHERE pp.supplier_id = s.id AND pp.tenant_id = $1), 0) as total_purchased_value,
         COALESCE((SELECT SUM(amount) FROM supplier_payments WHERE supplier_id = s.id AND tenant_id = $1), 0) as total_paid,
+        COALESCE((SELECT SUM(total) FROM credit_debit_notes WHERE vendor_id = s.id AND tenant_id = $1 AND note_type = 'debit' AND COALESCE(status, 'Active') <> 'Cancelled'), 0) as returns,
         (SELECT COUNT(*) FROM product_purchases WHERE supplier_id = s.id AND tenant_id = $1) as units_purchased
       FROM suppliers s WHERE s.tenant_id = $1 ORDER BY s.name
     `,
@@ -761,13 +765,14 @@ router.get('/api/supplier-finance/summary', async (req, res) => {
       suppliers.map(s => {
         const purchased = Number(s.total_purchased_value) || 0;
         const paid = Number(s.total_paid) || 0;
+        const returned = Number(s.returns) || 0;
         return {
           supplierId: s.id,
           supplierName: s.name,
           supplierPhone: s.phone ?? '',
           totalPurchasedValue: purchased,
           totalPaid: paid,
-          balance: purchased - paid,
+          balance: purchased - paid - returned,
           unitsPurchased: Number(s.units_purchased) || 0,
         };
       }),

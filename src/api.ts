@@ -783,6 +783,11 @@ export const api = {
       nonGstUnits: number;
       gstRate: number;
     }) => fetchApi<{ ok: boolean }>('/distribution/apply-billing', { method: 'PUT', body: JSON.stringify(data) }),
+    returnBatch: (batchId: string, items: { productId: string; quantity: number }[]) =>
+      fetchApi<{ id: string; billed: number; taxable: number; tax: number }>(
+        `/distribution/batch/${encodeURIComponent(batchId)}/return`,
+        { method: 'POST', body: JSON.stringify({ items }) },
+      ),
     getBill: (params: { vendorId?: string; batchId?: string; productId?: string; distributionDate?: string }) => {
       const q = new URLSearchParams();
       if (params.vendorId) q.set('vendorId', params.vendorId);

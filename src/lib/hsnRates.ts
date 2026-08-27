@@ -68,6 +68,7 @@ const HSN_RATES: Record<string, { rate: number; label: string }> = {
   '31052000': { rate: 5, label: 'NPK complex fertilizer' },
   '31042000': { rate: 5, label: 'Muriate of potash (MOP)' },
   '31031100': { rate: 5, label: 'Single super phosphate (SSP)' },
+  '1209': { rate: 5, label: 'Seeds (sowing)' },
   '12099100': { rate: 5, label: 'Vegetable seeds' },
   '12092100': { rate: 5, label: 'Cotton seeds' },
   '12024200': { rate: 5, label: 'Groundnut seeds' },

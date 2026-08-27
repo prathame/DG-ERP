@@ -34,6 +34,21 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('analytics', null)).toBe('hidden');
   });
 
+  it('Accountant with a stale permissions map still gets books from accounts', () => {
+    const user = {
+      role: 'Accountant',
+      permissions: {
+        accounts: 'view',
+        dashboard: 'view',
+        sales: 'view',
+        settings: 'view',
+      },
+    };
+    expect(resolveTabAccess('books', user)).toBe('view');
+    expect(resolveTabAccess('book_ledgers', user)).toBe('view');
+    expect(resolveTabAccess('invoices', user)).toBe('view');
+  });
+
   it('Accountant role defaults: books and accounts write, settings hidden', () => {
     const user = { role: 'Accountant', permissions: null };
     expect(resolveTabAccess('books', user)).toBe('full');

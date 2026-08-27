@@ -67,3 +67,10 @@ export function usesQtyStock(packName?: string | null, barcodeMode?: string | nu
   }
   return isQtyStockUnit(packName);
 }
+
+/** Whole stock units. Rejects 0, negative, and non-numeric — never coerce to 1. */
+export function parseStockQty(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.floor(n);
+}

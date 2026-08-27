@@ -10,6 +10,8 @@ import {
   postPurchaseBatchToBooks,
   postSupplierPaymentToBooks,
   postOpeningStockToBooks,
+  postPurchaseReturnToBooks,
+  postSaleReturnToBooks,
   ensureNativeBooksDesk,
 } from '../../server/services/opsToBooks';
 import {
@@ -509,7 +511,9 @@ describe('opsToBooks + CA statements', () => {
     const pnl = await getBooksProfitLoss(pool, TENANT, '2025-10-01', '2025-10-31');
     expect(pnl.netProfit).toBeLessThan(0);
     const bs = await getBooksBalanceSheet(pool, TENANT, '2025-10-31');
-    expect(bs.assets.some(a => a.name.includes('Net loss'))).toBe(true);
+    expect(bs.assets.some(a => a.name.includes('Net loss'))).toBe(false);
+    const lossPlug = bs.capital.find(a => a.name.includes('Net loss'));
+    expect(lossPlug?.amount).toBe(pnl.netProfit);
   });
 
   it('posts purchase batch + supplier payment (Dr Stock / Cr Supplier)', async () => {
@@ -780,5 +784,110 @@ describe('opsToBooks + CA statements', () => {
     expect(cash.rows).toHaveLength(1);
     expect(cash.rows[0].external_ref).toBe('ops:CASH');
     expect(cash.rows[0].name).toBe('Cash Account');
+  });
+
+  it('posts sale return (credit note + COGS reverse) and purchase return', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const vendorId = uid('V');
+    const supplierId = uid('S');
+    await pool.query(`INSERT INTO vendors (id, tenant_id, name) VALUES ($1,$2,'Return Customer')`, [vendorId, TENANT]);
+    await pool.query(`INSERT INTO suppliers (id, tenant_id, name) VALUES ($1,$2,'Return Supplier')`, [
+      supplierId,
+      TENANT,
+    ]);
+    const cnId = uid('CN');
+    const prId = uid('DN');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      expect(
+        await postSaleReturnToBooks(client, TENANT, {
+          noteId: cnId,
+          vendorId,
+          vendorName: 'Return Customer',
+          billed: 0,
+          taxable: 0,
+          tax: 0,
+          cogs: 10,
+          noteDate: '2025-08-01',
+        }),
+      ).toBeNull();
+      const saleRet = await postSaleReturnToBooks(client, TENANT, {
+        noteId: cnId,
+        vendorId,
+        vendorName: 'Return Customer',
+        billed: 118,
+        taxable: 100,
+        tax: 18,
+        cogs: 70,
+        noteDate: '2025-08-01',
+      });
+      expect(saleRet).toBeTruthy();
+      expect(
+        await postSaleReturnToBooks(client, TENANT, {
+          noteId: cnId,
+          vendorId,
+          vendorName: 'Return Customer',
+          billed: 118,
+          taxable: 100,
+          tax: 18,
+          cogs: 70,
+          noteDate: '2025-08-01',
+        }),
+      ).toBe(saleRet);
+      expect(
+        await postPurchaseReturnToBooks(client, TENANT, {
+          noteId: uid('DN'),
+          supplierId,
+          supplierName: 'Return Supplier',
+          billed: 0,
+          taxable: 0,
+          tax: 0,
+          noteDate: '2025-08-02',
+        }),
+      ).toBeNull();
+      const purRet = await postPurchaseReturnToBooks(client, TENANT, {
+        noteId: prId,
+        supplierId,
+        supplierName: 'Return Supplier',
+        billed: 118,
+        taxable: 100,
+        tax: 18,
+        noteDate: '2025-08-02',
+      });
+      expect(purRet).toBeTruthy();
+      expect(
+        await postPurchaseReturnToBooks(client, TENANT, {
+          noteId: prId,
+          supplierId,
+          supplierName: 'Return Supplier',
+          billed: 118,
+          taxable: 100,
+          tax: 18,
+          noteDate: '2025-08-02',
+        }),
+      ).toBe(purRet);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const cn = await pool.query(`SELECT voucher_type FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+      TENANT,
+      `ops:cn:${cnId}`,
+    ]);
+    expect(cn.rows[0]?.voucher_type).toBe('credit_note');
+    const cogs = await pool.query(`SELECT voucher_type FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+      TENANT,
+      `ops:cogs-ret:${cnId}`,
+    ]);
+    expect(cogs.rows[0]?.voucher_type).toBe('journal');
+    const pr = await pool.query(`SELECT voucher_type FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+      TENANT,
+      `ops:pr:${prId}`,
+    ]);
+    expect(pr.rows[0]?.voucher_type).toBe('purchase_return');
+    const tb = await getTrialBalance(pool, TENANT, '2025-08-01', '2025-08-31');
+    expect(tb.balanced).toBe(true);
   });
 });

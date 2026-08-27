@@ -21,6 +21,8 @@ import { postDistributionBatchToBooks, postVendorPaymentToBooks } from '../servi
 import { withBooks } from '../utils/booksStrict';
 import type { PoolClient } from 'pg';
 import { expiredProductSaleError, isProductExpired } from '../../shared/dateOnly';
+import { parseStockQty } from '../../shared/qtyStock';
+import { round2 } from '../../shared/gstRound';
 
 const router = Router();
 
@@ -427,7 +429,10 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
     }[] = [];
 
     for (const item of items) {
-      const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
+      const qty = parseStockQty(item.quantity);
+      if (qty == null) {
+        return res.status(400).json({ error: 'Quantity must be at least 1' });
+      }
       const product = (
         await pool.query(
           'SELECT id, name, price, pack_size, stock, price_includes_gst, gst_rate, expiry_date FROM products WHERE id = $1 AND tenant_id = $2',
@@ -715,11 +720,11 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
       replaced: 0,
       damaged: 0,
       availableWithVendor: autoSold ? 0 : totalQty,
-      billValue: totalBilled,
+      billValue: round2(totalBilled),
       discountPercent: 0,
       gstApplied: items.some(i => i.withGst !== false),
       amountPaid: paidAmount ?? 0,
-      balanceRemaining: totalBilled - (paidAmount ?? 0),
+      balanceRemaining: round2(totalBilled - (paidAmount ?? 0)),
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -744,7 +749,8 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       customPrice,
     } = req.body;
     if (!productId || !vendorId) return res.status(400).json({ error: 'Product and vendor are required' });
-    const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
+    const qty = parseStockQty(quantity);
+    if (qty == null) return res.status(400).json({ error: 'Quantity must be at least 1' });
     const product = (
       await pool.query(
         'SELECT id, name, price, price_includes_gst, gst_rate, expiry_date FROM products WHERE id = $1 AND tenant_id = $2',
