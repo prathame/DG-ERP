@@ -36,6 +36,7 @@ import { MobileInventoryPanel } from './MobileInventoryPanel';
 import { ProductThumb } from './ProductThumb';
 import { fileToProductImageDataUrl } from '../../lib/productImage';
 import type { CreateLaunch } from '../../lib/quickAdd';
+import { isQtyStockUnit } from '../../../shared/qtyStock';
 
 const emptyAddForm = () => ({
   name: '',
@@ -834,7 +835,8 @@ export function InventoryView({
                   e.preventDefault();
                   const isEdit = !!editingProductId;
                   const totalQty = addForm.packSize > 1 ? addForm.packs : addForm.quantity;
-                  const mintBarcodes = !isEdit && inventoryTrackingEnabled && totalQty > 0;
+                  const mintBarcodes =
+                    !isEdit && inventoryTrackingEnabled && totalQty > 0 && !isQtyStockUnit(addForm.packName);
                   if (mintBarcodes && !addForm.barcodePrefix.trim()) {
                     toast('Enter barcode prefix', 'error');
                     return;
@@ -933,6 +935,7 @@ export function InventoryView({
                 </div>
                 {!editingProductId &&
                   inventoryTrackingEnabled &&
+                  !isQtyStockUnit(addForm.packName) &&
                   (addForm.packSize > 1 ? addForm.packs : addForm.quantity) > 0 && (
                     <div>
                       <label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label>
@@ -1015,15 +1018,15 @@ export function InventoryView({
                   </div>
                 </div>
 
-                {/* Unit: Nos / Piece / Box */}
+                {/* Unit: Nos / Piece / Box / Bag / Kg */}
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Unit</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setAddForm({ ...addForm, packSize: 1, packName: 'Nos', packs: 0, loosePieces: 0 })}
                       className={cn(
-                        'flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all',
+                        'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
                         addForm.packSize <= 1 && addForm.packName === 'Nos'
                           ? 'bg-brand text-white border-brand'
                           : 'border-gray-200 text-gray-600 hover:border-brand',
@@ -1037,8 +1040,8 @@ export function InventoryView({
                         setAddForm({ ...addForm, packSize: 1, packName: 'Piece', packs: 0, loosePieces: 0 })
                       }
                       className={cn(
-                        'flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all',
-                        addForm.packSize <= 1 && addForm.packName !== 'Nos'
+                        'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
+                        addForm.packSize <= 1 && addForm.packName === 'Piece'
                           ? 'bg-brand text-white border-brand'
                           : 'border-gray-200 text-gray-600 hover:border-brand',
                       )}
@@ -1056,13 +1059,37 @@ export function InventoryView({
                         })
                       }
                       className={cn(
-                        'flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all',
+                        'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
                         addForm.packSize > 1
                           ? 'bg-brand text-white border-brand'
                           : 'border-gray-200 text-gray-600 hover:border-brand',
                       )}
                     >
                       Box
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddForm({ ...addForm, packSize: 1, packName: 'Bag', packs: 0, loosePieces: 0 })}
+                      className={cn(
+                        'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
+                        addForm.packSize <= 1 && addForm.packName === 'Bag'
+                          ? 'bg-brand text-white border-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand',
+                      )}
+                    >
+                      Bag
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddForm({ ...addForm, packSize: 1, packName: 'Kg', packs: 0, loosePieces: 0 })}
+                      className={cn(
+                        'flex-1 min-w-[4.5rem] py-2.5 rounded-xl font-bold text-sm border transition-all',
+                        addForm.packSize <= 1 && addForm.packName === 'Kg'
+                          ? 'bg-brand text-white border-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand',
+                      )}
+                    >
+                      Kg
                     </button>
                   </div>
                 </div>
@@ -1186,7 +1213,7 @@ export function InventoryView({
                             Leave 0 to only save the product. Stock can be added later from Purchase or Add Stock.
                           </p>
                         </div>
-                        {inventoryTrackingEnabled && addForm.quantity > 0 && (
+                        {inventoryTrackingEnabled && addForm.quantity > 0 && !isQtyStockUnit(addForm.packName) && (
                           <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                             Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span>{' '}
                             to{' '}
@@ -1300,7 +1327,9 @@ export function InventoryView({
             >
               <h3 className="text-lg font-bold mb-2">Add stock to {addStockModal.name}</h3>
               <p className="text-sm text-gray-500 mb-4">
-                New barcodes will continue from where the existing range left off — no overlaps.
+                {isQtyStockUnit(addStockModal.packName)
+                  ? `Adds ${addStockModal.packName || 'qty'} to this product — no barcodes.`
+                  : 'New barcodes will continue from where the existing range left off — no overlaps.'}
               </p>
               <form
                 onSubmit={async e => {
@@ -1315,7 +1344,7 @@ export function InventoryView({
                   try {
                     await api.products.addStock(addStockModal.id, {
                       quantity: stockQty,
-                      barcodeMode: 'prefix',
+                      barcodeMode: isQtyStockUnit(addStockModal.packName) ? 'none' : 'prefix',
                       barcodePerBox: hasPack,
                       packSize: addStockModal.packSize,
                     });
@@ -1371,7 +1400,7 @@ export function InventoryView({
                     />
                   </div>
                 )}
-                {addStockModal.barcodeRange && (
+                {addStockModal.barcodeRange && !isQtyStockUnit(addStockModal.packName) && (
                   <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                     Current range: <span className="font-mono font-medium">{addStockModal.barcodeRange.first}</span> to{' '}
                     <span className="font-mono font-medium">{addStockModal.barcodeRange.last}</span> — new barcodes will
@@ -1544,10 +1573,10 @@ export function InventoryView({
           columns={[
             { key: 'name', label: 'Product Name', required: true },
             { key: 'price', label: 'Price (per piece or per box)', required: true },
-            { key: 'barcodePrefix', label: 'Barcode Prefix', required: true },
-            { key: 'quantity', label: 'Quantity (number of pieces or boxes)', required: true },
+            { key: 'barcodePrefix', label: 'Barcode Prefix (Piece/Box only)' },
+            { key: 'quantity', label: 'Quantity (pieces, boxes, bags, kg)', required: true },
             { key: 'packSize', label: 'Pieces per Box (leave empty for single piece product)' },
-            { key: 'packName', label: 'Unit Name (Box/Carton/Pack, leave empty for Piece)' },
+            { key: 'packName', label: 'Unit Name (Bag/Kg/Packet = qty; Box/Piece = barcodes)' },
             { key: 'description', label: 'Description' },
             { key: 'hsnCode', label: 'HSN Code' },
             { key: 'gstRate', label: 'GST Rate (%)' },

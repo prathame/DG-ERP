@@ -60,4 +60,23 @@ describe('HTTP: product master without opening stock', () => {
     );
     expect(Number(inv.rows[0].c)).toBe(0);
   });
+
+  it('POST /api/products Bag with qty 100 stores count and no barcodes', async () => {
+    const res = await api().post('/api/products').set(authHeaders(token, TENANT)).send({
+      name: 'DAP 50kg',
+      barcodeMode: 'none',
+      quantity: 100,
+      price: 1350,
+      packName: 'Bag',
+      gstRate: 5,
+    });
+    expect(res.status).toBe(201);
+    expect(Number(res.body.stock)).toBe(100);
+    expect(res.body.packName).toBe('Bag');
+    const inv = await pool.query(
+      'SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND tenant_id = $2',
+      [res.body.id, TENANT],
+    );
+    expect(Number(inv.rows[0].c)).toBe(0);
+  });
 });
