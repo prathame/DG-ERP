@@ -5,7 +5,7 @@ export { DateRangeFilter, dateControlClass } from './DateRangeFilter';
 export { PeriodPresetChips, type PeriodPresetChip } from './PeriodPresetChips';
 export { FinancialYearSelect } from './FinancialYearSelect';
 export { PaginationControls } from './Pagination';
-export { PaidBadge, PartialBadge, PaidStamp, isBillFullyPaid, isBillPartiallyPaid } from './PaidBadge';
+export { PaidBadge, PartialBadge, PaidStamp, isBillFullyPaid, isBillPartiallyPaid, partyBillDue } from './PaidBadge';
 export { PasswordInput } from './PasswordInput';
 export { QuickAddProductModal } from './QuickAddProductModal';
 export { Skeleton, DashboardSkeleton, TableSkeleton } from './Skeleton';
