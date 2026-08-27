@@ -1737,7 +1737,9 @@ export function PurchasesView({
             title="New Purchase from Supplier"
             onClose={() => setModalOpen(false)}
             zIndex={100}
-            size="lg"
+            size="2xl"
+            className="max-w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)]"
+            bodyClassName="min-h-[min(60vh,32rem)]"
             footer={
               <ModalActions>
                 <ModalActionButton variant="ghost" onClick={() => setModalOpen(false)}>
