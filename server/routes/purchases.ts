@@ -5,6 +5,7 @@ import { round2, purchaseUnitPrices, normalizeGstRate } from '../../shared/gstRo
 import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
+import { deleteBookVoucher } from '../services/bookVouchers';
 import { withBooks } from '../utils/booksStrict';
 import { isQtyStockUnit } from '../../shared/qtyStock';
 import { isBarcodeAddonOn } from '../utils/barcode';
@@ -142,31 +143,101 @@ router.put('/api/suppliers/:id', blockVendors, async (req: AuthRequest, res) => 
 });
 
 router.delete('/api/suppliers/:id', blockVendors, async (req: AuthRequest, res) => {
+  const tenantId = req.headers['x-tenant-id'] as string;
+  if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+  const { id } = req.params;
+  const client = await pool.connect();
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const hasPurchases = (
-      await pool.query('SELECT 1 FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2 LIMIT 1', [
-        req.params.id,
-        tenantId,
-      ])
+    await client.query('BEGIN');
+    await setTenantContext(client, tenantId);
+
+    const supplier = (
+      await client.query('SELECT id, name FROM suppliers WHERE id = $1 AND tenant_id = $2', [id, tenantId])
+    ).rows[0] as { id: string; name: string } | undefined;
+    if (!supplier) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const sold = (
+      await client.query(
+        `SELECT 1
+           FROM product_inventory pi
+           JOIN product_purchases pp
+             ON pp.batch_id = pi.batch_id AND pp.tenant_id = pi.tenant_id
+          WHERE pp.supplier_id = $1 AND pp.tenant_id = $2
+            AND pi.status IS DISTINCT FROM 'InStock'
+          LIMIT 1`,
+        [id, tenantId],
+      )
     ).rows[0];
-    if (hasPurchases)
-      return res
-        .status(400)
-        .json({ error: 'Cannot delete supplier with existing purchases. Remove purchase records first.' });
-    await pool.query('DELETE FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2', [
-      req.params.id,
-      tenantId,
-    ]);
-    const result = await pool.query('DELETE FROM suppliers WHERE id = $1 AND tenant_id = $2', [
-      req.params.id,
-      tenantId,
-    ]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Supplier not found' });
+    if (sold) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Cannot delete this supplier — some purchased items were already sold.' });
+    }
+
+    const batchIds = (
+      (
+        await client.query(
+          `SELECT DISTINCT batch_id
+             FROM product_purchases
+            WHERE supplier_id = $1 AND tenant_id = $2 AND batch_id IS NOT NULL`,
+          [id, tenantId],
+        )
+      ).rows as { batch_id: string }[]
+    ).map(r => r.batch_id);
+    const payIds = (
+      (await client.query(`SELECT id FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2`, [id, tenantId]))
+        .rows as { id: string }[]
+    ).map(r => r.id);
+
+    await client.query(
+      `UPDATE products p SET stock = GREATEST(0, COALESCE(p.stock, 0) - s.qty)
+         FROM (
+           SELECT product_id, COUNT(*)::int AS qty
+             FROM product_purchases
+            WHERE supplier_id = $1 AND tenant_id = $2
+            GROUP BY product_id
+         ) s
+        WHERE p.id = s.product_id AND p.tenant_id = $2`,
+      [id, tenantId],
+    );
+
+    if (batchIds.length) {
+      await client.query(`DELETE FROM product_inventory WHERE tenant_id = $1 AND batch_id = ANY($2::text[])`, [
+        tenantId,
+        batchIds,
+      ]);
+    }
+
+    const refs = [...batchIds.map(b => `ops:pur:${b}`), ...payIds.map(p => `ops:sp:${p}`)];
+    if (refs.length) {
+      const vouchers = (
+        await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = ANY($2::text[])`, [
+          tenantId,
+          refs,
+        ])
+      ).rows as { id: string }[];
+      for (const v of vouchers) {
+        await deleteBookVoucher(client, tenantId, v.id);
+      }
+    }
+
+    await client.query('DELETE FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2', [id, tenantId]);
+    await client.query('DELETE FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2', [id, tenantId]);
+    await client.query('DELETE FROM suppliers WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Supplier Deleted', 'supplier', id, supplier.name);
     res.status(204).send();
   } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
     return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 
