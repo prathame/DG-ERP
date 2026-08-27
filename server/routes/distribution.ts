@@ -1214,7 +1214,7 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
     const totalDiscount = grossValue - netTotal;
     const savedGstUnits = rows.filter(r => r.gst_applied === true).length;
     const challanId = batchId
-      ? saleChallanBase(batchId)
+      ? saleChallanBase(String(batchId))
       : `CH-${((first.vendor_name as string) || 'V').substring(0, 3).toUpperCase()}-${((first.distribution_date as string) || '').replace(/-/g, '')}`;
     const isDualDocs = savedGstUnits > 0 && savedGstUnits < rows.length;
     // IRN is stamped only on GST-applied units — surface from any GST row, not first row
