@@ -61,6 +61,7 @@ describe('tabPresets', () => {
     expect(p.books.visible).toBe(true);
     expect(p.book_import.visible).toBe(true);
     expect(p.book_vouchers.visible).toBe(true);
+    expect(p.finance.label).toBe('Payments');
   });
 
   it('silver_casting preset exposes metal stock + counter sale, hides warranty', () => {
@@ -156,6 +157,14 @@ describe('tabPresets', () => {
 
     const custom = fillMissingTabPresetKeys({ masters: { label: 'Parties', visible: true } }, 'service');
     expect(custom.masters.label).toBe('Parties');
+  });
+
+  it('migrates stale dealer finance label Dealer Payments → Payments', () => {
+    const migrated = fillMissingTabPresetKeys({ finance: { label: 'Dealer Payments', visible: true } }, 'dealer');
+    expect(migrated.finance.label).toBe('Payments');
+
+    const custom = fillMissingTabPresetKeys({ finance: { label: 'Collections', visible: true } }, 'dealer');
+    expect(custom.finance.label).toBe('Collections');
   });
 
   it('migrates stale hotel Quotes & Orders off → Party Quotes on; keeps SA Party Quotes off', () => {

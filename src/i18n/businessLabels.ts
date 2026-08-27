@@ -11,6 +11,7 @@ const LABEL_KEYS: Record<string, string> = {
   Sales: 'business.sales',
   'Vendor Payments': 'business.vendorPayments',
   'Dealer Payments': 'business.dealerPayments',
+  Payments: 'business.payments',
   'Invoice Finance': 'business.invoiceFinance',
   'Party Payments': 'business.partyPayments',
   'Purchase Cost': 'business.purchaseCost',

@@ -24,6 +24,7 @@ import { purchaseUnitPrices } from '../../lib/gstInclusivePrice';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
 import { supplierMatchesPurchaseSearch } from '../../lib/purchaseSearch';
+import { localDateISO } from '../../lib/reportingPeriod';
 
 function purchaseUnitCost(rowCost: string, product?: Product): number {
   if (rowCost) return parseFloat(rowCost) || 0;
@@ -177,7 +178,7 @@ export function PurchasesView({
   const [supplierForm, setSupplierForm] = useState(emptySupplierForm);
   const [purchaseForm, setPurchaseForm] = useState({
     supplierId: '',
-    date: new Date().toISOString().slice(0, 10),
+    date: localDateISO(),
     amountPaid: '',
     invoiceNumber: '',
     isRcm: false,
@@ -251,6 +252,11 @@ export function PurchasesView({
   >({});
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const closePurchaseModal = () => {
+    setSubmitting(false);
+    setModalOpen(false);
+  };
+
   const closeSupplierModal = () => {
     setSupplierModal(false);
     setEditingSupplierId(null);
@@ -286,7 +292,7 @@ export function PurchasesView({
       return true;
     }
     if (modalOpen) {
-      setModalOpen(false);
+      closePurchaseModal();
       return true;
     }
     if (selectedBatchId) {
@@ -663,7 +669,7 @@ export function PurchasesView({
       setSupplierQuery('');
       setPurchaseForm({
         supplierId: '',
-        date: new Date().toISOString().slice(0, 10),
+        date: localDateISO(),
         amountPaid: '',
         invoiceNumber: '',
         isRcm: false,
@@ -1735,14 +1741,14 @@ export function PurchasesView({
         {modalOpen && (
           <AppModal
             title="New Purchase from Supplier"
-            onClose={() => setModalOpen(false)}
+            onClose={closePurchaseModal}
             zIndex={100}
             size="2xl"
             className="max-w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)]"
             bodyClassName="min-h-[min(60vh,32rem)]"
             footer={
               <ModalActions>
-                <ModalActionButton variant="ghost" onClick={() => setModalOpen(false)}>
+                <ModalActionButton variant="ghost" onClick={closePurchaseModal}>
                   Cancel
                 </ModalActionButton>
                 <ModalActionButton variant="primary" disabled={submitting} onClick={handleCreatePurchase}>
@@ -1928,7 +1934,7 @@ export function PurchasesView({
                             }
                             className="rounded text-brand w-5 h-5"
                           />
-                          Include GST{p?.gstRate != null ? ` ${p.gstRate}%` : ''}
+                          Add GST{p?.gstRate != null ? ` ${p.gstRate}%` : ''}
                         </label>
                       ),
                     },

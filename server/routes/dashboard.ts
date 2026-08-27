@@ -693,6 +693,7 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
       },
       recentActivity: activityRows.rows.map((r: Record<string, unknown>) => ({
         ...r,
+        type: distIsSale && r.type === 'distribution' ? 'sale' : r.type,
         amount: Number(r.amount) || 0,
         label: r.type === 'payment' || r.type === 'distribution' ? vendorMap[r.label as string] || r.label : r.label,
       })),

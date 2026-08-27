@@ -1331,6 +1331,22 @@ const ROLE_PRESETS: Record<string, Record<string, string>> = {
     rewards: 'hidden',
     settings: 'hidden',
   },
+  Accountant: {
+    dashboard: 'view',
+    sales: 'view',
+    distribution: 'view',
+    inventory: 'view',
+    purchases: 'full',
+    quotations: 'hidden',
+    finance: 'full',
+    accounts: 'full',
+    warranty: 'hidden',
+    replacements: 'hidden',
+    rewards: 'hidden',
+    books: 'full',
+    settings: 'hidden',
+    hospitality: 'hidden',
+  },
 };
 
 /** Settings UI: Hidden / Read (view+print) / Write. Legacy stored `print` shows as Read. */
@@ -3722,6 +3738,7 @@ export function SettingsView({
                       <option>Admin</option>
                       <option>Manager</option>
                       <option>Staff</option>
+                      <option>Accountant</option>
                       {getBusinessConfig().features.hospitality && (
                         <>
                           <option value="Waiter">Waiter</option>
@@ -3866,6 +3883,7 @@ export function SettingsView({
                       <option>Admin</option>
                       <option>Manager</option>
                       <option>Staff</option>
+                      <option>Accountant</option>
                       {getBusinessConfig().features.hospitality && (
                         <>
                           <option value="Waiter">Waiter</option>

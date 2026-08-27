@@ -71,7 +71,7 @@ export const TAB_PRESETS: Record<NamedBusinessType, TabConfig> = {
   dealer: baseAllVisible({
     distribution: { label: 'Sales', visible: true },
     sales: { label: 'Sales Entry', visible: false },
-    finance: { label: 'Dealer Payments', visible: true },
+    finance: { label: 'Payments', visible: true },
     warranty: { label: 'Warranty', visible: false },
     replacements: { label: 'Replacements', visible: false },
     rewards: { label: 'Rewards', visible: false },
@@ -264,6 +264,9 @@ export function fillMissingTabPresetKeys(
   // Service used to default masters → "Clients"; sidebar is Masters again (profiles live inside).
   if (businessType === 'service' && out.masters?.label === 'Clients') {
     out.masters = { ...out.masters, label: 'Masters' };
+  }
+  if (businessType === 'dealer' && out.finance?.label === 'Dealer Payments') {
+    out.finance = { ...out.finance, label: 'Payments' };
   }
   return out;
 }

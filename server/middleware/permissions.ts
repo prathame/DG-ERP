@@ -68,6 +68,23 @@ const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
     hospitality: 'hidden',
     books: 'hidden',
   },
+  Accountant: {
+    dashboard: 'view',
+    sales: 'view',
+    distribution: 'view',
+    inventory: 'view',
+    purchases: 'full',
+    quotations: 'hidden',
+    orders: 'hidden',
+    finance: 'full',
+    accounts: 'full',
+    warranty: 'hidden',
+    replacements: 'hidden',
+    rewards: 'hidden',
+    settings: 'hidden',
+    hospitality: 'hidden',
+    books: 'full',
+  },
 };
 
 const RANK: Record<AccessLevel, number> = { hidden: 0, view: 1, print: 2, full: 3 };

@@ -38,6 +38,7 @@ import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsA
 import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { localDateISO } from '../../lib/reportingPeriod';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 import { phoneValidationError } from '../../../shared/phone';
 
@@ -169,7 +170,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     customerGstin: '',
     customerAddress: '',
     customerPhone: '',
-    invoiceDate: new Date().toISOString().slice(0, 10),
+    invoiceDate: localDateISO(),
     notes: '',
     terms: '',
   });
@@ -178,6 +179,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
   const [rows, setRows] = useState<BillLine[]>(() => [emptyRow(isGstBillingEnabled(null))]);
   const [amountPaid, setAmountPaid] = useState('');
+  const [payMode, setPayMode] = useState<'credit' | 'cash'>('credit');
   const [submitting, setSubmitting] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -422,6 +424,12 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     { subtotal: 0, tax: 0, grand: 0 },
   );
 
+  useEffect(() => {
+    if (payMode !== 'cash') return;
+    const g = Math.round(totals.grand * 100) / 100;
+    setAmountPaid(g > 0 ? String(g) : '');
+  }, [payMode, totals.grand]);
+
   const createSale = async (inventory: BillLine[], saleVendorId: string) => {
     const paid = parseFloat(amountPaid) || 0;
     const batch = await api.distribution.createBatch({
@@ -513,6 +521,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     setCreatedInvoice(null);
     setCreatedSale(null);
     onCreated();
+    onClose();
   };
 
   const runSave = async (status: 'draft' | 'sent', mode: 'auto' | 'split' = 'auto') => {
@@ -869,19 +878,46 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                       required
                     />
                   </FormField>
-                  {vendorId && (
-                    <FormField label="Amount Paid (sale)">
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={amountPaid}
-                        onChange={e => setAmountPaid(e.target.value)}
-                        className={formControlClass}
-                        placeholder="0.00 — used when this becomes a sale"
-                      />
-                    </FormField>
-                  )}
+                  <FormField label="Payment" className="sm:col-span-2">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayMode('credit');
+                          setAmountPaid('');
+                        }}
+                        className={cn(
+                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          payMode === 'credit'
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Credit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPayMode('cash')}
+                        className={cn(
+                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          payMode === 'cash'
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Cash (paid in full)
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={amountPaid}
+                      onChange={e => setAmountPaid(e.target.value)}
+                      className={formControlClass}
+                      placeholder="0.00 — leave blank if unpaid"
+                    />
+                  </FormField>
                 </FormGrid>
               </FormSection>
 
