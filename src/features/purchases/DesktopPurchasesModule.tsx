@@ -62,6 +62,7 @@ type Props = {
   onSelectSupplier: (id: string) => void;
   onAddSupplier: () => void;
   onEditSupplier: (s: DesktopSupplierCard) => void;
+  onDeleteSupplier: (s: DesktopSupplierCard) => void;
   onNewPurchase: () => void;
   /** When Books desk has imported/voucher data — explain Expenses vs Accounts. */
   showBooksExpensesHint?: boolean;
@@ -103,6 +104,7 @@ export function DesktopPurchasesModule({
   onSelectSupplier,
   onAddSupplier,
   onEditSupplier,
+  onDeleteSupplier,
   onNewPurchase,
   showBooksExpensesHint = false,
   onOpenProfitLoss,
@@ -258,14 +260,26 @@ export function DesktopPurchasesModule({
                       </div>
                       <div className="ml-auto shrink-0 flex items-center gap-1">
                         {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => onEditSupplier(s)}
-                            className="p-2 rounded-lg dg-muted hover:bg-[var(--dg-input)]"
-                            title="Edit supplier"
-                          >
-                            <Pencil size={16} />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onEditSupplier(s)}
+                              className="p-2 rounded-lg dg-muted hover:bg-[var(--dg-input)]"
+                              title="Edit supplier"
+                              aria-label="Edit supplier"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteSupplier(s)}
+                              className="p-2 rounded-lg text-rose-500 hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)]"
+                              title="Delete supplier"
+                              aria-label="Delete supplier"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
                         )}
                         {paidOff && <PaidBadge size="sm" />}
                       </div>

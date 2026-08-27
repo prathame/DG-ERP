@@ -669,6 +669,26 @@ export function PurchasesView({
     }
   };
 
+  const deleteSupplier = async (id: string, name: string) => {
+    if (
+      !(await confirm({
+        title: 'Delete supplier',
+        message: `Delete ${name}? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      }))
+    )
+      return;
+    try {
+      await fetchApi(`/suppliers/${id}`, { method: 'DELETE' });
+      toast('Supplier deleted', 'success');
+      if (selectedSupplierId === id) setSelectedSupplierId(null);
+      load();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
   // Selected supplier view
   if (selectedSupplierId) {
     const supplierBatches = batches.filter(b => b.supplierId === selectedSupplierId);
@@ -925,14 +945,26 @@ export function PurchasesView({
             </button>
             <h3 className="font-bold text-lg flex-1 min-w-0 truncate">{supplierName}</h3>
             {canEdit && selectedSupplier && (
-              <button
-                type="button"
-                onClick={() => openEditSupplier(selectedSupplier)}
-                className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg"
-                title="Edit supplier"
-              >
-                <Pencil size={18} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => openEditSupplier(selectedSupplier)}
+                  className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg"
+                  title="Edit supplier"
+                  aria-label="Edit supplier"
+                >
+                  <Pencil size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteSupplier(selectedSupplier.id, selectedSupplier.name)}
+                  className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
+                  title="Delete supplier"
+                  aria-label="Delete supplier"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </>
             )}
           </div>
           <div className="divide-y divide-gray-100">
@@ -990,6 +1022,7 @@ export function PurchasesView({
           </div>
         </div>
         {supplierModalNode}
+        {ConfirmRenderer}
       </motion.div>
     );
   }
@@ -1023,6 +1056,7 @@ export function PurchasesView({
             const full = suppliers.find(x => x.id === s.id);
             if (full) openEditSupplier(full);
           }}
+          onDeleteSupplier={s => deleteSupplier(s.id, s.name)}
           onNewPurchase={() => setModalOpen(true)}
           showBooksExpensesHint={booksDeskReady}
           onOpenProfitLoss={onOpenAccountsStatement ? () => onOpenAccountsStatement('pnl') : undefined}
@@ -1129,7 +1163,7 @@ export function PurchasesView({
                           onClick={() => setSelectedSupplierId(s.id)}
                         />
                         {canEdit && (
-                          <div className="flex justify-end border-t border-gray-50 px-1.5 py-0.5">
+                          <div className="flex justify-end gap-0.5 border-t border-gray-50 px-1.5 py-0.5">
                             <button
                               type="button"
                               onClick={() => openEditSupplier(s)}
@@ -1138,6 +1172,15 @@ export function PurchasesView({
                               aria-label="Edit supplier"
                             >
                               <Pencil size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteSupplier(s.id, s.name)}
+                              className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
+                              title="Delete supplier"
+                              aria-label="Delete supplier"
+                            >
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         )}
@@ -1425,14 +1468,26 @@ export function PurchasesView({
                           {s.batchCount === 0 && <p className="mt-2 text-xs text-gray-400">No purchases yet</p>}
                         </button>
                         {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => openEditSupplier(s)}
-                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg shrink-0"
-                            title="Edit supplier"
-                          >
-                            <Pencil size={16} />
-                          </button>
+                          <div className="flex items-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openEditSupplier(s)}
+                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg"
+                              title="Edit supplier"
+                              aria-label="Edit supplier"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteSupplier(s.id, s.name)}
+                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                              title="Delete supplier"
+                              aria-label="Delete supplier"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
