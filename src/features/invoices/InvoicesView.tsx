@@ -767,7 +767,7 @@ export function InvoicesView({
   const outstanding = activeInvoices
     .filter(i => i.status !== 'paid')
     .reduce((s, i) => s + (typeof i.outstanding === 'number' ? i.outstanding : i.grandTotal || 0), 0);
-  const paidTotal = activeInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.grandTotal || 0), 0);
+  const paidTotal = activeInvoices.reduce((s, i) => s + (Number(i.paidAmount) || 0), 0);
   const filteredInvoices =
     statusFilter === 'all' ? activeInvoices : activeInvoices.filter(i => i.status === statusFilter);
 

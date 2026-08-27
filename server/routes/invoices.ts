@@ -15,6 +15,7 @@ import { addCalendarDaysIso } from '../utils/partyCreditTerms';
 import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 import { calendarDateIST } from '../../shared/dateOnly';
 import { saleChallanNumber } from '../../shared/saleChallanNumber';
+import { round2 } from '../../shared/gstRound';
 
 const router = Router();
 
@@ -50,6 +51,7 @@ function isoDateOnly(value: unknown): string {
 function mapSaleBatchAsInvoice(
   r: Record<string, unknown>,
   paid: number,
+  credits = 0,
 ): ReturnType<typeof mapStandaloneInvoice> & {
   source: 'sale';
   batchId: string;
@@ -60,7 +62,7 @@ function mapSaleBatchAsInvoice(
   const gstUnits = Number(r.gst_units) || 0;
   const nonGstUnits = Number(r.non_gst_units) || 0;
   const invoiceNumber = saleChallanNumber(batchId, gstUnits, nonGstUnits);
-  const outstanding = Math.max(0, Math.round((billValue - paid) * 100) / 100);
+  const outstanding = Math.max(0, round2(billValue - paid - credits));
   return {
     id: `sale:${batchId}`,
     source: 'sale',
@@ -357,6 +359,7 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
     ).rows as Record<string, unknown>[];
     const batchIds = saleRows.map(r => String(r.batch_id));
     const paymentMap: Record<string, number> = {};
+    const creditMap: Record<string, number> = {};
     if (batchIds.length > 0) {
       const payRows = (
         await pool.query(
@@ -365,11 +368,24 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
         )
       ).rows as { batch_id: string; total_paid: string }[];
       for (const pr of payRows) paymentMap[pr.batch_id] = Number(pr.total_paid);
+      const cnRows = (
+        await pool.query(
+          `SELECT reference_id, SUM(total) as credits
+           FROM credit_debit_notes
+           WHERE tenant_id = $2 AND reference_type = 'distribution' AND reference_id = ANY($1)
+             AND note_type = 'credit' AND COALESCE(status, 'Active') <> 'Cancelled'
+           GROUP BY reference_id`,
+          [batchIds, tenantId],
+        )
+      ).rows as { reference_id: string; credits: string }[];
+      for (const cn of cnRows) creditMap[cn.reference_id] = Number(cn.credits);
     }
 
     const merged = [
       ...invoiceRows.map((r: Record<string, unknown>) => mapStandaloneInvoice(r)),
-      ...saleRows.map(r => mapSaleBatchAsInvoice(r, paymentMap[String(r.batch_id)] ?? 0)),
+      ...saleRows.map(r =>
+        mapSaleBatchAsInvoice(r, paymentMap[String(r.batch_id)] ?? 0, creditMap[String(r.batch_id)] ?? 0),
+      ),
     ].sort((a, b) => {
       const da = isoDateOnly(a.invoiceDate);
       const db = isoDateOnly(b.invoiceDate);

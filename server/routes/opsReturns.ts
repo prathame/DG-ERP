@@ -4,7 +4,7 @@ import { pool, setTenantContext } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { withBooks } from '../utils/booksStrict';
-import { postPurchaseReturnToBooks, postSaleReturnToBooks } from '../services/opsToBooks';
+import { postPurchaseReturnToBooks, postSaleReturnToBooks, postVendorPaymentToBooks } from '../services/opsToBooks';
 import { parseStockQty } from '../../shared/qtyStock';
 import { round2 } from '../../shared/gstRound';
 import { calendarDateIST } from '../../shared/dateOnly';
@@ -228,20 +228,56 @@ router.post('/api/distribution/batch/:batchId/return', blockVendors, async (req:
         ],
       );
 
-      await withBooks(
-        () =>
-          postSaleReturnToBooks(client, tenantId, {
-            noteId,
+      const netPaid = round2(
+        Math.max(
+          0,
+          Number(
+            (
+              await client.query(
+                `SELECT COALESCE(SUM(amount), 0)::float AS paid
+                 FROM vendor_payments WHERE tenant_id = $1 AND batch_id = $2`,
+                [tenantId, batchId],
+              )
+            ).rows[0]?.paid,
+          ) || 0,
+        ),
+      );
+      const refund = round2(Math.min(netPaid, billed));
+      let refundId: string | null = null;
+      if (refund > 0) {
+        refundId = uid('VP');
+        await client.query(
+          `INSERT INTO vendor_payments
+             (id, vendor_id, amount, payment_date, payment_method, notes, tenant_id, batch_id)
+           VALUES ($1, $2, $3, $4, 'Cash', $5, $6, $7)`,
+          [refundId, vendor.id, -refund, noteDate, `Refund against sales return ${noteId}`, tenantId, batchId],
+        );
+      }
+
+      await withBooks(async () => {
+        await postSaleReturnToBooks(client, tenantId, {
+          noteId,
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          billed,
+          taxable,
+          tax,
+          cogs,
+          noteDate,
+        });
+        if (refundId && refund > 0) {
+          await postVendorPaymentToBooks(client, tenantId, {
+            id: refundId,
+            amount: refund,
+            paymentDate: noteDate,
+            paymentMethod: 'Cash',
+            notes: `Refund against sales return ${noteId}`,
             vendorId: vendor.id,
             vendorName: vendor.name,
-            billed,
-            taxable,
-            tax,
-            cogs,
-            noteDate,
-          }),
-        'sale-return',
-      );
+            asPurchasePayment: true,
+          });
+        }
+      }, 'sale-return');
       await client.query('COMMIT');
       res.status(201).json({ id: noteId, billed, taxable, tax });
     } catch (err) {
