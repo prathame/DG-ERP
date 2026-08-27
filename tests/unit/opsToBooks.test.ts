@@ -509,7 +509,9 @@ describe('opsToBooks + CA statements', () => {
     const pnl = await getBooksProfitLoss(pool, TENANT, '2025-10-01', '2025-10-31');
     expect(pnl.netProfit).toBeLessThan(0);
     const bs = await getBooksBalanceSheet(pool, TENANT, '2025-10-31');
-    expect(bs.assets.some(a => a.name.includes('Net loss'))).toBe(true);
+    expect(bs.assets.some(a => a.name.includes('Net loss'))).toBe(false);
+    const lossPlug = bs.capital.find(a => a.name.includes('Net loss'));
+    expect(lossPlug?.amount).toBe(pnl.netProfit);
   });
 
   it('posts purchase batch + supplier payment (Dr Stock / Cr Supplier)', async () => {
