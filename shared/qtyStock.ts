@@ -39,6 +39,32 @@ const QTY_STOCK_UNITS = new Set([
   'ml',
 ]);
 
+const PACK_PLURALS: Record<string, string> = {
+  box: 'Boxes',
+  bottle: 'Bottles',
+  bag: 'Bags',
+  packet: 'Packets',
+  pack: 'Packs',
+  pouch: 'Pouches',
+  sack: 'Sacks',
+};
+
+/** Pack / bottle word. Never "Bottlees" or "Boxs". */
+export function packUnitWord(packName?: string | null, plural = false): string {
+  const raw = String(packName || 'Box').trim() || 'Box';
+  if (!plural) return raw;
+  const key = raw.toLowerCase();
+  if (key === 'kg' || key === 'g' || key === 'ml' || key === 'l' || key === 'ltr') return raw;
+  const mapped = PACK_PLURALS[key];
+  if (mapped) {
+    const upper = raw[0] === raw[0].toUpperCase() && raw[0] !== raw[0].toLowerCase();
+    return upper ? mapped : mapped.toLowerCase();
+  }
+  if (/s$/i.test(raw) && !/ss$/i.test(raw)) return raw;
+  if (/(?:s|x|z|ch|sh)$/i.test(raw)) return `${raw}es`;
+  return `${raw}s`;
+}
+
 /** Inventory column label: Bag stays Bag, Piece/Nos stay pcs. */
 export function stockUnitLabel(packName?: string | null): string {
   const n = String(packName || '').trim();

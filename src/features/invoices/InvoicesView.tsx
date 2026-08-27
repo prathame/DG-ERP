@@ -940,6 +940,17 @@ export function InvoicesView({
                     >
                       <Printer size={14} />
                     </button>
+                    {canEdit && isSaleInvoice(inv) && (
+                      <button
+                        type="button"
+                        onClick={() => void openSaleReturn(inv)}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-amber-700 hover:bg-amber-50 rounded-lg"
+                        title="Return"
+                        aria-label="Return sale"
+                      >
+                        <Undo2 size={14} />
+                      </button>
+                    )}
                     {canEditInvoice(inv) && (
                       <button
                         type="button"
@@ -1055,11 +1066,11 @@ export function InvoicesView({
                           <button
                             type="button"
                             onClick={() => void openSaleReturn(inv)}
-                            className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg"
+                            className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 rounded-lg"
                             title="Return"
                             aria-label="Return sale"
                           >
-                            <Undo2 size={15} />
+                            <Undo2 size={15} /> Return
                           </button>
                         )}
                         {canEditInvoice(inv) && (

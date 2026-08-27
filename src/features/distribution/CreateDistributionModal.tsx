@@ -20,6 +20,7 @@ import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/prin
 import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
 import { whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import type { DistributionBillData, DistributionBatch } from '../../api';
+import { packUnitWord } from '../../../shared/qtyStock';
 
 type DistRow = {
   productId: string;
@@ -551,7 +552,9 @@ export function CreateDistributionModal({
                                     return {
                                       value: pr.id,
                                       label: `${pr.name} — ₹${pr.price.toLocaleString('en-IN')}${isBoxPr ? `/${pr.packName || 'Box'}` : ''}`,
-                                      sublabel: isBoxPr ? `${rawCount} ${pr.packName || 'Box'}s` : `${rawCount} pcs`,
+                                      sublabel: isBoxPr
+                                        ? `${rawCount} ${packUnitWord(pr.packName || 'Box', rawCount !== 1)}`
+                                        : `${rawCount} pcs`,
                                     };
                                   })}
                                 onChange={pid => {

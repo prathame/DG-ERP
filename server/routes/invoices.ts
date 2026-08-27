@@ -14,6 +14,7 @@ import { logger } from '../utils/logger';
 import { addCalendarDaysIso } from '../utils/partyCreditTerms';
 import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
 import { calendarDateIST } from '../../shared/dateOnly';
+import { saleChallanNumber } from '../../shared/saleChallanNumber';
 
 const router = Router();
 
@@ -58,8 +59,7 @@ function mapSaleBatchAsInvoice(
   const billValue = Number(r.bill_value) || 0;
   const gstUnits = Number(r.gst_units) || 0;
   const nonGstUnits = Number(r.non_gst_units) || 0;
-  const challanBase = `CH-${batchId.replace(/^D/, '').slice(0, 10)}`;
-  const invoiceNumber = gstUnits > 0 ? `${challanBase}-GST` : nonGstUnits > 0 ? `${challanBase}-BOS` : challanBase;
+  const invoiceNumber = saleChallanNumber(batchId, gstUnits, nonGstUnits);
   const outstanding = Math.max(0, Math.round((billValue - paid) * 100) / 100);
   return {
     id: `sale:${batchId}`,

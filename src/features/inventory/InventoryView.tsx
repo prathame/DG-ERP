@@ -36,7 +36,7 @@ import { MobileInventoryPanel } from './MobileInventoryPanel';
 import { ProductThumb } from './ProductThumb';
 import { fileToProductImageDataUrl } from '../../lib/productImage';
 import type { CreateLaunch } from '../../lib/quickAdd';
-import { isQtyStockUnit, stockUnitLabel } from '../../../shared/qtyStock';
+import { isQtyStockUnit, packUnitWord, stockUnitLabel } from '../../../shared/qtyStock';
 
 const emptyAddForm = () => ({
   name: '',
@@ -608,7 +608,7 @@ export function InventoryView({
                                             {totalBoxCount}
                                           </span>
                                           <span className="block text-[10px] text-gray-500 font-bold">
-                                            {p.packName || 'Box'}es
+                                            {packUnitWord(p.packName || 'Box', totalBoxCount !== 1)}
                                           </span>
                                         </>
                                       ) : (
@@ -634,7 +634,8 @@ export function InventoryView({
                                         <>
                                           <span className="font-semibold text-sm text-blue-700">{boxCount}</span>
                                           <span className="block text-[10px] text-gray-500 font-bold">
-                                            {p.packName || 'Box'}es{loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}
+                                            {packUnitWord(p.packName || 'Box', boxCount !== 1)}
+                                            {loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}
                                           </span>
                                           <span className="block text-[10px] text-emerald-500">({pcsCount} pcs)</span>
                                         </>
@@ -1153,7 +1154,7 @@ export function InventoryView({
                       <>
                         <div>
                           <label className="text-xs font-bold text-gray-400 uppercase">
-                            Number of {addForm.packName || 'Box'}es
+                            Number of {packUnitWord(addForm.packName || 'Box', true)}
                           </label>
                           <input
                             type="number"
@@ -1400,7 +1401,7 @@ export function InventoryView({
                 {(addStockModal.packSize || 1) > 1 ? (
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">
-                      Number of {addStockModal.packName || 'Box'}es to add
+                      Number of {packUnitWord(addStockModal.packName || 'Box', true)} to add
                     </label>
                     <input
                       type="number"
@@ -1413,7 +1414,8 @@ export function InventoryView({
                     />
                     <p className="text-xs text-emerald-600 font-medium mt-1">
                       = {(addStockForm.packs || 0) * (addStockModal.packSize || 1)} pieces ({addStockForm.packs || 0}{' '}
-                      {addStockModal.packName || 'Box'}es × {addStockModal.packSize} pcs)
+                      {packUnitWord(addStockModal.packName || 'Box', (addStockForm.packs || 0) !== 1)} ×{' '}
+                      {addStockModal.packSize} pcs)
                     </p>
                     <p className="text-[10px] text-gray-500 bg-gray-50 px-3 py-2 rounded-lg mt-2">
                       📦 {addStockForm.packs || 0} barcode labels (1 per {addStockModal.packName ?? 'box'})
