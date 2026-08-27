@@ -385,7 +385,11 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
           .then(r => Number(r.rows[0].v) || 0),
         pool
           .query(
-            `SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)-COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 AND pd.vendor_id=$2`,
+            `SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)
+               - COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2),0)
+               - COALESCE((SELECT SUM(total) FROM credit_debit_notes WHERE tenant_id=$1 AND vendor_id=$2 AND note_type='credit' AND COALESCE(status,'Active') <> 'Cancelled'),0) as v
+             FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1
+             WHERE pd.tenant_id=$1 AND pd.vendor_id=$2`,
             [tenantId, vid],
           )
           .then(r => Number(r.rows[0].v) || 0),
@@ -604,7 +608,11 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
       sumTenantExpenses(pool, tenantId, from, to),
       pool
         .query(
-          `SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)-COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1`,
+          `SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)
+             - COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0)
+             - COALESCE((SELECT SUM(total) FROM credit_debit_notes WHERE tenant_id=$1 AND note_type='credit' AND COALESCE(status,'Active') <> 'Cancelled'),0) as v
+           FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1
+           WHERE pd.tenant_id=$1`,
           [tenantId],
         )
         .then(r => Number(r.rows[0].v) || 0),
@@ -639,16 +647,24 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
           SELECT vendor_id, SUM(amount) AS paid
           FROM vendor_payments WHERE tenant_id = $1
           GROUP BY vendor_id
+        ),
+        credit_totals AS (
+          SELECT vendor_id, SUM(total) AS credits
+          FROM credit_debit_notes
+          WHERE tenant_id = $1 AND note_type = 'credit' AND COALESCE(status, 'Active') <> 'Cancelled'
+          GROUP BY vendor_id
         )
         SELECT v.id, v.name, v.phone,
                COALESCE(d.distributed, 0) AS distributed,
-               COALESCE(p.paid, 0)        AS paid
+               COALESCE(p.paid, 0)        AS paid,
+               COALESCE(c.credits, 0)     AS credits
         FROM vendors v
         LEFT JOIN dist_totals d ON d.vendor_id = v.id
         LEFT JOIN pay_totals  p ON p.vendor_id = v.id
+        LEFT JOIN credit_totals c ON c.vendor_id = v.id
         WHERE v.tenant_id = $1 AND v.id != 'OWNER'
-          AND COALESCE(d.distributed, 0) - COALESCE(p.paid, 0) > 0
-        ORDER BY (COALESCE(d.distributed, 0) - COALESCE(p.paid, 0)) DESC
+          AND COALESCE(d.distributed, 0) - COALESCE(p.paid, 0) - COALESCE(c.credits, 0) > 0
+        ORDER BY (COALESCE(d.distributed, 0) - COALESCE(p.paid, 0) - COALESCE(c.credits, 0)) DESC
         LIMIT 5
       `,
         [tenantId],
@@ -698,11 +714,18 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
         label: r.type === 'payment' || r.type === 'distribution' ? vendorMap[r.label as string] || r.label : r.label,
       })),
       topVendors: (
-        vendorSummary.rows as { id: string; name: string; phone: string; distributed: string; paid: string }[]
+        vendorSummary.rows as {
+          id: string;
+          name: string;
+          phone: string;
+          distributed: string;
+          paid: string;
+          credits: string;
+        }[]
       ).map(r => ({
         vendorId: r.id,
         vendorName: r.name,
-        balance: Number(r.distributed) - Number(r.paid),
+        balance: Number(r.distributed) - Number(r.paid) - Number(r.credits),
       })),
       counts: {
         customerMaster: Number(c.customers) || 0,
