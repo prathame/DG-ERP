@@ -383,7 +383,8 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
     const debitNotes = Number(dnRes.rows[0]?.t ?? 0) || 0;
 
     // COGS ≈ cost of units distributed in period + OWNER sales cost (avg purchase cost)
-    const [cogsDistRes, cogsSaleRes, purchExclRes, staffRes, tenantExpenseTotal] = await Promise.all([
+    // minus cost of units on sales-return credit notes (distribution rows are not deleted)
+    const [cogsDistRes, cogsSaleRes, cogsReturnRes, purchExclRes, staffRes, tenantExpenseTotal] = await Promise.all([
       pool.query(
         `
         SELECT COALESCE(SUM(COALESCE(
@@ -409,6 +410,32 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
         [tenantId, from, to],
       ),
       pool.query(
+        `
+        SELECT COALESCE(SUM(
+          GREATEST(0, COALESCE((elem->>'quantity')::numeric, 0)) * COALESCE(
+            (SELECT AVG(pp.cost_price) FROM product_purchases pp
+              WHERE pp.product_id = elem->>'productId' AND pp.tenant_id = $1 AND pp.cost_price > 0),
+            NULLIF(p.cost_price, 0),
+            0
+          )
+        ), 0) as t
+        FROM credit_debit_notes n
+        CROSS JOIN LATERAL jsonb_array_elements(
+          CASE
+            WHEN n.items IS NULL THEN '[]'::jsonb
+            WHEN jsonb_typeof(n.items::jsonb) = 'array' THEN n.items::jsonb
+            ELSE '[]'::jsonb
+          END
+        ) AS elem
+        LEFT JOIN products p ON p.id = elem->>'productId' AND p.tenant_id = n.tenant_id
+        WHERE n.tenant_id = $1
+          AND n.note_date >= $2 AND n.note_date <= $3
+          AND n.note_type = 'credit'
+          AND COALESCE(n.status, 'Active') <> 'Cancelled'
+      `,
+        [tenantId, from, to],
+      ),
+      pool.query(
         `SELECT COALESCE(SUM(${PURCHASE_TAXABLE_SQL}), 0) as t FROM product_purchases pp WHERE pp.tenant_id = $1 AND pp.purchase_date >= $2 AND pp.purchase_date <= $3`,
         [tenantId, from, to],
       ),
@@ -419,7 +446,9 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
       sumTenantExpenses(pool, tenantId, from, to),
     ]);
 
-    const cogs = (Number(cogsDistRes.rows[0]?.t ?? 0) || 0) + (Number(cogsSaleRes.rows[0]?.t ?? 0) || 0);
+    const cogsSold = (Number(cogsDistRes.rows[0]?.t ?? 0) || 0) + (Number(cogsSaleRes.rows[0]?.t ?? 0) || 0);
+    const cogsReturned = Number(cogsReturnRes.rows[0]?.t ?? 0) || 0;
+    const cogs = Math.max(0, cogsSold - cogsReturned);
     const purchasesExclGst = Number(purchExclRes.rows[0]?.t ?? 0) || 0;
     const staffCost = Number(staffRes.rows[0]?.t ?? 0) || 0;
     const expenseCost = tenantExpenseTotal + debitNotes;

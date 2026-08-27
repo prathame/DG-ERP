@@ -20,7 +20,7 @@ import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
 import type { StockFilter } from './DesktopInventoryPanel';
 import { ProductThumb } from './ProductThumb';
-import { stockUnitLabel } from '../../../shared/qtyStock';
+import { packUnitWord, stockUnitLabel } from '../../../shared/qtyStock';
 
 type SortKey = 'name' | 'price' | 'stock';
 
@@ -254,9 +254,11 @@ export function MobileInventoryPanel({
             const isBoxBarcode = p.barcodeUnitType === 'box';
             const boxCount = isBoxBarcode ? rem : Math.floor(rem / ps);
             const totalBoxCount = isBoxBarcode ? tot : Math.floor(tot / ps);
-            const unitLabel = isBoxProduct ? `${p.packName || 'Box'}es` : stockUnitLabel(p.packName);
             const displayTotal = isBoxProduct ? totalBoxCount : tot;
             const displayAdmin = isBoxProduct ? boxCount : rem;
+            const unitLabel = isBoxProduct
+              ? packUnitWord(p.packName || 'Box', displayTotal !== 1)
+              : stockUnitLabel(p.packName);
 
             return (
               <div key={p.id} className="dg-m-glass-card rounded-2xl p-3.5">

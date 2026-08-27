@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isQtyStockUnit, parseStockQty, usesQtyStock } from '../../shared/qtyStock';
+import { isQtyStockUnit, packUnitWord, parseStockQty, usesQtyStock } from '../../shared/qtyStock';
 
 describe('qtyStock', () => {
   it('treats bags, kg, and packets as qty stock', () => {
@@ -20,6 +20,16 @@ describe('qtyStock', () => {
     expect(usesQtyStock('Piece', 'none')).toBe(true);
     expect(usesQtyStock('Bag', 'prefix')).toBe(true);
     expect(usesQtyStock('Piece', 'prefix')).toBe(false);
+  });
+
+  it('packUnitWord does not turn Bottle into Bottlees', () => {
+    expect(packUnitWord('Bottle', false)).toBe('Bottle');
+    expect(packUnitWord('Bottle', true)).toBe('Bottles');
+    expect(packUnitWord('Box', true)).toBe('Boxes');
+    expect(packUnitWord('Bag', true)).toBe('Bags');
+    expect(packUnitWord('Packet', true)).toBe('Packets');
+    expect(packUnitWord('Bottles', true)).toBe('Bottles');
+    expect(packUnitWord('kg', true)).toBe('kg');
   });
 
   it('parseStockQty rejects 0, negative, and non-numeric instead of coercing to 1', () => {

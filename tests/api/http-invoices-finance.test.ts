@@ -708,6 +708,7 @@ describe('HTTP: invoices party link + invoice-finance + price-list bulk', () => 
     expect(sale?.source).toBe('sale');
     expect(sale?.customerName).toBe('Walk-in Rajkot');
     expect(Number(sale?.grandTotal)).toBe(755);
+    expect((sale as { invoiceNumber?: string }).invoiceNumber).toBe('CH--HTTP-INV-SALE-GST');
 
     const byName = await api().get('/api/invoices?includeSales=1&customer=Walk-in').set(authHeaders(token, TENANT));
     expect(byName.status).toBe(200);
