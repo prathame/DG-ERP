@@ -6,6 +6,8 @@ import { uid, logAudit, indianFinancialYear, nextSelfInvoiceNumber } from '../ut
 import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import { isQtyStockUnit } from '../../shared/qtyStock';
+import { isBarcodeAddonOn } from '../utils/barcode';
 
 const router = Router();
 
@@ -206,6 +208,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       await pool.query('SELECT id, name FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])
     ).rows[0] as { id: string; name: string } | undefined;
     if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+    const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
 
     const gstRate = Number(reqGstRate) || 18;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
@@ -224,16 +227,17 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       gstApplied: boolean;
       billedPrice: number;
       disc: number;
+      qtyStock: boolean;
     }[] = [];
 
     for (const item of items) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
       const product = (
-        await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [
+        await pool.query('SELECT id, name, price, pack_name FROM products WHERE id = $1 AND tenant_id = $2', [
           item.productId,
           tenantId,
         ])
-      ).rows[0] as { id: string; name: string; price: number } | undefined;
+      ).rows[0] as { id: string; name: string; price: number; pack_name: string | null } | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
 
       const basePrice = item.costPrice ? Number(item.costPrice) : Number(product.price);
@@ -254,6 +258,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
         gstApplied,
         billedPrice: billedPricePerUnit,
         disc,
+        qtyStock: isQtyStockUnit(product.pack_name) || !barcodeAddonOn,
       });
       totalBilled += supplierUnit * qty;
       totalQty += qty;
@@ -314,6 +319,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
       const invPs: unknown[] = [];
       let invIdx = 1;
       for (const u of purchaseRows) {
+        if (u.qtyStock) continue;
         for (let i = 0; i < u.qty; i++) {
           const invId = `PI-${batchId}-${invVals.length + 1}`;
           const barcode = `${batchId}-${String(invVals.length + 1).padStart(4, '0')}`;

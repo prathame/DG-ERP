@@ -76,3 +76,10 @@ export async function generateBarcodesFromPrefix(
   }
   return results;
 }
+
+/** Super Admin barcode add-on. Default ON for older tenants (NULL). */
+export async function isBarcodeAddonOn(pool: Pool, tenantId: string): Promise<boolean> {
+  const row = (await pool.query('SELECT barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+    { barcode_system_enabled: boolean | null } | undefined;
+  return row?.barcode_system_enabled !== false;
+}

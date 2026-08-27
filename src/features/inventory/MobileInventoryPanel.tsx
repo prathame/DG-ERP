@@ -29,6 +29,7 @@ type Props = {
   loading: boolean;
   canEdit: boolean;
   inventoryTrackingEnabled: boolean;
+  barcodeSystemEnabled?: boolean;
   /** Manufacturer consignment column; false for dealer/wholesaler direct-sell. */
   stockWithVendors?: boolean;
   metalMode?: boolean;
@@ -83,6 +84,7 @@ export function MobileInventoryPanel({
   loading,
   canEdit,
   inventoryTrackingEnabled,
+  barcodeSystemEnabled = true,
   stockWithVendors = true,
   metalMode = false,
   barcodeSearch,
@@ -143,7 +145,7 @@ export function MobileInventoryPanel({
               <Upload size={16} />
             </button>
           )}
-          {canEdit && metalMode && onMetalIntake && (
+          {canEdit && metalMode && barcodeSystemEnabled && onMetalIntake && (
             <button
               type="button"
               onClick={onMetalIntake}
@@ -167,12 +169,12 @@ export function MobileInventoryPanel({
 
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 dg-m-faint" />
-        <Barcode size={14} className="absolute right-3 top-1/2 -translate-y-1/2 dg-m-faint" />
+        {barcodeSystemEnabled && <Barcode size={14} className="absolute right-3 top-1/2 -translate-y-1/2 dg-m-faint" />}
         <input
           type="search"
           value={barcodeSearch}
           onChange={e => onBarcodeSearch(e.target.value)}
-          placeholder="Scan or search barcode / name…"
+          placeholder={barcodeSystemEnabled ? 'Scan or search barcode / name…' : 'Search product name…'}
           className="w-full h-10 pl-9 pr-9 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
         />
       </div>
@@ -338,14 +340,16 @@ export function MobileInventoryPanel({
                 )}
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onBarcodeDetails(p)}
-                    className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-bright"
-                    aria-label="Barcode details"
-                  >
-                    <Barcode size={16} />
-                  </button>
+                  {barcodeSystemEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => onBarcodeDetails(p)}
+                      className="h-9 w-9 rounded-full border border-[var(--dg-card-border)] dg-m-surface flex items-center justify-center dg-m-bright"
+                      aria-label="Barcode details"
+                    >
+                      <Barcode size={16} />
+                    </button>
+                  )}
                   {canEdit && inventoryTrackingEnabled && (
                     <button
                       type="button"

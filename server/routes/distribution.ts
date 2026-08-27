@@ -19,8 +19,54 @@ import {
 } from '../utils/price-resolve';
 import { postDistributionBatchToBooks, postVendorPaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import type { PoolClient } from 'pg';
 
 const router = Router();
+
+async function productHasInventory(client: PoolClient, tenantId: string, productId: string): Promise<boolean> {
+  const c = Number(
+    (
+      await client.query('SELECT COUNT(*)::int AS c FROM product_inventory WHERE product_id = $1 AND tenant_id = $2', [
+        productId,
+        tenantId,
+      ])
+    ).rows[0]?.c ?? 0,
+  );
+  return c > 0;
+}
+
+async function takeProductQtyStock(
+  client: PoolClient,
+  tenantId: string,
+  productId: string,
+  qty: number,
+): Promise<{ ok: true } | { ok: false; available: number }> {
+  const row = (
+    await client.query('SELECT stock FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [productId, tenantId])
+  ).rows[0] as { stock: number } | undefined;
+  const available = Number(row?.stock) || 0;
+  if (available < qty) return { ok: false, available };
+  await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2 AND tenant_id = $3', [
+    qty,
+    productId,
+    tenantId,
+  ]);
+  return { ok: true };
+}
+
+async function restoreProductQtyStock(
+  client: PoolClient,
+  tenantId: string,
+  productId: string,
+  qty: number,
+): Promise<void> {
+  if (qty < 1) return;
+  await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3', [
+    qty,
+    productId,
+    tenantId,
+  ]);
+}
 
 router.get('/api/distribution/summary', async (req: AuthRequest, res) => {
   try {
@@ -435,6 +481,32 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
       await setTenantContext(client, tenantId);
 
       for (const item of itemsPrepped) {
+        const hasInv = await productHasInventory(client, tenantId, item.product.id);
+        if (!hasInv) {
+          const taken = await takeProductQtyStock(client, tenantId, item.product.id, item.qty);
+          if (taken.ok === false) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              error: `Insufficient stock for ${item.product.name}. Available: ${taken.available}, requested: ${item.qty}`,
+            });
+          }
+          productNames.push(item.product.name);
+          for (let i = 0; i < item.qty; i++) {
+            unitRows.push({
+              distId: '',
+              productId: item.product.id,
+              barcode: `${batchId}-Q${item.product.id}-${i + 1}`,
+              invId: '',
+              disc: item.disc,
+              netPrice: item.netPricePerUnit,
+              gstApplied: item.gstApplied,
+              billedPrice: item.billedPricePerUnit,
+            });
+            totalBilled += item.billedPricePerUnit;
+            totalQty++;
+          }
+          continue;
+        }
         const invRows = (
           await client.query(
             `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
@@ -512,10 +584,13 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
           );
         }
         // Bulk UPDATE inventory statuses
-        await client.query(`UPDATE product_inventory SET status='Distributed' WHERE id = ANY($1) AND tenant_id = $2`, [
-          unitRows.map(u => u.invId),
-          tenantId,
-        ]);
+        const invIds = unitRows.map(u => u.invId).filter(Boolean);
+        if (invIds.length > 0) {
+          await client.query(
+            `UPDATE product_inventory SET status='Distributed' WHERE id = ANY($1) AND tenant_id = $2`,
+            [invIds, tenantId],
+          );
+        }
       }
       if (paidAmount) {
         const payId = uid('VP');
@@ -715,18 +790,33 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       await client.query('BEGIN');
 
       await setTenantContext(client, tenantId);
-      distInvRows = (
-        await client.query(
-          `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
-          [product.id, tenantId, qty],
-        )
-      ).rows as { id: string; barcode: string }[];
-      if (distInvRows.length < qty) {
-        await client.query('ROLLBACK');
-        // C3/C8: don't release here — finally block handles it
-        return res
-          .status(400)
-          .json({ error: `Insufficient stock. Available: ${distInvRows.length}, requested: ${qty}` });
+      const hasInv = await productHasInventory(client, tenantId, product.id);
+      if (!hasInv) {
+        const taken = await takeProductQtyStock(client, tenantId, product.id, qty);
+        if (taken.ok === false) {
+          await client.query('ROLLBACK');
+          return res
+            .status(400)
+            .json({ error: `Insufficient stock. Available: ${taken.available}, requested: ${qty}` });
+        }
+        distInvRows = Array.from({ length: qty }, (_, i) => ({
+          id: '',
+          barcode: `${baseId}-Q${product.id}-${i + 1}`,
+        }));
+      } else {
+        distInvRows = (
+          await client.query(
+            `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
+            [product.id, tenantId, qty],
+          )
+        ).rows as { id: string; barcode: string }[];
+        if (distInvRows.length < qty) {
+          await client.query('ROLLBACK');
+          // C3/C8: don't release here — finally block handles it
+          return res
+            .status(400)
+            .json({ error: `Insufficient stock. Available: ${distInvRows.length}, requested: ${qty}` });
+        }
       }
       const existingInBatch =
         typeof reqBatchId === 'string' && reqBatchId
@@ -760,11 +850,13 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
             tenantId,
           ],
         );
-        await client.query('UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3', [
-          'Distributed',
-          inv.id,
-          tenantId,
-        ]);
+        if (inv.id) {
+          await client.query('UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3', [
+            'Distributed',
+            inv.id,
+            tenantId,
+          ]);
+        }
       }
       if (paidAmount) {
         distPayId = uid('VP');
@@ -1442,15 +1534,29 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
 
         if (newQty > productRows.length) {
           const toAdd = newQty - productRows.length;
-          const invRows = (
-            await client.query(
-              `SELECT id, barcode FROM product_inventory WHERE product_id = \$1 AND status = 'InStock' AND tenant_id = \$2 ORDER BY id LIMIT \$3 FOR UPDATE SKIP LOCKED`,
-              [item.productId, tenantId, toAdd],
-            )
-          ).rows as { id: string; barcode: string }[];
-          if (invRows.length < toAdd) {
-            const name = productRows[0]?.product_name ?? item.productId;
-            throw new Error(`Insufficient stock for ${name}. Available: ${invRows.length}, need ${toAdd} more`);
+          const hasInv = await productHasInventory(client, tenantId, item.productId);
+          let invRows: { id: string; barcode: string }[] = [];
+          if (!hasInv) {
+            const taken = await takeProductQtyStock(client, tenantId, item.productId, toAdd);
+            if (taken.ok === false) {
+              const name = productRows[0]?.product_name ?? item.productId;
+              throw new Error(`Insufficient stock for ${name}. Available: ${taken.available}, need ${toAdd} more`);
+            }
+            invRows = Array.from({ length: toAdd }, (_, i) => ({
+              id: '',
+              barcode: `${batchId}-Q${item.productId}-${productRows.length + i + 1}`,
+            }));
+          } else {
+            invRows = (
+              await client.query(
+                `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
+                [item.productId, tenantId, toAdd],
+              )
+            ).rows as { id: string; barcode: string }[];
+            if (invRows.length < toAdd) {
+              const name = productRows[0]?.product_name ?? item.productId;
+              throw new Error(`Insufficient stock for ${name}. Available: ${invRows.length}, need ${toAdd} more`);
+            }
           }
           const { netPricePerUnit: netPrice, billedPricePerUnit: billed } = unitPricesAfterDiscount({
             basePrice,
@@ -1491,15 +1597,18 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
                 tenantId,
               ],
             );
-            await client.query('UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3', [
-              'Distributed',
-              inv.id,
-              tenantId,
-            ]);
+            if (inv.id) {
+              await client.query('UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3', [
+                'Distributed',
+                inv.id,
+                tenantId,
+              ]);
+            }
           }
         } else if (newQty < productRows.length) {
           const toRemove = productRows.length - newQty;
           const removable = [...distributed].reverse().slice(0, toRemove);
+          const hasInv = await productHasInventory(client, tenantId, item.productId);
           for (const row of removable) {
             await client.query('UPDATE product_inventory SET status = $1 WHERE barcode = $2 AND tenant_id = $3', [
               'InStock',
@@ -1508,6 +1617,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
             ]);
             await client.query('DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2', [row.id, tenantId]);
           }
+          if (!hasInv) await restoreProductQtyStock(client, tenantId, item.productId, removable.length);
         }
 
         const remaining = (
@@ -1539,6 +1649,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
             `Cannot remove ${productRows[0]?.product_name ?? productId}: ${locked.length} unit(s) already sold/replaced/damaged`,
           );
         }
+        const hasInv = await productHasInventory(client, tenantId, productId);
         for (const row of productRows) {
           await client.query('UPDATE product_inventory SET status = $1 WHERE barcode = $2 AND tenant_id = $3', [
             'InStock',
@@ -1547,6 +1658,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
           ]);
           await client.query('DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2', [row.id, tenantId]);
         }
+        if (!hasInv) await restoreProductQtyStock(client, tenantId, productId, productRows.length);
       }
 
       if (date && itemList.length === 0) {
@@ -1884,10 +1996,17 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
       await setTenantContext(client, tenantId);
       const rows = (
         await client.query(
-          'SELECT id, barcode, status, irn, ewb_number FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE',
+          'SELECT id, barcode, status, irn, ewb_number, product_id FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE',
           [batchId, tenantId],
         )
-      ).rows as { id: string; barcode: string; status: string; irn: string | null; ewb_number: string | null }[];
+      ).rows as {
+        id: string;
+        barcode: string;
+        status: string;
+        irn: string | null;
+        ewb_number: string | null;
+        product_id: string;
+      }[];
       if (rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Distribution batch not found' });
@@ -1916,6 +2035,7 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
         [barcodes, tenantId],
       );
 
+      const qtyByProduct = new Map<string, number>();
       for (const row of rows) {
         await client.query("UPDATE product_inventory SET status = 'InStock' WHERE barcode = $1 AND tenant_id = $2", [
           row.barcode,
@@ -1926,6 +2046,11 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
           tenantId,
           'Distributed',
         ]);
+        qtyByProduct.set(row.product_id, (qtyByProduct.get(row.product_id) || 0) + 1);
+      }
+      for (const [productId, n] of qtyByProduct) {
+        const hasInv = await productHasInventory(client, tenantId, productId);
+        if (!hasInv) await restoreProductQtyStock(client, tenantId, productId, n);
       }
       await client.query('DELETE FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2', [batchId, tenantId]);
       unitsReturned = rows.length;

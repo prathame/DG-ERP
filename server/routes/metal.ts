@@ -3,7 +3,7 @@ import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { barcodeExists, generateBarcodesFromPrefix } from '../utils/barcode';
+import { barcodeExists, generateBarcodesFromPrefix, isBarcodeAddonOn } from '../utils/barcode';
 import { checkPlanLimit } from '../utils/planLimits';
 import { computeFineWeight, computeMakingAmount, computeMetalSalePrice } from '../../shared/metal';
 
@@ -45,6 +45,9 @@ router.post('/api/metal/intake', blockVendors, async (req: AuthRequest, res) => 
       await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])
     ).rows[0] as { id: string; name: string; price: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    if (!(await isBarcodeAddonOn(pool, tenantId))) {
+      return res.status(400).json({ error: 'Barcode add-on is off for this shop' });
+    }
 
     const net = parseFloat(String(netWeight ?? grossWeight ?? ''));
     if (!Number.isFinite(net) || net <= 0) {

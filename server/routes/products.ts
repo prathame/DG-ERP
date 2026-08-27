@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { pool, setTenantContext } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
+import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix, isBarcodeAddonOn } from '../utils/barcode';
 import { requireAdmin, blockVendors, AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
 import { checkPlanLimit } from '../utils/planLimits';
 import { withTenantClient } from '../pg-db';
+import { isQtyStockUnit, usesQtyStock } from '../../shared/qtyStock';
 
 const router = Router();
 
@@ -701,11 +702,12 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
       );
 
       // Generate barcodes per new product (still per-product since prefix varies)
+      const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
       for (const { r, id: productId } of productIds) {
         const prefix = r.barcodePrefix ? String(r.barcodePrefix).trim() : '';
         const qty = Number(r.quantity) || 0;
         const ps = Number(r.packSize) || 1;
-        if (prefix && qty > 0) {
+        if (barcodeAddonOn && prefix && qty > 0 && !isQtyStockUnit(r.packName as string | undefined)) {
           const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, Math.min(qty, 10000));
           const unitType = ps > 1 ? 'box' : 'piece';
           const batchId = uid('B');
@@ -886,10 +888,19 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       const quantityProvided = quantity !== undefined && quantity !== null && quantity !== '';
       const qtyRequested = quantityProvided ? Math.floor(Number(quantity) || 0) : null;
       const masterOnly = mode === 'none' || qtyRequested === 0;
+      const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
+      const qtyStock = usesQtyStock(packName, mode) || !barcodeAddonOn;
 
-      if (masterOnly) {
+      if (qtyStock || masterOnly) {
         await insertProductRow();
         await persistCostPrice();
+        if (qtyStock) {
+          const qty = Math.max(0, Math.floor(Number(quantity) || 0));
+          if (qty > 0) {
+            await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [qty, id, tenantId]);
+            invStock = qty;
+          }
+        }
       } else if (mode === 'prefix') {
         const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
         const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
@@ -994,9 +1005,21 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
     } = req.body;
     if (!quantity || Number(quantity) < 1) return res.status(400).json({ error: 'Quantity must be at least 1' });
     const product = (
-      await pool.query('SELECT id, pack_size FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])
-    ).rows[0] as { id: string; pack_size: number } | undefined;
+      await pool.query('SELECT id, pack_size, pack_name, stock FROM products WHERE id = $1 AND tenant_id = $2', [
+        id,
+        tenantId,
+      ])
+    ).rows[0] as { id: string; pack_size: number; pack_name: string | null; stock: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    const barcodeAddonOn = await isBarcodeAddonOn(pool, tenantId);
+    if (usesQtyStock(product.pack_name, barcodeMode) || !barcodeAddonOn) {
+      const addQty = Math.min(Math.max(1, Math.floor(Number(quantity))), 1000000);
+      const nextStock = (Number(product.stock) || 0) + addQty;
+      await pool.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [nextStock, id, tenantId]);
+      const row = (await pool.query('SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1', [tenantId, id]))
+        .rows[0] as Record<string, unknown>;
+      return res.status(201).json(mapProduct({ ...row, stock: nextStock }));
+    }
     const mode = barcodeMode === 'auto' ? 'auto' : barcodeMode === 'range' ? 'range' : 'prefix';
     const rawQty = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
     const qty = rawQty;
