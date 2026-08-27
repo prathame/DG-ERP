@@ -165,7 +165,7 @@ export function DesktopPurchasesModule({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
                 <input
                   type="text"
-                  placeholder="Search suppliers..."
+                  placeholder="Search supplier or bill no…"
                   value={searchText}
                   onChange={e => onSearchText(e.target.value)}
                   className={fieldInput}
@@ -230,10 +230,12 @@ export function DesktopPurchasesModule({
             })}
           </div>
 
-          {suppliers.length === 0 && !canEdit ? (
+          {suppliers.length === 0 ? (
             <div className="dg-glass-card rounded-2xl p-12 text-center">
               <ShoppingBag size={40} className="mx-auto mb-3 dg-faint" />
-              <p className="font-medium dg-muted">No suppliers match this filter</p>
+              <p className="font-medium dg-muted">
+                {searchText.trim() ? 'No supplier or bill matches this search' : 'No suppliers match this filter'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

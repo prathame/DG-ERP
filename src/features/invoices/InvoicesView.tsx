@@ -283,12 +283,15 @@ function InvoiceEInvoiceButtons({
 export function InvoicesView({
   onOpenFinance,
   onEditSale,
+  onCreatePurchase,
   launchCreate,
   onLaunchConsumed,
 }: {
   onOpenFinance?: () => void;
   /** Open Sales edit for a bill that was created as a customer sale (not a standalone invoice). */
   onEditSale?: (batchId: string) => void;
+  /** Jump to Purchases and open New Purchase (sale bills stay on this tab). */
+  onCreatePurchase?: () => void;
   launchCreate?: CreateLaunch | null;
   onLaunchConsumed?: () => void;
 } = {}) {
@@ -751,6 +754,15 @@ export function InvoicesView({
           >
             <Plus size={16} /> {t('invoices.newInvoice')}
           </button>
+          {onCreatePurchase && (
+            <button
+              type="button"
+              onClick={onCreatePurchase}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 border border-gray-200 bg-white text-gray-800 rounded-xl text-sm font-bold"
+            >
+              <Plus size={16} /> New Purchase
+            </button>
+          )}
         </div>
       </div>
 
