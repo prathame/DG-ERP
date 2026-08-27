@@ -99,6 +99,13 @@ router.delete('/api/ops/wipe', requireAdmin, async (req: AuthRequest, res) => {
     await del('orders', `DELETE FROM orders WHERE tenant_id = $1`);
     await del('credit_debit_notes', `DELETE FROM credit_debit_notes WHERE tenant_id = $1`);
     await del('price_lists', `DELETE FROM price_lists WHERE tenant_id = $1`);
+    // Dealer/wholesale leftovers that do not cascade from products (feeds Analytics Collected/activity).
+    await del('vendor_payments', `DELETE FROM vendor_payments WHERE tenant_id = $1`);
+    await del('product_sales', `DELETE FROM product_sales WHERE tenant_id = $1`);
+    await del('product_distribution', `DELETE FROM product_distribution WHERE tenant_id = $1`);
+    await del('product_purchases', `DELETE FROM product_purchases WHERE tenant_id = $1`);
+    await del('supplier_payments', `DELETE FROM supplier_payments WHERE tenant_id = $1`);
+    await del('suppliers', `DELETE FROM suppliers WHERE tenant_id = $1`);
     await del('products', `DELETE FROM products WHERE tenant_id = $1`);
     await del('vendors', `DELETE FROM vendors WHERE tenant_id = $1 AND id != 'OWNER'`);
     // optional tables — ignore if missing

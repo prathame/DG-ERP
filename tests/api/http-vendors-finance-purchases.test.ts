@@ -21,17 +21,21 @@ describe('HTTP: vendors / finance / purchases', () => {
       `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status)
        VALUES ($1, 'HTTP VFP Co', 'test-http-vfp', 'http-vfp@test.com', 'Admin', 'active')
        ON CONFLICT (id) DO NOTHING`,
-      [TENANT]
+      [TENANT],
     );
     const hash = bcrypt.hashSync('password123', 12);
     await pool.query(
       `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
        VALUES ($1, $2, 'http-vfp@test.com', $3, 'Admin', 'Admin')
        ON CONFLICT DO NOTHING`,
-      [USER, TENANT, hash]
+      [USER, TENANT, hash],
     );
     token = createTestToken({
-      userId: USER, tenantId: TENANT, email: 'http-vfp@test.com', role: 'Admin', name: 'Admin',
+      userId: USER,
+      tenantId: TENANT,
+      email: 'http-vfp@test.com',
+      role: 'Admin',
+      name: 'Admin',
     });
 
     // Seed product via SQL — HTTP create needs plan limits / barcode mode
@@ -39,7 +43,7 @@ describe('HTTP: vendors / finance / purchases', () => {
     await pool.query(
       `INSERT INTO products (id, tenant_id, name, price, gst_rate)
        VALUES ($1, $2, 'HTTP Widget', 500, 18) ON CONFLICT DO NOTHING`,
-      [productId, TENANT]
+      [productId, TENANT],
     );
   });
 
@@ -69,25 +73,18 @@ describe('HTTP: vendors / finance / purchases', () => {
   });
 
   it('POST /api/vendors rejects bad phone', async () => {
-    const res = await api()
-      .post('/api/vendors')
-      .set(authHeaders(token, TENANT))
-      .send({ name: 'Bad', phone: '12' });
+    const res = await api().post('/api/vendors').set(authHeaders(token, TENANT)).send({ name: 'Bad', phone: '12' });
     expect(res.status).toBe(400);
   });
 
   it('GET /api/vendors?search works', async () => {
-    const res = await api()
-      .get('/api/vendors?search=HTTP')
-      .set(authHeaders(token, TENANT));
+    const res = await api().get('/api/vendors?search=HTTP').set(authHeaders(token, TENANT));
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body) || Array.isArray(res.body?.vendors) || res.body).toBeTruthy();
   });
 
   it('GET /api/vendor-finance/summary', async () => {
-    const res = await api()
-      .get('/api/vendor-finance/summary')
-      .set(authHeaders(token, TENANT));
+    const res = await api().get('/api/vendor-finance/summary').set(authHeaders(token, TENANT));
     expect(res.status).toBe(200);
   });
 
@@ -99,9 +96,7 @@ describe('HTTP: vendors / finance / purchases', () => {
       .send({ enabled: true, reminderDays: 7 });
     expect(rem.status).toBe(200);
 
-    const detail = await api()
-      .get(`/api/vendor-finance/${vendorId}`)
-      .set(authHeaders(token, TENANT));
+    const detail = await api().get(`/api/vendor-finance/${vendorId}`).set(authHeaders(token, TENANT));
     expect(detail.status).toBe(200);
   });
 
@@ -113,9 +108,7 @@ describe('HTTP: vendors / finance / purchases', () => {
     expect(res.status).toBe(201);
     supplierId = res.body.id;
 
-    const summary = await api()
-      .get('/api/supplier-finance/summary')
-      .set(authHeaders(token, TENANT));
+    const summary = await api().get('/api/supplier-finance/summary').set(authHeaders(token, TENANT));
     expect(summary.status).toBe(200);
   });
 
@@ -135,9 +128,7 @@ describe('HTTP: vendors / finance / purchases', () => {
 
   it('GET purchase batch + supplier payment overpay', async () => {
     if (batchId) {
-      const get = await api()
-        .get(`/api/purchases/batch/${batchId}`)
-        .set(authHeaders(token, TENANT));
+      const get = await api().get(`/api/purchases/batch/${batchId}`).set(authHeaders(token, TENANT));
       expect(get.status).toBe(200);
     }
     const over = await api()
@@ -151,5 +142,37 @@ describe('HTTP: vendors / finance / purchases', () => {
       .set(authHeaders(token, TENANT))
       .send({ amount: 50, paymentDate: '2026-07-15', paymentMethod: 'UPI' });
     expect(pay.status).toBe(201);
+  });
+
+  it('DELETE /api/suppliers/:id blocked when purchases exist, allowed when empty', async () => {
+    const blocked = await api().delete(`/api/suppliers/${supplierId}`).set(authHeaders(token, TENANT));
+    expect(blocked.status).toBe(400);
+
+    const empty = await api()
+      .post('/api/suppliers')
+      .set(authHeaders(token, TENANT))
+      .send({ name: 'HTTP Empty Supplier', phone: '9876509999' });
+    expect(empty.status).toBe(201);
+    const del = await api().delete(`/api/suppliers/${empty.body.id}`).set(authHeaders(token, TENANT));
+    expect(del.status).toBe(204);
+  });
+
+  it('DELETE /api/ops/wipe clears leftover dealer payments and suppliers', async () => {
+    await pool.query(
+      `INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method)
+       VALUES ('VP-WIPE-1', $1, $2, 1653.6, '2026-08-27', 'Cash')`,
+      [TENANT, vendorId],
+    );
+    const wipe = await api().delete('/api/ops/wipe').set(authHeaders(token, TENANT));
+    expect(wipe.status).toBe(200);
+    expect(wipe.body.ok).toBe(true);
+    const payments = await pool.query('SELECT COUNT(*)::int AS c FROM vendor_payments WHERE tenant_id = $1', [TENANT]);
+    const suppliers = await pool.query('SELECT COUNT(*)::int AS c FROM suppliers WHERE tenant_id = $1', [TENANT]);
+    const purchases = await pool.query('SELECT COUNT(*)::int AS c FROM product_purchases WHERE tenant_id = $1', [
+      TENANT,
+    ]);
+    expect(payments.rows[0].c).toBe(0);
+    expect(suppliers.rows[0].c).toBe(0);
+    expect(purchases.rows[0].c).toBe(0);
   });
 });
