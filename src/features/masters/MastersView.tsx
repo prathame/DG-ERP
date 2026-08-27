@@ -34,6 +34,7 @@ import {
   isHotelRestaurantBusiness,
   isMasterAllowedForHotel,
 } from '../../../shared/hotelMasters';
+import type { AccessLevel } from '../../lib/tabAccess';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -74,6 +75,7 @@ export function MastersView({
   businessType = 'manufacturer',
   launch,
   onLaunchConsumed,
+  accessLevel = 'full',
 }: {
   setActiveTab: (tab: Tab) => void;
   user?: Record<string, unknown> | null;
@@ -86,6 +88,7 @@ export function MastersView({
     staffName?: string;
   } | null;
   onLaunchConsumed?: () => void;
+  accessLevel?: AccessLevel;
 }) {
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
@@ -487,7 +490,12 @@ export function MastersView({
   if (selectedMaster === 'customer')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <CustomerMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} user={user} />
+        <CustomerMasterView
+          onBack={closeSelectedMaster}
+          onRefresh={refreshCounts}
+          user={user}
+          accessLevel={accessLevel}
+        />
       </Suspense>
     );
   if (selectedMaster === 'vendor')
@@ -498,31 +506,32 @@ export function MastersView({
           onRefresh={refreshCounts}
           businessType={cfg.type}
           initialVendorId={focusVendorId ?? undefined}
+          accessLevel={accessLevel}
         />
       </Suspense>
     );
   if (selectedMaster === 'bank')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <BankMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} />
+        <BankMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} accessLevel={accessLevel} />
       </Suspense>
     );
   if (selectedMaster === 'mapping')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <VendorCustomerMappingView onBack={closeSelectedMaster} />
+        <VendorCustomerMappingView onBack={closeSelectedMaster} accessLevel={accessLevel} />
       </Suspense>
     );
   if (selectedMaster === 'rewardRules')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <RewardRulesView onBack={closeSelectedMaster} />
+        <RewardRulesView onBack={closeSelectedMaster} accessLevel={accessLevel} />
       </Suspense>
     );
   if (selectedMaster === 'priceList')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <PriceListView onBack={closeSelectedMaster} />
+        <PriceListView onBack={closeSelectedMaster} accessLevel={accessLevel} />
       </Suspense>
     );
   if (selectedMaster === 'staff')
@@ -533,6 +542,7 @@ export function MastersView({
           onRefresh={refreshCounts}
           initialStaffId={focusStaffId ?? undefined}
           initialStaffName={focusStaffName ?? undefined}
+          accessLevel={accessLevel}
         />
       </Suspense>
     );

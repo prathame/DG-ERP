@@ -8,6 +8,7 @@ import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
 
 type Staff = {
   id: string;
@@ -41,6 +42,7 @@ export function StaffMasterView({
   onRefresh,
   initialStaffId,
   initialStaffName,
+  accessLevel = 'full',
 }: {
   onBack: () => void;
   onRefresh: () => void;
@@ -48,7 +50,9 @@ export function StaffMasterView({
   initialStaffId?: string;
   /** Same as initialStaffId but match by name (global search). */
   initialStaffName?: string;
+  accessLevel?: AccessLevel;
 }) {
+  const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const [list, setList] = useState<Staff[]>([]);
@@ -149,7 +153,7 @@ export function StaffMasterView({
   });
 
   const openPayModal = () => {
-    if (!selected) return;
+    if (!canWrite || !selected) return;
     setPayForm({
       amount: selected.salary ? String(selected.salary) : '',
       paymentType: 'salary',
@@ -162,11 +166,13 @@ export function StaffMasterView({
   };
 
   const openAdd = () => {
+    if (!canWrite) return;
     setEditing(null);
     setForm({ name: '', phone: '', role: '', address: '', salary: '', joiningDate: '' });
     setAddStaffOpen(true);
   };
   const openEdit = (s: Staff) => {
+    if (!canWrite) return;
     setEditing(s);
     setForm({
       name: s.name,
@@ -180,6 +186,7 @@ export function StaffMasterView({
   };
 
   const handleSaveStaff = async () => {
+    if (!canWrite) return;
     if (!form.name.trim()) {
       toast('Name is required', 'error');
       return;
@@ -222,7 +229,7 @@ export function StaffMasterView({
   };
 
   const handlePay = async () => {
-    if (!selected) return;
+    if (!canWrite || !selected) return;
     if (!payForm.amount || Number(payForm.amount) <= 0) {
       toast('Enter valid amount', 'error');
       return;
@@ -278,7 +285,7 @@ export function StaffMasterView({
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!canWrite || !deleteTarget) return;
     try {
       await api.staff.delete(deleteTarget.id);
       toast('Staff removed', 'success');
@@ -338,13 +345,15 @@ export function StaffMasterView({
             <h2 className="text-xl font-bold truncate">{selected.name}</h2>
             <p className="text-sm text-gray-500">Payment history</p>
           </div>
-          <button
-            type="button"
-            onClick={openPayModal}
-            className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
-          >
-            <Plus size={16} /> Add payment
-          </button>
+          {canWrite && (
+            <button
+              type="button"
+              onClick={openPayModal}
+              className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
+            >
+              <Plus size={16} /> Add payment
+            </button>
+          )}
         </div>
 
         {/* Staff summary */}
@@ -586,20 +595,24 @@ export function StaffMasterView({
               <Download size={18} /> Export CSV
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setCsvImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
-          >
-            <Upload size={18} /> Import CSV
-          </button>
-          <button
-            type="button"
-            onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-          >
-            <Plus size={18} /> Add Staff
-          </button>
+          {canWrite && (
+            <>
+              <button
+                type="button"
+                onClick={() => setCsvImportOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
+              >
+                <Upload size={18} /> Import CSV
+              </button>
+              <button
+                type="button"
+                onClick={openAdd}
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+              >
+                <Plus size={18} /> Add Staff
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -633,30 +646,32 @@ export function StaffMasterView({
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-bold text-gray-800 truncate">{s.name}</span>
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      openEdit(s);
-                    }}
-                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
-                    aria-label={`Edit ${s.name}`}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setDeleteTarget(s);
-                    }}
-                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
-                    aria-label={`Delete ${s.name}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                {canWrite && (
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        openEdit(s);
+                      }}
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
+                      aria-label={`Edit ${s.name}`}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        setDeleteTarget(s);
+                      }}
+                      className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                      aria-label={`Delete ${s.name}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
               {s.role && (
                 <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">

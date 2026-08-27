@@ -2132,6 +2132,7 @@ export default function App() {
                           }
                           launch={mastersLaunch}
                           onLaunchConsumed={() => setMastersLaunch(null)}
+                          accessLevel={getAccess('masters')}
                         />
                       )}
                       {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}

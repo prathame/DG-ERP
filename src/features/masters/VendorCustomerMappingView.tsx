@@ -5,8 +5,16 @@ import { cn, exportToCsv } from '../../lib/utils';
 import { api } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
 
-export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
+export function VendorCustomerMappingView({
+  onBack,
+  accessLevel = 'full',
+}: {
+  onBack: () => void;
+  accessLevel?: AccessLevel;
+}) {
+  const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
   const [data, setData] = useState<{
     vendors: {
@@ -33,6 +41,7 @@ export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
   }, [assignModal]);
 
   const handleAssignVendor = (customerId: string, vendorId: string | null) => {
+    if (!canWrite) return;
     api.customers
       .setVendor(customerId, vendorId)
       .then(() => {
@@ -124,13 +133,15 @@ export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
                         <p className="font-medium text-sm">{c.name}</p>
                         <p className="text-xs text-gray-500">{c.phone || c.email || '-'}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setAssignModal({ customer: c, currentVendorId: v.vendor.id })}
-                        className="text-xs font-bold text-brand hover:underline"
-                      >
-                        Change
-                      </button>
+                      {canWrite && (
+                        <button
+                          type="button"
+                          onClick={() => setAssignModal({ customer: c, currentVendorId: v.vendor.id })}
+                          className="text-xs font-bold text-brand hover:underline"
+                        >
+                          Change
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -160,13 +171,15 @@ export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
                       <p className="font-medium text-sm">{c.name}</p>
                       <p className="text-xs text-gray-500">{c.phone || c.email || '-'}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setAssignModal({ customer: c, currentVendorId: null })}
-                      className="text-xs font-bold text-brand hover:underline"
-                    >
-                      Assign Vendor
-                    </button>
+                    {canWrite && (
+                      <button
+                        type="button"
+                        onClick={() => setAssignModal({ customer: c, currentVendorId: null })}
+                        className="text-xs font-bold text-brand hover:underline"
+                      >
+                        Assign Vendor
+                      </button>
+                    )}
                   </div>
                 ))
               )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveTabAccess } from '../../src/lib/tabAccess';
+import { canWriteAccess, resolveTabAccess } from '../../src/lib/tabAccess';
 
 describe('resolveTabAccess', () => {
   it('treats empty permissions object as unset (Offline Mobile DB default)', () => {
@@ -224,5 +224,25 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('settings', { role: 'Manager', businessType: 'manufacturer', permissions: null })).toBe(
       'view',
     );
+  });
+});
+
+describe('canWriteAccess', () => {
+  it('is only true for full — view/print hide writes for any role', () => {
+    expect(canWriteAccess('full')).toBe(true);
+    expect(canWriteAccess('view')).toBe(false);
+    expect(canWriteAccess('print')).toBe(false);
+    expect(canWriteAccess('hidden')).toBe(false);
+  });
+
+  it('settings:view maps Masters to view so Add/Delete stay hidden (accountant or anyone)', () => {
+    for (const role of ['Accountant', 'Staff', 'Manager', 'Warehouse']) {
+      const user = {
+        role,
+        permissions: { settings: 'view', accounts: 'view', sales: 'view', dashboard: 'view' },
+      };
+      expect(resolveTabAccess('masters', user)).toBe('view');
+      expect(canWriteAccess(resolveTabAccess('masters', user))).toBe(false);
+    }
   });
 });
