@@ -188,7 +188,8 @@ router.get('/api/products', async (req: AuthRequest, res) => {
       sql = `SELECT p.*,
         COALESCE(inv.total, 0) as total_inv, COALESCE(inv.in_stock, 0) as inv_stock,
         inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
-        COALESCE(sc.cnt, 0) + COALESCE(ds.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
+        GREATEST(0, COALESCE(sc.cnt, 0) + COALESCE(ds.cnt, 0) - COALESCE(ret.qty, 0)) as sold_count,
+        COALESCE(dc.cnt, 0) as with_vendors
         FROM products p
         LEFT JOIN (
           SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock,
@@ -198,6 +199,16 @@ router.get('/api/products', async (req: AuthRequest, res) => {
         LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_sales WHERE tenant_id = $1 GROUP BY product_id) sc ON sc.product_id = p.id
         LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Distributed' AND tenant_id = $1 GROUP BY product_id) dc ON dc.product_id = p.id
         LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Sold' AND tenant_id = $1 GROUP BY product_id) ds ON ds.product_id = p.id
+        LEFT JOIN (
+          SELECT item->>'productId' AS product_id, SUM(COALESCE((item->>'quantity')::numeric, 0)) AS qty
+          FROM credit_debit_notes n
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(n.items) = 'array' THEN n.items ELSE '[]'::jsonb END
+          ) item
+          WHERE n.tenant_id = $1 AND n.reference_type = 'distribution'
+            AND n.note_type = 'credit' AND COALESCE(n.status, 'Active') <> 'Cancelled'
+          GROUP BY item->>'productId'
+        ) ret ON ret.product_id = p.id
         WHERE p.tenant_id = $1`;
       countSql = 'SELECT COUNT(*)::int AS c FROM products p WHERE p.tenant_id = $1';
     }

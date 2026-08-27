@@ -1417,6 +1417,22 @@ router.get('/api/reports/gstr1', async (req, res) => {
     const totalCDNR = cnRows.reduce((s, n) => s - Number(n.total || 0), 0); // deduct credit notes
     const gt = Math.round((totalB2B + totalB2CS + totalCDNR) * 100) / 100;
 
+    const issuedBatchIds: string[] = [];
+    const seenBatch = new Set<string>();
+    for (const r of distRows) {
+      if (!r.gst_applied) continue;
+      const id = String(r.batch_id || '');
+      if (!id || seenBatch.has(id)) continue;
+      seenBatch.add(id);
+      issuedBatchIds.push(id);
+    }
+    const totnum = issuedBatchIds.length + invDocRows.length;
+    const firstDoc =
+      (invDocRows[0]?.invoice_number as string | undefined) || (issuedBatchIds[0] ? `INV-${issuedBatchIds[0]}` : '0');
+    const lastDoc =
+      (invDocRows[invDocRows.length - 1]?.invoice_number as string | undefined) ||
+      (issuedBatchIds.length ? `INV-${issuedBatchIds[issuedBatchIds.length - 1]}` : firstDoc);
+
     const gstr1 = {
       gstin: sellerGstin,
       fp: period,
@@ -1449,13 +1465,11 @@ router.get('/api/reports/gstr1', async (req, res) => {
             docs: [
               {
                 num: 1,
-                from: invDocRows[0]?.invoice_number || `INV-${distRows[0]?.batch_id || '0'}`,
-                to:
-                  invDocRows[invDocRows.length - 1]?.invoice_number ||
-                  `INV-${distRows[distRows.length - 1]?.batch_id || '0'}`,
-                totnum: Object.keys(invoiceMap).length + invDocRows.length,
+                from: firstDoc,
+                to: lastDoc,
+                totnum,
                 cancel: 0,
-                net_issue: Object.keys(invoiceMap).length + invDocRows.length,
+                net_issue: totnum,
               },
             ],
           },

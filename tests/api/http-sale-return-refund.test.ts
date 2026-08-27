@@ -95,11 +95,21 @@ describe('Sales return refunds a paid cash bill', () => {
 
     const inv = await api().get('/api/invoices?includeSales=1&from=2026-08-01&to=2026-08-31').set(hdrs);
     expect(inv.status).toBe(200);
-    const sale = (inv.body as { id: string; paidAmount: number; outstanding: number }[]).find(
+    const sale = (inv.body as { id: string; paidAmount: number; outstanding: number; fullyReturned?: boolean }[]).find(
       r => r.id === `sale:${BATCH}`,
     );
     expect(sale).toBeTruthy();
     expect(Number(sale?.paidAmount)).toBe(0);
     expect(Number(sale?.outstanding)).toBe(0);
+    expect(sale?.fullyReturned).toBe(true);
+
+    const acts = (after.body.recentActivity || []) as { type: string; amount: number; id: string }[];
+    const leftoverSale = acts.find(a => (a.type === 'sale' || a.type === 'distribution') && a.id === BATCH);
+    expect(leftoverSale).toBeFalsy();
+
+    const products = await api().get('/api/products').set(hdrs);
+    expect(products.status).toBe(200);
+    const wheat = (products.body as { id: string; soldCount: number }[]).find(p => p.id === P);
+    expect(Number(wheat?.soldCount)).toBe(0);
   });
 });

@@ -124,6 +124,8 @@ type Invoice = {
   /** Sale/distribution batch shown on Invoices (no second books posting). */
   source?: 'invoice' | 'sale';
   batchId?: string;
+  /** True when credit notes cover the whole bill — hide Return. */
+  fullyReturned?: boolean;
 };
 type LineItem = {
   description: string;
@@ -203,6 +205,10 @@ function invoiceHasPayments(inv: Invoice): boolean {
 
 function isSaleInvoice(inv: { id: string; source?: string }): boolean {
   return inv.source === 'sale' || inv.id.startsWith('sale:');
+}
+
+function canReturnSale(inv: Invoice): boolean {
+  return isSaleInvoice(inv) && !inv.fullyReturned;
 }
 
 function saleBatchIdOf(inv: { id: string; batchId?: string }): string {
@@ -940,7 +946,7 @@ export function InvoicesView({
                     >
                       <Printer size={14} />
                     </button>
-                    {canEdit && isSaleInvoice(inv) && (
+                    {canEdit && canReturnSale(inv) && (
                       <button
                         type="button"
                         onClick={() => void openSaleReturn(inv)}
@@ -1062,7 +1068,7 @@ export function InvoicesView({
                         >
                           <Printer size={15} />
                         </button>
-                        {canEdit && isSaleInvoice(inv) && (
+                        {canEdit && canReturnSale(inv) && (
                           <button
                             type="button"
                             onClick={() => void openSaleReturn(inv)}
@@ -1270,7 +1276,7 @@ export function InvoicesView({
                     <IndianRupee size={16} /> {t('finance.recordPayment')}
                   </button>
                 )}
-                {canEdit && isSaleInvoice(selectedInvoice) && (
+                {canEdit && canReturnSale(selectedInvoice) && (
                   <button
                     type="button"
                     onClick={() => void openSaleReturn(selectedInvoice)}

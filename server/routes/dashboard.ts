@@ -3,8 +3,42 @@ import { pool } from '../pg-db';
 import { handleApiError } from '../utils/http-error';
 import { AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
 import { sumTenantExpenses } from '../services/booksExpenses';
+import { round2 } from '../../shared/gstRound';
 
 const router = Router();
+
+type ActivityRow = { type: string; id: string; label: string; amount: number; date: string };
+
+async function distributionCreditsByBatch(tenantId: string, batchIds: string[]): Promise<Record<string, number>> {
+  const map: Record<string, number> = {};
+  const ids = [...new Set(batchIds.filter(Boolean))];
+  if (!ids.length) return map;
+  const rows = (
+    await pool.query(
+      `SELECT reference_id, SUM(total)::float AS credits
+       FROM credit_debit_notes
+       WHERE tenant_id = $1 AND reference_type = 'distribution' AND reference_id = ANY($2)
+         AND note_type = 'credit' AND COALESCE(status, 'Active') <> 'Cancelled'
+       GROUP BY reference_id`,
+      [tenantId, ids],
+    )
+  ).rows as { reference_id: string; credits: number }[];
+  for (const r of rows) map[r.reference_id] = Number(r.credits) || 0;
+  return map;
+}
+
+function netDistributionActivity(rows: ActivityRow[], credits: Record<string, number>): ActivityRow[] {
+  const out: ActivityRow[] = [];
+  for (const r of rows) {
+    let amount = Number(r.amount) || 0;
+    if (r.type === 'distribution') {
+      amount = round2(amount - (credits[r.id] || 0));
+      if (Math.abs(amount) < 0.001) continue;
+    }
+    out.push({ ...r, amount });
+  }
+  return out;
+}
 
 async function tenantBusinessType(tenantId: string): Promise<string> {
   const row = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
@@ -336,10 +370,13 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
       for (const v of vRows) vendorMap[v.id] = v.name;
     }
 
+    const credits = await distributionCreditsByBatch(
+      tenantId,
+      rows.filter(r => r.type === 'distribution').map(r => r.id),
+    );
     res.json(
-      rows.map(r => ({
+      netDistributionActivity(rows, credits).map(r => ({
         ...r,
-        amount: Number(r.amount) || 0,
         label: r.type === 'payment' || r.type === 'distribution' ? vendorMap[r.label] || r.label : r.label,
       })),
     );
@@ -407,13 +444,24 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
           (await pool.query('SELECT name FROM vendors WHERE id=$1 AND tenant_id=$2', [vid, tenantId])).rows[0] as
             { name: string } | undefined
         )?.name || vid;
+      const vCredits = await distributionCreditsByBatch(
+        tenantId,
+        activityRows.rows
+          .filter((r: Record<string, unknown>) => r.type === 'distribution')
+          .map((r: Record<string, unknown>) => String(r.id)),
+      );
       return res.json({
         money: { collections, revenue: salesRev, distribution, expenses: 0, outstanding, invoiceOutstanding: 0 },
-        recentActivity: activityRows.rows.map((r: Record<string, unknown>) => ({
-          ...r,
-          amount: Number(r.amount) || 0,
-          label: r.type === 'payment' || r.type === 'distribution' ? vName : r.label,
-        })),
+        recentActivity: netDistributionActivity(
+          activityRows.rows.map((r: Record<string, unknown>) => ({
+            type: String(r.type),
+            id: String(r.id),
+            label: r.type === 'payment' || r.type === 'distribution' ? vName : String(r.label),
+            amount: Number(r.amount) || 0,
+            date: String(r.date),
+          })),
+          vCredits,
+        ),
         topVendors: [{ vendorId: vid, vendorName: vName, balance: outstanding }],
         counts: { customerMaster: 0, vendorMaster: 1, itemMaster: 0, bankMaster: 0, staffCount: 0 },
       });
@@ -704,6 +752,12 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
       for (const v of vr.rows as { id: string; name: string }[]) vendorMap[v.id] = v.name;
     }
 
+    const distCredits = await distributionCreditsByBatch(
+      tenantId,
+      activityRows.rows
+        .filter((r: Record<string, unknown>) => r.type === 'distribution')
+        .map((r: Record<string, unknown>) => String(r.id)),
+    );
     const c = counts.rows[0] as Record<string, string>;
     const distIsSale = businessType === 'dealer' || businessType === 'silver_casting';
     res.json({
@@ -715,11 +769,21 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
         outstanding,
         invoiceOutstanding,
       },
-      recentActivity: activityRows.rows.map((r: Record<string, unknown>) => ({
+      recentActivity: netDistributionActivity(
+        activityRows.rows.map((r: Record<string, unknown>) => ({
+          type: String(r.type),
+          id: String(r.id),
+          label:
+            r.type === 'payment' || r.type === 'distribution'
+              ? vendorMap[r.label as string] || String(r.label)
+              : String(r.label),
+          amount: Number(r.amount) || 0,
+          date: String(r.date),
+        })),
+        distCredits,
+      ).map(r => ({
         ...r,
         type: distIsSale && r.type === 'distribution' ? 'sale' : r.type,
-        amount: Number(r.amount) || 0,
-        label: r.type === 'payment' || r.type === 'distribution' ? vendorMap[r.label as string] || r.label : r.label,
       })),
       topVendors: (
         vendorSummary.rows as {
