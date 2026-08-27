@@ -56,6 +56,7 @@ function mapSaleBatchAsInvoice(
   source: 'sale';
   batchId: string;
   outstanding: number;
+  fullyReturned: boolean;
 } {
   const batchId = String(r.batch_id || '');
   const billValue = Number(r.bill_value) || 0;
@@ -64,6 +65,7 @@ function mapSaleBatchAsInvoice(
   const invoiceNumber = saleChallanNumber(batchId, gstUnits, nonGstUnits);
   const outstanding = Math.max(0, round2(billValue - paid - credits));
   const returnedUnpaid = credits > 0.001 && paid <= 0.001;
+  const fullyReturned = credits > 0.001 && round2(credits) >= round2(billValue) - 0.001;
   return {
     id: `sale:${batchId}`,
     source: 'sale',
@@ -92,6 +94,7 @@ function mapSaleBatchAsInvoice(
     createdAt: r.distribution_date,
     paidAmount: paid,
     outstanding,
+    fullyReturned,
     irn: (r.irn as string) || null,
     irnAckNo: null,
     irnAckDt: null,

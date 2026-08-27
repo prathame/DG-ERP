@@ -91,5 +91,8 @@ describe('GSTR-1 after unregistered sales return', () => {
         expect(String(inv.val)).not.toMatch(/99999/);
       }
     }
+    const docs = after.body.doc_issue?.doc_det?.[0]?.docs?.[0];
+    expect(docs?.totnum).toBe(1);
+    expect(docs?.net_issue).toBe(1);
   });
 });
