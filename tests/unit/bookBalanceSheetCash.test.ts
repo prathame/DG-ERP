@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isCashInHandLedger, placeBalanceSheetLine } from '../../server/services/bookFinancialStatements';
+import {
+  isCashInHandLedger,
+  periodPnlCapitalPlug,
+  placeBalanceSheetLine,
+} from '../../server/services/bookFinancialStatements';
 
 describe('isCashInHandLedger', () => {
   it('treats CS ledgers and Cash-in-Hand group as cash', () => {
@@ -65,5 +69,23 @@ describe('placeBalanceSheetLine — cash stays an asset', () => {
       closingBalance: -940,
     });
     expect(placed).toEqual({ side: 'liabilities', amount: 940 });
+  });
+});
+
+describe('periodPnlCapitalPlug', () => {
+  it('puts period net loss on capital as a negative amount', () => {
+    expect(periodPnlCapitalPlug(-8694)).toEqual({
+      name: 'Net loss (current period)',
+      groupName: 'P&L',
+      amount: -8694,
+    });
+  });
+
+  it('puts period net profit on capital', () => {
+    expect(periodPnlCapitalPlug(100)).toEqual({
+      name: 'Net profit (current period)',
+      groupName: 'P&L',
+      amount: 100,
+    });
   });
 });

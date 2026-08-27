@@ -83,6 +83,8 @@ type BillLine = {
   description: string;
   hsnSac: string;
   qty: number;
+  packs: number;
+  loosePieces: number;
   unit: string;
   rate: number;
   gstPercent: number;
@@ -114,12 +116,24 @@ const emptyRow = (gstOn = true, unit = DEFAULT_BILL_UNIT): BillLine => ({
   description: '',
   hsnSac: '',
   qty: 1,
+  packs: 0,
+  loosePieces: 0,
   unit,
   rate: 0,
   gstPercent: gstOn ? 18 : 0,
   discountPercent: 0,
   withGst: gstOn,
 });
+
+function packSizeOf(p?: Product): number {
+  return p?.packSize && p.packSize > 1 ? p.packSize : 1;
+}
+
+function stockQtyOf(row: BillLine, products: Product[]): number {
+  const ps = packSizeOf(products.find(x => x.id === row.productId));
+  if (ps > 1) return (Number(row.packs) || 0) * ps + (Number(row.loosePieces) || 0);
+  return Number(row.qty) || 0;
+}
 
 function lineTaxable(qty: number, rate: number, discountPercent: number): number {
   const disc = Math.min(100, Math.max(0, discountPercent || 0));
@@ -145,8 +159,8 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
   return candidates[0]?.price ?? product.price ?? 0;
 }
 
-function classifyLines(rows: BillLine[]) {
-  const inventory = rows.filter(r => r.productId && r.qty > 0);
+function classifyLines(rows: BillLine[], products: Product[]) {
+  const inventory = rows.filter(r => r.productId && stockQtyOf(r, products) > 0);
   const custom = rows.filter(r => !r.productId && r.description.trim() && r.rate > 0);
   return { inventory, custom };
 }
@@ -326,7 +340,8 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   };
 
   const applyProduct = (idx: number, p: Product) => {
-    const qty = rows[idx]?.qty || 1;
+    const ps = packSizeOf(p);
+    const qty = ps > 1 ? ps : rows[idx]?.qty || 1;
     const catalog = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
     const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
     const withGst = gstBilling;
@@ -345,6 +360,8 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
               description: p.name,
               hsnSac: withGst ? p.hsnCode || r.hsnSac || '' : '',
               qty,
+              packs: ps > 1 ? 1 : 0,
+              loosePieces: 0,
               rate,
               withGst,
               gstPercent,
@@ -403,12 +420,20 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     if (row?.productId && qty > 0) resolveRowPrice(idx, row.productId, vendorId || null, qty);
   };
 
+  const updatePackQty = (idx: number, packs: number, loosePieces: number) => {
+    const row = rows[idx];
+    const p = row?.productId ? products.find(x => x.id === row.productId) : undefined;
+    const qty = (packs || 0) * packSizeOf(p) + (loosePieces || 0);
+    setRows(prev => prev.map((r, i) => (i === idx ? { ...r, packs, loosePieces, qty } : r)));
+    if (row?.productId && qty > 0) resolveRowPrice(idx, row.productId, vendorId || null, qty);
+  };
+
   const rowLineMoney = (r: BillLine) => {
     const p = r.productId ? products.find(x => x.id === r.productId) : undefined;
     if (p) {
       return linePricesAfterDiscount({
         unitPrice: r.rate || 0,
-        quantity: r.qty || 0,
+        quantity: stockQtyOf(r, products) || r.qty || 0,
         discountPercent: r.discountPercent || 0,
         withGst: r.withGst,
         // Rate field already stripped when GST off on inclusive products
@@ -444,7 +469,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       gstRate: defaultGstRate,
       items: inventory.map(row => ({
         productId: row.productId,
-        quantity: row.qty,
+        quantity: stockQtyOf(row, products),
         discountPercent: row.discountPercent > 0 ? row.discountPercent : undefined,
         withGst: row.withGst,
         customPrice: row.rate > 0 ? row.rate : undefined,
@@ -539,7 +564,12 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       toast(phoneErr, 'error');
       return;
     }
-    const { inventory, custom } = classifyLines(rows);
+    const { inventory, custom } = classifyLines(rows, products);
+    const pickedNoQty = rows.some(r => r.productId) && inventory.length === 0;
+    if (pickedNoQty) {
+      toast('Quantity must be at least 1', 'error');
+      return;
+    }
     if (inventory.length === 0 && custom.length === 0) {
       toast('Add at least one product or custom line', 'error');
       return;
@@ -756,7 +786,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     );
 
   const routeHint = (() => {
-    const { inventory, custom } = classifyLines(rows);
+    const { inventory, custom } = classifyLines(rows, products);
     if (vendorId && inventory.length > 0 && custom.length === 0) {
       return `Matched ${partyLabel.toLowerCase()} + inventory → tax invoice on Invoices (also recorded as a ${saleLabel}).`;
     }
@@ -1028,14 +1058,43 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                               />
                             </td>
                             <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                min={0.001}
-                                step="any"
-                                value={row.qty || ''}
-                                onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
-                                className="w-full min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
-                              />
+                              {packSizeOf(p) > 1 ? (
+                                <div className="flex gap-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    inputMode="numeric"
+                                    value={row.packs || ''}
+                                    onChange={e =>
+                                      updatePackQty(idx, parseInt(e.target.value, 10) || 0, row.loosePieces || 0)
+                                    }
+                                    className="w-full min-w-[48px] px-1 py-2 border border-gray-200 rounded-lg text-sm text-center"
+                                    aria-label={p?.packName || 'Packs'}
+                                    placeholder={p?.packName || 'Pk'}
+                                  />
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    inputMode="numeric"
+                                    value={row.loosePieces || ''}
+                                    onChange={e =>
+                                      updatePackQty(idx, row.packs || 0, parseInt(e.target.value, 10) || 0)
+                                    }
+                                    className="w-full min-w-[48px] px-1 py-2 border border-gray-200 rounded-lg text-sm text-center"
+                                    aria-label="Loose pieces"
+                                    placeholder="pcs"
+                                  />
+                                </div>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step="1"
+                                  value={row.qty || ''}
+                                  onChange={e => updateRowQty(idx, parseBillQty(e.target.value, 0))}
+                                  className="w-full min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
+                                />
+                              )}
                             </td>
                             <td className="px-2 py-2">
                               <BillLineUnitLabel unit={normalizeLineUnit(row.unit, defaultBillUnit(billUnits))} />

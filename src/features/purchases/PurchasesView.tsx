@@ -12,6 +12,7 @@ import {
   Truck,
   UserPlus,
   Printer,
+  Undo2,
 } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel, openPrintWindow, printBillInWindow } from '../../lib/utils';
 import { generatePurchaseSelfInvoiceHtml, generatePurchaseBillHtml } from '../../lib/billTemplates';
@@ -187,6 +188,12 @@ export function PurchasesView({
   const [supplierQuery, setSupplierQuery] = useState('');
   const [quickAddProduct, setQuickAddProduct] = useState<{ idx: number; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [returnTarget, setReturnTarget] = useState<{
+    batchId: string;
+    title: string;
+    items: { productId: string; name: string; maxQty: number; qty: number }[];
+  } | null>(null);
+  const [returnBusy, setReturnBusy] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
   const [section, setSection] = useState<'purchases' | 'expenses'>('purchases');
@@ -409,7 +416,7 @@ export function PurchasesView({
     .map(pr => ({
       value: pr.id,
       label: pr.name,
-      sublabel: `₹${Number(pr.price || 0).toLocaleString('en-IN')}${(pr.packSize ?? 1) > 1 ? ` · ${pr.packName}=${pr.packSize}` : ''}`,
+      sublabel: `₹${Number(Number(pr.costPrice) > 0 ? pr.costPrice : pr.price || 0).toLocaleString('en-IN')} cost${(pr.packSize ?? 1) > 1 ? ` · ${pr.packName}=${pr.packSize}` : ''}`,
     }));
 
   const purchaseProductSelect = (row: PurchaseRow, idx: number, className?: string) => (
@@ -664,7 +671,7 @@ export function PurchasesView({
           }),
         }),
       })) as { invoiceNumber?: string | null; isRcm?: boolean };
-      setModalOpen(false);
+      closePurchaseModal();
       setPurchaseRows([emptyPurchaseRow()]);
       setSupplierQuery('');
       setPurchaseForm({
@@ -858,6 +865,33 @@ export function PurchasesView({
                 >
                   <Printer size={16} /> Print purchase bill
                 </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const items = ((bd.items as Record<string, unknown>[]) || [])
+                        .filter(it => String(it.productId || '') && Number(it.quantity) > 0)
+                        .map(it => ({
+                          productId: String(it.productId),
+                          name: String(it.productName || 'Item'),
+                          maxQty: Math.floor(Number(it.quantity) || 0),
+                          qty: 0,
+                        }));
+                      if (!items.length) {
+                        toast('No products to return on this bill', 'error');
+                        return;
+                      }
+                      setReturnTarget({
+                        batchId: selectedBatchId || '',
+                        title: String(bd.invoiceNumber || 'Purchase'),
+                        items,
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg"
+                  >
+                    <Undo2 size={16} /> Return
+                  </button>
+                )}
                 {Number(bd.balanceRemaining) > 0 && (
                   <button
                     type="button"
@@ -916,6 +950,79 @@ export function PurchasesView({
               ))}
             </div>
           </div>
+          {returnTarget && (
+            <AppModal title={`Return — ${returnTarget.title}`} onClose={() => setReturnTarget(null)} size="md">
+              <div className="space-y-3">
+                {returnTarget.items.map((it, idx) => (
+                  <div key={it.productId} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{it.name}</p>
+                      <p className="text-xs text-gray-500">Purchased {it.maxQty}</p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={it.maxQty}
+                      value={it.qty || ''}
+                      onChange={e => {
+                        const n = Math.min(it.maxQty, Math.max(0, parseInt(e.target.value, 10) || 0));
+                        setReturnTarget(prev =>
+                          prev
+                            ? { ...prev, items: prev.items.map((row, i) => (i === idx ? { ...row, qty: n } : row)) }
+                            : prev,
+                        );
+                      }}
+                      className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
+                      aria-label={`Return qty for ${it.name}`}
+                    />
+                  </div>
+                ))}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setReturnTarget(null)}
+                    className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={returnBusy}
+                    onClick={async () => {
+                      const items = returnTarget.items
+                        .filter(it => it.qty >= 1)
+                        .map(it => ({ productId: it.productId, quantity: it.qty }));
+                      if (!items.length) {
+                        toast('Enter a return quantity of at least 1', 'error');
+                        return;
+                      }
+                      setReturnBusy(true);
+                      try {
+                        await fetchApi(`/purchases/batch/${encodeURIComponent(returnTarget.batchId)}/return`, {
+                          method: 'POST',
+                          body: JSON.stringify({ items }),
+                        });
+                        toast('Return saved', 'success');
+                        setReturnTarget(null);
+                        load();
+                        if (selectedBatchId) {
+                          const d = await fetchApi(`/purchases/batch/${selectedBatchId}`);
+                          setBatchDetail(d as Record<string, unknown>);
+                        }
+                      } catch (err) {
+                        toast((err as Error).message, 'error');
+                      } finally {
+                        setReturnBusy(false);
+                      }
+                    }}
+                    className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl font-bold disabled:opacity-60"
+                  >
+                    {returnBusy ? 'Saving…' : 'Save return'}
+                  </button>
+                </div>
+              </div>
+            </AppModal>
+          )}
           {paymentModal && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/40" onClick={() => setPaymentModal(null)} />

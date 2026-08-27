@@ -13,6 +13,7 @@ import {
   Search,
   IndianRupee,
   Check,
+  Undo2,
 } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
@@ -286,6 +287,7 @@ export function InvoicesView({
   onCreatePurchase,
   launchCreate,
   onLaunchConsumed,
+  accessLevel = 'full',
 }: {
   onOpenFinance?: () => void;
   /** Open Sales edit for a bill that was created as a customer sale (not a standalone invoice). */
@@ -294,7 +296,9 @@ export function InvoicesView({
   onCreatePurchase?: () => void;
   launchCreate?: CreateLaunch | null;
   onLaunchConsumed?: () => void;
+  accessLevel?: 'hidden' | 'view' | 'print' | 'full';
 } = {}) {
+  const canEdit = accessLevel === 'full';
   const { toast } = useToast();
   const { t } = useTranslation();
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
@@ -327,14 +331,24 @@ export function InvoicesView({
     referenceNumber: '',
     notes: '',
   });
+  const [returnTarget, setReturnTarget] = useState<{
+    batchId: string;
+    title: string;
+    items: { productId: string; name: string; maxQty: number; qty: number }[];
+  } | null>(null);
+  const [returnBusy, setReturnBusy] = useState(false);
 
   useEffect(() => {
-    if (launchCreate !== 'invoice') return;
+    if (!canEdit || launchCreate !== 'invoice') return;
     setCreateOpen(true);
     onLaunchConsumed?.();
-  }, [launchCreate, onLaunchConsumed]);
+  }, [canEdit, launchCreate, onLaunchConsumed]);
 
   useEscapeKey(() => {
+    if (returnTarget) {
+      setReturnTarget(null);
+      return true;
+    }
     if (payTarget) {
       setPayTarget(null);
       return true;
@@ -419,6 +433,53 @@ export function InvoicesView({
         return;
       }
       void reportActionFailed('invoice.delete', err, { invoiceNumber: deleteTarget.invoiceNumber });
+    }
+  };
+
+  const openSaleReturn = async (inv: Invoice) => {
+    if (!isSaleInvoice(inv)) {
+      toast('Standalone invoices cannot be returned here', 'error');
+      return;
+    }
+    try {
+      const detail = await api.distribution.getBatch(saleBatchIdOf(inv));
+      const items = (detail.items || [])
+        .filter(it => it.productId && it.quantity > 0)
+        .map(it => ({
+          productId: it.productId,
+          name: it.productName,
+          maxQty: Math.floor(Number(it.quantity) || 0),
+          qty: 0,
+        }));
+      if (!items.length) {
+        toast('No products to return on this bill', 'error');
+        return;
+      }
+      setReturnTarget({ batchId: detail.batchId, title: inv.invoiceNumber, items });
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
+  const submitSaleReturn = async () => {
+    if (!returnTarget) return;
+    const items = returnTarget.items
+      .filter(it => it.qty >= 1)
+      .map(it => ({ productId: it.productId, quantity: it.qty }));
+    if (!items.length) {
+      toast('Enter a return quantity of at least 1', 'error');
+      return;
+    }
+    setReturnBusy(true);
+    try {
+      await api.distribution.returnBatch(returnTarget.batchId, items);
+      toast('Return saved', 'success');
+      setReturnTarget(null);
+      load();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setReturnBusy(false);
     }
   };
 
@@ -747,13 +808,15 @@ export function InvoicesView({
               <option value="minimal">Minimal</option>
             </select>
           )}
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
-          >
-            <Plus size={16} /> {t('invoices.newInvoice')}
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
+            >
+              <Plus size={16} /> {t('invoices.newInvoice')}
+            </button>
+          )}
           {onCreatePurchase && (
             <button
               type="button"
@@ -988,6 +1051,17 @@ export function InvoicesView({
                         >
                           <Printer size={15} />
                         </button>
+                        {canEdit && isSaleInvoice(inv) && (
+                          <button
+                            type="button"
+                            onClick={() => void openSaleReturn(inv)}
+                            className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg"
+                            title="Return"
+                            aria-label="Return sale"
+                          >
+                            <Undo2 size={15} />
+                          </button>
+                        )}
                         {canEditInvoice(inv) && (
                           <button
                             type="button"
@@ -1051,7 +1125,7 @@ export function InvoicesView({
         </>
       )}
 
-      {invoices.length > 0 && (
+      {invoices.length > 0 && canEdit && (
         <MobileFab
           label="Invoice"
           onClick={() => {
@@ -1185,6 +1259,15 @@ export function InvoicesView({
                     <IndianRupee size={16} /> {t('finance.recordPayment')}
                   </button>
                 )}
+                {canEdit && isSaleInvoice(selectedInvoice) && (
+                  <button
+                    type="button"
+                    onClick={() => void openSaleReturn(selectedInvoice)}
+                    className="flex-1 py-2.5 border border-amber-200 text-amber-800 rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <Undo2 size={16} /> Return
+                  </button>
+                )}
                 {canEditInvoice(selectedInvoice) && (
                   <button
                     type="button"
@@ -1215,6 +1298,54 @@ export function InvoicesView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {returnTarget && (
+        <AppModal title={`Return — ${returnTarget.title}`} onClose={() => setReturnTarget(null)} size="md">
+          <div className="space-y-3">
+            {returnTarget.items.map((it, idx) => (
+              <div key={it.productId} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{it.name}</p>
+                  <p className="text-xs text-gray-500">Sold {it.maxQty}</p>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={it.maxQty}
+                  value={it.qty || ''}
+                  onChange={e => {
+                    const n = Math.min(it.maxQty, Math.max(0, parseInt(e.target.value, 10) || 0));
+                    setReturnTarget(prev =>
+                      prev
+                        ? { ...prev, items: prev.items.map((row, i) => (i === idx ? { ...row, qty: n } : row)) }
+                        : prev,
+                    );
+                  }}
+                  className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
+                  aria-label={`Return qty for ${it.name}`}
+                />
+              </div>
+            ))}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setReturnTarget(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={returnBusy}
+                onClick={() => void submitSaleReturn()}
+                className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl font-bold disabled:opacity-60"
+              >
+                {returnBusy ? 'Saving…' : 'Save return'}
+              </button>
+            </div>
+          </div>
+        </AppModal>
+      )}
 
       {/* Record Payment — sale bills use vendor-finance (same as Sales); standalone use invoice-finance */}
       {payTarget && (

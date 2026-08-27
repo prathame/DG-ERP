@@ -1024,15 +1024,15 @@ export function InventoryView({
                       className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
                     />
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={addForm.priceIncludesGst}
                       onChange={e => setAddForm({ ...addForm, priceIncludesGst: e.target.checked })}
                       className="rounded text-brand"
                     />
-                    <label className="text-xs font-medium text-gray-500">Price includes GST</label>
-                  </div>
+                    <span className="text-xs font-medium text-gray-500">Price includes GST</span>
+                  </label>
                 </div>
 
                 {/* Unit: Nos / Piece / Box / Bag / Kg */}

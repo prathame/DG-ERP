@@ -35,11 +35,11 @@ const UNMAPPED_TAB_FALLBACK: Record<string, string> = {
   masters: 'settings',
   invoices: 'sales',
   chatbot: 'dashboard',
-  books: 'books',
-  book_ledgers: 'books',
-  book_vouchers: 'books',
-  book_products: 'books',
-  book_import: 'books',
+  books: 'accounts',
+  book_ledgers: 'accounts',
+  book_vouchers: 'accounts',
+  book_products: 'accounts',
+  book_import: 'accounts',
 };
 
 /**

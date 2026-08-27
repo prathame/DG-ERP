@@ -25,6 +25,7 @@ router.get('/api/vendor-finance/summary', async (req: AuthRequest, res) => {
       SELECT v.id, v.name, v.phone,
         COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id AND pd.tenant_id = $1), 0) as total_distributed_value,
         COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id AND tenant_id = $1), 0) as total_paid,
+        COALESCE((SELECT SUM(total) FROM credit_debit_notes WHERE vendor_id = v.id AND tenant_id = $1 AND note_type = 'credit' AND COALESCE(status, 'Active') <> 'Cancelled'), 0) as credits,
         (SELECT COUNT(*) FROM product_distribution WHERE vendor_id = v.id AND tenant_id = $1) as units_distributed
       FROM vendors v WHERE v.id != 'OWNER' AND v.tenant_id = $1
       ${vendorScopeId(req) ? `AND v.id = $2` : ''}
@@ -38,6 +39,7 @@ router.get('/api/vendor-finance/summary', async (req: AuthRequest, res) => {
       phone: string | null;
       total_distributed_value: number;
       total_paid: number;
+      credits: number;
       units_distributed: number;
     }[];
 
@@ -54,13 +56,14 @@ router.get('/api/vendor-finance/summary', async (req: AuthRequest, res) => {
         const rem = reminderMap[v.id];
         const distVal = Number(v.total_distributed_value) || 0;
         const paidVal = Number(v.total_paid) || 0;
+        const creditVal = Number(v.credits) || 0;
         return {
           vendorId: v.id,
           vendorName: v.name,
           vendorPhone: v.phone ?? '',
           totalDistributedValue: distVal,
           totalPaid: paidVal,
-          balance: distVal - paidVal,
+          balance: distVal - paidVal - creditVal,
           unitsDistributed: Number(v.units_distributed) || 0,
           reminder: rem
             ? { enabled: !!rem.enabled, days: rem.reminder_days, lastSent: rem.last_reminder_date }
@@ -158,6 +161,13 @@ router.get('/api/vendor-finance/:vendorId', async (req: AuthRequest, res) => {
         [vendorId, tenantId],
       )
     ).rows[0] as { total: number };
+    const credits = (
+      await pool.query(
+        `SELECT COALESCE(SUM(total), 0) as total FROM credit_debit_notes
+         WHERE vendor_id = $1 AND tenant_id = $2 AND note_type = 'credit' AND COALESCE(status, 'Active') <> 'Cancelled'`,
+        [vendorId, tenantId],
+      )
+    ).rows[0] as { total: number };
     const payments = (
       await pool.query(
         'SELECT * FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2 ORDER BY payment_date DESC',
@@ -195,6 +205,7 @@ router.get('/api/vendor-finance/:vendorId', async (req: AuthRequest, res) => {
 
     const distVal = Number(totalValue.total) || 0;
     const paidVal = Number(totalPaid.total) || 0;
+    const creditVal = Number(credits.total) || 0;
     res.json({
       vendor: {
         id: vendor.id,
@@ -206,7 +217,7 @@ router.get('/api/vendor-finance/:vendorId', async (req: AuthRequest, res) => {
       },
       totalDistributedValue: distVal,
       totalPaid: paidVal,
-      balance: distVal - paidVal,
+      balance: distVal - paidVal - creditVal,
       payments: payments.map(p => ({
         id: p.id,
         amount: p.amount,

@@ -388,7 +388,7 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
         `
         SELECT COALESCE(SUM(COALESCE(
           (SELECT AVG(pp.cost_price) FROM product_purchases pp WHERE pp.product_id = pd.product_id AND pp.tenant_id = $1 AND pp.cost_price > 0),
-          p.price
+          NULLIF(p.cost_price, 0)
         )), 0) as t
         FROM product_distribution pd
         JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
@@ -400,7 +400,7 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
         `
         SELECT COALESCE(SUM(COALESCE(
           (SELECT AVG(pp.cost_price) FROM product_purchases pp WHERE pp.product_id = ps.product_id AND pp.tenant_id = $1 AND pp.cost_price > 0),
-          p.price
+          NULLIF(p.cost_price, 0)
         )), 0) as t
         FROM product_sales ps
         JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1

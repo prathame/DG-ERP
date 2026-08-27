@@ -346,6 +346,14 @@ export function placeBalanceSheetLine(r: {
   return null;
 }
 
+/** Period P&L plug on the balance sheet: profit or loss both sit in capital (loss is negative). */
+export function periodPnlCapitalPlug(netProfit: number): { name: string; groupName: string; amount: number } | null {
+  const n = round2(netProfit);
+  if (n >= 0.005) return { name: 'Net profit (current period)', groupName: 'P&L', amount: n };
+  if (n <= -0.005) return { name: 'Net loss (current period)', groupName: 'P&L', amount: n };
+  return null;
+}
+
 export async function getBooksBalanceSheet(pool: Pool, tenantId: string, asOf: string | null) {
   // BS uses all movements through asOf; income/expense closed via net profit plug
   const rows = toTbRows(await loadLedgerAggregates(pool, tenantId, null, asOf));
@@ -363,11 +371,8 @@ export async function getBooksBalanceSheet(pool: Pool, tenantId: string, asOf: s
     else capital.push({ name: r.name, groupName: r.groupName, amount: placed.amount });
   }
 
-  if (pnl.netProfit >= 0.005) {
-    capital.push({ name: 'Net profit (current period)', groupName: 'P&L', amount: pnl.netProfit });
-  } else if (pnl.netProfit <= -0.005) {
-    assets.push({ name: 'Net loss (current period)', groupName: 'P&L', amount: Math.abs(pnl.netProfit) });
-  }
+  const pnlPlug = periodPnlCapitalPlug(pnl.netProfit);
+  if (pnlPlug) capital.push(pnlPlug);
 
   const totalAssets = round2(assets.reduce((s, x) => s + x.amount, 0));
   const totalLiabilities = round2(liabilities.reduce((s, x) => s + x.amount, 0));
