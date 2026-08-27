@@ -580,6 +580,7 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
       activityRows,
       vendorSummary,
       counts,
+      saleCredits,
     ] = await Promise.all([
       pool
         .query(
@@ -678,6 +679,13 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
         (SELECT COUNT(*) FROM staff_members WHERE tenant_id=$1) as staff`,
         [tenantId],
       ),
+      pool
+        .query(
+          `SELECT COALESCE(SUM(total),0) as v FROM credit_debit_notes
+           WHERE tenant_id=$1 AND note_type='credit' AND COALESCE(status,'Active') <> 'Cancelled' ${dateFilter('note_date')}`,
+          params([]),
+        )
+        .then(r => Number(r.rows[0].v) || 0),
     ]);
 
     const vendorIds = [
@@ -701,7 +709,7 @@ router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
     res.json({
       money: {
         collections,
-        revenue: distIsSale ? salesRev + invoiceRev + distribution : salesRev + invoiceRev,
+        revenue: distIsSale ? Math.max(0, salesRev + invoiceRev + distribution - saleCredits) : salesRev + invoiceRev,
         distribution: distIsSale ? 0 : distribution,
         expenses,
         outstanding,

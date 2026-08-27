@@ -209,7 +209,7 @@ export function MobileAnalyticsDashboard({
           <div className="space-y-2">
             {activity.slice(0, 8).map(a => {
               const Icon = activityIcon(a.type);
-              const outflow = a.type === 'expense';
+              const outflow = a.type === 'expense' || a.amount < 0;
               return (
                 <div key={a.id + a.type} className="flex items-center gap-2.5">
                   <div

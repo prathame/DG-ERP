@@ -27,6 +27,75 @@ type OutstandingBillRow = {
   ageBucket: OutstandingAgeBucket;
 };
 
+type GstCreditNoteRow = {
+  items: unknown;
+  subtotal: number;
+  gst_amount: number;
+  total: number;
+  vendor_gstin: string | null;
+};
+
+async function loadDistributionCreditNotes(
+  tenantId: string,
+  startDate: string,
+  endDate: string,
+): Promise<GstCreditNoteRow[]> {
+  const { rows } = await pool.query(
+    `SELECT cdn.items, cdn.subtotal, cdn.gst_amount, cdn.total, v.gst_number AS vendor_gstin
+     FROM credit_debit_notes cdn
+     LEFT JOIN vendors v ON v.id = cdn.vendor_id AND v.tenant_id = cdn.tenant_id
+     WHERE cdn.tenant_id = $1 AND cdn.note_date >= $2 AND cdn.note_date < $3
+       AND cdn.note_type = 'credit'
+       AND COALESCE(cdn.status, 'Active') <> 'Cancelled'
+       AND cdn.reference_type = 'distribution'`,
+    [tenantId, startDate, endDate],
+  );
+  return rows as GstCreditNoteRow[];
+}
+
+function creditNoteLines(n: GstCreditNoteRow): Array<{ productId: string; quantity: number; price: number }> {
+  const raw = typeof n.items === 'string' ? JSON.parse(n.items) : n.items;
+  if (!Array.isArray(raw)) return [];
+  return raw.map(it => ({
+    productId: String((it as { productId?: string }).productId || ''),
+    quantity: Number((it as { quantity?: number }).quantity) || 0,
+    price: Number((it as { price?: number }).price) || 0,
+  }));
+}
+
+async function applySaleReturnsToHsn(
+  tenantId: string,
+  notes: GstCreditNoteRow[],
+  hsnMap: Record<string, { qty: number; taxable: number; cgst: number; sgst: number; total?: number; igst?: number }>,
+): Promise<void> {
+  const ids = [...new Set(notes.flatMap(n => creditNoteLines(n).map(l => l.productId)).filter(Boolean))];
+  if (ids.length === 0) return;
+  const products = (
+    await pool.query(`SELECT id, hsn_code FROM products WHERE tenant_id = $1 AND id = ANY($2)`, [tenantId, ids])
+  ).rows as { id: string; hsn_code: string | null }[];
+  const hsnByProduct: Record<string, string> = {};
+  for (const p of products) hsnByProduct[p.id] = p.hsn_code || '';
+  for (const n of notes) {
+    const tax = round2(Number(n.gst_amount) || 0);
+    const billed = round2(Number(n.total) || 0);
+    const lines = creditNoteLines(n);
+    const lineTaxableSum = lines.reduce((s, l) => s + l.price * l.quantity, 0) || round2(Number(n.subtotal) || 0);
+    for (const line of lines) {
+      const hsn = hsnByProduct[line.productId];
+      if (!hsn || !hsnMap[hsn]) continue;
+      const lineTaxable = round2(line.price * line.quantity);
+      const share = lineTaxableSum > 0 ? lineTaxable / lineTaxableSum : 0;
+      const ls = splitGst(round2(tax * share));
+      hsnMap[hsn].qty = Math.max(0, hsnMap[hsn].qty - line.quantity);
+      hsnMap[hsn].taxable = round2(hsnMap[hsn].taxable - lineTaxable);
+      hsnMap[hsn].cgst = round2(hsnMap[hsn].cgst - ls.cgst);
+      hsnMap[hsn].sgst = round2(hsnMap[hsn].sgst - ls.sgst);
+      if (typeof hsnMap[hsn].igst === 'number') hsnMap[hsn].igst = round2(hsnMap[hsn].igst);
+      if (typeof hsnMap[hsn].total === 'number') hsnMap[hsn].total = round2(hsnMap[hsn].total - billed * share);
+    }
+  }
+}
+
 function outstandingAge(days: number): OutstandingAgeBucket {
   if (days <= 30) return '0-30';
   if (days <= 60) return '31-60';
@@ -932,6 +1001,27 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       }
     }
 
+    const saleReturns = await loadDistributionCreditNotes(tenantId, startDate, endDate);
+    await applySaleReturnsToHsn(tenantId, saleReturns, hsnMap);
+    for (const n of saleReturns) {
+      if (n.vendor_gstin && String(n.vendor_gstin).length >= 15) continue;
+      const taxable = round2(Number(n.subtotal) || 0);
+      const tax = round2(Number(n.gst_amount) || 0);
+      const billed = round2(Number(n.total) || 0);
+      const split = splitGst(tax);
+      b2cTaxable = round2(b2cTaxable - taxable);
+      b2cCgst = round2(b2cCgst - split.cgst);
+      b2cSgst = round2(b2cSgst - split.sgst);
+      b2cTotal = round2(b2cTotal - billed);
+      const rate = taxable > 0 ? Math.round((tax / taxable) * 100) : 0;
+      if (b2cRateMap[rate]) {
+        b2cRateMap[rate].taxable = round2(b2cRateMap[rate].taxable - taxable);
+        b2cRateMap[rate].cgst = round2(b2cRateMap[rate].cgst - split.cgst);
+        b2cRateMap[rate].sgst = round2(b2cRateMap[rate].sgst - split.sgst);
+        b2cRateMap[rate].total = round2(b2cRateMap[rate].total - billed);
+      }
+    }
+
     if (req.query.format === 'csv') {
       const b2bRows = Object.values(b2b).map(v => [
         'B2B',
@@ -1188,7 +1278,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
       b2bByGstin[inv.gstin].inv.push({
         inum: `INV-${inv.batchId}`,
         idt: fmtDate,
-        val: invTotal,
+        val: round2(invTotal),
         pos: inv.gstin.substring(0, 2),
         rchrg: 'N',
         inv_typ: 'R',
@@ -1216,20 +1306,6 @@ router.get('/api/reports/gstr1', async (req, res) => {
       b2csGrouped[key].samt += item.sgst;
     }
 
-    // Format HSN Summary (GSTR-1 Table 12)
-    const hsnData = Object.values(hsnMap).map((h, i) => ({
-      num: i + 1,
-      hsn_sc: h.hsn,
-      desc: h.desc,
-      uqc: h.uqc,
-      qty: h.qty,
-      txval: round2(h.taxable),
-      iamt: 0,
-      camt: round2(h.cgst),
-      samt: round2(h.sgst),
-      rt: h.rate,
-    }));
-
     // Append standalone invoices into B2B / B2CS
     for (const inv of invDocRows) {
       const gstin = String(inv.customer_gstin || '');
@@ -1244,7 +1320,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
         b2bByGstin[gstin].inv.push({
           inum: String(inv.invoice_number),
           idt: fmtDate,
-          val: Number(inv.grand_total) || 0,
+          val: round2(Number(inv.grand_total) || 0),
           pos: gstin.substring(0, 2),
           rchrg: 'N',
           inv_typ: 'R',
@@ -1271,6 +1347,39 @@ router.get('/api/reports/gstr1', async (req, res) => {
         b2csGrouped[key].iamt += igst;
       }
     }
+
+    const saleReturns = await loadDistributionCreditNotes(tenantId, startDate, endDate);
+    await applySaleReturnsToHsn(tenantId, saleReturns, hsnMap);
+    for (const n of saleReturns) {
+      if (n.vendor_gstin && String(n.vendor_gstin).length >= 15) continue;
+      const taxable = round2(Number(n.subtotal) || 0);
+      const tax = round2(Number(n.gst_amount) || 0);
+      const split = splitGst(tax);
+      const rate = taxable > 0 ? Math.round((tax / taxable) * 100) : 0;
+      const key = `${rate}`;
+      const g = b2csGrouped[key];
+      if (!g) continue;
+      g.txval = round2(g.txval - taxable);
+      g.camt = round2(g.camt - split.cgst);
+      g.samt = round2(g.samt - split.sgst);
+      if (g.txval <= 0.001 && g.camt <= 0.001 && g.samt <= 0.001) delete b2csGrouped[key];
+    }
+
+    // Format HSN Summary (GSTR-1 Table 12)
+    const hsnData = Object.values(hsnMap)
+      .filter(h => h.qty > 0 || h.taxable > 0.001)
+      .map((h, i) => ({
+        num: i + 1,
+        hsn_sc: h.hsn,
+        desc: h.desc,
+        uqc: h.uqc,
+        qty: h.qty,
+        txval: round2(h.taxable),
+        iamt: 0,
+        camt: round2(h.cgst),
+        samt: round2(h.sgst),
+        rt: h.rate,
+      }));
 
     const cdnr = cnRows.map(n => {
       const tax = Number(n.gst_amount) || 0;

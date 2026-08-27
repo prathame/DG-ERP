@@ -63,6 +63,7 @@ function mapSaleBatchAsInvoice(
   const nonGstUnits = Number(r.non_gst_units) || 0;
   const invoiceNumber = saleChallanNumber(batchId, gstUnits, nonGstUnits);
   const outstanding = Math.max(0, round2(billValue - paid - credits));
+  const returnedUnpaid = credits > 0.001 && paid <= 0.001;
   return {
     id: `sale:${batchId}`,
     source: 'sale',
@@ -85,7 +86,7 @@ function mapSaleBatchAsInvoice(
     grandTotal: billValue,
     notes: null,
     terms: null,
-    status: outstanding <= 0.001 ? 'paid' : 'sent',
+    status: outstanding <= 0.001 && !returnedUnpaid ? 'paid' : 'sent',
     invoiceDate: isoDateOnly(r.distribution_date),
     dueDate: null,
     createdAt: r.distribution_date,
