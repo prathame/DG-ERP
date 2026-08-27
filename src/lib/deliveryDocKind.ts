@@ -1,5 +1,7 @@
 /** Non-service delivery-set doc kind from unit gst_applied counts (#144). */
 
+import { saleChallanBase } from '../../shared/saleChallanNumber';
+
 export type DeliveryDocKind = 'gst' | 'bos' | 'mixed' | 'unknown';
 
 export function deliveryDocKind(gstUnits: number, nonGstUnits: number): DeliveryDocKind {
@@ -10,9 +12,7 @@ export function deliveryDocKind(gstUnits: number, nonGstUnits: number): Delivery
 }
 
 /** Matches getBill challanId / deliverySet -GST / -BOS suffixes. */
-export function deliveryChallanBase(batchId: string): string {
-  return `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`;
-}
+export const deliveryChallanBase = saleChallanBase;
 
 export function deliveryDocNos(
   batchId: string,

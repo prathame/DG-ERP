@@ -23,6 +23,7 @@ import type { PoolClient } from 'pg';
 import { expiredProductSaleError, isProductExpired } from '../../shared/dateOnly';
 import { parseStockQty } from '../../shared/qtyStock';
 import { round2 } from '../../shared/gstRound';
+import { saleChallanBase } from '../../shared/saleChallanNumber';
 
 const router = Router();
 
@@ -324,7 +325,7 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
         const nonGstUnits = Number(r.non_gst_units) || 0;
         const isDualDocs = gstUnits > 0 && nonGstUnits > 0;
         // Match getBill challanId / deliverySet -GST / -BOS suffixes (#144)
-        const challanBase = `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`;
+        const challanBase = saleChallanBase(batchId);
         return {
           batchId,
           vendorId: r.vendor_id as string,
@@ -1213,7 +1214,7 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
     const totalDiscount = grossValue - netTotal;
     const savedGstUnits = rows.filter(r => r.gst_applied === true).length;
     const challanId = batchId
-      ? `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`
+      ? saleChallanBase(String(batchId))
       : `CH-${((first.vendor_name as string) || 'V').substring(0, 3).toUpperCase()}-${((first.distribution_date as string) || '').replace(/-/g, '')}`;
     const isDualDocs = savedGstUnits > 0 && savedGstUnits < rows.length;
     // IRN is stamped only on GST-applied units — surface from any GST row, not first row

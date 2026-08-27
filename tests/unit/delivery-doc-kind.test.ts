@@ -45,4 +45,10 @@ describe('deliveryDocKind', () => {
     ).toBe('CH-20260722AB-GST');
     expect(deliveryChallanDisplayNo({ batchId: 'D20260722AB' })).toBe('CH-20260722AB');
   });
+
+  it('does not collapse same-second uid batches to 10 digits', () => {
+    expect(deliveryChallanBase('D1787844066760-36fc92')).toBe('CH-1787844066760-36fc92');
+    expect(deliveryChallanBase('D1787844066071-b8db66')).toBe('CH-1787844066071-b8db66');
+    expect(deliveryDocNos('D1787844066760-36fc92', 2, 0).gstDocNo).toBe('CH-1787844066760-36fc92-GST');
+  });
 });
