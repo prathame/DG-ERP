@@ -39,6 +39,7 @@ import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { localDateISO } from '../../lib/reportingPeriod';
+import { expiredProductSaleError, isProductExpired } from '../../../shared/dateOnly';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 import { phoneValidationError } from '../../../shared/phone';
 
@@ -372,6 +373,10 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     }
     const p = products.find(x => x.id === productId);
     if (!p) return;
+    if (isProductExpired(p.expiryDate)) {
+      toast(expiredProductSaleError(p.name), 'error');
+      return;
+    }
     applyProduct(idx, p);
   };
 
@@ -539,6 +544,15 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       toast('Add at least one product or custom line', 'error');
       return;
     }
+    const expiredInv = inventory.find(r => {
+      const prod = products.find(x => x.id === r.productId);
+      return prod && isProductExpired(prod.expiryDate);
+    });
+    if (expiredInv) {
+      const prod = products.find(x => x.id === expiredInv.productId);
+      toast(expiredProductSaleError(prod?.name || 'Product'), 'error');
+      return;
+    }
 
     setSubmitting(true);
     setMixDialog(false);
@@ -661,10 +675,11 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       .map(p => {
         const listPrice = resolveCatalogPrice(p, priceRules, vendorId || null, qty || 1);
         const stock = p.remainingInventory ?? p.stock ?? 0;
+        const expired = isProductExpired(p.expiryDate);
         return {
           value: p.id,
           label: p.name,
-          sublabel: `₹${listPrice.toLocaleString('en-IN')} · ${stock} in stock`,
+          sublabel: expired ? 'Expired — cannot sell' : `₹${listPrice.toLocaleString('en-IN')} · ${stock} in stock`,
         };
       });
 
