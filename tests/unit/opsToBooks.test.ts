@@ -13,6 +13,7 @@ import {
   postPurchaseReturnToBooks,
   postSaleReturnToBooks,
   ensureNativeBooksDesk,
+  removeOpsBooksByExternalRef,
 } from '../../server/services/opsToBooks';
 import {
   describeBalance,
@@ -889,5 +890,84 @@ describe('opsToBooks + CA statements', () => {
     expect(pr.rows[0]?.voucher_type).toBe('purchase_return');
     const tb = await getTrialBalance(pool, TENANT, '2025-08-01', '2025-08-31');
     expect(tb.balanced).toBe(true);
+  });
+
+  it('drops the sales voucher when an invoice is cancelled (Accounts follows Invoices)', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const invId = uid('INV');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await postStandaloneInvoiceToBooks(client, TENANT, {
+        id: invId,
+        invoiceNumber: 'INV/DEL/1',
+        customerName: 'Cancel Party',
+        grandTotal: 1180,
+        subtotal: 1000,
+        taxCgst: 90,
+        taxSgst: 90,
+        taxIgst: 0,
+        invoiceDate: '2025-08-15',
+      });
+      expect(
+        (
+          await client.query(`SELECT id FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+            TENANT,
+            `ops:si:${invId}`,
+          ])
+        ).rows,
+      ).toHaveLength(1);
+      expect(await removeOpsBooksByExternalRef(client, TENANT, `ops:si:${invId}`)).toBe(true);
+      expect(await removeOpsBooksByExternalRef(client, TENANT, `ops:si:${invId}`)).toBe(false);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const left = await pool.query(`SELECT id FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+      TENANT,
+      `ops:si:${invId}`,
+    ]);
+    expect(left.rows).toHaveLength(0);
+    const pnl = await getBooksProfitLoss(pool, TENANT, '2025-08-01', '2025-08-31');
+    expect(pnl.totalIncome).toBe(0);
+  });
+
+  it('drops distribution and COGS vouchers when a dispatch batch is deleted', async () => {
+    await cleanupTestData(TENANT);
+    await seedBooksShell();
+    const vendorId = uid('V');
+    await pool.query(`INSERT INTO vendors (id, tenant_id, name) VALUES ($1,$2,'Dispatch Party')`, [vendorId, TENANT]);
+    const batchId = uid('D');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await postDistributionBatchToBooks(client, TENANT, {
+        batchId,
+        vendorId,
+        vendorName: 'Dispatch Party',
+        billValue: 1180,
+        distributionDate: '2025-08-20',
+        asPurchase: false,
+      });
+      expect(
+        (
+          await client.query(`SELECT id FROM book_vouchers WHERE tenant_id=$1 AND external_ref=$2`, [
+            TENANT,
+            `ops:dist:${batchId}`,
+          ])
+        ).rows,
+      ).toHaveLength(1);
+      expect(await removeOpsBooksByExternalRef(client, TENANT, `ops:dist:${batchId}`)).toBe(true);
+      expect(await removeOpsBooksByExternalRef(client, TENANT, `ops:cogs:${batchId}`)).toBe(false);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const left = await pool.query(`SELECT id FROM book_vouchers WHERE tenant_id=$1 AND external_ref LIKE $2`, [
+      TENANT,
+      `ops:%:${batchId}`,
+    ]);
+    expect(left.rows).toHaveLength(0);
   });
 });

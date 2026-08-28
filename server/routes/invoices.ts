@@ -6,7 +6,11 @@ import { handleApiError } from '../utils/http-error';
 import { resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 import { isEinvoiceApiMode } from '../../shared/gstEinvoiceMode';
-import { postStandaloneInvoiceToBooks, replaceStandaloneInvoiceBooks } from '../services/opsToBooks';
+import {
+  postStandaloneInvoiceToBooks,
+  replaceStandaloneInvoiceBooks,
+  removeOpsBooksByExternalRef,
+} from '../services/opsToBooks';
 import { invoiceEditBlockedReason } from '../../shared/invoiceEdit';
 import { withBooks } from '../utils/booksStrict';
 import { checkPlanLimit } from '../utils/planLimits';
@@ -977,6 +981,9 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
       'UPDATE standalone_invoices SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3',
       [status, req.params.id, tenantId],
     );
+    if (status === 'cancelled') {
+      await withBooks(() => removeOpsBooksByExternalRef(client, tenantId, `ops:si:${inv.id}`), 'invoice-cancel');
+    }
     await client.query('COMMIT');
     await logAudit(
       pool,
@@ -1042,6 +1049,7 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
       return res.status(404).json({ error: 'Invoice not found' });
     }
     if (inv.status === 'cancelled') {
+      await withBooks(() => removeOpsBooksByExternalRef(client, tenantId, `ops:si:${inv.id}`), 'invoice-cancel');
       await client.query('COMMIT');
       return res.json({ ok: true, cancelled: true });
     }
@@ -1066,6 +1074,7 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
        WHERE id = $1 AND tenant_id = $2`,
       [req.params.id, tenantId],
     );
+    await withBooks(() => removeOpsBooksByExternalRef(client, tenantId, `ops:si:${inv.id}`), 'invoice-cancel');
     await client.query('COMMIT');
     await logAudit(
       pool,
