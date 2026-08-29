@@ -8,6 +8,7 @@ import type { PoolClient } from 'pg';
 import { splitGst, uid } from '../utils/helpers';
 import { round2 } from './bookReports';
 import { assertBooksDatesUnlocked } from './bookPeriodLock';
+import { deleteBookVoucher } from './bookVouchers';
 
 /**
  * Ensure Cash / Bank / Sales Income (+ party ledgers for existing clients) exist.
@@ -646,30 +647,30 @@ export async function postStandaloneInvoiceToBooks(
   });
 }
 
-/** Drop the ops sales voucher for an invoice so it can be re-posted after an edit. */
-export async function replaceStandaloneInvoiceBooks(
+/** Drop the dual-written Books voucher for an ops document (invoice cancel, batch delete). */
+export async function removeOpsBooksByExternalRef(
   client: PoolClient,
   tenantId: string,
-  invoice: Parameters<typeof postStandaloneInvoiceToBooks>[2],
-): Promise<string | null> {
-  const externalRef = `ops:si:${invoice.id}`;
+  externalRef: string,
+): Promise<boolean> {
   const existing = (
     await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2`, [
       tenantId,
       externalRef,
     ])
   ).rows[0] as { id: string } | undefined;
-  if (existing) {
-    await client.query(`DELETE FROM book_voucher_entries WHERE tenant_id = $1 AND voucher_id = $2`, [
-      tenantId,
-      existing.id,
-    ]);
-    await client.query(`DELETE FROM book_voucher_items WHERE tenant_id = $1 AND voucher_id = $2`, [
-      tenantId,
-      existing.id,
-    ]);
-    await client.query(`DELETE FROM book_vouchers WHERE tenant_id = $1 AND id = $2`, [tenantId, existing.id]);
-  }
+  if (!existing) return false;
+  await deleteBookVoucher(client, tenantId, existing.id);
+  return true;
+}
+
+/** Drop the ops sales voucher for an invoice so it can be re-posted after an edit. */
+export async function replaceStandaloneInvoiceBooks(
+  client: PoolClient,
+  tenantId: string,
+  invoice: Parameters<typeof postStandaloneInvoiceToBooks>[2],
+): Promise<string | null> {
+  await removeOpsBooksByExternalRef(client, tenantId, `ops:si:${invoice.id}`);
   return postStandaloneInvoiceToBooks(client, tenantId, invoice);
 }
 

@@ -17,7 +17,11 @@ import {
   resolvePrice,
   unitPricesAfterDiscount,
 } from '../utils/price-resolve';
-import { postDistributionBatchToBooks, postVendorPaymentToBooks } from '../services/opsToBooks';
+import {
+  postDistributionBatchToBooks,
+  postVendorPaymentToBooks,
+  removeOpsBooksByExternalRef,
+} from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import type { PoolClient } from 'pg';
 import { expiredProductSaleError, isProductExpired } from '../../shared/dateOnly';
@@ -2085,6 +2089,16 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
         const hasInv = await productHasInventory(client, tenantId, productId);
         if (!hasInv) await restoreProductQtyStock(client, tenantId, productId, n);
       }
+      const vpIds = (
+        await client.query('SELECT id FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2', [batchId, tenantId])
+      ).rows as { id: string }[];
+      await withBooks(async () => {
+        await removeOpsBooksByExternalRef(client, tenantId, `ops:dist:${batchId}`);
+        await removeOpsBooksByExternalRef(client, tenantId, `ops:cogs:${batchId}`);
+        for (const p of vpIds) {
+          await removeOpsBooksByExternalRef(client, tenantId, `ops:vp:${p.id}`);
+        }
+      }, 'distribution-delete');
       await client.query('DELETE FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2', [batchId, tenantId]);
       unitsReturned = rows.length;
       await client.query('COMMIT');
