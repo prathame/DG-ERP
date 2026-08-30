@@ -23,8 +23,8 @@ import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner, isBillFullyPaid, partyBillDue, PaidBadge } from '../../components/ui';
-import { VoiceFieldMic } from '../../components/ui/BillVoiceMic';
-import { parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
+import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
+import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits } from '../../lib/billVoice';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -1250,13 +1250,22 @@ export function VendorMasterView({
                   <label className={fieldLabel} htmlFor="vendor-form-contact-person">
                     Contact Person
                   </label>
-                  <input
-                    id="vendor-form-contact-person"
-                    value={form.contactPerson}
-                    onChange={e => setForm({ ...form, contactPerson: e.target.value })}
-                    className={fieldInput}
-                    placeholder={desktopGlass ? 'Enter contact person name' : undefined}
-                  />
+                  <VoiceFieldRow
+                    lang={lang}
+                    disabled={submitting}
+                    label="contact person"
+                    parse={parseVoiceGuideName}
+                    className={cn(!desktopGlass && 'mt-1')}
+                    onFill={value => setForm(f => ({ ...f, contactPerson: value }))}
+                  >
+                    <input
+                      id="vendor-form-contact-person"
+                      value={form.contactPerson}
+                      onChange={e => setForm({ ...form, contactPerson: e.target.value })}
+                      className={cn(fieldInput, 'mt-0')}
+                      placeholder={desktopGlass ? 'Enter contact person name' : undefined}
+                    />
+                  </VoiceFieldRow>
                 </div>
                 {desktopGlass ? (
                   <div className="grid grid-cols-2 gap-4">
@@ -1264,14 +1273,21 @@ export function VendorMasterView({
                       <label className={fieldLabel} htmlFor="vendor-form-email">
                         Email <span className="normal-case font-normal dg-muted">(optional)</span>
                       </label>
-                      <input
-                        id="vendor-form-email"
-                        type="email"
-                        value={form.email}
-                        onChange={e => setForm({ ...form, email: e.target.value })}
-                        className={fieldInput}
-                        placeholder="email@example.com"
-                      />
+                      <VoiceFieldRow
+                        lang={lang}
+                        disabled={submitting}
+                        label="email"
+                        onFill={value => setForm(f => ({ ...f, email: value }))}
+                      >
+                        <input
+                          id="vendor-form-email"
+                          type="email"
+                          value={form.email}
+                          onChange={e => setForm({ ...form, email: e.target.value })}
+                          className={cn(fieldInput, 'mt-0')}
+                          placeholder="email@example.com"
+                        />
+                      </VoiceFieldRow>
                     </div>
                     <div>
                       <label className={fieldLabel} htmlFor="vendor-form-phone">
@@ -1311,14 +1327,22 @@ export function VendorMasterView({
                           <span className="text-gray-400 normal-case font-normal">(optional)</span>
                         )}
                       </label>
-                      <input
-                        id="vendor-form-email"
-                        type="email"
-                        value={form.email}
-                        onChange={e => setForm({ ...form, email: e.target.value })}
-                        className={fieldInput}
-                        placeholder={label === 'Vendor' ? 'vendor@example.com' : 'email@example.com'}
-                      />
+                      <VoiceFieldRow
+                        lang={lang}
+                        disabled={submitting}
+                        label="email"
+                        className="mt-1"
+                        onFill={value => setForm(f => ({ ...f, email: value }))}
+                      >
+                        <input
+                          id="vendor-form-email"
+                          type="email"
+                          value={form.email}
+                          onChange={e => setForm({ ...form, email: e.target.value })}
+                          className={cn(fieldInput, 'mt-0')}
+                          placeholder={label === 'Vendor' ? 'vendor@example.com' : 'email@example.com'}
+                        />
+                      </VoiceFieldRow>
                       {!editing && label === 'Vendor' && form.email.trim() && (
                         <p className="text-xs text-blue-600 mt-2">
                           Login will be auto-created. Password:{' '}
@@ -1356,36 +1380,52 @@ export function VendorMasterView({
                   <label className={fieldLabel} htmlFor="vendor-form-address">
                     Address
                   </label>
-                  {desktopGlass ? (
-                    <textarea
-                      id="vendor-form-address"
-                      value={form.address}
-                      onChange={e => setForm({ ...form, address: e.target.value })}
-                      className={fieldInput}
-                      placeholder="Enter full business address"
-                      rows={3}
-                    />
-                  ) : (
-                    <input
-                      id="vendor-form-address"
-                      value={form.address}
-                      onChange={e => setForm({ ...form, address: e.target.value })}
-                      className={fieldInput}
-                    />
-                  )}
+                  <VoiceFieldRow
+                    lang={lang}
+                    disabled={submitting}
+                    label="address"
+                    className={cn(!desktopGlass && 'mt-1')}
+                    onFill={value => setForm(f => ({ ...f, address: value }))}
+                  >
+                    {desktopGlass ? (
+                      <textarea
+                        id="vendor-form-address"
+                        value={form.address}
+                        onChange={e => setForm({ ...form, address: e.target.value })}
+                        className={cn(fieldInput, 'mt-0')}
+                        placeholder="Enter full business address"
+                        rows={3}
+                      />
+                    ) : (
+                      <input
+                        id="vendor-form-address"
+                        value={form.address}
+                        onChange={e => setForm({ ...form, address: e.target.value })}
+                        className={cn(fieldInput, 'mt-0')}
+                      />
+                    )}
+                  </VoiceFieldRow>
                 </div>
                 <div>
                   <label className={fieldLabel} htmlFor="vendor-form-gstin">
                     GSTIN (optional)
                   </label>
-                  <input
-                    id="vendor-form-gstin"
-                    value={form.gstNumber}
-                    onChange={e => setForm({ ...form, gstNumber: e.target.value.toUpperCase() })}
-                    className={cn(fieldInput, 'font-mono')}
-                    placeholder="e.g. 24AABCD1234F1Z5"
-                    maxLength={15}
-                  />
+                  <VoiceFieldRow
+                    lang={lang}
+                    disabled={submitting}
+                    label="GSTIN"
+                    className={cn(!desktopGlass && 'mt-1')}
+                    onFill={value => setForm(f => ({ ...f, gstNumber: value.replace(/\s+/g, '').toUpperCase() }))}
+                  >
+                    <input
+                      id="vendor-form-gstin"
+                      value={form.gstNumber}
+                      onChange={e => setForm({ ...form, gstNumber: e.target.value.toUpperCase() })}
+                      className={cn(fieldInput, 'mt-0 font-mono')}
+                      placeholder="e.g. 24AABCD1234F1Z5"
+                      maxLength={15}
+                    />
+                  </VoiceFieldRow>
                   {form.gstNumber &&
                     form.gstNumber.length === 15 &&
                     !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstNumber) && (
@@ -1397,32 +1437,50 @@ export function VendorMasterView({
                     <label className={fieldLabel} htmlFor="vendor-form-credit-period">
                       Credit period (days)
                     </label>
-                    <input
-                      id="vendor-form-credit-period"
-                      type="number"
-                      min={0}
-                      max={3650}
-                      step={1}
-                      value={form.creditPeriodDays}
-                      onChange={e => setForm({ ...form, creditPeriodDays: e.target.value })}
-                      className={fieldInput}
-                      placeholder="e.g. 30"
-                    />
+                    <VoiceFieldRow
+                      lang={lang}
+                      disabled={submitting}
+                      label="credit period"
+                      parse={parseVoiceDigits}
+                      className={cn(!desktopGlass && 'mt-1')}
+                      onFill={value => setForm(f => ({ ...f, creditPeriodDays: value }))}
+                    >
+                      <input
+                        id="vendor-form-credit-period"
+                        type="number"
+                        min={0}
+                        max={3650}
+                        step={1}
+                        value={form.creditPeriodDays}
+                        onChange={e => setForm({ ...form, creditPeriodDays: e.target.value })}
+                        className={cn(fieldInput, 'mt-0')}
+                        placeholder="e.g. 30"
+                      />
+                    </VoiceFieldRow>
                   </div>
                   <div>
                     <label className={fieldLabel} htmlFor="vendor-form-credit-limit">
                       Credit limit (₹)
                     </label>
-                    <input
-                      id="vendor-form-credit-limit"
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={form.creditLimit}
-                      onChange={e => setForm({ ...form, creditLimit: e.target.value })}
-                      className={fieldInput}
-                      placeholder="Optional"
-                    />
+                    <VoiceFieldRow
+                      lang={lang}
+                      disabled={submitting}
+                      label="credit limit"
+                      parse={parseVoiceDigits}
+                      className={cn(!desktopGlass && 'mt-1')}
+                      onFill={value => setForm(f => ({ ...f, creditLimit: value }))}
+                    >
+                      <input
+                        id="vendor-form-credit-limit"
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={form.creditLimit}
+                        onChange={e => setForm({ ...form, creditLimit: e.target.value })}
+                        className={cn(fieldInput, 'mt-0')}
+                        placeholder="Optional"
+                      />
+                    </VoiceFieldRow>
                   </div>
                 </div>
                 <div

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import {
@@ -6,6 +6,7 @@ import {
   type BillVoiceLang,
   voiceSearchQuery,
   formatVoiceSearchReply,
+  formatVoiceFieldReply,
   isVoiceGuideSkip,
 } from '../../lib/billVoice';
 import { getStoredVoiceRate, getStoredVoiceUri, prepareVoiceUtterance } from '../../lib/indianVoicePref';
@@ -227,7 +228,34 @@ export function VoiceFieldMic({
         const value = parsed || transcript.trim();
         if (!value) return;
         onFill(value);
+        void speakBillVoice(formatVoiceFieldReply(label, value, lang), lang);
       }}
     />
+  );
+}
+
+/** Input plus a mic on the right. */
+export function VoiceFieldRow({
+  lang,
+  disabled,
+  label,
+  parse,
+  onFill,
+  className,
+  children,
+}: {
+  lang: BillVoiceLang;
+  disabled?: boolean;
+  label: string;
+  parse?: (transcript: string) => string;
+  onFill: (value: string) => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn('flex items-center gap-2', className)}>
+      <div className="min-w-0 flex-1">{children}</div>
+      <VoiceFieldMic lang={lang} disabled={disabled} label={label} parse={parse} onFill={onFill} />
+    </div>
   );
 }

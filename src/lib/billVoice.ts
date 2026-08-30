@@ -660,6 +660,20 @@ export function isVoiceGuideSkip(transcript: string): boolean {
   return tokens.every(t => GUIDE_SKIP_WORDS.has(t));
 }
 
+export function formatVoiceFieldReply(label: string, value: string, lang: BillVoiceLang = 'en'): string {
+  if (lang === 'hi') return `${label}: ${value}।`;
+  if (lang === 'gu') return `${label}: ${value}.`;
+  if (lang === 'mr') return `${label}: ${value}.`;
+  return `${label}: ${value}.`;
+}
+
+export function parseVoiceDigits(transcript: string): string {
+  const m = String(transcript || '')
+    .replace(/,/g, '')
+    .match(/\d+(?:\.\d+)?/);
+  return m ? m[0] : '';
+}
+
 export function parseVoiceGuideName(transcript: string): string {
   return parseVoiceCustomer(transcript).name;
 }

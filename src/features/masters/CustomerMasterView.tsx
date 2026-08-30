@@ -8,8 +8,8 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { VoiceFieldMic } from '../../components/ui/BillVoiceMic';
-import { parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
+import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
+import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits } from '../../lib/billVoice';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { phoneValidationError } from '../../../shared/phone';
@@ -406,20 +406,36 @@ export function CustomerMasterView({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Email</label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={e => setForm({ ...form, email: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <VoiceFieldRow
+                    lang={lang}
+                    disabled={submitting}
+                    label="email"
+                    className="mt-1"
+                    onFill={value => setForm(f => ({ ...f, email: value }))}
+                  >
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={e => setForm({ ...form, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </VoiceFieldRow>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Address</label>
-                  <input
-                    value={form.address}
-                    onChange={e => setForm({ ...form, address: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <VoiceFieldRow
+                    lang={lang}
+                    disabled={submitting}
+                    label="address"
+                    className="mt-1"
+                    onFill={value => setForm(f => ({ ...f, address: value }))}
+                  >
+                    <input
+                      value={form.address}
+                      onChange={e => setForm({ ...form, address: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </VoiceFieldRow>
                 </div>
                 {!vendorId && (
                   <div>
@@ -441,28 +457,46 @@ export function CustomerMasterView({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">Credit period (days)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={3650}
-                      step={1}
-                      value={form.creditPeriodDays}
-                      onChange={e => setForm({ ...form, creditPeriodDays: e.target.value })}
-                      placeholder="e.g. 30"
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
+                    <VoiceFieldRow
+                      lang={lang}
+                      disabled={submitting}
+                      label="credit period"
+                      parse={parseVoiceDigits}
+                      className="mt-1"
+                      onFill={value => setForm(f => ({ ...f, creditPeriodDays: value }))}
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        max={3650}
+                        step={1}
+                        value={form.creditPeriodDays}
+                        onChange={e => setForm({ ...form, creditPeriodDays: e.target.value })}
+                        placeholder="e.g. 30"
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </VoiceFieldRow>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">Credit limit (₹)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={form.creditLimit}
-                      onChange={e => setForm({ ...form, creditLimit: e.target.value })}
-                      placeholder="Optional"
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
+                    <VoiceFieldRow
+                      lang={lang}
+                      disabled={submitting}
+                      label="credit limit"
+                      parse={parseVoiceDigits}
+                      className="mt-1"
+                      onFill={value => setForm(f => ({ ...f, creditLimit: value }))}
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={form.creditLimit}
+                        onChange={e => setForm({ ...form, creditLimit: e.target.value })}
+                        placeholder="Optional"
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </VoiceFieldRow>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
