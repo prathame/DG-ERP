@@ -14,6 +14,8 @@ import {
   formatBillVoiceAskProduct,
   parseVoiceGuideName,
   parseVoiceGuidePhone,
+  parseVoiceDigits,
+  formatVoiceFieldReply,
   isVoiceGuideSkip,
 } from '../../src/lib/billVoice';
 
@@ -191,5 +193,15 @@ describe('voice field fill', () => {
   it('does not treat a real name as skip', () => {
     expect(isVoiceGuideSkip('skip')).toBe(true);
     expect(isVoiceGuideSkip('Anand Agro')).toBe(false);
+  });
+
+  it('speaks back the filled field', () => {
+    expect(formatVoiceFieldReply('Name', 'Anand Agro', 'en')).toBe('Name: Anand Agro.');
+    expect(formatVoiceFieldReply('નામ', 'Anand Agro', 'gu')).toContain('Anand Agro');
+  });
+
+  it('pulls digits for credit fields', () => {
+    expect(parseVoiceDigits('thirty 30 days')).toBe('30');
+    expect(parseVoiceDigits('hello')).toBe('');
   });
 });
