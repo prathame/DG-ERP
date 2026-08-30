@@ -5,7 +5,7 @@ import { cn, exportToCsv } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Bank } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { VoiceFieldMic } from '../../components/ui/BillVoiceMic';
+import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
 import {
   parseVoiceGuideName,
   parseVoiceGuideBank,
@@ -281,11 +281,19 @@ export function BankMasterView({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Branch</label>
-                  <input
-                    value={form.branch}
-                    onChange={e => setForm({ ...form, branch: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <VoiceFieldRow
+                    lang={lang}
+                    disabled={submitting}
+                    label="branch"
+                    className="mt-1"
+                    onFill={value => setForm(f => ({ ...f, branch: value }))}
+                  >
+                    <input
+                      value={form.branch}
+                      onChange={e => setForm({ ...form, branch: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </VoiceFieldRow>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">IFSC Code</label>
