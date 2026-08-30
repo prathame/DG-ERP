@@ -23,8 +23,8 @@ import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner, isBillFullyPaid, partyBillDue, PaidBadge } from '../../components/ui';
-import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
-import { parseVoiceCustomer, formatVoiceCustomerReply } from '../../lib/billVoice';
+import { VoiceFormGuide } from '../../components/ui/BillVoiceMic';
+import { formatVoiceGuideAsk, parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -100,7 +100,6 @@ export function VendorMasterView({
     creditPeriodDays: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [voiceHeard, setVoiceHeard] = useState('');
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [selected, setSelected] = useState<Vendor | null>(null);
   const [detail, setDetail] = useState<ClientDetail | null>(null);
@@ -396,7 +395,6 @@ export function VendorMasterView({
       creditLimit: '',
       creditPeriodDays: '',
     });
-    setVoiceHeard('');
     setModalOpen(true);
   };
   const openEdit = (v: Vendor) => {
@@ -412,28 +410,7 @@ export function VendorMasterView({
       creditLimit: v.creditLimit != null ? String(v.creditLimit) : '',
       creditPeriodDays: v.creditPeriodDays != null ? String(v.creditPeriodDays) : '',
     });
-    setVoiceHeard('');
     setModalOpen(true);
-  };
-
-  const applyVoiceTranscript = (transcript: string) => {
-    setVoiceHeard(transcript);
-    const fill = parseVoiceCustomer(transcript);
-    if (!fill.name && !fill.phone) {
-      toast(
-        `Could not catch a ${label.toLowerCase()} name or phone. Nothing was filled. Type it on the form.`,
-        'error',
-      );
-      speakBillVoice(formatVoiceCustomerReply(fill, lang), lang);
-      return;
-    }
-    setForm(f => ({
-      ...f,
-      name: fill.name || f.name,
-      phone: fill.phone || f.phone,
-    }));
-    speakBillVoice(formatVoiceCustomerReply(fill, lang), lang);
-    toast('Check the form, then save.', 'success');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1248,10 +1225,29 @@ export function VendorMasterView({
               )}
               <form onSubmit={handleSubmit} className={cn('space-y-4', desktopGlass && 'p-6')}>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
-                  <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
-                  <span className="min-w-0 flex-1">
-                    {voiceHeard ? `Heard: “${voiceHeard}”` : 'Speak name and phone, then check the form.'}
-                  </span>
+                  <VoiceFormGuide
+                    lang={lang}
+                    disabled={submitting}
+                    fields={[
+                      {
+                        key: 'name',
+                        label: 'Name',
+                        ask: formatVoiceGuideAsk('name', lang),
+                        parse: parseVoiceGuideName,
+                      },
+                      {
+                        key: 'phone',
+                        label: 'Phone',
+                        ask: formatVoiceGuideAsk('phone', lang, true),
+                        parse: parseVoiceGuidePhone,
+                        optional: true,
+                      },
+                    ]}
+                    onField={(key, value) => {
+                      setForm(f => ({ ...f, [key]: value }));
+                    }}
+                    onDone={() => toast('Check the form, then save.', 'success')}
+                  />
                 </div>
                 <div>
                   <label className={fieldLabel} htmlFor="vendor-form-name">
