@@ -638,55 +638,6 @@ export function formatVoiceBankReply(fill: VoiceBankFill, lang: BillVoiceLang = 
   return `${parts.join(', ')}. ${CHECK_FORM[lang]}`;
 }
 
-export type VoiceGuideKind = 'name' | 'phone' | 'bank' | 'account' | 'ifsc';
-
-const GUIDE_ASK: Record<VoiceGuideKind, Record<BillVoiceLang, string>> = {
-  name: {
-    en: 'Name?',
-    hi: 'नाम?',
-    gu: 'નામ?',
-    mr: 'नाव?',
-  },
-  phone: {
-    en: 'Phone number?',
-    hi: 'फोन नंबर?',
-    gu: 'ફોન નંબર?',
-    mr: 'फोन नंबर?',
-  },
-  bank: {
-    en: 'Bank name?',
-    hi: 'बैंक का नाम?',
-    gu: 'બેંકનું નામ?',
-    mr: 'बँकेचे नाव?',
-  },
-  account: {
-    en: 'Account number?',
-    hi: 'खाता नंबर?',
-    gu: 'ખાતા નંબર?',
-    mr: 'खाते क्रमांक?',
-  },
-  ifsc: {
-    en: 'IFSC code?',
-    hi: 'IFSC कोड?',
-    gu: 'IFSC કોડ?',
-    mr: 'IFSC कोड?',
-  },
-};
-
-const GUIDE_SKIP_HINT: Record<BillVoiceLang, string> = {
-  en: ' Or say skip.',
-  hi: ' नहीं है तो स्किप बोलें।',
-  gu: ' ન હોય તો સ્કિપ બોલો.',
-  mr: ' नसेल तर स्किप बोला.',
-};
-
-const GUIDE_EMPTY: Record<BillVoiceLang, string> = {
-  en: 'I did not catch that. Please speak again or type it.',
-  hi: 'सुना नहीं। फिर बोलें या टाइप करें।',
-  gu: 'સંભળાયું નથી. ફરી બોલો અથવા ટાઈપ કરો.',
-  mr: 'ऐकू आले नाही. पुन्हा बोला किंवा टाइप करा.',
-};
-
 const GUIDE_SKIP_WORDS = new Set([
   'skip',
   'none',
@@ -703,37 +654,10 @@ const GUIDE_SKIP_WORDS = new Set([
   'soda',
 ]);
 
-export function formatVoiceGuideAsk(kind: VoiceGuideKind, lang: BillVoiceLang = 'en', optional = false): string {
-  const ask = GUIDE_ASK[kind][lang];
-  return optional ? `${ask}${GUIDE_SKIP_HINT[lang]}` : ask;
-}
-
-export function formatVoiceGuideRequired(label: string, lang: BillVoiceLang = 'en'): string {
-  if (lang === 'hi') return `${label} जरूरी है। कृपया बोलें।`;
-  if (lang === 'gu') return `${label} જરૂરી છે. કૃપા કરીને બોલો.`;
-  if (lang === 'mr') return `${label} आवश्यक आहे. कृपया बोला.`;
-  return `${label} is required. Please speak it.`;
-}
-
-export function formatVoiceGuideEmpty(lang: BillVoiceLang = 'en'): string {
-  return GUIDE_EMPTY[lang];
-}
-
 export function isVoiceGuideSkip(transcript: string): boolean {
   const tokens = normalizeVoiceText(transcript).split(' ').filter(Boolean);
   if (!tokens.length) return false;
   return tokens.every(t => GUIDE_SKIP_WORDS.has(t));
-}
-
-export function formatVoiceGuideConfirm(label: string, value: string, lang: BillVoiceLang = 'en'): string {
-  if (lang === 'hi') return `${label}: ${value}। यही रखना है?`;
-  if (lang === 'gu') return `${label}: ${value}. આ જ રાખવું?`;
-  if (lang === 'mr') return `${label}: ${value}. हेच ठेवायचे?`;
-  return `${label}: ${value}. Use this?`;
-}
-
-export function formatVoiceGuideDone(lang: BillVoiceLang = 'en'): string {
-  return CHECK_FORM[lang];
 }
 
 export function parseVoiceGuideName(transcript: string): string {

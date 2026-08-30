@@ -8,8 +8,8 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { VoiceFormGuide } from '../../components/ui/BillVoiceMic';
-import { formatVoiceGuideAsk, parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
+import { VoiceFieldMic } from '../../components/ui/BillVoiceMic';
+import { parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { phoneValidationError } from '../../../shared/phone';
@@ -368,43 +368,41 @@ export function CustomerMasterView({
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Customer' : 'Add Customer'}</h3>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-4">
-                <VoiceFormGuide
-                  lang={lang}
-                  disabled={submitting}
-                  fields={[
-                    { key: 'name', label: 'Name', ask: formatVoiceGuideAsk('name', lang), parse: parseVoiceGuideName },
-                    {
-                      key: 'phone',
-                      label: 'Phone',
-                      ask: formatVoiceGuideAsk('phone', lang, true),
-                      parse: parseVoiceGuidePhone,
-                      optional: true,
-                    },
-                  ]}
-                  onField={(key, value) => {
-                    setForm(f => ({ ...f, [key]: value }));
-                  }}
-                  onDone={() => toast('Check the form, then save.', 'success')}
-                />
-              </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Name</label>
-                  <input
-                    required
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      required
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="name"
+                      parse={parseVoiceGuideName}
+                      onFill={value => setForm(f => ({ ...f, name: value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Phone</label>
-                  <input
-                    value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      value={form.phone}
+                      onChange={e => setForm({ ...form, phone: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="phone"
+                      parse={parseVoiceGuidePhone}
+                      onFill={value => setForm(f => ({ ...f, phone: value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Email</label>
