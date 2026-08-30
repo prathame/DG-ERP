@@ -12,6 +12,15 @@ import {
   formatVoiceSearchReply,
   formatBillVoiceAskCustomer,
   formatBillVoiceAskProduct,
+  formatVoiceGuideAsk,
+  formatVoiceGuideConfirm,
+  formatVoiceGuideRequired,
+  parseVoiceGuideName,
+  parseVoiceGuidePhone,
+  parseVoiceGuideBank,
+  parseVoiceGuideAccount,
+  parseVoiceGuideIfsc,
+  isVoiceGuideSkip,
 } from '../../src/lib/billVoice';
 
 const parties = [
@@ -174,5 +183,31 @@ describe('voiceSearchQuery', () => {
   it('does not search greeting speech', () => {
     expect(voiceSearchQuery('hello there')).toBe('');
     expect(formatVoiceSearchReply('', 'en')).toContain('Please type it');
+  });
+});
+
+describe('voice form guide', () => {
+  it('asks name then phone in the UI language', () => {
+    expect(formatVoiceGuideAsk('name', 'gu')).toBe('નામ?');
+    expect(formatVoiceGuideAsk('phone', 'en')).toBe('Phone number?');
+  });
+
+  it('parses a spoken name or phone and ignores greetings', () => {
+    expect(parseVoiceGuideName('Anand Agro')).toBe('Anand Agro');
+    expect(parseVoiceGuideName('hello there')).toBe('');
+    expect(parseVoiceGuidePhone('9876543210')).toBe('9876543210');
+    expect(parseVoiceGuidePhone('hello')).toBe('');
+  });
+
+  it('lets optional fields be skipped by saying skip', () => {
+    expect(isVoiceGuideSkip('skip')).toBe(true);
+    expect(isVoiceGuideSkip('no')).toBe(true);
+    expect(isVoiceGuideSkip('Anand Agro')).toBe(false);
+    expect(formatVoiceGuideAsk('phone', 'en', true)).toContain('skip');
+  });
+
+  it('tells the user a required field cannot be skipped', () => {
+    expect(formatVoiceGuideRequired('Name', 'en')).toContain('required');
+    expect(formatVoiceGuideRequired('નામ', 'gu')).toContain('જરૂરી');
   });
 });
