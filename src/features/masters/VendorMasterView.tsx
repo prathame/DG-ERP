@@ -23,8 +23,8 @@ import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner, isBillFullyPaid, partyBillDue, PaidBadge } from '../../components/ui';
-import { VoiceFormGuide } from '../../components/ui/BillVoiceMic';
-import { formatVoiceGuideAsk, parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
+import { VoiceFieldMic } from '../../components/ui/BillVoiceMic';
+import { parseVoiceGuideName, parseVoiceGuidePhone } from '../../lib/billVoice';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -1224,43 +1224,27 @@ export function VendorMasterView({
                 <h3 className="text-lg font-bold mb-4">{editing ? `Edit ${label}` : `Add ${label}`}</h3>
               )}
               <form onSubmit={handleSubmit} className={cn('space-y-4', desktopGlass && 'p-6')}>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
-                  <VoiceFormGuide
-                    lang={lang}
-                    disabled={submitting}
-                    fields={[
-                      {
-                        key: 'name',
-                        label: 'Name',
-                        ask: formatVoiceGuideAsk('name', lang),
-                        parse: parseVoiceGuideName,
-                      },
-                      {
-                        key: 'phone',
-                        label: 'Phone',
-                        ask: formatVoiceGuideAsk('phone', lang, true),
-                        parse: parseVoiceGuidePhone,
-                        optional: true,
-                      },
-                    ]}
-                    onField={(key, value) => {
-                      setForm(f => ({ ...f, [key]: value }));
-                    }}
-                    onDone={() => toast('Check the form, then save.', 'success')}
-                  />
-                </div>
                 <div>
                   <label className={fieldLabel} htmlFor="vendor-form-name">
                     Name
                   </label>
-                  <input
-                    id="vendor-form-name"
-                    required
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                    className={fieldInput}
-                    placeholder={desktopGlass ? `Enter ${label.toLowerCase()} name` : undefined}
-                  />
+                  <div className={cn('flex items-center gap-2', !desktopGlass && 'mt-1')}>
+                    <input
+                      id="vendor-form-name"
+                      required
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                      className={cn(fieldInput, 'mt-0 min-w-0 flex-1')}
+                      placeholder={desktopGlass ? `Enter ${label.toLowerCase()} name` : undefined}
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="name"
+                      parse={parseVoiceGuideName}
+                      onFill={value => setForm(f => ({ ...f, name: value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className={fieldLabel} htmlFor="vendor-form-contact-person">
@@ -1293,14 +1277,23 @@ export function VendorMasterView({
                       <label className={fieldLabel} htmlFor="vendor-form-phone">
                         Phone <span className="normal-case font-normal dg-muted">(optional — for WhatsApp)</span>
                       </label>
-                      <input
-                        id="vendor-form-phone"
-                        type="tel"
-                        value={form.phone}
-                        onChange={e => setForm({ ...form, phone: e.target.value })}
-                        className={fieldInput}
-                        placeholder="Optional"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          id="vendor-form-phone"
+                          type="tel"
+                          value={form.phone}
+                          onChange={e => setForm({ ...form, phone: e.target.value })}
+                          className={cn(fieldInput, 'mt-0 min-w-0 flex-1')}
+                          placeholder="Optional"
+                        />
+                        <VoiceFieldMic
+                          lang={lang}
+                          disabled={submitting}
+                          label="phone"
+                          parse={parseVoiceGuidePhone}
+                          onFill={value => setForm(f => ({ ...f, phone: value }))}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1339,14 +1332,23 @@ export function VendorMasterView({
                       <label className={fieldLabel} htmlFor="vendor-form-phone">
                         Phone <span className="text-gray-400 normal-case font-normal">(optional — for WhatsApp)</span>
                       </label>
-                      <input
-                        id="vendor-form-phone"
-                        type="tel"
-                        value={form.phone}
-                        onChange={e => setForm({ ...form, phone: e.target.value })}
-                        className={fieldInput}
-                        placeholder="Optional"
-                      />
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          id="vendor-form-phone"
+                          type="tel"
+                          value={form.phone}
+                          onChange={e => setForm({ ...form, phone: e.target.value })}
+                          className={cn(fieldInput, 'mt-0 min-w-0 flex-1')}
+                          placeholder="Optional"
+                        />
+                        <VoiceFieldMic
+                          lang={lang}
+                          disabled={submitting}
+                          label="phone"
+                          parse={parseVoiceGuidePhone}
+                          onFill={value => setForm(f => ({ ...f, phone: value }))}
+                        />
+                      </div>
                     </div>
                   </>
                 )}

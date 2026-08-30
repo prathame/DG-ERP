@@ -5,9 +5,8 @@ import { cn, exportToCsv } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Bank } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { VoiceFormGuide } from '../../components/ui/BillVoiceMic';
+import { VoiceFieldMic } from '../../components/ui/BillVoiceMic';
 import {
-  formatVoiceGuideAsk,
   parseVoiceGuideName,
   parseVoiceGuideBank,
   parseVoiceGuideAccount,
@@ -226,71 +225,59 @@ export function BankMasterView({
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Bank' : 'Add Bank'}</h3>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-4">
-                <VoiceFormGuide
-                  lang={lang}
-                  disabled={submitting}
-                  fields={[
-                    {
-                      key: 'name',
-                      label: 'Account name',
-                      ask: formatVoiceGuideAsk('name', lang),
-                      parse: parseVoiceGuideName,
-                    },
-                    {
-                      key: 'bankName',
-                      label: 'Bank',
-                      ask: formatVoiceGuideAsk('bank', lang, true),
-                      parse: parseVoiceGuideBank,
-                      optional: true,
-                    },
-                    {
-                      key: 'accountNumber',
-                      label: 'Account',
-                      ask: formatVoiceGuideAsk('account', lang, true),
-                      parse: parseVoiceGuideAccount,
-                      optional: true,
-                    },
-                    {
-                      key: 'ifscCode',
-                      label: 'IFSC',
-                      ask: formatVoiceGuideAsk('ifsc', lang, true),
-                      parse: parseVoiceGuideIfsc,
-                      optional: true,
-                    },
-                  ]}
-                  onField={(key, value) => {
-                    setForm(f => ({ ...f, [key]: value }));
-                  }}
-                  onDone={() => toast('Check the form, then save.', 'success')}
-                />
-              </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Account Name</label>
-                  <input
-                    required
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="e.g. Main Account"
-                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      required
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      placeholder="e.g. Main Account"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="account name"
+                      parse={parseVoiceGuideName}
+                      onFill={value => setForm(f => ({ ...f, name: value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Account Number</label>
-                  <input
-                    value={form.accountNumber}
-                    onChange={e => setForm({ ...form, accountNumber: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      value={form.accountNumber}
+                      onChange={e => setForm({ ...form, accountNumber: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="account number"
+                      parse={parseVoiceGuideAccount}
+                      onFill={value => setForm(f => ({ ...f, accountNumber: value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Bank Name</label>
-                  <input
-                    value={form.bankName}
-                    onChange={e => setForm({ ...form, bankName: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      value={form.bankName}
+                      onChange={e => setForm({ ...form, bankName: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="bank name"
+                      parse={parseVoiceGuideBank}
+                      onFill={value => setForm(f => ({ ...f, bankName: value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Branch</label>
@@ -302,11 +289,20 @@ export function BankMasterView({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">IFSC Code</label>
-                  <input
-                    value={form.ifscCode}
-                    onChange={e => setForm({ ...form, ifscCode: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
-                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      value={form.ifscCode}
+                      onChange={e => setForm({ ...form, ifscCode: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      disabled={submitting}
+                      label="IFSC"
+                      parse={parseVoiceGuideIfsc}
+                      onFill={value => setForm(f => ({ ...f, ifscCode: value }))}
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-2 pt-2">
                   <button
