@@ -18,6 +18,7 @@ import { cn, exportToCsv, formatDate, getTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, TableSkeleton } from '../../components/ui';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { BarcodeLabelPrinter } from '../../components/ui/BarcodeLabelPrinter';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -28,6 +29,7 @@ import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnP
 import { useConfirm } from '../../hooks/useConfirm';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { useTranslation } from '../../i18n';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { MetalIntakeModal } from './MetalIntakeModal';
@@ -72,6 +74,7 @@ export function InventoryView({
   // Read (view) includes print — warehouse staff can print without write.
   const canPrint = accessLevel === 'view' || accessLevel === 'print' || accessLevel === 'full';
   const { toast } = useToast();
+  const { lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const bizCfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(bizCfg.type);
@@ -390,19 +393,20 @@ export function InventoryView({
                 </button>
               )}
               <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
-              {barcodeSystemEnabled && (
-                <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
+              <div className="relative flex-1 min-w-[150px] sm:min-w-[200px] flex items-center gap-1">
+                <div className="relative flex-1">
                   <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
                     type="text"
-                    placeholder="Scan or enter barcode..."
+                    placeholder="Scan or search barcode / name..."
                     value={barcodeSearch}
                     onChange={e => setBarcodeSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
                     autoComplete="off"
                   />
                 </div>
-              )}
+                <VoiceSearchMic lang={lang} onQuery={setBarcodeSearch} />
+              </div>
               {canEdit && (
                 <button
                   type="button"

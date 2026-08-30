@@ -6,6 +6,8 @@ import React from 'react';
 import { Clock, FileSpreadsheet, IndianRupee, MessageCircle, Plus, Printer, Search, Send, X } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { LoadingSpinner, PaidBadge, PartialBadge, isBillFullyPaid, isBillPartiallyPaid } from '../../components/ui';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
+import { useTranslation } from '../../i18n';
 import { canSendPaymentReminder, type CompanyReminderSettings } from '../../lib/paymentReminders';
 
 export type DesktopVendorSummaryRow = {
@@ -109,6 +111,7 @@ export function DesktopVendorFinance({
   onRemindAll,
   remindAllCount,
 }: Props) {
+  const { lang } = useTranslation();
   const filtered = summaryData.filter(v => {
     if (isEmptyVendorFinanceRow(v)) return false;
     const isPaid = v.balance <= 0;
@@ -420,15 +423,18 @@ export function DesktopVendorFinance({
                 </button>
               ))}
             </div>
-            <div className="relative flex-1 min-w-[160px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
-              <input
-                type="text"
-                placeholder="Search vendor..."
-                value={finSearch}
-                onChange={e => onFinSearch(e.target.value)}
-                className={fieldInput}
-              />
+            <div className="relative flex-1 min-w-[160px] flex items-center gap-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search vendor..."
+                  value={finSearch}
+                  onChange={e => onFinSearch(e.target.value)}
+                  className={fieldInput}
+                />
+              </div>
+              <VoiceSearchMic lang={lang} onQuery={onFinSearch} />
             </div>
           </div>
 

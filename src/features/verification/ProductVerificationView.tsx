@@ -22,6 +22,7 @@ import {
 import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast } from '../../components/ui';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
@@ -98,7 +99,7 @@ const statusConfig: Record<string, { color: string; bg: string; icon: typeof Che
 
 export function ProductVerificationView() {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
   const partyPlural = tb(cfg.labels.vendors || 'Vendors', t);
@@ -290,6 +291,15 @@ export function ProductVerificationView() {
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
                 )}
               </div>
+              <VoiceSearchMic
+                lang={lang}
+                onQuery={v => {
+                  setBarcode(v);
+                  setResult(null);
+                  setNotFound(false);
+                  setVendorDetail(null);
+                }}
+              />
               {barcodeSystem && (
                 <button
                   type="button"

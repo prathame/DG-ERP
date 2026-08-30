@@ -76,6 +76,7 @@ import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsA
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
 import { CreateUnifiedBillModal } from './CreateUnifiedBillModal';
 
 /** Normalize list API payloads (array or { data: [] }) so party dropdowns never go empty on shape mismatch. */
@@ -306,7 +307,7 @@ export function InvoicesView({
 } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
   const serviceProductUx = isServiceProductUx(cfg.type);
@@ -838,17 +839,23 @@ export function InvoicesView({
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-2.5 sm:p-3 space-y-2">
-        <label className="relative block">
-          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <input
-            type="search"
-            value={customerQuery}
-            onChange={e => setCustomerQuery(e.target.value)}
-            placeholder={t('invoices.filterCustomer')}
-            aria-label={t('invoices.filterCustomer')}
-            className="w-full min-h-10 h-10 pl-8 pr-2.5 border border-gray-200 rounded-lg text-[13px] sm:text-sm bg-white focus:ring-2 focus:ring-brand focus:outline-none"
-          />
-        </label>
+        <div className="flex items-center gap-1">
+          <label className="relative block flex-1">
+            <Search
+              size={15}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+            />
+            <input
+              type="search"
+              value={customerQuery}
+              onChange={e => setCustomerQuery(e.target.value)}
+              placeholder={t('invoices.filterCustomer')}
+              aria-label={t('invoices.filterCustomer')}
+              className="w-full min-h-10 h-10 pl-8 pr-2.5 border border-gray-200 rounded-lg text-[13px] sm:text-sm bg-white focus:ring-2 focus:ring-brand focus:outline-none"
+            />
+          </label>
+          <VoiceSearchMic lang={lang} onQuery={setCustomerQuery} />
+        </div>
         <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
       </div>
 

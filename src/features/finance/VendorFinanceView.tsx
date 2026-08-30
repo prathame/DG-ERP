@@ -34,6 +34,8 @@ import {
   isBillFullyPaid,
   isBillPartiallyPaid,
 } from '../../components/ui';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
+import { useTranslation } from '../../i18n';
 import { useConfirm } from '../../hooks/useConfirm';
 import {
   DEFAULT_REMINDER_SETTINGS,
@@ -64,6 +66,7 @@ export function VendorFinanceView({
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
 }) {
   const { toast } = useToast();
+  const { lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
@@ -1576,15 +1579,18 @@ export function VendorFinanceView({
             {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
           </button>
         ))}
-        <div className="relative flex-1 min-w-[150px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input
-            type="text"
-            placeholder="Search vendor..."
-            value={finSearch}
-            onChange={e => setFinSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-          />
+        <div className="relative flex-1 min-w-[150px] flex items-center gap-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Search vendor..."
+              value={finSearch}
+              onChange={e => setFinSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+            />
+          </div>
+          <VoiceSearchMic lang={lang} onQuery={setFinSearch} />
         </div>
       </div>
 

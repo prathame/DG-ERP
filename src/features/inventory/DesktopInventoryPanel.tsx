@@ -21,6 +21,8 @@ import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { TableSkeleton } from '../../components/ui';
 import { ColumnPickerButton } from '../../components/ui/ColumnPicker';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
+import { useTranslation } from '../../i18n';
 import { ProductThumb } from './ProductThumb';
 import { packUnitWord, stockUnitLabel } from '../../../shared/qtyStock';
 
@@ -132,6 +134,7 @@ export function DesktopInventoryPanel({
   onDelete,
   onToggleGst,
 }: Props) {
+  const { lang } = useTranslation();
   const fieldInput =
     'w-full pl-10 pr-4 py-2.5 bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg text-sm dg-ink focus:ring-2 focus:ring-[var(--dg-primary)] focus:border-transparent';
 
@@ -195,19 +198,20 @@ export function DesktopInventoryPanel({
             </button>
           )}
           <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
-          {barcodeSystemEnabled && (
-            <div className="relative min-w-[180px] flex-1 sm:flex-none sm:w-56">
+          <div className="relative min-w-[180px] flex-1 sm:flex-none sm:w-72 flex items-center gap-1">
+            <div className="relative flex-1">
               <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 dg-faint" size={16} />
               <input
                 type="text"
-                placeholder="Scan or enter barcode..."
+                placeholder={barcodeSystemEnabled ? 'Scan or search barcode / name...' : 'Search product name...'}
                 value={barcodeSearch}
                 onChange={e => onBarcodeSearch(e.target.value)}
                 className={fieldInput}
                 autoComplete="off"
               />
             </div>
-          )}
+            <VoiceSearchMic lang={lang} onQuery={onBarcodeSearch} />
+          </div>
           {canEdit && (
             <button
               type="button"
