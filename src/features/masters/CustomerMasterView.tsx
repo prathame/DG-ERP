@@ -8,6 +8,8 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import { parseVoiceCustomer, formatVoiceCustomerReply } from '../../lib/billVoice';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { phoneValidationError } from '../../../shared/phone';
@@ -26,7 +28,7 @@ export function CustomerMasterView({
 }) {
   const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const cfg = useBusinessConfig();
   const linkedPartyLabel = tb(cfg.labels.vendors, t).replace(/s$/i, ''); // Vendor | Customer | Client
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
@@ -51,6 +53,7 @@ export function CustomerMasterView({
     creditLimit: '',
     creditPeriodDays: '',
   });
+  const [voiceHeard, setVoiceHeard] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEscapeKey(() => {
@@ -114,6 +117,7 @@ export function CustomerMasterView({
       creditLimit: '',
       creditPeriodDays: '',
     });
+    setVoiceHeard('');
     setModalOpen(true);
   };
   const openEdit = (c: Customer) => {
@@ -128,7 +132,25 @@ export function CustomerMasterView({
       creditLimit: c.creditLimit != null ? String(c.creditLimit) : '',
       creditPeriodDays: c.creditPeriodDays != null ? String(c.creditPeriodDays) : '',
     });
+    setVoiceHeard('');
     setModalOpen(true);
+  };
+
+  const applyVoiceTranscript = (transcript: string) => {
+    setVoiceHeard(transcript);
+    const fill = parseVoiceCustomer(transcript);
+    if (!fill.name && !fill.phone) {
+      toast('Could not catch a customer name or phone. Nothing was filled. Type it on the form.', 'error');
+      speakBillVoice(formatVoiceCustomerReply(fill, lang), lang);
+      return;
+    }
+    setForm(f => ({
+      ...f,
+      name: fill.name || f.name,
+      phone: fill.phone || f.phone,
+    }));
+    speakBillVoice(formatVoiceCustomerReply(fill, lang), lang);
+    toast('Check the form, then save.', 'success');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -366,6 +388,12 @@ export function CustomerMasterView({
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Customer' : 'Add Customer'}</h3>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-4">
+                <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
+                <span className="min-w-0 flex-1">
+                  {voiceHeard ? `Heard: “${voiceHeard}”` : 'Speak name and phone, then check the form.'}
+                </span>
+              </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Name</label>

@@ -18,6 +18,8 @@ import {
 import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
+import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
+import { useTranslation } from '../../i18n';
 import type { StockFilter } from './DesktopInventoryPanel';
 import { ProductThumb } from './ProductThumb';
 import { packUnitWord, stockUnitLabel } from '../../../shared/qtyStock';
@@ -104,6 +106,7 @@ export function MobileInventoryPanel({
   onDelete,
   onToggleGst,
 }: Props) {
+  const { lang } = useTranslation();
   const filtered = products.filter(p => {
     if (!inventoryTrackingEnabled) return true;
     const rem = remainingOf(p);
@@ -168,16 +171,21 @@ export function MobileInventoryPanel({
         </div>
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 dg-m-faint" />
-        {barcodeSystemEnabled && <Barcode size={14} className="absolute right-3 top-1/2 -translate-y-1/2 dg-m-faint" />}
-        <input
-          type="search"
-          value={barcodeSearch}
-          onChange={e => onBarcodeSearch(e.target.value)}
-          placeholder={barcodeSystemEnabled ? 'Scan or search barcode / name…' : 'Search product name…'}
-          className="w-full h-10 pl-9 pr-9 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
-        />
+      <div className="flex items-center gap-1">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 dg-m-faint" />
+          {barcodeSystemEnabled && (
+            <Barcode size={14} className="absolute right-3 top-1/2 -translate-y-1/2 dg-m-faint" />
+          )}
+          <input
+            type="search"
+            value={barcodeSearch}
+            onChange={e => onBarcodeSearch(e.target.value)}
+            placeholder={barcodeSystemEnabled ? 'Scan or search barcode / name…' : 'Search product name…'}
+            className="w-full h-10 pl-9 pr-9 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
+          />
+        </div>
+        <VoiceSearchMic lang={lang} onQuery={onBarcodeSearch} />
       </div>
 
       {inventoryTrackingEnabled && (

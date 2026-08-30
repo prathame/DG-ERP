@@ -5,6 +5,9 @@ import { cn, exportToCsv } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Bank } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import { parseVoiceBank, formatVoiceBankReply } from '../../lib/billVoice';
+import { useTranslation } from '../../i18n';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
@@ -20,6 +23,7 @@ export function BankMasterView({
 }) {
   const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
+  const { lang } = useTranslation();
   const [list, setList] = useState<Bank[]>([]);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
@@ -29,6 +33,7 @@ export function BankMasterView({
   const [deleteTarget, setDeleteTarget] = useState<Bank | null>(null);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [form, setForm] = useState({ name: '', accountNumber: '', bankName: '', branch: '', ifscCode: '' });
+  const [voiceHeard, setVoiceHeard] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
@@ -48,6 +53,7 @@ export function BankMasterView({
     if (!canWrite) return;
     setEditing(null);
     setForm({ name: '', accountNumber: '', bankName: '', branch: '', ifscCode: '' });
+    setVoiceHeard('');
     setModalOpen(true);
   };
   const openEdit = (b: Bank) => {
@@ -60,7 +66,28 @@ export function BankMasterView({
       branch: b.branch ?? '',
       ifscCode: b.ifscCode ?? '',
     });
+    setVoiceHeard('');
     setModalOpen(true);
+  };
+
+  const applyVoiceTranscript = (transcript: string) => {
+    setVoiceHeard(transcript);
+    const fill = parseVoiceBank(transcript);
+    if (!fill.name && !fill.accountNumber && !fill.bankName && !fill.branch && !fill.ifscCode) {
+      toast('Could not catch bank details. Nothing was filled. Type it on the form.', 'error');
+      speakBillVoice(formatVoiceBankReply(fill, lang), lang);
+      return;
+    }
+    setForm(f => ({
+      ...f,
+      name: fill.name || f.name,
+      accountNumber: fill.accountNumber || f.accountNumber,
+      bankName: fill.bankName || f.bankName,
+      branch: fill.branch || f.branch,
+      ifscCode: fill.ifscCode || f.ifscCode,
+    }));
+    speakBillVoice(formatVoiceBankReply(fill, lang), lang);
+    toast('Check the form, then save.', 'success');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -216,6 +243,12 @@ export function BankMasterView({
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Bank' : 'Add Bank'}</h3>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-4">
+                <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
+                <span className="min-w-0 flex-1">
+                  {voiceHeard ? `Heard: “${voiceHeard}”` : 'Speak bank, account number, and IFSC, then check the form.'}
+                </span>
+              </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Account Name</label>

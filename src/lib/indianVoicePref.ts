@@ -52,14 +52,28 @@ export function isIndianVoice(v: { lang?: string; name?: string }): boolean {
   const lang = String(v.lang || '').replace('_', '-');
   if (/-IN$/i.test(lang)) return true;
   if (/^(hi|gu|mr|ta|te|kn|ml|bn|pa|or|as|ur)$/i.test(lang)) return true;
-  return /india|hindi|हिन्द|ગુજરાત|मराठी|english \(india\)/i.test(String(v.name || ''));
+  return /india|hindi|हिन्द|gujarati|ગુજરાત|dhwani|marathi|मराठी|english \(india\)/i.test(String(v.name || ''));
+}
+
+/** True when this voice can actually speak the app language (not merely any Indian voice). */
+export function voiceLangMatches(v: { lang?: string; name?: string }, appLangTag: string): boolean {
+  const prefix = appLangTag.slice(0, 2).toLowerCase();
+  const lang = String(v.lang || '')
+    .replace('_', '-')
+    .toLowerCase();
+  if (lang === prefix || lang.startsWith(`${prefix}-`)) return true;
+  const name = String(v.name || '');
+  if (prefix === 'gu') return /gujarati|ગુજરાતી|dhwani/i.test(name);
+  if (prefix === 'hi') return /hindi|हिन्द|kalpana/i.test(name);
+  if (prefix === 'mr') return /marathi|मराठी/i.test(name);
+  return false;
 }
 
 export function listIndianVoices(voices: SpeechVoiceInfo[]): SpeechVoiceInfo[] {
   return voices.filter(isIndianVoice).sort((a, b) => a.name.localeCompare(b.name, 'en'));
 }
 
-/** Stored pick, else a voice matching the app language, else first Indian voice. */
+/** Stored pick when it matches the app language, else a matching Indian voice. Never a random other Indian language. */
 export function pickIndianVoice(
   voices: SpeechVoiceInfo[],
   storedUri: string,
@@ -69,8 +83,25 @@ export function pickIndianVoice(
   if (!indian.length) return null;
   if (storedUri) {
     const hit = indian.find(v => v.voiceURI === storedUri);
-    if (hit) return hit;
+    if (hit && voiceLangMatches(hit, appLangTag)) return hit;
   }
-  const prefix = appLangTag.slice(0, 2).toLowerCase();
-  return indian.find(v => v.lang.replace('_', '-').toLowerCase().startsWith(prefix)) || indian[0];
+  return indian.find(v => voiceLangMatches(v, appLangTag)) || null;
+}
+
+export type PreparedUtterance = { text: string; lang: string; voiceURI: string | null };
+
+/**
+ * Bind a matching Indian voice (Google ગુજરાતી in Chrome, Microsoft Dhwani on Windows).
+ * If none is listed yet, leave voice unset and keep gu-IN / hi-IN / … so Chrome can still
+ * speak that language. Never attach Hindi/Telugu/English for Gujarati — that makes it silent or Hindi.
+ */
+export function prepareVoiceUtterance(
+  text: string,
+  appLangTag: string,
+  voices: SpeechVoiceInfo[],
+  storedUri: string,
+): PreparedUtterance {
+  const picked = pickIndianVoice(voices, storedUri, appLangTag);
+  if (picked) return { text, lang: appLangTag, voiceURI: picked.voiceURI };
+  return { text, lang: appLangTag, voiceURI: null };
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { speechLangTag, type BillVoiceLang } from '../../lib/billVoice';
-import { getStoredVoiceRate, getStoredVoiceUri, pickIndianVoice } from '../../lib/indianVoicePref';
+import { speechLangTag, type BillVoiceLang, voiceSearchQuery, formatVoiceSearchReply } from '../../lib/billVoice';
+import { getStoredVoiceRate, getStoredVoiceUri, prepareVoiceUtterance } from '../../lib/indianVoicePref';
 
 type SpeechRec = {
   lang: string;
@@ -38,23 +38,36 @@ function stopSpeaking() {
 export function speakBillVoice(text: string, lang: BillVoiceLang) {
   if (!text || typeof window === 'undefined' || !window.speechSynthesis) return;
   stopSpeaking();
-  const u = new SpeechSynthesisUtterance(text);
-  const tag = speechLangTag(lang);
-  const voices = window.speechSynthesis.getVoices().map(v => ({
-    voiceURI: v.voiceURI,
-    name: v.name,
-    lang: v.lang,
-  }));
-  const picked = pickIndianVoice(voices, getStoredVoiceUri(), tag);
-  if (picked) {
-    const full = window.speechSynthesis.getVoices().find(v => v.voiceURI === picked.voiceURI);
-    if (full) u.voice = full;
-    u.lang = picked.lang || tag;
-  } else {
-    u.lang = tag;
+  const synth = window.speechSynthesis;
+  const speakNow = () => {
+    const voices = synth.getVoices().map(v => ({
+      voiceURI: v.voiceURI,
+      name: v.name,
+      lang: v.lang,
+    }));
+    const prepared = prepareVoiceUtterance(text, speechLangTag(lang), voices, getStoredVoiceUri());
+    const u = new SpeechSynthesisUtterance(prepared.text);
+    u.lang = prepared.lang;
+    if (prepared.voiceURI) {
+      const full = synth.getVoices().find(v => v.voiceURI === prepared.voiceURI);
+      if (full) u.voice = full;
+    }
+    u.rate = getStoredVoiceRate();
+    synth.speak(u);
+  };
+  if (synth.getVoices().length) {
+    speakNow();
+    return;
   }
-  u.rate = getStoredVoiceRate();
-  window.speechSynthesis.speak(u);
+  const once = () => {
+    synth.removeEventListener('voiceschanged', once);
+    speakNow();
+  };
+  synth.addEventListener('voiceschanged', once);
+  window.setTimeout(() => {
+    synth.removeEventListener('voiceschanged', once);
+    if (!synth.speaking && !synth.pending) speakNow();
+  }, 400);
 }
 
 export function BillVoiceMic({
@@ -119,7 +132,7 @@ export function BillVoiceMic({
       disabled={disabled}
       onClick={() => (listening ? stop() : start())}
       aria-pressed={listening}
-      aria-label={listening ? 'Stop listening' : compact ? 'Search by voice' : 'Fill this bill by voice'}
+      aria-label={listening ? 'Stop listening' : compact ? 'Search by voice' : 'Fill this form by voice'}
       className={cn(
         'shrink-0 min-h-11 inline-flex items-center justify-center gap-1.5 rounded-xl border text-sm font-semibold',
         compact ? 'min-w-11 px-0' : 'px-3',
@@ -132,5 +145,32 @@ export function BillVoiceMic({
       {listening ? <Square size={14} /> : <Mic size={16} />}
       {compact ? null : listening ? 'Listening…' : 'Speak'}
     </button>
+  );
+}
+
+export function VoiceSearchMic({
+  lang,
+  disabled,
+  onQuery,
+}: {
+  lang: BillVoiceLang;
+  onQuery: (query: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <BillVoiceMic
+      lang={lang}
+      compact
+      disabled={disabled}
+      onHeard={transcript => {
+        const q = voiceSearchQuery(transcript);
+        if (!q) {
+          speakBillVoice(formatVoiceSearchReply('', lang), lang);
+          return;
+        }
+        onQuery(q);
+        speakBillVoice(formatVoiceSearchReply(q, lang), lang);
+      }}
+    />
   );
 }
