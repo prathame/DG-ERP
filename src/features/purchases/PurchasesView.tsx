@@ -26,8 +26,8 @@ import { SearchSelect } from '../../components/ui/SearchSelect';
 import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
 import { supplierMatchesPurchaseSearch } from '../../lib/purchaseSearch';
 import { localDateISO } from '../../lib/reportingPeriod';
-import { BillVoiceMic } from '../../components/ui/BillVoiceMic';
-import { parseBillVoice } from '../../lib/billVoice';
+import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import { parseBillVoice, formatBillVoiceReply, formatBillVoiceUnknown } from '../../lib/billVoice';
 import { useTranslation } from '../../i18n';
 
 function purchaseUnitCost(rowCost: string, product?: Product): number {
@@ -727,7 +727,21 @@ export function PurchasesView({
     }
     if (nextRows.length) setPurchaseRows(nextRows);
     if (!fill.partyId && nextRows.length === 0) {
-      toast('Could not catch a supplier or product. Try: GSFC, 10 spray', 'error');
+      toast('Could not catch a supplier or product. Nothing was filled. Type it on the form.', 'error');
+      speakBillVoice(formatBillVoiceUnknown(lang), lang);
+      return;
+    }
+    speakBillVoice(formatBillVoiceReply(fill, lang), lang);
+    if (fill.partyId && nextRows.length === 0) {
+      toast('Supplier filled. No matching product. Type the product on the form.', 'error');
+      return;
+    }
+    if (!fill.partyId && nextRows.length > 0) {
+      toast('Product filled. No matching supplier. Type the supplier on the form.', 'error');
+      return;
+    }
+    if (fill.lines.some(l => !l.qtyHeard)) {
+      toast('Quantity was not heard. Check the form before recording the purchase.', 'error');
       return;
     }
     toast('Check the form, then record the purchase.', 'success');
@@ -1910,9 +1924,7 @@ export function PurchasesView({
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                 <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
                 <span className="min-w-0 flex-1">
-                  {voiceHeard
-                    ? `Heard: “${voiceHeard}” — check the form, then record.`
-                    : 'Speak a supplier and items, then check the form.'}
+                  {voiceHeard ? `Heard: “${voiceHeard}”` : 'Speak a supplier and items, then check the form.'}
                 </span>
               </div>
               <FormGrid className="sm:grid-cols-3">

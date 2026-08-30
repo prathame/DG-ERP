@@ -60,6 +60,7 @@ import { getTabVisiblePref, setTabVisiblePref } from '../../lib/tabVisibilityPre
 import { getChatbotPref, setChatbotPref } from '../../lib/chatbotPref';
 import { NAV_POSITIONS, getNavPositionPref, setNavPositionPref } from '../../lib/navPositionPref';
 import { UserGuidePanel } from './UserGuidePanel';
+import { IndianVoiceSelect } from './IndianVoiceSelect';
 import { WhatsAppWebPanel } from './WhatsAppWebPanel';
 import { EmailSettingsPanel } from './EmailSettingsPanel';
 import { useEscapeKey } from '../../lib/useEscapeKey';
@@ -2456,6 +2457,7 @@ export function SettingsView({
                       ))}
                     </div>
                   </div>
+                  <IndianVoiceSelect />
                   <div className="space-y-2">
                     <p className="font-semibold text-sm">{st('settings.navPosition')}</p>
                     <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{st('settings.navPositionDesc')}</p>

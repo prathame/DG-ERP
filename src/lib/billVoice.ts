@@ -9,6 +9,8 @@ export type BillVoiceLine = {
   productName: string;
   qty: number;
   packs: number;
+  spoken: number;
+  qtyHeard: boolean;
 };
 
 export type BillVoiceResult = {
@@ -152,26 +154,32 @@ function parseSpokenNumber(token: string, lang: BillVoiceLang): number | null {
 function longestNameMatch<T extends BillVoiceCatalogItem>(haystack: string, items: T[]): T | null {
   let best: T | null = null;
   let bestLen = 0;
+  let tied = false;
   for (const item of items) {
     const n = normalizeVoiceText(item.name);
-    if (n.length < 3) continue;
-    if (haystack.includes(n) && n.length > bestLen) {
+    if (n.length < 4) continue;
+    const hit = n.includes(' ') ? haystack.includes(n) : wordIndex(haystack, n) >= 0;
+    if (!hit) continue;
+    if (n.length > bestLen) {
       best = item;
       bestLen = n.length;
+      tied = false;
+    } else if (n.length === bestLen && best && best.id !== item.id) {
+      tied = true;
     }
   }
-  return best;
+  return tied ? null : best;
 }
 
-function qtyBefore(haystack: string, matchAt: number, lang: BillVoiceLang): number {
+function qtyBefore(haystack: string, matchAt: number, lang: BillVoiceLang): { qty: number; heard: boolean } {
   const before = haystack.slice(0, matchAt).trim().split(/\s+/).filter(Boolean);
   for (let i = before.length - 1; i >= 0; i--) {
     const q = parseSpokenNumber(before[i], lang);
-    if (q != null && q >= 1) return Math.floor(q);
+    if (q != null && q >= 1) return { qty: Math.floor(q), heard: true };
     if (FILLER.has(before[i])) continue;
     break;
   }
-  return 1;
+  return { qty: 1, heard: false };
 }
 
 function wordIndex(haystack: string, tok: string): number {
@@ -200,8 +208,9 @@ function findProductHits(
   const sorted = [...products].sort((a, b) => normalizeVoiceText(b.name).length - normalizeVoiceText(a.name).length);
   for (const product of sorted) {
     const n = normalizeVoiceText(product.name);
-    if (n.length < 3) continue;
-    take(product, n, haystack.indexOf(n));
+    if (n.length < 4) continue;
+    const at = n.includes(' ') ? haystack.indexOf(n) : wordIndex(haystack, n);
+    take(product, n, at);
   }
   if (hits.length) return hits.sort((a, b) => a.at - b.at);
 
@@ -210,7 +219,7 @@ function findProductHits(
   for (const product of products) {
     for (const tok of normalizeVoiceText(product.name)
       .split(' ')
-      .filter(t => t.length >= 4)) {
+      .filter(t => t.length >= 5 && !FILLER.has(t))) {
       if (ambiguous.has(tok)) continue;
       const prev = tokenOwner.get(tok);
       if (prev && prev.id !== product.id) {
@@ -242,9 +251,16 @@ export function parseBillVoice(
     const product = h.product;
     const spoken = qtyBefore(afterParty, h.at, lang);
     const ps = product.packSize && product.packSize > 1 ? product.packSize : 1;
-    const packs = ps > 1 ? spoken : 0;
-    const qty = ps > 1 ? spoken * ps : spoken;
-    return { productId: product.id, productName: product.name, qty, packs };
+    const packs = ps > 1 ? spoken.qty : 0;
+    const qty = ps > 1 ? spoken.qty * ps : spoken.qty;
+    return {
+      productId: product.id,
+      productName: product.name,
+      qty,
+      packs,
+      spoken: spoken.qty,
+      qtyHeard: spoken.heard,
+    };
   });
 
   return {
@@ -252,4 +268,220 @@ export function parseBillVoice(
     partyName: party?.name ?? null,
     lines,
   };
+}
+
+const CHECK_FORM: Record<BillVoiceLang, string> = {
+  en: 'Check the form.',
+  hi: 'फॉर्म चेक करें।',
+  gu: 'ફોર્મ ચેક કરો.',
+  mr: 'फॉर्म तपासा.',
+};
+
+const UNKNOWN: Record<BillVoiceLang, string> = {
+  en: 'I did not catch a matching customer or product. Nothing was filled. Please type it.',
+  hi: 'मिलता ग्राहक या प्रोडक्ट नहीं सुना। कुछ भरा नहीं। कृपया टाइप करें।',
+  gu: 'મેળ ખાતો ગ્રાહક કે પ્રોડક્ટ નથી સંભળાયો. કંઈ ભર્યું નથી. કૃપા કરીને ટાઈપ કરો.',
+  mr: 'जुळणारा ग्राहक किंवा उत्पादन ऐकू आले नाही. काही भरले नाही. कृपया टाइप करा.',
+};
+
+const NO_PRODUCT: Record<BillVoiceLang, string> = {
+  en: 'No matching product.',
+  hi: 'मिलता प्रोडक्ट नहीं।',
+  gu: 'મેળ ખાતું પ્રોડક્ટ નથી.',
+  mr: 'जुळणारे उत्पादन नाही.',
+};
+
+const QTY_UNKNOWN: Record<BillVoiceLang, string> = {
+  en: 'quantity not heard',
+  hi: 'मात्रा नहीं सुनी',
+  gu: 'જથ્થો સંભળાયો નથી',
+  mr: 'प्रमाण ऐकू आले नाही',
+};
+
+/** Short spoken recap of what was filled. Says so when a part was not matched. Never invents names. */
+export function formatBillVoiceUnknown(lang: BillVoiceLang = 'en'): string {
+  return UNKNOWN[lang];
+}
+
+export function formatBillVoiceReply(fill: BillVoiceResult, lang: BillVoiceLang = 'en'): string {
+  if (!fill.partyName && fill.lines.length === 0) return formatBillVoiceUnknown(lang);
+  if (fill.partyName && fill.lines.length === 0) {
+    return `${fill.partyName}. ${NO_PRODUCT[lang]} ${CHECK_FORM[lang]}`;
+  }
+  const items = fill.lines.map(line =>
+    line.qtyHeard ? `${line.spoken} ${line.productName}` : `${line.productName}, ${QTY_UNKNOWN[lang]}`,
+  );
+  const head = fill.partyName ? `${fill.partyName}, ${items.join(', ')}` : items.join(', ');
+  return `${head}. ${CHECK_FORM[lang]}`;
+}
+
+const SEARCH_FILLER = new Set([
+  'search',
+  'find',
+  'show',
+  'open',
+  'please',
+  'invoice',
+  'invoices',
+  'inventory',
+  'stock',
+  'vendor',
+  'vendors',
+  'customer',
+  'payment',
+  'payments',
+  'history',
+  'look',
+  'looking',
+  'for',
+  'the',
+  'a',
+  'an',
+]);
+
+/** Strip “search invoice …” so the remaining words go in the search box. */
+export function voiceSearchQuery(transcript: string): string {
+  return normalizeVoiceText(transcript)
+    .split(' ')
+    .filter(t => t && !SEARCH_FILLER.has(t))
+    .join(' ')
+    .trim();
+}
+
+const SEARCHING: Record<BillVoiceLang, (q: string) => string> = {
+  en: q => `Searching ${q}.`,
+  hi: q => `${q} ढूंढ रहे हैं।`,
+  gu: q => `${q} શોધી રહ્યા છીએ.`,
+  mr: q => `${q} शोधत आहे.`,
+};
+
+export function formatVoiceSearchReply(query: string, lang: BillVoiceLang = 'en'): string {
+  const q = query.trim();
+  if (!q) return '';
+  return SEARCHING[lang](q);
+}
+
+const CUSTOMER_FILLER = new Set([
+  'new',
+  'add',
+  'customer',
+  'client',
+  'party',
+  'phone',
+  'mobile',
+  'number',
+  'naam',
+  'please',
+  'the',
+  'a',
+]);
+
+export function parseVoiceCustomer(transcript: string): { name: string; phone: string } {
+  const digits = String(transcript || '').replace(/\D/g, '');
+  let phone = '';
+  if (digits.length >= 10) {
+    phone = digits.startsWith('91') && digits.length >= 12 ? digits.slice(-10) : digits.slice(-10);
+  }
+  const name = normalizeVoiceText(transcript)
+    .replace(/\+?91/g, ' ')
+    .replace(/\d+/g, ' ')
+    .split(' ')
+    .filter(t => t && !CUSTOMER_FILLER.has(t))
+    .join(' ')
+    .trim();
+  return { name, phone };
+}
+
+export function formatVoiceCustomerReply(fill: { name: string; phone: string }, lang: BillVoiceLang = 'en'): string {
+  const parts = [fill.name, fill.phone].filter(Boolean);
+  if (!parts.length) return '';
+  return `${parts.join(', ')}. ${CHECK_FORM[lang]}`;
+}
+
+export type VoiceBankFill = {
+  name: string;
+  accountNumber: string;
+  bankName: string;
+  branch: string;
+  ifscCode: string;
+};
+
+const KNOWN_BANKS: Array<[string, string]> = [
+  ['state bank of india', 'State Bank of India'],
+  ['state bank', 'State Bank of India'],
+  ['bank of baroda', 'Bank of Baroda'],
+  ['punjab national', 'Punjab National Bank'],
+  ['union bank', 'Union Bank of India'],
+  ['yes bank', 'Yes Bank'],
+  ['hdfc', 'HDFC Bank'],
+  ['icici', 'ICICI Bank'],
+  ['axis', 'Axis Bank'],
+  ['kotak', 'Kotak Mahindra Bank'],
+  ['pnb', 'Punjab National Bank'],
+  ['sbi', 'State Bank of India'],
+  ['canara', 'Canara Bank'],
+  ['baroda', 'Bank of Baroda'],
+];
+
+const BANK_FILLER = new Set([
+  'add',
+  'bank',
+  'details',
+  'account',
+  'number',
+  'ifsc',
+  'code',
+  'branch',
+  'new',
+  'please',
+  'the',
+  'a',
+  'an',
+]);
+
+export function parseVoiceBank(transcript: string): VoiceBankFill {
+  const raw = String(transcript || '');
+  const compact = raw.replace(/\s+/g, '');
+  const ifscM = compact.match(/[A-Za-z]{4}0[A-Za-z0-9]{6}/);
+  const ifscCode = ifscM ? ifscM[0].toUpperCase() : '';
+
+  const digitRuns = raw.match(/\d{9,18}/g) || [];
+  const accountNumber = digitRuns.find(d => !ifscCode.includes(d)) || '';
+
+  const hay = normalizeVoiceText(raw);
+  let bankName = '';
+  for (const [match, name] of KNOWN_BANKS) {
+    if (hay.includes(match)) {
+      bankName = name;
+      break;
+    }
+  }
+
+  let branch = '';
+  const branchM = hay.match(/\bbranch\s+(.+)$/);
+  if (branchM) branch = branchM[1].trim();
+
+  let rest = hay;
+  for (const [match] of KNOWN_BANKS) rest = rest.replace(match, ' ');
+  rest = rest.replace(/\bbranch\b.*$/, ' ');
+  rest = rest.replace(/\d+/g, ' ');
+  const name = rest
+    .split(' ')
+    .filter(t => t && !BANK_FILLER.has(t) && t.length > 1)
+    .join(' ')
+    .trim();
+
+  return {
+    name: name || bankName || '',
+    accountNumber,
+    bankName,
+    branch,
+    ifscCode,
+  };
+}
+
+export function formatVoiceBankReply(fill: VoiceBankFill, lang: BillVoiceLang = 'en'): string {
+  const parts = [fill.name, fill.bankName, fill.accountNumber, fill.ifscCode, fill.branch].filter(Boolean);
+  if (!parts.length) return '';
+  return `${parts.join(', ')}. ${CHECK_FORM[lang]}`;
 }
