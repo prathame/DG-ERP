@@ -46,6 +46,8 @@ import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
 import { shareStandaloneInvoiceWhatsApp, whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import { parseBillVoice, formatBillVoiceReply, formatBillVoiceUnknown } from '../../lib/billVoice';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
@@ -109,7 +111,7 @@ export function QuotationsView({
   onLaunchConsumed?: () => void;
 } = {}) {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -120,6 +122,7 @@ export function QuotationsView({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [voiceHeard, setVoiceHeard] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'Draft' | 'Sent' | 'Accepted' | 'Converted'>('all');
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [partialConvert, setPartialConvert] = useState<{
@@ -418,6 +421,7 @@ export function QuotationsView({
 
   const resetForm = () => {
     setEditingId(null);
+    setVoiceHeard('');
     setRows([emptyQuoteRow()]);
     setForm({
       vendorId: '',
@@ -428,6 +432,67 @@ export function QuotationsView({
       validUntil: '',
       notes: '',
     });
+  };
+
+  const applyVoiceTranscript = (transcript: string) => {
+    setVoiceHeard(transcript);
+    const fill = parseBillVoice(
+      transcript,
+      {
+        parties: vendors.filter(v => v.id && v.name).map(v => ({ id: v.id, name: v.name })),
+        products: products.filter(p => p.id && p.name).map(p => ({ id: p.id, name: p.name, packSize: p.packSize })),
+      },
+      lang,
+    );
+    const nextVendorId = fill.partyId || form.vendorId;
+    if (fill.partyId) {
+      const v = vendors.find(x => x.id === fill.partyId);
+      setForm(f => ({
+        ...f,
+        vendorId: fill.partyId as string,
+        customerName: v?.name || fill.partyName || f.customerName,
+        customerPhone: v?.phone || f.customerPhone,
+      }));
+    }
+    const nextRows: QuoteLineRow[] = [];
+    for (const line of fill.lines) {
+      const p = products.find(x => x.id === line.productId);
+      if (!p) continue;
+      nextRows.push({
+        productId: p.id,
+        description: '',
+        quantity: line.spoken,
+        unit: defaultBillUnit(billUnits),
+        customPrice: String(p.price),
+        discount: 0,
+        withGst: gstBilling,
+      });
+    }
+    if (nextRows.length) {
+      setRows(nextRows);
+      nextRows.forEach((r, i) => {
+        if (r.productId) resolveQuoteRowPrice(i, r.productId, nextVendorId, r.quantity || 1);
+      });
+    }
+    if (!fill.partyId && nextRows.length === 0) {
+      toast('Could not catch a customer or product. Nothing was filled. Type it on the form.', 'error');
+      speakBillVoice(formatBillVoiceUnknown(lang), lang);
+      return;
+    }
+    speakBillVoice(formatBillVoiceReply(fill, lang), lang);
+    if (fill.partyId && nextRows.length === 0) {
+      toast('Customer filled. No matching product. Type the product on the form.', 'error');
+      return;
+    }
+    if (!fill.partyId && nextRows.length > 0) {
+      toast('Product filled. No matching customer. Type the customer on the form.', 'error');
+      return;
+    }
+    if (fill.lines.some(l => !l.qtyHeard)) {
+      toast('Quantity was not heard. Check the form before creating the quotation.', 'error');
+      return;
+    }
+    toast('Check the form, then create the quotation.', 'success');
   };
 
   const openCreate = () => {
@@ -1163,6 +1228,14 @@ export function QuotationsView({
             }
           >
             <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
+                <span className="min-w-0 flex-1">
+                  {voiceHeard
+                    ? `Heard: “${voiceHeard}”`
+                    : 'Speak a customer and items, then check the form. Same as a sale — this stays a quotation until you convert it.'}
+                </span>
+              </div>
               <FormGrid>
                 <FormField label="Customer Name" required className="sm:col-span-2">
                   <SearchSelect

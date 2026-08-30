@@ -42,8 +42,8 @@ import { localDateISO } from '../../lib/reportingPeriod';
 import { expiredProductSaleError, isProductExpired } from '../../../shared/dateOnly';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 import { phoneValidationError } from '../../../shared/phone';
-import { BillVoiceMic } from '../../components/ui/BillVoiceMic';
-import { parseBillVoice } from '../../lib/billVoice';
+import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import { parseBillVoice, formatBillVoiceReply, formatBillVoiceUnknown } from '../../lib/billVoice';
 import { useTranslation } from '../../i18n';
 
 type Invoice = {
@@ -438,7 +438,21 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       });
     }
     if (!fill.partyId && nextRows.length === 0) {
-      toast('Could not catch a customer or product. Try: Anand, 2 wheat', 'error');
+      toast('Could not catch a customer or product. Nothing was filled. Type it on the form.', 'error');
+      speakBillVoice(formatBillVoiceUnknown(lang), lang);
+      return;
+    }
+    speakBillVoice(formatBillVoiceReply(fill, lang), lang);
+    if (fill.partyId && nextRows.length === 0) {
+      toast('Customer filled. No matching product. Type the product on the form.', 'error');
+      return;
+    }
+    if (!fill.partyId && nextRows.length > 0) {
+      toast('Product filled. No matching customer. Type the customer on the form.', 'error');
+      return;
+    }
+    if (fill.lines.some(l => !l.qtyHeard)) {
+      toast('Quantity was not heard. Check the form before creating the bill.', 'error');
       return;
     }
     toast('Check the form, then create the bill.', 'success');
@@ -932,7 +946,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                 <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
                 <span className="min-w-0 flex-1">
                   {voiceHeard
-                    ? `Heard: “${voiceHeard}” — check the form, then create.`
+                    ? `Heard: “${voiceHeard}”`
                     : `Speak a ${partyLabel.toLowerCase()} and items, then check the form. ${routeHint}`}
                 </span>
               </div>
