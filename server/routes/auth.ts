@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { pool } from '../pg-db';
+import { pool, withTenantClient } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { logger } from '../utils/logger';
@@ -55,11 +55,25 @@ router.post('/api/auth/login', async (req, res) => {
         ? (loginParams.push(slug.toLowerCase()), `AND t.slug = $${loginParams.length}`)
         : '';
 
+    // FORCE RLS: resolve tenant from `tenants` (not forced), then query `users` with app.tenant_id.
+    let loginTenantId: string | undefined;
+    if (typeof slug === 'string' && slug) {
+      loginTenantId = (await pool.query(`SELECT id FROM tenants WHERE LOWER(slug) = LOWER($1)`, [slug])).rows[0]?.id as
+        string | undefined;
+      if (!loginTenantId) {
+        logAuthEvent('Login failed', req, { reason: 'unknown_user', slug }, 'warn');
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+    }
+
+    const runLoginQuery = (sql: string, params: string[]) =>
+      loginTenantId ? withTenantClient(loginTenantId, client => client.query(sql, params)) : pool.query(sql, params);
+
     // M2: without slug, refuse ambiguous multi-tenant email matches
     if (!slugClause) {
       const cnt = Number(
         (
-          await pool.query(
+          await runLoginQuery(
             `SELECT COUNT(*) AS c FROM users u JOIN tenants t ON u.tenant_id = t.id
              WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL}`,
             [email.trim()],
@@ -74,7 +88,7 @@ router.post('/api/auth/login', async (req, res) => {
     }
 
     const row = (
-      await pool.query(
+      await runLoginQuery(
         `
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
              u.permissions, u.vendor_id, u.auto_whatsapp, u.wa_auto_settings, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
@@ -541,12 +555,28 @@ router.post('/api/auth/forgot-password', async (req, res) => {
       typeof resetSlug === 'string' && resetSlug
         ? (resetParams.push(resetSlug.toLowerCase()), `AND t.slug = $${resetParams.length}`)
         : '';
+    let resetTenantId: string | undefined;
+    if (typeof resetSlug === 'string' && resetSlug) {
+      resetTenantId = (await pool.query(`SELECT id FROM tenants WHERE LOWER(slug) = LOWER($1)`, [resetSlug])).rows[0]
+        ?.id as string | undefined;
+      if (!resetTenantId) {
+        return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
+      }
+    }
     const user = (
-      await pool.query(
-        `SELECT u.id, u.email, u.name, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id
+      await (resetTenantId
+        ? withTenantClient(resetTenantId, client =>
+            client.query(
+              `SELECT u.id, u.email, u.name, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id
          WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL} ${resetSlugClause} LIMIT 1`,
-        resetParams,
-      )
+              resetParams,
+            ),
+          )
+        : pool.query(
+            `SELECT u.id, u.email, u.name, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id
+         WHERE LOWER(u.email) = LOWER($1) AND u.${ACTIVE_USER_SQL} ${resetSlugClause} LIMIT 1`,
+            resetParams,
+          ))
     ).rows[0] as { id: string; email: string; name: string; tenant_id: string } | undefined;
     // Always return success to prevent email enumeration (includes soft-deleted)
     if (!user || isSoftDeletedEmail(user.email))
