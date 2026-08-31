@@ -1,5 +1,5 @@
 import { openPrintWindow, writePrintHtml } from './utils';
-import { generateDistributionChallanHtml, buildDistributionBillSlice } from './billTemplates';
+import { generateDistributionChallanHtml, buildDistributionBillSlice, type BillPrintPage } from './billTemplates';
 import type { DistributionBillData } from '../api';
 import { buildGstPrintOptions } from './buildGstPrintOptions';
 
@@ -25,6 +25,7 @@ export async function printDistributionDocs(
   bill: DistributionBillData,
   kind: DistPrintKind,
   fullyPaid = false,
+  printPage: BillPrintPage = 'full',
 ): Promise<void> {
   const gstItems = bill.items.filter(i => i.gstApplied === true);
   const bosItems = bill.items.filter(i => i.gstApplied !== true);
@@ -46,7 +47,7 @@ export async function printDistributionDocs(
         ewbNumber: bill.ewbNumber,
       };
       const { billForPrint, opts } = await buildGstPrintOptions(slice, which === 'gst', fullyPaid);
-      writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
+      writePrintHtml(w, generateDistributionChallanHtml(billForPrint, { ...opts, printPage }), {
         filename: which === 'gst' ? `Tax-Invoice-${docNo}` : `Bill-of-Supply-${docNo}`,
       });
     } catch (err) {

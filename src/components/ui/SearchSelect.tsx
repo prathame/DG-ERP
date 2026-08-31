@@ -27,6 +27,7 @@ interface SearchSelectProps {
   /** Footer to create a new catalog product from the typed name. */
   onCreateNew?: (typedName: string) => void;
   createNewLabel?: string;
+  disabled?: boolean;
 }
 
 export function SearchSelect({
@@ -42,6 +43,7 @@ export function SearchSelect({
   customLabel = 'customer',
   onCreateNew,
   createNewLabel = 'product',
+  disabled = false,
 }: SearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -52,6 +54,7 @@ export function SearchSelect({
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
   const openMenu = () => {
+    if (disabled) return;
     window.dispatchEvent(new CustomEvent('dhandho-searchselect-open', { detail: instanceId.current }));
     setOpen(true);
   };
@@ -266,8 +269,14 @@ export function SearchSelect({
             type="text"
             value={inputValue ?? ''}
             placeholder={placeholder}
-            onFocus={() => openMenu()}
-            onClick={() => openMenu()}
+            disabled={disabled}
+            readOnly={disabled}
+            onFocus={() => {
+              if (!disabled) openMenu();
+            }}
+            onClick={() => {
+              if (!disabled) openMenu();
+            }}
             onChange={e => {
               const text = e.target.value;
               onInputChange?.(text);
@@ -295,8 +304,9 @@ export function SearchSelect({
             }}
             className={cn(
               'w-full px-3 py-2 pr-9 border rounded-lg text-sm transition-colors',
-              open ? 'border-brand ring-2 ring-brand/20' : 'border-gray-200',
+              open && !disabled ? 'border-brand ring-2 ring-brand/20' : 'border-gray-200',
               'text-gray-900 placeholder:text-gray-400',
+              disabled && 'bg-slate-100 text-gray-700 cursor-not-allowed',
             )}
           />
           <ChevronDown
@@ -311,7 +321,9 @@ export function SearchSelect({
         <button
           ref={triggerRef as React.RefObject<HTMLButtonElement>}
           type="button"
+          disabled={disabled}
           onClick={() => {
+            if (disabled) return;
             if (open) setOpen(false);
             else {
               setSearch('');
@@ -320,8 +332,9 @@ export function SearchSelect({
           }}
           className={cn(
             'w-full px-3 py-2 border rounded-lg text-sm text-left flex items-center gap-2 transition-colors',
-            open ? 'border-brand ring-2 ring-brand/20' : 'border-gray-200',
+            open && !disabled ? 'border-brand ring-2 ring-brand/20' : 'border-gray-200',
             selected ? 'text-gray-900' : 'text-gray-400',
+            disabled && 'bg-slate-100 cursor-not-allowed',
           )}
         >
           <span className="truncate flex-1">{selected ? selected.label : placeholder}</span>

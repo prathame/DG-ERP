@@ -1,6 +1,11 @@
 import { fetchApi } from '../api';
 import { api } from '../api';
-import { generateStandaloneInvoiceHtml, type BillDocType, type StandaloneInvoicePrint } from './billTemplates';
+import {
+  generateStandaloneInvoiceHtml,
+  type BillDocType,
+  type BillPrintPage,
+  type StandaloneInvoicePrint,
+} from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
 import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
 import { isServiceProductUx } from '../platforms/service-cloud/mode';
@@ -116,7 +121,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string)
 
 async function buildStandaloneInvoiceHtml(
   inv: PrintableStandaloneInvoice,
-  options?: { billSettings?: Record<string, unknown>; businessType?: string; docType?: BillDocType },
+  options?: {
+    billSettings?: Record<string, unknown>;
+    businessType?: string;
+    docType?: BillDocType;
+    printPage?: BillPrintPage;
+  },
 ): Promise<{ html: string; filename: string; hasGst: boolean }> {
   if (!Array.isArray(inv.items) || inv.items.length === 0) {
     throw new Error('Invoice has no line items to print');
@@ -170,6 +180,7 @@ async function buildStandaloneInvoiceHtml(
       hasGst,
       docType,
       irnQrDataUrl: irnQrDataUrl || undefined,
+      printPage: options?.printPage,
     },
   );
   const filename = standaloneInvoicePdfBasename(inv.customerName);
@@ -193,7 +204,7 @@ export function standaloneInvoicePdfBasename(customerName?: string, when = new D
 /** Open print/PDF preview for a standalone invoice (customer or vendor/client party). */
 export async function printStandaloneInvoice(
   inv: PrintableStandaloneInvoice,
-  options?: { billSettings?: Record<string, unknown>; businessType?: string },
+  options?: { billSettings?: Record<string, unknown>; businessType?: string; printPage?: BillPrintPage },
 ): Promise<void> {
   // No html2pdf Download — canvas capture collapses Tax Invoice borders/tables.
   // Use system Print → Save as PDF for correct layout.
@@ -510,7 +521,7 @@ export async function shareStandaloneInvoiceWhatsApp(
 /** Load full invoice by id then print — for vendor/finance hubs. */
 export async function printStandaloneInvoiceById(
   invoiceId: string,
-  options?: { businessType?: string },
+  options?: { businessType?: string; printPage?: BillPrintPage },
 ): Promise<void> {
   const inv = await fetchApi<PrintableStandaloneInvoice & { id: string }>(`/invoices/${invoiceId}`);
   if (!inv?.id) throw new Error('Invoice not found for PDF');

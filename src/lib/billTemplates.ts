@@ -2,6 +2,7 @@ import type { SaleBillData, DistributionBillData } from '../api';
 import { formatBillQty } from '../../shared/billUnits';
 import { round2 } from '../../shared/gstRound';
 import { storedUpiQrDataUrl } from './upiQr';
+import { isCashPartyName } from './cashAccount';
 
 export function esc(text: unknown): string {
   return String(text ?? '')
@@ -29,14 +30,20 @@ export function billBackgroundLayerHtml(billSettings: Record<string, unknown> | 
   return `<div class="bill-bg" aria-hidden="true" style="background-image:url(${JSON.stringify(bg)});"></div>`;
 }
 
-/** Shared print/PDF CSS — full A4 width, boxed sections (Vyapar-style), no zebra fills. */
-function billDocCss(color: string): string {
+/** A4 full sheet vs A5 half-page receipt (Miracle-style short bills). */
+export type BillPrintPage = 'full' | 'half';
+
+/** Shared print/PDF CSS — boxed sections, no zebra fills. Items table ends after last row. */
+function billDocCss(color: string, page: BillPrintPage = 'full'): string {
+  const pageRule = page === 'half' ? 'size:A5;margin:6mm;' : 'size:A4;margin:8mm;';
+  const bodyPad = page === 'half' ? '5mm' : '8mm';
   return `
   *{margin:0;padding:0;box-sizing:border-box;}
   html,body{width:100%;background:#fff;color:#111;}
   /* Arial + no faux-bold: Windows print often fattens thin stems (I) at weight 800/900 */
-  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:8mm;margin:0;font-size:11px;-webkit-font-smoothing:auto;text-rendering:geometricPrecision;font-synthesis:none;}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:${bodyPad};margin:0;font-size:11px;-webkit-font-smoothing:auto;text-rendering:geometricPrecision;font-synthesis:none;}
   table{border-collapse:collapse;width:100%;}
+  .page-frame{border:1px solid #222;padding:6px;}
   .outer{border:1px solid #222;width:100%;}
   .outer td,.outer th{border:1px solid #222;padding:4px 8px;font-size:11px;}
   .doc-title{text-align:center;font-size:18px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;margin:0 0 10px;color:#111;}
@@ -57,7 +64,6 @@ function billDocCss(color: string): string {
   .items .left{text-align:left;}
   .items .right{text-align:right;}
   .items .total-row,.items .total-row td{font-weight:700;background:transparent!important;border-top:1px solid #222;}
-  .items .fill-row td{height:200px;border-left:1px solid #222;border-right:1px solid #222;border-top:none;border-bottom:none;padding:0;}
   .summary-label{font-weight:700;color:#555;}
   .grand-total{font-size:14px;font-weight:700;color:#111;}
   .bank-section td{padding:3px 8px;font-size:11px;border:none;}
@@ -68,7 +74,7 @@ function billDocCss(color: string): string {
   .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:2px solid #222;color:#111;background:transparent;border-radius:4px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;transform:rotate(-12deg);}
   .bill-bg{position:fixed;inset:0;z-index:-1;background-size:100% 100%;background-repeat:no-repeat;background-position:center;pointer-events:none;}
   .bill-content{position:relative;z-index:0;}
-  @media print{body{padding:0;} @page{margin:8mm;size:A4;} thead{display:table-header-group;} .no-print{display:none;}
+  @media print{body{padding:0;} @page{${pageRule}} thead{display:table-header-group;} .no-print{display:none;}
     *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}
     .bill-bg{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}
 `;
@@ -213,7 +219,7 @@ export function buildDistributionBillSlice(
 
 export function generateSalesInvoiceHtml(
   bill: SaleBillData,
-  options?: { showGst?: boolean; qrDataUrl?: string },
+  options?: { showGst?: boolean; qrDataUrl?: string; printPage?: BillPrintPage },
 ): string {
   const showGst = options?.showGst ?? true;
   const billConfig =
@@ -352,11 +358,13 @@ export function generateSalesInvoiceHtml(
     );
   };
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Invoice'} - ${esc(invPrefix)}${esc(bill.id)}</title>
-<style>${billDocCss(color)}</style></head><body>
+  const cashMemo = isCashPartyName(bill.customerName) || isCashPartyName(bill.vendor?.name);
+  const sheetTitle = cashMemo ? 'Cash Memo' : showGst ? 'Tax Invoice' : 'Sales Invoice';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(sheetTitle)} - ${esc(invPrefix)}${esc(bill.id)}</title>
+<style>${billDocCss(color, options?.printPage)}</style></head><body>
 ${billBackgroundLayerHtml(billConfig)}
-<div class="bill-content">
-<table class="outer title-box avoid-break"><tr><td>${showGst ? 'Tax Invoice' : 'Sales Invoice'}</td></tr></table>
+<div class="page-frame bill-content">
+<table class="outer title-box avoid-break"><tr><td>${esc(sheetTitle)}</td></tr></table>
 <table class="outer avoid-break" style="margin-top:-1px;">
   <tr class="hdr">
     <td colspan="2" style="width:65%;">
@@ -551,6 +559,7 @@ export function generateStandaloneInvoiceHtml(
     hasGst?: boolean;
     docType?: BillDocType;
     irnQrDataUrl?: string;
+    printPage?: BillPrintPage;
   },
 ): string {
   const isQuote = options?.docType === 'quotation';
@@ -565,7 +574,15 @@ export function generateStandaloneInvoiceHtml(
   const invPrefix = isQuote || isPurchase ? '' : String(billSettings.invoicePrefix || '');
   const footerText = String(billSettings.footerText || 'Powered by Dhandho Management');
   const hasGst = options?.hasGst ?? inv.gstEnabled === true;
-  const docTitle = isPurchase ? 'Purchase Bill' : isQuote ? 'Quotation' : hasGst ? 'Tax Invoice' : 'Invoice';
+  const docTitle = isPurchase
+    ? 'Purchase Bill'
+    : isQuote
+      ? 'Quotation'
+      : isCashPartyName(inv.customerName)
+        ? 'Cash Memo'
+        : hasGst
+          ? 'Tax Invoice'
+          : 'Invoice';
   const numberLabel = isPurchase ? 'Bill No' : isQuote ? 'Quotation No' : 'Invoice No';
   const certText = isQuote
     ? 'This quotation is subject to confirmation.'
@@ -673,9 +690,9 @@ export function generateStandaloneInvoiceHtml(
     .join('');
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(docTitle)} — ${esc(invPrefix)}${esc(inv.invoiceNumber)}</title>
-<style>${billDocCss(color)}</style></head><body>
+<style>${billDocCss(color, options?.printPage)}</style></head><body>
 ${billBackgroundLayerHtml(billSettings)}
-<div class="bill-content">
+<div class="page-frame bill-content">
 <table class="outer title-box avoid-break"><tr><td>${esc(docTitle)}</td></tr></table>
 <table class="outer avoid-break" style="margin-top:-1px;">
   <tr class="hdr">
@@ -737,7 +754,6 @@ ${billBackgroundLayerHtml(billSettings)}
   </thead>
   <tbody>
     ${itemRows}
-    <tr class="fill-row"><td colspan="${colCount}"></td></tr>
     <tr class="total-row">
       <td></td>
       <td class="right"><strong>Total</strong></td>
@@ -852,6 +868,7 @@ export function generateDistributionChallanHtml(
     fullyPaid?: boolean;
     qrDataUrl?: string;
     irnQrDataUrl?: string;
+    printPage?: BillPrintPage;
   },
 ): string {
   const showGst = options?.showGst ?? true;
@@ -980,15 +997,15 @@ export function generateDistributionChallanHtml(
     );
   };
 
-  const docTitle = showGst ? 'Tax Invoice' : 'Bill of Supply';
+  const docTitle = isCashPartyName(bill.vendor?.name) ? 'Cash Memo' : showGst ? 'Tax Invoice' : 'Bill of Supply';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle} - ${esc(chPrefix)}${esc(bill.challanId)}</title>
-<style>${billDocCss(color)}
+<style>${billDocCss(color, options?.printPage)}
   .summary-row td{padding:4px 8px;font-size:11px;vertical-align:top;}
   .sig-section{margin-top:0;}
   .sig-section td{border:none;padding:6px 12px;vertical-align:bottom;height:60px;}
 </style></head><body>
 ${billBackgroundLayerHtml(billConfig)}
-<div class="bill-content">
+<div class="page-frame bill-content">
 <div style="position:relative;">
 ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
 <div class="doc-title">${docTitle}</div>

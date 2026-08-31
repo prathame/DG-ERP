@@ -43,6 +43,9 @@ import { expiredProductSaleError, isProductExpired } from '../../../shared/dateO
 import type { DistributionBillData, DistributionBatch } from '../../api';
 import { phoneValidationError } from '../../../shared/phone';
 import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import { BillPrintPageToggle } from '../../components/ui/BillPrintPageToggle';
+import { CASH_ACCOUNT_NAME, ensureCashAccountVendor, isCashPartyName } from '../../lib/cashAccount';
+import type { BillPrintPage } from '../../lib/billTemplates';
 import {
   parseBillVoice,
   formatBillVoiceReply,
@@ -206,7 +209,9 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
   const [rows, setRows] = useState<BillLine[]>(() => [emptyRow(isGstBillingEnabled(null))]);
   const [amountPaid, setAmountPaid] = useState('');
-  const [payMode, setPayMode] = useState<'credit' | 'cash'>('credit');
+  const [payMode, setPayMode] = useState<'debit' | 'cash'>('debit');
+  const [printPage, setPrintPage] = useState<BillPrintPage>('full');
+  const [cashSwitching, setCashSwitching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -328,6 +333,31 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     rows.forEach((r, i) => {
       if (r.productId) resolveRowPrice(i, r.productId, id, r.qty || 1);
     });
+  };
+
+  const switchToCash = async () => {
+    setCashSwitching(true);
+    try {
+      const { vendor, created } = await ensureCashAccountVendor(vendors, body =>
+        api.vendors.create({ name: body.name }),
+      );
+      if (created) setVendors(prev => (prev.some(x => x.id === vendor.id) ? prev : [...prev, vendor]));
+      setPayMode('cash');
+      selectVendor(vendor.id);
+    } catch (err) {
+      toast((err as Error).message || `Could not set ${CASH_ACCOUNT_NAME}`, 'error');
+    } finally {
+      setCashSwitching(false);
+    }
+  };
+
+  const switchToDebit = () => {
+    setPayMode('debit');
+    setAmountPaid('');
+    if (isCashPartyName(form.customerName)) {
+      setVendorId('');
+      setForm(f => ({ ...f, customerName: '', customerGstin: '', customerAddress: '', customerPhone: '' }));
+    }
   };
 
   const setAllWithGst = (on: boolean) => {
@@ -689,7 +719,18 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   };
 
   const runSave = async (status: 'draft' | 'sent', mode: 'auto' | 'split' = 'auto') => {
-    if (!form.customerName.trim()) {
+    if (payMode === 'cash') {
+      try {
+        const { vendor, created } = await ensureCashAccountVendor(vendors, body =>
+          api.vendors.create({ name: body.name }),
+        );
+        if (created) setVendors(prev => (prev.some(x => x.id === vendor.id) ? prev : [...prev, vendor]));
+        if (vendorId !== vendor.id) selectVendor(vendor.id);
+      } catch (err) {
+        toast((err as Error).message || `Could not set ${CASH_ACCOUNT_NAME}`, 'error');
+        return;
+      }
+    } else if (!form.customerName.trim()) {
       toast(`${partyLabel} name is required`, 'error');
       return;
     }
@@ -796,7 +837,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const printCreated = async () => {
     if (!createdInvoice) return;
     try {
-      await printStandaloneInvoice(createdInvoice, { businessType: cfg.type });
+      await printStandaloneInvoice(createdInvoice, { businessType: cfg.type, printPage });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
       void reportActionFailed('invoice.print', err, { invoiceNumber: createdInvoice.invoiceNumber });
@@ -807,7 +848,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     if (!createdSale) return;
     setPrinting(true);
     try {
-      await printDistributionDocs(createdSale.bill, kind, false);
+      await printDistributionDocs(createdSale.bill, kind, payMode === 'cash', printPage);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
     } finally {
@@ -972,6 +1013,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
               <p className="text-sm text-gray-500">
                 {createdInvoice.customerName} · ₹{Number(createdInvoice.grandTotal || 0).toLocaleString('en-IN')}
               </p>
+              <BillPrintPageToggle value={printPage} onChange={setPrintPage} />
             </div>
           ) : createdSale && salePrintAvail ? (
             <div className="text-center py-8 space-y-3">
@@ -987,6 +1029,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                 </p>
               )}
               <p className="text-sm text-gray-500">Use the buttons below to print, or open Sales anytime.</p>
+              <BillPrintPageToggle value={printPage} onChange={setPrintPage} />
             </div>
           ) : (
             <>
@@ -1001,20 +1044,23 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
 
               <FormSection title={partyLabel} description="Type to search — pick a match or keep as custom">
                 <FormGrid>
-                  <FormField label={`${partyLabel} Name`} required className="sm:col-span-2">
+                  <FormField label={`${partyLabel} Name`} required={payMode === 'debit'} className="sm:col-span-2">
                     <SearchSelect
                       allowCustom
+                      disabled={payMode === 'cash' || cashSwitching}
                       value={vendorId}
                       onChange={selectVendor}
                       inputValue={form.customerName}
                       onInputChange={text => {
                         setForm(f => ({ ...f, customerName: text }));
                       }}
-                      placeholder={`Type ${partyLabel.toLowerCase()} name…`}
+                      placeholder={payMode === 'cash' ? CASH_ACCOUNT_NAME : `Type ${partyLabel.toLowerCase()} name…`}
                       emptyHint={
-                        vendors.length === 0
-                          ? `No ${partyLabel.toLowerCase()}s yet — type a name, or add in Masters`
-                          : undefined
+                        payMode === 'cash'
+                          ? `Cash memo — party is ${CASH_ACCOUNT_NAME}`
+                          : vendors.length === 0
+                            ? `No ${partyLabel.toLowerCase()}s yet — type a name, or add in Masters`
+                            : undefined
                       }
                       customLabel={partyLabel.toLowerCase()}
                       options={vendors
@@ -1062,26 +1108,12 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                       required
                     />
                   </FormField>
-                  <FormField label="Payment" className="sm:col-span-2">
+                  <FormField label="Cash / Debit" className="sm:col-span-2">
                     <div className="flex flex-wrap gap-2 mb-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setPayMode('credit');
-                          setAmountPaid('');
-                        }}
-                        className={cn(
-                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
-                          payMode === 'credit'
-                            ? 'bg-brand text-white border-brand'
-                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
-                        )}
-                      >
-                        Credit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPayMode('cash')}
+                        disabled={cashSwitching}
+                        onClick={() => void switchToCash()}
                         className={cn(
                           'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
                           payMode === 'cash'
@@ -1089,7 +1121,20 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                             : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
                         )}
                       >
-                        Cash (paid in full)
+                        Cash
+                      </button>
+                      <button
+                        type="button"
+                        disabled={cashSwitching}
+                        onClick={switchToDebit}
+                        className={cn(
+                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          payMode === 'debit'
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Debit
                       </button>
                     </div>
                     <input
@@ -1097,9 +1142,10 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                       min={0}
                       step={0.01}
                       value={amountPaid}
+                      disabled={payMode === 'cash'}
                       onChange={e => setAmountPaid(e.target.value)}
-                      className={formControlClass}
-                      placeholder="0.00 — leave blank if unpaid"
+                      className={cn(formControlClass, payMode === 'cash' && 'bg-slate-100 cursor-not-allowed')}
+                      placeholder={payMode === 'cash' ? 'Paid in full' : '0.00 — leave blank if unpaid'}
                     />
                   </FormField>
                 </FormGrid>
