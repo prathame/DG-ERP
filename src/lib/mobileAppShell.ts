@@ -30,3 +30,8 @@ export function isElectronAppShell(): boolean {
 export function offersBugReportShare(): boolean {
   return isMobileAppShell() || isElectronAppShell();
 }
+
+/** Win/Mac desktop (Online or Offline) and Online Cap: never the public marketing site. */
+export function skipMarketingLanding(): boolean {
+  return isElectronAppShell() || isServiceCloudMobile();
+}
