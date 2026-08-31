@@ -5,7 +5,7 @@ import { useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
 import { mobileFeatureOptions, type MobileFeatures } from '../../../shared/mobileFeatures';
 
-type AccessMode = 'mobile' | 'desktop' | 'both';
+type AccessMode = 'mobile' | 'desktop' | 'browser' | 'both';
 
 type DeviceSlot = {
   id: string;
@@ -350,8 +350,8 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
         <div>
           <h2 className="text-lg font-bold text-gray-900">Cloud app seats</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Cap Online + cloud desktop device slots. Same phone APK (Online + company slug). Not Offline Mobile (
-            DG-SM).
+            Cap Online, cloud desktop, and browser. Laptop / desktop slots are shared with browser login. Not Offline
+            Mobile (DG-SM).
             {companyLock
               ? ' Service: one live session company-wide; 5‑minute idle release.'
               : ' Multi-user: several people can work at once (DB locks on payments).'}
@@ -366,7 +366,7 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase mb-2">Client access mode</p>
           <div className="flex flex-wrap gap-2">
-            {(['mobile', 'desktop', 'both'] as AccessMode[]).map(m => (
+            {(['mobile', 'desktop', 'browser', 'both'] as AccessMode[]).map(m => (
               <button
                 key={m}
                 type="button"
@@ -378,7 +378,13 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
                     : 'bg-white text-gray-700 border-gray-200 hover:border-brand/40'
                 }`}
               >
-                {m === 'both' ? 'Mobile + Laptop' : m === 'mobile' ? 'Mobile only' : 'Laptop only'}
+                {m === 'both'
+                  ? 'All (mobile + laptop + browser)'
+                  : m === 'mobile'
+                    ? 'Mobile only'
+                    : m === 'browser'
+                      ? 'Browser only'
+                      : 'Laptop / Browser'}
               </button>
             ))}
           </div>
@@ -498,7 +504,7 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
                 />
               </label>
               <label className="flex-1 text-xs text-gray-500">
-                Laptop / Desktop
+                Laptop / Browser
                 <input
                   type="number"
                   min={0}
@@ -612,7 +618,7 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
                   </label>
                   <label className="text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">
-                      <Monitor size={12} /> Laptop / Desktop
+                      <Monitor size={12} /> Laptop / Browser
                     </span>
                     <input
                       type="number"
@@ -718,14 +724,14 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
                       const boundOf = (list: DeviceSlot[]) => list.filter(d => d.machineId).length;
                       const parts: string[] = [];
                       if (mobile.length) parts.push(`Mobile ${boundOf(mobile)} of ${mobile.length} bound`);
-                      if (desktop.length) parts.push(`Laptop / Desktop ${boundOf(desktop)} of ${desktop.length} bound`);
+                      if (desktop.length) parts.push(`Laptop / Browser ${boundOf(desktop)} of ${desktop.length} bound`);
                       return parts.length ? (
                         <p className="text-[11px] text-gray-500 font-medium">{parts.join(' · ')}</p>
                       ) : null;
                     })()}
                     <ul className="space-y-2">
                       {devices.map(d => {
-                        const kindLabel = d.deviceKind === 'mobile' ? 'Mobile' : 'Laptop / Desktop';
+                        const kindLabel = d.deviceKind === 'mobile' ? 'Mobile' : 'Laptop / Browser';
                         const bound = !!d.machineId;
                         const deviceName = d.label || (d.machineId ? `${d.machineId.slice(0, 12)}…` : null);
                         return (
@@ -781,7 +787,8 @@ export function ServiceCloudSeatsPanel({ tenantId, onUsersChanged }: Props) {
             </div>
             <h3 className="text-lg font-bold text-center mb-1">Share password reset</h3>
             <p className="text-sm text-gray-500 text-center mb-4">
-              For {resetModal.userName} ({resetModal.email}) — works on Mobile or Laptop after they set a new password.
+              For {resetModal.userName} ({resetModal.email}) — works on Mobile, Laptop, or Browser after they set a new
+              password.
             </p>
             <div className="bg-gray-50 rounded-xl p-4 mb-4">
               <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Reset link</label>

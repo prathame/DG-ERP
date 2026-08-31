@@ -1706,7 +1706,7 @@ export default function App() {
     <ToastProvider>
       <ServiceCloudGate
         enabled={
-          // Cap Online + Cloud Electron for any cloud business type.
+          // Cap Online + Cloud Electron + browser for any cloud business type.
           // Service: company-wide Netflix lock. Non-service: device claim only (no company freeze).
           isServiceCloudClient()
         }

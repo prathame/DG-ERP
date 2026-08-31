@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { logger } from '../utils/logger';
-import { pool, ensureDefaultPlans } from '../pg-db';
+import { pool, ensureDefaultPlans, withTenantClient } from '../pg-db';
 import bcrypt from 'bcrypt';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
@@ -381,11 +381,13 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
     const stats = await getTenantStats(id);
     const users = (
-      await pool.query(
-        `SELECT id, email, name, role, vendor_id, created_at FROM users
+      await withTenantClient(id, client =>
+        client.query(
+          `SELECT id, email, name, role, vendor_id, created_at FROM users
          WHERE tenant_id = $1 AND ${ACTIVE_USER_SQL}
          ORDER BY created_at`,
-        [id],
+          [id],
+        ),
       )
     ).rows;
     res.json({

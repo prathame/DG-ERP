@@ -410,7 +410,8 @@ export function GuideView() {
 
           <div className="bg-sky-50 border border-sky-100 rounded-xl p-4">
             <p className="text-sm text-sky-800 font-medium">
-              Do not mix with DG-SM offline licenses. Browser login is not enrolled in device seats for v1.
+              Do not mix with DG-SM offline licenses. Browser login uses the same laptop/desktop seats as the desktop
+              app.
             </p>
           </div>
         </div>

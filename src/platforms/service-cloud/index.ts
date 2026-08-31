@@ -2,6 +2,7 @@ export {
   isServiceCloudClient,
   isServiceCloudDesktop,
   isServiceCloudMobile,
+  isServiceCloudBrowser,
   isServicePhoneUx,
   isServiceProductUx,
   serviceCloudClientHeader,
