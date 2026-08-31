@@ -21,6 +21,9 @@ import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsA
 import { whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 import { packUnitWord } from '../../../shared/qtyStock';
+import { CASH_ACCOUNT_NAME, ensureCashAccountVendor, isCashPartyName } from '../../lib/cashAccount';
+import type { BillPrintPage } from '../../lib/billTemplates';
+import { BillPrintPageToggle } from '../../components/ui/BillPrintPageToggle';
 
 type DistRow = {
   productId: string;
@@ -65,6 +68,9 @@ export function CreateDistributionModal({
   const [defaultWithGst, setDefaultWithGst] = useState(() => isGstBillingEnabled(null));
   const [distRows, setDistRows] = useState<DistRow[]>(() => [emptyRow(isGstBillingEnabled(null))]);
   const [distAmountPaid, setDistAmountPaid] = useState('');
+  const [saleKind, setSaleKind] = useState<'debit' | 'cash'>('debit');
+  const [printPage, setPrintPage] = useState<BillPrintPage>('full');
+  const [cashSwitching, setCashSwitching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [created, setCreated] = useState<{
@@ -231,13 +237,48 @@ export function CreateDistributionModal({
     { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 },
   );
 
+  useEffect(() => {
+    if (saleKind !== 'cash') return;
+    const g = Math.round(distTotals.billed * 100) / 100;
+    setDistAmountPaid(g > 0 ? String(g) : '');
+  }, [saleKind, distTotals.billed]);
+
   const finishCreated = () => {
     setCreated(null);
     onCreated();
   };
 
+  const switchToCash = async () => {
+    setCashSwitching(true);
+    try {
+      const { vendor, created } = await ensureCashAccountVendor(vendors, body =>
+        api.vendors.create({
+          name: body.name,
+          contactPerson: '',
+          phone: undefined,
+          email: '',
+          address: '',
+        }),
+      );
+      if (created) setVendors(prev => (prev.some(v => v.id === vendor.id) ? prev : [vendor, ...prev]));
+      setSaleKind('cash');
+      onPartyChange(vendor.id);
+    } catch (err) {
+      toast((err as Error).message || `Could not set ${CASH_ACCOUNT_NAME}`, 'error');
+    } finally {
+      setCashSwitching(false);
+    }
+  };
+
+  const switchToDebit = () => {
+    setSaleKind('debit');
+    const current = vendors.find(v => v.id === distVendorId);
+    if (current && isCashPartyName(current.name)) onPartyChange('');
+    setDistAmountPaid('');
+  };
+
   const handleDistributeAll = async () => {
-    if (!distVendorId) {
+    if (saleKind === 'debit' && !distVendorId) {
       toast(isDirectSell ? 'Select a customer' : 'Select a vendor', 'error');
       return;
     }
@@ -246,7 +287,31 @@ export function CreateDistributionModal({
       toast('Add at least one product', 'error');
       return;
     }
-    const paid = parseFloat(distAmountPaid) || 0;
+    let vendorId = distVendorId;
+    if (saleKind === 'cash') {
+      try {
+        const { vendor, created } = await ensureCashAccountVendor(vendors, body =>
+          api.vendors.create({
+            name: body.name,
+            contactPerson: '',
+            phone: undefined,
+            email: '',
+            address: '',
+          }),
+        );
+        if (created) setVendors(prev => (prev.some(v => v.id === vendor.id) ? prev : [vendor, ...prev]));
+        vendorId = vendor.id;
+        if (vendorId !== distVendorId) onPartyChange(vendorId);
+      } catch (err) {
+        toast((err as Error).message || `Could not set ${CASH_ACCOUNT_NAME}`, 'error');
+        return;
+      }
+    }
+    if (!vendorId) {
+      toast(isDirectSell ? 'Select a customer' : 'Select a vendor', 'error');
+      return;
+    }
+    const paid = saleKind === 'cash' ? distTotals.billed : parseFloat(distAmountPaid) || 0;
     if (paid > distTotals.billed) {
       toast(`Amount paid (₹${paid}) exceeds billed amount (₹${distTotals.billed})`, 'error');
       return;
@@ -256,7 +321,7 @@ export function CreateDistributionModal({
     setSubmitting(true);
     try {
       const batch = await api.distribution.createBatch({
-        vendorId: distVendorId,
+        vendorId,
         distributionDate: distDate,
         amountPaid: paid > 0 ? paid : undefined,
         gstRate: defaultGstRate,
@@ -270,7 +335,7 @@ export function CreateDistributionModal({
       });
       const bill = await api.distribution.getBill({
         batchId: batch.batchId,
-        vendorId: distVendorId,
+        vendorId,
       });
       if (hasGst && hasNon) {
         toast(
@@ -297,7 +362,7 @@ export function CreateDistributionModal({
     if (!created) return;
     setPrinting(true);
     try {
-      await printDistributionDocs(created.bill, kind, false);
+      await printDistributionDocs(created.bill, kind, saleKind === 'cash', printPage);
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -384,6 +449,7 @@ export function CreateDistributionModal({
                 </p>
               )}
             </div>
+            <BillPrintPageToggle value={printPage} onChange={setPrintPage} />
             <div className="flex flex-wrap gap-2 justify-center">
               {printAvail.hasGst && (
                 <button
@@ -469,14 +535,58 @@ export function CreateDistributionModal({
               <>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Cash / Debit</label>
+                    <div className="mt-1 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={cashSwitching}
+                        onClick={() => void switchToCash()}
+                        className={cn(
+                          'flex-1 px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          saleKind === 'cash'
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Cash
+                      </button>
+                      <button
+                        type="button"
+                        disabled={cashSwitching}
+                        onClick={switchToDebit}
+                        className={cn(
+                          'flex-1 px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                          saleKind === 'debit'
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                        )}
+                      >
+                        Debit
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
+                    <input
+                      type="date"
+                      value={distDate}
+                      onChange={e => setDistDate(e.target.value)}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </div>
+                  <div className="col-span-2">
                     <label className="text-xs font-bold text-gray-400 uppercase">
                       {isDirectSell ? 'Customer' : 'Vendor'}
+                      {saleKind === 'debit' ? ' *' : ''}
                     </label>
                     <div className="mt-1">
                       <SearchSelect
                         value={distVendorId}
-                        placeholder={isDirectSell ? 'Select customer' : 'Select vendor'}
-                        onCreateNew={typed => setQuickAddParty({ name: typed || '' })}
+                        disabled={saleKind === 'cash' || cashSwitching}
+                        placeholder={
+                          saleKind === 'cash' ? CASH_ACCOUNT_NAME : isDirectSell ? 'Select customer' : 'Select vendor'
+                        }
+                        onCreateNew={saleKind === 'cash' ? undefined : typed => setQuickAddParty({ name: typed || '' })}
                         createNewLabel={isDirectSell ? 'customer' : 'vendor'}
                         options={vendors
                           .slice()
@@ -489,15 +599,9 @@ export function CreateDistributionModal({
                         onChange={onPartyChange}
                       />
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
-                    <input
-                      type="date"
-                      value={distDate}
-                      onChange={e => setDistDate(e.target.value)}
-                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
+                    {saleKind === 'cash' && (
+                      <p className="text-[10px] text-gray-400 mt-1">Cash memo — party is {CASH_ACCOUNT_NAME}</p>
+                    )}
                   </div>
                 </div>
 
@@ -821,9 +925,11 @@ export function CreateDistributionModal({
                       max={distTotals.billed}
                       step={0.01}
                       value={distAmountPaid}
+                      disabled={saleKind === 'cash'}
                       onChange={e => setDistAmountPaid(e.target.value)}
                       className={cn(
                         'w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand',
+                        saleKind === 'cash' && 'bg-slate-100 cursor-not-allowed',
                         (parseFloat(distAmountPaid) || 0) > distTotals.billed
                           ? 'border-rose-400 bg-rose-50'
                           : 'border-gray-200',
