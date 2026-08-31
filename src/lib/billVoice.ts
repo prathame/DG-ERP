@@ -660,11 +660,53 @@ export function isVoiceGuideSkip(transcript: string): boolean {
   return tokens.every(t => GUIDE_SKIP_WORDS.has(t));
 }
 
+/** TTS says 9876543210 as "98 crore…". Space digits so it reads one by one. */
+export function speakableVoiceValue(value: string): string {
+  const compact = String(value || '').replace(/\s+/g, '');
+  if (!compact) return value;
+  if (/^\d+(\.\d+)?$/.test(compact) && compact.replace('.', '').length >= 6) {
+    return compact.split('').join(' ');
+  }
+  if (/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(compact)) {
+    return compact.split('').join(' ');
+  }
+  if (compact.includes('@')) {
+    return compact.replace('@', ' at ').replace(/\./g, ' dot ');
+  }
+  return value;
+}
+
 export function formatVoiceFieldReply(label: string, value: string, lang: BillVoiceLang = 'en'): string {
-  if (lang === 'hi') return `${label}: ${value}।`;
-  if (lang === 'gu') return `${label}: ${value}.`;
-  if (lang === 'mr') return `${label}: ${value}.`;
-  return `${label}: ${value}.`;
+  const spoken = speakableVoiceValue(value);
+  if (lang === 'hi') return `${label}: ${spoken}।`;
+  if (lang === 'gu') return `${label}: ${spoken}.`;
+  if (lang === 'mr') return `${label}: ${spoken}.`;
+  return `${label}: ${spoken}.`;
+}
+
+export function parseVoiceEmail(transcript: string): string {
+  let s = String(transcript || '')
+    .trim()
+    .toLowerCase();
+  if (!s) return '';
+  s = s.replace(/\bat[\s-]*the[\s-]*rate(?:\s+of)?\b/gi, '@');
+  s = s.replace(/\bat[\s-]*the[\s-]*rat\b/gi, '@');
+  s = s.replace(/\bat[\s-]*rate\b/gi, '@');
+  s = s.replace(/\battherate\b/gi, '@');
+  s = s.replace(/\bdot\b/gi, '.');
+  s = s.replace(/\b(full\s*stop|fullstop)\b/gi, '.');
+  s = s.replace(/\b(under\s*score|underscore)\b/gi, '_');
+  s = s.replace(/\b(dash|hyphen)\b/gi, '-');
+  s = s.replace(/\s+/g, '');
+  if (!s.includes('@') && /gmail|yahoo|hotmail|outlook|rediffmail/.test(s)) {
+    s = s.replace(/(gmail|yahoo|hotmail|outlook|rediffmail)/, '@$1');
+  }
+  s = s.replace(/(gmail|yahoo|hotmail|outlook|rediffmail)$/i, '$1.com');
+  s = s.replace(
+    /([^@]+)@(\d+)(gmail|yahoo|hotmail|outlook|rediffmail)\.com$/i,
+    (_, local, digits, domain) => `${local}${digits}@${domain}.com`,
+  );
+  return s;
 }
 
 export function parseVoiceDigits(transcript: string): string {

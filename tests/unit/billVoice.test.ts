@@ -15,6 +15,7 @@ import {
   parseVoiceGuideName,
   parseVoiceGuidePhone,
   parseVoiceDigits,
+  parseVoiceEmail,
   formatVoiceFieldReply,
   isVoiceGuideSkip,
 } from '../../src/lib/billVoice';
@@ -198,6 +199,16 @@ describe('voice field fill', () => {
   it('speaks back the filled field', () => {
     expect(formatVoiceFieldReply('Name', 'Anand Agro', 'en')).toBe('Name: Anand Agro.');
     expect(formatVoiceFieldReply('નામ', 'Anand Agro', 'gu')).toContain('Anand Agro');
+  });
+
+  it('turns spoken at-the-rate into an email', () => {
+    expect(parseVoiceEmail('Patel at the rate 007 Gmail')).toBe('patel007@gmail.com');
+    expect(parseVoiceEmail('ramesh at the rate gmail dot com')).toBe('ramesh@gmail.com');
+  });
+
+  it('reads a phone number digit by digit so TTS does not say crore', () => {
+    expect(formatVoiceFieldReply('phone', '9876543210', 'en')).toBe('phone: 9 8 7 6 5 4 3 2 1 0.');
+    expect(formatVoiceFieldReply('email', 'patel007@gmail.com', 'en')).toBe('email: patel007 at gmail dot com.');
   });
 
   it('pulls digits for credit fields', () => {
