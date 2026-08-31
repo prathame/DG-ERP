@@ -46,7 +46,8 @@ describe('generateStandaloneInvoiceHtml', () => {
     expect(html).toContain('class="outer title-box');
     expect(html).toContain('Tax Invoice');
     expect(html).toContain('class="outer items"');
-    expect(html).toContain('fill-row');
+    expect(html).toContain('page-frame');
+    expect(html).not.toContain('fill-row');
     expect(html).toContain('Bill To');
     expect(html).toContain('Sub Total');
     expect(html).toContain('Balance');
