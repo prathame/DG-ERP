@@ -71,7 +71,6 @@ import {
   ServiceCloudLiveBadge,
   ServiceCloudConfigRefresh,
   isServiceCloudClient,
-  isServiceCloudDesktop,
   isServiceCloudMobile,
   isServicePhoneUx,
   isServiceProductUx,
@@ -90,7 +89,7 @@ import {
 } from './platforms/mobileMode';
 import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
-import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
+import { isMobileAppShell, offersBugReportShare, skipMarketingLanding } from './lib/mobileAppShell';
 import { isDesktopGlassUi } from './lib/desktopGlass';
 import { applyDesktopFontPrefs } from './lib/desktopFontPrefs';
 import { useEscapeKey } from './lib/useEscapeKey';
@@ -388,7 +387,7 @@ function CompanySlugEntry() {
 }
 
 function cloudSlugHomeHref(): string {
-  return isServiceCloudDesktop() ? '/?desktop=1' : '/';
+  return skipMarketingLanding() ? '/?desktop=1' : '/';
 }
 
 function QuotationsAndOrdersView({
@@ -1344,13 +1343,13 @@ export default function App() {
               )}
             </p>
             <a
-              href={isServiceCloudDesktop() || isServiceCloudMobile() ? cloudSlugHomeHref() : '/'}
+              href={skipMarketingLanding() ? cloudSlugHomeHref() : '/'}
               onClick={() => {
                 clearLastCompanySlug();
               }}
               className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
             >
-              {isServiceCloudDesktop() || isServiceCloudMobile() ? 'Choose company' : 'Go to Dhandho Home'}
+              {skipMarketingLanding() ? 'Choose company' : 'Go to Dhandho Home'}
             </a>
             <CapSlugOnboardingShare lastError={lookupError} note="Company slug lookup" />
           </div>
@@ -1360,13 +1359,12 @@ export default function App() {
 
     // Slug URL — show branded tenant login
     if (urlSlug && tenantBranding) {
-      const changeCompany =
-        isServiceCloudDesktop() || isServiceCloudMobile()
-          ? () => {
-              clearLastCompanySlug();
-              window.location.href = cloudSlugHomeHref();
-            }
-          : undefined;
+      const changeCompany = skipMarketingLanding()
+        ? () => {
+            clearLastCompanySlug();
+            window.location.href = cloudSlugHomeHref();
+          }
+        : undefined;
       return (
         <ToastProvider>
           <Suspense fallback={<LazyFallback />}>
@@ -1386,8 +1384,8 @@ export default function App() {
       );
     }
 
-    // Cloud Electron / Online Cap: company slug entry (never marketing landing)
-    if (isServiceCloudDesktop() || isServiceCloudMobile()) {
+    // Desktop (Win/Mac, Online or Offline) and Online Cap: company slug — never marketing landing
+    if (skipMarketingLanding()) {
       return <CompanySlugEntry />;
     }
 
