@@ -18,6 +18,9 @@ import {
   parseVoiceEmail,
   formatVoiceFieldReply,
   isVoiceGuideSkip,
+  parseSalaryVoice,
+  formatSalaryVoicePresent,
+  formatSalaryVoiceAbsent,
 } from '../../src/lib/billVoice';
 
 const parties = [
@@ -214,5 +217,28 @@ describe('voice field fill', () => {
   it('pulls digits for credit fields', () => {
     expect(parseVoiceDigits('thirty 30 days')).toBe('30');
     expect(parseVoiceDigits('hello')).toBe('');
+  });
+});
+
+describe('parseSalaryVoice', () => {
+  const staff = [
+    { id: 'S1', name: 'Shailesh Patel' },
+    { id: 'S2', name: 'Ramesh' },
+  ];
+
+  it('matches staff and amount from given salary to name amount', () => {
+    const r = parseSalaryVoice('given salary to Shailesh 1500', staff);
+    expect(r.staffId).toBe('S1');
+    expect(r.amount).toBe(1500);
+    expect(formatSalaryVoicePresent('Shailesh Patel', 1500, 'en')).toContain('present');
+    expect(formatSalaryVoicePresent('Shailesh Patel', 1500, 'en')).toContain('1,500');
+    expect(formatSalaryVoiceAbsent('Unknown', 'en')).toContain('not present');
+  });
+
+  it('returns not-found when the name is not on staff', () => {
+    const r = parseSalaryVoice('given salary to Nobody 1500', staff);
+    expect(r.staffId).toBeNull();
+    expect(r.spokenName).toContain('nobody');
+    expect(r.amount).toBe(1500);
   });
 });

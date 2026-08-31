@@ -735,3 +735,104 @@ export function parseVoiceGuideAccount(transcript: string): string {
 export function parseVoiceGuideIfsc(transcript: string): string {
   return parseVoiceBank(transcript).ifscCode;
 }
+
+const SALARY_FILLER = new Set([
+  'given',
+  'gave',
+  'give',
+  'giving',
+  'salary',
+  'salaries',
+  'paid',
+  'pay',
+  'payment',
+  'to',
+  'for',
+  'of',
+  'the',
+  'a',
+  'an',
+  'rupees',
+  'rupee',
+  'rs',
+  'inr',
+  'staff',
+  'employee',
+  'please',
+  'record',
+  'add',
+  'ne',
+  'ko',
+  'ki',
+  'ka',
+  'ke',
+  'pagar',
+  'vetan',
+]);
+
+export type SalaryVoiceHit = {
+  staffId: string | null;
+  staffName: string | null;
+  spokenName: string | null;
+  amount: number | null;
+};
+
+function matchStaffBySpokenName<T extends { id: string; name: string }>(haystack: string, staff: T[]): T | null {
+  const hay = normalizeVoiceText(haystack);
+  if (!hay) return null;
+  let best: T | null = null;
+  let bestLen = 0;
+  for (const s of staff) {
+    const n = normalizeVoiceText(s.name);
+    if (!n) continue;
+    const first = n.split(' ')[0] || '';
+    const spokenFirst = hay.split(' ')[0] || '';
+    const hit = hay.includes(n) || n.includes(hay) || (first.length >= 4 && first === spokenFirst);
+    if (!hit) continue;
+    if (n.length > bestLen) {
+      best = s;
+      bestLen = n.length;
+    }
+  }
+  return best;
+}
+
+/** “given salary to Shailesh 1500” → staff + amount. Does not post. */
+export function parseSalaryVoice(transcript: string, staff: { id: string; name: string }[]): SalaryVoiceHit {
+  const raw = String(transcript || '');
+  const nums = raw.replace(/,/g, '').match(/\d+(?:\.\d+)?/g);
+  const last = nums?.length ? Number(nums[nums.length - 1]) : NaN;
+  const amount = Number.isFinite(last) && last > 0 ? last : null;
+  let hay = normalizeVoiceText(raw.replace(/,/g, ' '));
+  if (amount != null) hay = hay.replace(new RegExp(`\\b${Math.floor(amount)}\\b`), ' ');
+  const spokenName =
+    hay
+      .split(' ')
+      .filter(t => t && !SALARY_FILLER.has(t) && !/^\d/.test(t))
+      .join(' ')
+      .trim() || null;
+  const hit = spokenName ? matchStaffBySpokenName(spokenName, staff) : null;
+  return {
+    staffId: hit?.id || null,
+    staffName: hit?.name || null,
+    spokenName,
+    amount,
+  };
+}
+
+export function formatSalaryVoicePresent(name: string, amount: number, lang: BillVoiceLang = 'en'): string {
+  const n = name.trim();
+  const a = amount.toLocaleString('en-IN');
+  if (lang === 'hi') return `${n} मौजूद हैं। क्या ${a} रुपये सैलरी देनी है?`;
+  if (lang === 'gu') return `${n} હાજર છે. ${a} રૂપિયા પગાર આપવો છે?`;
+  if (lang === 'mr') return `${n} हजर आहेत. ${a} रुपये पगार द्यायचा का?`;
+  return `${n} is present. Are you sure you want to give salary of ${a}?`;
+}
+
+export function formatSalaryVoiceAbsent(name: string, lang: BillVoiceLang = 'en'): string {
+  const n = name.trim() || 'Staff';
+  if (lang === 'hi') return `${n} मौजूद नहीं हैं।`;
+  if (lang === 'gu') return `${n} હાજર નથી.`;
+  if (lang === 'mr') return `${n} हजर नाहीत.`;
+  return `${n} is not present.`;
+}

@@ -9,7 +9,13 @@ import {
   formatVoiceFieldReply,
   isVoiceGuideSkip,
 } from '../../lib/billVoice';
-import { getStoredVoiceRate, getStoredVoiceUri, prepareVoiceUtterance } from '../../lib/indianVoicePref';
+import {
+  getStoredVoiceRate,
+  getStoredVoiceUri,
+  getVoiceAssistEnabled,
+  prepareVoiceUtterance,
+  VOICE_ASSIST_CHANGED_EVENT,
+} from '../../lib/indianVoicePref';
 
 type SpeechRec = {
   lang: string;
@@ -35,6 +41,20 @@ function speechCtor(): (new () => SpeechRec) | null {
 
 export function billVoiceSupported(): boolean {
   return !!speechCtor();
+}
+
+function useVoiceAssistEnabled(): boolean {
+  const [on, setOn] = useState(getVoiceAssistEnabled);
+  useEffect(() => {
+    const sync = () => setOn(getVoiceAssistEnabled());
+    window.addEventListener(VOICE_ASSIST_CHANGED_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(VOICE_ASSIST_CHANGED_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+  return on;
 }
 
 function stopSpeaking() {
@@ -100,6 +120,7 @@ export function BillVoiceMic({
   compact?: boolean;
   label?: string;
 }) {
+  const assistOn = useVoiceAssistEnabled();
   const [listening, setListening] = useState(false);
   const recRef = useRef<SpeechRec | null>(null);
 
@@ -112,7 +133,7 @@ export function BillVoiceMic({
   }, []);
 
   const Ctor = speechCtor();
-  if (!Ctor) return null;
+  if (!assistOn || !Ctor) return null;
 
   const stop = () => {
     recRef.current?.stop();

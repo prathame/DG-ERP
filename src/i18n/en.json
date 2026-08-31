@@ -436,6 +436,8 @@
     "languageDesc": "Select your preferred language",
     "voice": "Spoken voice",
     "voiceDesc": "Indian voices only. Auto follows the app language (Hindi, Gujarati, Marathi, English).",
+    "voiceAssist": "Voice assistance",
+    "voiceAssistDesc": "Show Speak and mic icons on forms. Off until you turn this on.",
     "voiceAuto": "Auto (match app language)",
     "voiceNone": "No Indian voices on this device. Chrome usually lists Hindi, Gujarati, and English (India).",
     "voicePreview": "Preview",

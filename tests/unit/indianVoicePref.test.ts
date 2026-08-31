@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampVoiceRate,
+  getVoiceAssistEnabled,
   isIndianVoice,
   listIndianVoices,
   pickIndianVoice,
@@ -96,5 +97,9 @@ describe('indianVoicePref', () => {
     expect(clampVoiceRate(1.2)).toBe(1.2);
     expect(clampVoiceRate('nope')).toBe(1);
     expect(clampVoiceRate(null)).toBe(1);
+  });
+
+  it('defaults voice assistance to off', () => {
+    expect(getVoiceAssistEnabled()).toBe(false);
   });
 });

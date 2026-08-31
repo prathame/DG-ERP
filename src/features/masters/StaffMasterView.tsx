@@ -9,6 +9,16 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
+import { useTranslation } from '../../i18n';
+import { BillVoiceMic, VoiceFieldMic, VoiceFieldRow, speakBillVoice } from '../../components/ui/BillVoiceMic';
+import {
+  parseSalaryVoice,
+  parseVoiceDigits,
+  parseVoiceGuideName,
+  parseVoiceGuidePhone,
+  formatSalaryVoiceAbsent,
+  formatSalaryVoicePresent,
+} from '../../lib/billVoice';
 
 type Staff = {
   id: string;
@@ -54,6 +64,7 @@ export function StaffMasterView({
 }) {
   const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
+  const { lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const [list, setList] = useState<Staff[]>([]);
   const [search, setSearch] = useState('');
@@ -223,6 +234,64 @@ export function StaffMasterView({
       setAddStaffOpen(false);
       load();
       onRefresh();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  };
+
+  const applySalaryVoice = async (transcript: string) => {
+    if (!canWrite) return;
+    const parsed = parseSalaryVoice(transcript, list);
+    const label = parsed.spokenName || 'Staff';
+    if (!parsed.staffId) {
+      toast(`${label} is not present`, 'error');
+      void speakBillVoice(formatSalaryVoiceAbsent(label, lang), lang);
+      return;
+    }
+    const staff = list.find(s => s.id === parsed.staffId);
+    if (!staff) {
+      toast(`${label} is not present`, 'error');
+      void speakBillVoice(formatSalaryVoiceAbsent(label, lang), lang);
+      return;
+    }
+    if (!parsed.amount) {
+      selectStaff(staff);
+      setPayModalOpen(true);
+      toast(`${staff.name} is present`, 'success');
+      void speakBillVoice(
+        lang === 'hi'
+          ? `${staff.name} मौजूद हैं। राशि बोलें या टाइप करें।`
+          : lang === 'gu'
+            ? `${staff.name} હાજર છે. રકમ બોલો અથવા લખો.`
+            : lang === 'mr'
+              ? `${staff.name} हजर आहेत. रक्कम बोला किंवा टाइप करा.`
+              : `${staff.name} is present. Enter the salary amount.`,
+        lang,
+      );
+      return;
+    }
+    void speakBillVoice(formatSalaryVoicePresent(staff.name, parsed.amount, lang), lang);
+    const ok = await confirm({
+      title: `${staff.name} is present`,
+      message: `Are you sure you want to give salary of ₹${parsed.amount.toLocaleString('en-IN')} to ${staff.name}?`,
+      confirmLabel: 'Yes',
+      variant: 'info',
+    });
+    if (!ok) return;
+    try {
+      await api.payroll.create({
+        staffName: staff.name,
+        amount: parsed.amount,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentType: 'salary',
+        paymentMethod: 'Cash',
+      });
+      toast(`Salary: ₹${parsed.amount.toLocaleString('en-IN')} — ${staff.name}`, 'success');
+      const refreshed = await api.staff.list();
+      const next = Array.isArray(refreshed) ? refreshed : [];
+      setList(next);
+      const updated = next.find(s => s.id === staff.id);
+      if (updated) selectStaff(updated);
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -617,15 +686,18 @@ export function StaffMasterView({
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-        <input
-          type="text"
-          placeholder="Search staff..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-        />
+      <div className="relative max-w-md flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input
+            type="text"
+            placeholder="Search staff..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        {canWrite && <BillVoiceMic lang={lang} onHeard={transcript => void applySalaryVoice(transcript)} />}
       </div>
 
       {loading && (
@@ -721,54 +793,81 @@ export function StaffMasterView({
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Name *</label>
-                  <input
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="Full name"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      placeholder="Full name"
+                    />
+                    <VoiceFieldMic
+                      lang={lang}
+                      label="name"
+                      parse={parseVoiceGuideName}
+                      onFill={value => setForm(f => ({ ...f, name: value }))}
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-gray-400 block mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      onChange={e => setForm({ ...form, phone: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                      placeholder="9876543210"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={e => setForm({ ...form, phone: e.target.value })}
+                        className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                        placeholder="9876543210"
+                      />
+                      <VoiceFieldMic
+                        lang={lang}
+                        label="phone"
+                        parse={parseVoiceGuidePhone}
+                        onFill={value => setForm(f => ({ ...f, phone: value }))}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-400 block mb-1">Role</label>
-                    <input
-                      value={form.role}
-                      onChange={e => setForm({ ...form, role: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                      placeholder="Driver, Helper..."
-                    />
+                    <VoiceFieldRow lang={lang} label="role" onFill={value => setForm(f => ({ ...f, role: value }))}>
+                      <input
+                        value={form.role}
+                        onChange={e => setForm({ ...form, role: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                        placeholder="Driver, Helper..."
+                      />
+                    </VoiceFieldRow>
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Address</label>
-                  <input
-                    value={form.address}
-                    onChange={e => setForm({ ...form, address: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                    placeholder="Optional"
-                  />
+                  <VoiceFieldRow lang={lang} label="address" onFill={value => setForm(f => ({ ...f, address: value }))}>
+                    <input
+                      value={form.address}
+                      onChange={e => setForm({ ...form, address: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                      placeholder="Optional"
+                    />
+                  </VoiceFieldRow>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-gray-400 block mb-1">Monthly Salary (₹)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={form.salary}
-                      onChange={e => setForm({ ...form, salary: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                      placeholder="Optional"
-                    />
+                    <VoiceFieldRow
+                      lang={lang}
+                      label="salary"
+                      parse={parseVoiceDigits}
+                      onFill={value => setForm(f => ({ ...f, salary: value }))}
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.salary}
+                        onChange={e => setForm({ ...form, salary: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                        placeholder="Optional"
+                      />
+                    </VoiceFieldRow>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-400 block mb-1">Joining Date</label>

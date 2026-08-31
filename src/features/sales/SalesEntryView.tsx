@@ -21,6 +21,7 @@ import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
+import { choosePrintPage } from '../../lib/choosePrintPage';
 import { resolveUpiQrDataUrl } from '../../lib/upiQr';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { session } from '../../lib/session';
@@ -467,23 +468,32 @@ export function SalesEntryView({
                       <button
                         type="button"
                         onClick={async () => {
-                          const w = openPrintWindow();
-                          if (!w) {
-                            toast(PRINT_POPUP_BLOCKED, 'error');
-                            return;
-                          }
                           try {
                             const bill = await api.sales.getBill(s.id);
-                            const bs = (bill as unknown as Record<string, unknown>).billSettings as
-                              Record<string, unknown> | undefined;
-                            const qrDataUrl = bs?.bankUpiId ? await resolveUpiQrDataUrl(bs) : undefined;
-                            printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }));
-                          } catch (err) {
-                            try {
-                              w.close();
-                            } catch {
-                              /* ignore */
+                            const page = await choosePrintPage(1);
+                            if (!page) return;
+                            const w = openPrintWindow();
+                            if (!w) {
+                              toast(PRINT_POPUP_BLOCKED, 'error');
+                              return;
                             }
+                            try {
+                              const bs = (bill as unknown as Record<string, unknown>).billSettings as
+                                Record<string, unknown> | undefined;
+                              const qrDataUrl = bs?.bankUpiId ? await resolveUpiQrDataUrl(bs) : undefined;
+                              printBillInWindow(
+                                w,
+                                generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl, printPage: page }),
+                              );
+                            } catch (err) {
+                              try {
+                                w.close();
+                              } catch {
+                                /* ignore */
+                              }
+                              toast((err as Error).message, 'error');
+                            }
+                          } catch (err) {
                             toast((err as Error).message, 'error');
                           }
                         }}

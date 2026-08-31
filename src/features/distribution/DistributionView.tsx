@@ -37,6 +37,7 @@ import { GstEinvoiceToolbar } from '../../components/gst/GstEinvoiceToolbar';
 import { pinFromAddress, openGstPinDistanceLookup } from '../../lib/pincode';
 import { useGstEinvoiceEnabled } from '../../lib/gstEinvoiceEnabled';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
+import { choosePrintPage } from '../../lib/choosePrintPage';
 import { round2 } from '../../../shared/gstRound';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
@@ -3024,7 +3025,6 @@ export function DistributionView({
                       <button
                         type="button"
                         onClick={async () => {
-                          const w = openPrintWindow();
                           try {
                             const paidOpts = selectedVendorId
                               ? challanOptions(selectedVendorId)
@@ -3037,26 +3037,41 @@ export function DistributionView({
                                   })
                                 : splitBillModal.bill;
                             const printGst = fresh.items.filter(i => i.gstApplied === true);
-                            const printSub = printGst.reduce((s, i) => s + i.price, 0);
-                            const docNo = fresh.deliverySet?.gstDocNo || `${fresh.challanId}-GST`;
-                            const slice = {
-                              ...makeSplitBill(printGst, printSub, docNo, false),
-                              irn: fresh.irn,
-                              irnQr: fresh.irnQr,
-                              irnAckNo: fresh.irnAckNo,
-                              irnAckDt: fresh.irnAckDt,
-                              ewbNumber: fresh.ewbNumber,
-                            };
-                            const { billForPrint, opts } = await buildGstPrintOptions(slice, true, paidOpts.fullyPaid);
-                            writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `Tax-Invoice-${docNo}`,
-                            });
-                          } catch (err) {
+                            const page = await choosePrintPage(printGst.length);
+                            if (!page) return;
+                            const w = openPrintWindow();
                             try {
-                              w?.close();
-                            } catch {
-                              /* ignore */
+                              const printSub = printGst.reduce((s, i) => s + i.price, 0);
+                              const docNo = fresh.deliverySet?.gstDocNo || `${fresh.challanId}-GST`;
+                              const slice = {
+                                ...makeSplitBill(printGst, printSub, docNo, false),
+                                irn: fresh.irn,
+                                irnQr: fresh.irnQr,
+                                irnAckNo: fresh.irnAckNo,
+                                irnAckDt: fresh.irnAckDt,
+                                ewbNumber: fresh.ewbNumber,
+                              };
+                              const { billForPrint, opts } = await buildGstPrintOptions(
+                                slice,
+                                true,
+                                paidOpts.fullyPaid,
+                              );
+                              writePrintHtml(
+                                w,
+                                generateDistributionChallanHtml(billForPrint, { ...opts, printPage: page }),
+                                {
+                                  filename: `Tax-Invoice-${docNo}`,
+                                },
+                              );
+                            } catch (err) {
+                              try {
+                                w?.close();
+                              } catch {
+                                /* ignore */
+                              }
+                              toast((err as Error).message, 'error');
                             }
+                          } catch (err) {
                             toast((err as Error).message, 'error');
                           }
                         }}
@@ -3069,7 +3084,6 @@ export function DistributionView({
                       <button
                         type="button"
                         onClick={async () => {
-                          const w = openPrintWindow();
                           try {
                             const paidOpts = selectedVendorId
                               ? challanOptions(selectedVendorId)
@@ -3082,23 +3096,37 @@ export function DistributionView({
                                   })
                                 : splitBillModal.bill;
                             const printNon = fresh.items.filter(i => i.gstApplied !== true);
-                            const printSub = printNon.reduce((s, i) => s + i.price, 0);
-                            const docNo = fresh.deliverySet?.nonGstDocNo || `${fresh.challanId}-BOS`;
-                            // Never attach IRN / e-invoice narrative to Bill of Supply half
-                            const slice = {
-                              ...makeSplitBill(printNon, printSub, docNo, true),
-                              ewbNumber: fresh.ewbNumber,
-                            };
-                            const { billForPrint, opts } = await buildGstPrintOptions(slice, false, paidOpts.fullyPaid);
-                            writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `Bill-of-Supply-${docNo}`,
-                            });
-                          } catch (err) {
+                            const page = await choosePrintPage(printNon.length);
+                            if (!page) return;
+                            const w = openPrintWindow();
                             try {
-                              w?.close();
-                            } catch {
-                              /* ignore */
+                              const printSub = printNon.reduce((s, i) => s + i.price, 0);
+                              const docNo = fresh.deliverySet?.nonGstDocNo || `${fresh.challanId}-BOS`;
+                              const slice = {
+                                ...makeSplitBill(printNon, printSub, docNo, true),
+                                ewbNumber: fresh.ewbNumber,
+                              };
+                              const { billForPrint, opts } = await buildGstPrintOptions(
+                                slice,
+                                false,
+                                paidOpts.fullyPaid,
+                              );
+                              writePrintHtml(
+                                w,
+                                generateDistributionChallanHtml(billForPrint, { ...opts, printPage: page }),
+                                {
+                                  filename: `Bill-of-Supply-${docNo}`,
+                                },
+                              );
+                            } catch (err) {
+                              try {
+                                w?.close();
+                              } catch {
+                                /* ignore */
+                              }
+                              toast((err as Error).message, 'error');
                             }
+                          } catch (err) {
                             toast((err as Error).message, 'error');
                           }
                         }}

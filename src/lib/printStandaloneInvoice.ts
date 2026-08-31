@@ -25,6 +25,7 @@ import {
   sharePdfNativeWhatsApp,
   truncateShareError,
 } from './utils';
+import { choosePrintPage } from './choosePrintPage';
 
 /** Hard timeout for Cap light-jsPDF build before falling back to text share. */
 export const CAP_WHATSAPP_PDF_TIMEOUT_MS = 7000;
@@ -208,12 +209,14 @@ export async function printStandaloneInvoice(
 ): Promise<void> {
   // No html2pdf Download — canvas capture collapses Tax Invoice borders/tables.
   // Use system Print → Save as PDF for correct layout.
+  const page = options?.printPage ?? (await choosePrintPage(inv.items?.length || 0));
+  if (!page) return;
   const w = openPrintWindow('Preparing invoice…', { hidePdfDownload: true });
   if (!w) {
     throw new Error(PRINT_POPUP_BLOCKED);
   }
   try {
-    const { html, filename } = await buildStandaloneInvoiceHtml(inv, options);
+    const { html, filename } = await buildStandaloneInvoiceHtml(inv, { ...options, printPage: page });
     printBillInWindow(w, html, filename);
   } catch (err) {
     try {

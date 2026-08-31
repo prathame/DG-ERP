@@ -6,6 +6,30 @@ export const VOICE_RATE_MIN = 0.6;
 export const VOICE_RATE_MAX = 1.4;
 export const VOICE_RATE_DEFAULT = 1;
 
+/** Per-device: show Speak / mic icons. Off until the owner turns it on in Settings. */
+export const VOICE_ASSIST_KEY = 'dhandho_voice_assist';
+export const VOICE_ASSIST_CHANGED_EVENT = 'dhandho-voice-assist-changed';
+
+export function getVoiceAssistEnabled(): boolean {
+  try {
+    return localStorage.getItem(VOICE_ASSIST_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setVoiceAssistEnabled(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(VOICE_ASSIST_KEY, '1');
+    else localStorage.removeItem(VOICE_ASSIST_KEY);
+  } catch {
+    /* private mode */
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(VOICE_ASSIST_CHANGED_EVENT, { detail: { enabled: on } }));
+  }
+}
+
 export type SpeechVoiceInfo = { voiceURI: string; name: string; lang: string };
 
 export function getStoredVoiceUri(): string {
