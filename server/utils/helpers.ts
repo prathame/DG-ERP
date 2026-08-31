@@ -228,7 +228,7 @@ export function applyDateFilter(
 }
 
 export async function logAudit(
-  pool: Pool,
+  _pool: Pool,
   tenantId: string,
   action: string,
   entityType: string,
@@ -261,9 +261,12 @@ export async function logAudit(
     impersonatedBy,
   };
   try {
-    await pool.query(
-      'INSERT INTO audit_log (tenant_id, user_id, user_name, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [tenantId, userId ?? null, safeName, action, entityType, entityId ?? null, safeDetails],
+    const { withTenantClient } = await import('../pg-db');
+    await withTenantClient(tenantId, client =>
+      client.query(
+        'INSERT INTO audit_log (tenant_id, user_id, user_name, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [tenantId, userId ?? null, safeName, action, entityType, entityId ?? null, safeDetails],
+      ),
     );
     const { logger } = await import('./logger');
     // Logtail gets redacted context only (no raw emails/phones)
