@@ -12,9 +12,8 @@ type Props = {
 };
 
 /**
- * Device seats for Cap Online / Electron cloud. Service tenants also get
- * company-wide Netflix session lock. Non-service: claim only (multi-user).
- * Browser web skips this gate.
+ * Device seats for Cap Online / Electron cloud / browser.
+ * Service tenants also get company-wide Netflix session lock. Non-service: claim only (multi-user).
  */
 export function ServiceCloudGate({ enabled, children }: Props) {
   const applicable = enabled && isServiceCloudClient();

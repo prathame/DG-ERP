@@ -46,7 +46,11 @@ export async function claimAndAcquire(): Promise<GateState> {
 
   const machineId = await getOrCreateCloudDeviceId();
   const label =
-    kind === 'desktop' ? `Desktop ${navigator.platform || ''}`.trim() : `Mobile ${navigator.userAgent.slice(0, 40)}`;
+    kind === 'desktop'
+      ? `Desktop ${navigator.platform || ''}`.trim()
+      : kind === 'web'
+        ? `Browser ${navigator.platform || ''}`.trim()
+        : `Mobile ${navigator.userAgent.slice(0, 40)}`;
 
   const claim = await scFetch('/service-cloud/claim-device', {
     method: 'POST',

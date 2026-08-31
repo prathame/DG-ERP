@@ -11,7 +11,7 @@ import crypto from 'crypto';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { logger } from '../utils/logger';
+import { getRequestContext, logger, runWithRequestContext } from '../utils/logger';
 import { authMiddleware, superAdminMiddleware } from '../middleware/auth';
 import { normalizePermissions } from '../middleware/permissions';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
@@ -23,7 +23,12 @@ import { checkPlanLimit } from '../utils/planLimits';
 const router = Router();
 
 const IDLE_MS = 5 * 60 * 1000;
-const MODES = new Set(['mobile', 'desktop', 'both']);
+const MODES = new Set(['mobile', 'desktop', 'browser', 'both']);
+
+/** SA JWT has no tenantId; FORCE RLS on `users` needs app.tenant_id on this request. */
+function withSaTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+  return runWithRequestContext({ ...getRequestContext(), tenantId }, fn);
+}
 
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -161,9 +166,11 @@ async function getSeatsPayload(tenantId: string) {
 
 router.get('/api/super-admin/tenants/:id/service-cloud', superAdminMiddleware, async (req, res) => {
   try {
-    const payload = await getSeatsPayload(req.params.id);
-    if (!payload) return res.status(404).json({ error: 'Tenant not found' });
-    res.json(payload);
+    await withSaTenant(req.params.id, async () => {
+      const payload = await getSeatsPayload(req.params.id);
+      if (!payload) return res.status(404).json({ error: 'Tenant not found' });
+      res.json(payload);
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -171,15 +178,17 @@ router.get('/api/super-admin/tenants/:id/service-cloud', superAdminMiddleware, a
 
 router.put('/api/super-admin/tenants/:id/service-cloud/access-mode', superAdminMiddleware, async (req, res) => {
   try {
-    const tenant = await assertCloudTenant(req.params.id);
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-    const mode = String(req.body?.clientAccessMode || '');
-    if (!MODES.has(mode)) {
-      return res.status(400).json({ error: 'clientAccessMode must be mobile, desktop, or both' });
-    }
-    await pool.query(`UPDATE tenants SET client_access_mode=$1 WHERE id=$2`, [mode, req.params.id]);
-    logger.info('SA set cloud access mode', { tenantId: req.params.id, mode });
-    res.json({ ok: true, clientAccessMode: mode });
+    await withSaTenant(req.params.id, async () => {
+      const tenant = await assertCloudTenant(req.params.id);
+      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+      const mode = String(req.body?.clientAccessMode || '');
+      if (!MODES.has(mode)) {
+        return res.status(400).json({ error: 'clientAccessMode must be mobile, desktop, browser, or both' });
+      }
+      await pool.query(`UPDATE tenants SET client_access_mode=$1 WHERE id=$2`, [mode, req.params.id]);
+      logger.info('SA set cloud access mode', { tenantId: req.params.id, mode });
+      res.json({ ok: true, clientAccessMode: mode });
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -187,16 +196,18 @@ router.put('/api/super-admin/tenants/:id/service-cloud/access-mode', superAdminM
 
 router.put('/api/super-admin/tenants/:id/service-cloud/mobile-features', superAdminMiddleware, async (req, res) => {
   try {
-    const tenant = await assertCloudTenant(req.params.id);
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-    const businessType = (tenant.business_type as string) || 'manufacturer';
-    const features = normalizeMobileFeatures(req.body?.mobileFeatures ?? req.body, businessType);
-    await pool.query(`UPDATE tenants SET mobile_features=$1::jsonb WHERE id=$2`, [
-      JSON.stringify(features),
-      req.params.id,
-    ]);
-    logger.info('SA set mobile features', { tenantId: req.params.id, features });
-    res.json({ ok: true, mobileFeatures: features });
+    await withSaTenant(req.params.id, async () => {
+      const tenant = await assertCloudTenant(req.params.id);
+      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+      const businessType = (tenant.business_type as string) || 'manufacturer';
+      const features = normalizeMobileFeatures(req.body?.mobileFeatures ?? req.body, businessType);
+      await pool.query(`UPDATE tenants SET mobile_features=$1::jsonb WHERE id=$2`, [
+        JSON.stringify(features),
+        req.params.id,
+      ]);
+      logger.info('SA set mobile features', { tenantId: req.params.id, features });
+      res.json({ ok: true, mobileFeatures: features });
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -206,52 +217,54 @@ router.put('/api/super-admin/tenants/:id/service-cloud/mobile-features', superAd
 router.post('/api/super-admin/tenants/:id/service-cloud/users', superAdminMiddleware, async (req, res) => {
   try {
     const tenantId = req.params.id;
-    const tenant = await assertCloudTenant(tenantId);
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    await withSaTenant(tenantId, async () => {
+      const tenant = await assertCloudTenant(tenantId);
+      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    // Same plan.max_users cap as Tenant Settings → Add User (server/routes/admin.ts) — device
-    // seats are a separate concept (mobile/desktop slot counts), but every seat user is still a
-    // login `users` row and must not bypass the tenant's plan-wide user cap.
-    const userLimitErr = await checkPlanLimit(tenantId, 'users');
-    if (userLimitErr) return res.status(403).json(userLimitErr);
+      // Same plan.max_users cap as Tenant Settings → Add User (server/routes/admin.ts) — device
+      // seats are a separate concept (mobile/desktop slot counts), but every seat user is still a
+      // login `users` row and must not bypass the tenant's plan-wide user cap.
+      const userLimitErr = await checkPlanLimit(tenantId, 'users');
+      if (userLimitErr) return res.status(403).json(userLimitErr);
 
-    const {
-      name,
-      email,
-      password,
-      mobileSlots = 0,
-      desktopSlots = 0,
-      role = 'Admin',
-    } = req.body as {
-      name?: string;
-      email?: string;
-      password?: string;
-      mobileSlots?: number;
-      desktopSlots?: number;
-      role?: string;
-    };
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'name, email, password required' });
-    }
-    if (String(password).length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-    const existing = (
-      await pool.query(`SELECT id FROM users WHERE tenant_id=$1 AND LOWER(email)=LOWER($2)`, [tenantId, email])
-    ).rows[0];
-    if (existing) return res.status(400).json({ error: 'Email already registered' });
+      const {
+        name,
+        email,
+        password,
+        mobileSlots = 0,
+        desktopSlots = 0,
+        role = 'Admin',
+      } = req.body as {
+        name?: string;
+        email?: string;
+        password?: string;
+        mobileSlots?: number;
+        desktopSlots?: number;
+        role?: string;
+      };
+      if (!name || !email || !password) {
+        return res.status(400).json({ error: 'name, email, password required' });
+      }
+      if (String(password).length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      }
+      const existing = (
+        await pool.query(`SELECT id FROM users WHERE tenant_id=$1 AND LOWER(email)=LOWER($2)`, [tenantId, email])
+      ).rows[0];
+      if (existing) return res.status(400).json({ error: 'Email already registered' });
 
-    const id = uid('U');
-    const hash = bcrypt.hashSync(password, 12);
-    const perms = normalizePermissions(null, role || 'Admin');
-    await pool.query(
-      `INSERT INTO users (id, tenant_id, email, password_hash, name, role, permissions, company_name)
+      const id = uid('U');
+      const hash = bcrypt.hashSync(password, 12);
+      const perms = normalizePermissions(null, role || 'Admin');
+      await pool.query(
+        `INSERT INTO users (id, tenant_id, email, password_hash, name, role, permissions, company_name)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, tenantId, email, hash, name, role || 'Admin', JSON.stringify(perms), tenant.company_name],
-    );
-    await syncSlots(tenantId, id, Number(mobileSlots) || 0, Number(desktopSlots) || 0);
-    const payload = await getSeatsPayload(tenantId);
-    res.status(201).json({ ok: true, userId: id, ...payload });
+        [id, tenantId, email, hash, name, role || 'Admin', JSON.stringify(perms), tenant.company_name],
+      );
+      await syncSlots(tenantId, id, Number(mobileSlots) || 0, Number(desktopSlots) || 0);
+      const payload = await getSeatsPayload(tenantId);
+      res.status(201).json({ ok: true, userId: id, ...payload });
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -261,83 +274,85 @@ router.post('/api/super-admin/tenants/:id/service-cloud/users', superAdminMiddle
 router.put('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdminMiddleware, async (req, res) => {
   try {
     const { id: tenantId, userId } = req.params;
-    const tenant = await assertCloudTenant(tenantId);
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-    const user = (await pool.query(`SELECT id FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId])).rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    await withSaTenant(tenantId, async () => {
+      const tenant = await assertCloudTenant(tenantId);
+      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+      const user = (await pool.query(`SELECT id FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId])).rows[0];
+      if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const {
-      name,
-      password,
-      mobileSlots,
-      desktopSlots,
-      whatsappApiAllowed,
-      whatsappPhoneNumberId,
-      whatsappAccessToken,
-    } = req.body as {
-      name?: string;
-      password?: string;
-      mobileSlots?: number;
-      desktopSlots?: number;
-      whatsappApiAllowed?: boolean;
-      whatsappPhoneNumberId?: string;
-      whatsappAccessToken?: string;
-    };
-    if (name !== undefined) {
-      await pool.query(`UPDATE users SET name=$1 WHERE id=$2 AND tenant_id=$3`, [name, userId, tenantId]);
-    }
-    if (password !== undefined) {
-      if (String(password).length < 8) {
-        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      const {
+        name,
+        password,
+        mobileSlots,
+        desktopSlots,
+        whatsappApiAllowed,
+        whatsappPhoneNumberId,
+        whatsappAccessToken,
+      } = req.body as {
+        name?: string;
+        password?: string;
+        mobileSlots?: number;
+        desktopSlots?: number;
+        whatsappApiAllowed?: boolean;
+        whatsappPhoneNumberId?: string;
+        whatsappAccessToken?: string;
+      };
+      if (name !== undefined) {
+        await pool.query(`UPDATE users SET name=$1 WHERE id=$2 AND tenant_id=$3`, [name, userId, tenantId]);
       }
-      await pool.query(`UPDATE users SET password_hash=$1 WHERE id=$2 AND tenant_id=$3`, [
-        bcrypt.hashSync(password, 12),
-        userId,
-        tenantId,
-      ]);
-    }
-    if (whatsappApiAllowed !== undefined) {
-      await pool.query(`UPDATE users SET whatsapp_api_allowed=$1 WHERE id=$2 AND tenant_id=$3`, [
-        !!whatsappApiAllowed,
-        userId,
-        tenantId,
-      ]);
-    }
-    if (whatsappPhoneNumberId !== undefined) {
-      await pool.query(`UPDATE users SET whatsapp_phone_number_id=$1 WHERE id=$2 AND tenant_id=$3`, [
-        String(whatsappPhoneNumberId || '').trim() || null,
-        userId,
-        tenantId,
-      ]);
-    }
-    if (whatsappAccessToken !== undefined) {
-      const tok = String(whatsappAccessToken || '').trim();
-      if (tok && tok !== '••••••••' && !/^•+$/.test(tok)) {
-        await pool.query(`UPDATE users SET whatsapp_access_token=$1 WHERE id=$2 AND tenant_id=$3`, [
-          encryptSecret(tok),
+      if (password !== undefined) {
+        if (String(password).length < 8) {
+          return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
+        await pool.query(`UPDATE users SET password_hash=$1 WHERE id=$2 AND tenant_id=$3`, [
+          bcrypt.hashSync(password, 12),
           userId,
           tenantId,
         ]);
       }
-    }
-    if (mobileSlots !== undefined || desktopSlots !== undefined) {
-      const counts = (
-        await pool.query(
-          `SELECT
+      if (whatsappApiAllowed !== undefined) {
+        await pool.query(`UPDATE users SET whatsapp_api_allowed=$1 WHERE id=$2 AND tenant_id=$3`, [
+          !!whatsappApiAllowed,
+          userId,
+          tenantId,
+        ]);
+      }
+      if (whatsappPhoneNumberId !== undefined) {
+        await pool.query(`UPDATE users SET whatsapp_phone_number_id=$1 WHERE id=$2 AND tenant_id=$3`, [
+          String(whatsappPhoneNumberId || '').trim() || null,
+          userId,
+          tenantId,
+        ]);
+      }
+      if (whatsappAccessToken !== undefined) {
+        const tok = String(whatsappAccessToken || '').trim();
+        if (tok && tok !== '••••••••' && !/^•+$/.test(tok)) {
+          await pool.query(`UPDATE users SET whatsapp_access_token=$1 WHERE id=$2 AND tenant_id=$3`, [
+            encryptSecret(tok),
+            userId,
+            tenantId,
+          ]);
+        }
+      }
+      if (mobileSlots !== undefined || desktopSlots !== undefined) {
+        const counts = (
+          await pool.query(
+            `SELECT
                COUNT(*) FILTER (WHERE device_kind='mobile')::int AS m,
                COUNT(*) FILTER (WHERE device_kind='desktop')::int AS d
              FROM service_cloud_device_slots WHERE tenant_id=$1 AND user_id=$2`,
-          [tenantId, userId],
-        )
-      ).rows[0] as { m: number; d: number };
-      await syncSlots(
-        tenantId,
-        userId,
-        mobileSlots !== undefined ? Number(mobileSlots) : counts.m,
-        desktopSlots !== undefined ? Number(desktopSlots) : counts.d,
-      );
-    }
-    res.json({ ok: true, ...(await getSeatsPayload(tenantId)) });
+            [tenantId, userId],
+          )
+        ).rows[0] as { m: number; d: number };
+        await syncSlots(
+          tenantId,
+          userId,
+          mobileSlots !== undefined ? Number(mobileSlots) : counts.m,
+          desktopSlots !== undefined ? Number(desktopSlots) : counts.d,
+        );
+      }
+      res.json({ ok: true, ...(await getSeatsPayload(tenantId)) });
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : '';
     if (msg.includes('Cannot reduce')) return res.status(400).json({ error: msg });
@@ -349,32 +364,33 @@ router.put('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdmi
 router.delete('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdminMiddleware, async (req, res) => {
   try {
     const { id: tenantId, userId } = req.params;
-    const tenant = await assertCloudTenant(tenantId);
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    await withSaTenant(tenantId, async () => {
+      const tenant = await assertCloudTenant(tenantId);
+      if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    const target = (await pool.query(`SELECT id, role FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId]))
-      .rows[0] as { id: string; role: string } | undefined;
-    if (!target) return res.status(404).json({ error: 'User not found' });
+      const target = (await pool.query(`SELECT id, role FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId]))
+        .rows[0] as { id: string; role: string } | undefined;
+      if (!target) return res.status(404).json({ error: 'User not found' });
 
-    if (target.role === 'Admin' || target.role === 'Super Admin') {
-      const admins = (
-        await pool.query(
-          `SELECT COUNT(*)::int AS c FROM users
+      if (target.role === 'Admin' || target.role === 'Super Admin') {
+        const admins = (
+          await pool.query(
+            `SELECT COUNT(*)::int AS c FROM users
              WHERE tenant_id = $1
                AND role IN ('Admin', 'Super Admin')
                AND id <> $2
                AND ${ACTIVE_USER_SQL}`,
-          [tenantId, userId],
-        )
-      ).rows[0] as { c: number };
-      if (admins.c < 1) {
-        return res.status(400).json({ error: 'Cannot delete the last admin' });
+            [tenantId, userId],
+          )
+        ).rows[0] as { c: number };
+        if (admins.c < 1) {
+          return res.status(400).json({ error: 'Cannot delete the last admin' });
+        }
       }
-    }
 
-    const anonEmail = `deleted-${userId.toLowerCase()}@invalid.local`;
-    await pool.query(
-      `UPDATE users SET
+      const anonEmail = `deleted-${userId.toLowerCase()}@invalid.local`;
+      await pool.query(
+        `UPDATE users SET
            email = $1,
            name = 'Deleted User',
            phone = NULL,
@@ -387,15 +403,16 @@ router.delete('/api/super-admin/tenants/:id/service-cloud/users/:userId', superA
            whatsapp_phone_number_id = NULL,
            whatsapp_access_token = NULL
          WHERE id = $3 AND tenant_id = $4`,
-      [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), userId, tenantId],
-    );
-    await pool.query(`DELETE FROM service_cloud_device_slots WHERE tenant_id=$1 AND user_id=$2`, [tenantId, userId]);
-    await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND user_id=$2`, [tenantId, userId]);
-    await clearUserSession(userId, tenantId);
-    const sa = (req as unknown as Record<string, unknown>).user as { userId?: string } | undefined;
-    await logAudit(pool, tenantId, 'DELETE', 'user', userId, 'SA anonymized seat user', sa?.userId, 'Super Admin');
-    logger.info('SA deleted seat user', { tenantId, userId });
-    res.json({ ok: true, message: 'User deleted', ...(await getSeatsPayload(tenantId)) });
+        [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), userId, tenantId],
+      );
+      await pool.query(`DELETE FROM service_cloud_device_slots WHERE tenant_id=$1 AND user_id=$2`, [tenantId, userId]);
+      await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND user_id=$2`, [tenantId, userId]);
+      await clearUserSession(userId, tenantId);
+      const sa = (req as unknown as Record<string, unknown>).user as { userId?: string } | undefined;
+      await logAudit(pool, tenantId, 'DELETE', 'user', userId, 'SA anonymized seat user', sa?.userId, 'Super Admin');
+      logger.info('SA deleted seat user', { tenantId, userId });
+      res.json({ ok: true, message: 'User deleted', ...(await getSeatsPayload(tenantId)) });
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -407,20 +424,21 @@ router.post(
   async (req, res) => {
     try {
       const { id: tenantId, slotId } = req.params;
-      if (!(await assertCloudTenant(tenantId))) {
-        return res.status(404).json({ error: 'Tenant not found' });
-      }
-      const updated = await pool.query(
-        `UPDATE service_cloud_device_slots
+      await withSaTenant(tenantId, async () => {
+        if (!(await assertCloudTenant(tenantId))) {
+          return res.status(404).json({ error: 'Tenant not found' });
+        }
+        const updated = await pool.query(
+          `UPDATE service_cloud_device_slots
          SET machine_id=NULL, bound_at=NULL, last_seen=NULL, label=NULL
          WHERE id=$1 AND tenant_id=$2
          RETURNING id`,
-        [slotId, tenantId],
-      );
-      if (!updated.rows[0]) return res.status(404).json({ error: 'Slot not found' });
-      // Drop any session whose machine is no longer bound
-      await pool.query(
-        `DELETE FROM service_cloud_sessions s
+          [slotId, tenantId],
+        );
+        if (!updated.rows[0]) return res.status(404).json({ error: 'Slot not found' });
+        // Drop any session whose machine is no longer bound
+        await pool.query(
+          `DELETE FROM service_cloud_sessions s
          WHERE s.tenant_id=$1
            AND NOT EXISTS (
              SELECT 1 FROM service_cloud_device_slots sl
@@ -428,9 +446,10 @@ router.post(
                AND sl.machine_id IS NOT NULL
                AND sl.machine_id=s.machine_id
            )`,
-        [tenantId],
-      );
-      res.json({ ok: true, ...(await getSeatsPayload(tenantId)) });
+          [tenantId],
+        );
+        res.json({ ok: true, ...(await getSeatsPayload(tenantId)) });
+      });
     } catch (err) {
       return handleApiError(req, res, err);
     }
@@ -446,13 +465,20 @@ function clientKind(req: {
   const h = String(req.headers['x-dg-client'] || '');
   if (h === 'electron-cloud' || req.body?.client === 'desktop') return 'desktop';
   if (h === 'capacitor-cloud' || req.body?.client === 'mobile') return 'mobile';
-  if (req.body?.client === 'web') return 'web';
+  if (h === 'browser' || req.body?.client === 'web') return 'web';
   return 'web';
+}
+
+/** Browser shares laptop/desktop slots (same computer seat). */
+function slotKind(client: 'mobile' | 'desktop' | 'web'): 'mobile' | 'desktop' {
+  return client === 'mobile' ? 'mobile' : 'desktop';
 }
 
 function modeAllows(mode: string | null, client: string): boolean {
   if (!mode) return false;
-  if (mode === 'both') return client === 'mobile' || client === 'desktop';
+  if (mode === 'both') return client === 'mobile' || client === 'desktop' || client === 'web';
+  if (mode === 'desktop') return client === 'desktop' || client === 'web';
+  if (mode === 'browser') return client === 'web';
   return mode === client;
 }
 
@@ -468,9 +494,6 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
       return res.status(400).json({ error: 'Valid machineId required (32 hex)' });
     }
     const client = clientKind(req);
-    if (client === 'web') {
-      return res.status(403).json({ error: 'Browser clients are not enrolled in device seats' });
-    }
     const mode = (tenant.client_access_mode as string) || null;
     if (!modeAllows(mode, client)) {
       return res.status(403).json({
@@ -478,7 +501,7 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
       });
     }
 
-    const kind = client === 'desktop' ? 'desktop' : 'mobile';
+    const kind = slotKind(client);
     const deviceLabel = label ? String(label).slice(0, 120) : null;
 
     // Already bound to this user?
@@ -587,9 +610,6 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
     const { machineId } = req.body as { machineId?: string };
     if (!machineId) return res.status(400).json({ error: 'machineId required' });
     const client = clientKind(req);
-    if (client === 'web') {
-      return res.status(403).json({ error: 'Use the mobile or desktop app for this tenant' });
-    }
     const mode = (tenant.client_access_mode as string) || null;
     if (!modeAllows(mode, client)) {
       return res.status(403).json({ error: `Access mode does not allow ${client}` });

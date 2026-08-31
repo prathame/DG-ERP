@@ -29,14 +29,26 @@ export function isServiceCloudMobile(): boolean {
   return getPhoneMode() === 'online';
 }
 
-/** True when this client participates in service cloud device seats + session lock. */
-export function isServiceCloudClient(): boolean {
-  return isServiceCloudDesktop() || isServiceCloudMobile();
+/** Plain browser (Chrome/Safari/PWA tab) — not Electron, Cap, or Offline Mobile. */
+export function isServiceCloudBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (isServiceCloudDesktop() || isServiceCloudMobile()) return false;
+  if (isBakedServiceMobile() || isServiceMobileMode()) return false;
+  if (isNativeCapacitorShell()) return false;
+  const ea = electronAPI();
+  if (ea?.deploymentMode === 'onprem' || ea?.isElectron) return false;
+  return true;
 }
 
-export function serviceCloudClientKind(): 'desktop' | 'mobile' | null {
+/** True when this client participates in service cloud device seats + session lock. */
+export function isServiceCloudClient(): boolean {
+  return isServiceCloudDesktop() || isServiceCloudMobile() || isServiceCloudBrowser();
+}
+
+export function serviceCloudClientKind(): 'desktop' | 'mobile' | 'web' | null {
   if (isServiceCloudDesktop()) return 'desktop';
   if (isServiceCloudMobile()) return 'mobile';
+  if (isServiceCloudBrowser()) return 'web';
   return null;
 }
 
@@ -44,6 +56,7 @@ export function serviceCloudClientKind(): 'desktop' | 'mobile' | null {
 export function serviceCloudClientHeader(): string | null {
   if (isServiceCloudDesktop()) return 'electron-cloud';
   if (isServiceCloudMobile()) return 'capacitor-cloud';
+  if (isServiceCloudBrowser()) return 'browser';
   return null;
 }
 

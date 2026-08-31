@@ -110,12 +110,13 @@ describe('HTTP: service-cloud seats', () => {
     expect(carol?.desktopSlots).toBe(1);
   });
 
-  it('blocks web clients from claim-device', async () => {
+  it('web clients claim a desktop slot', async () => {
     const claim = await api()
       .post('/api/service-cloud/claim-device')
       .set({ Authorization: `Bearer ${tokenA()}` })
       .send({ machineId: MACHINE_A, client: 'web' });
-    expect(claim.status).toBe(403);
+    expect(claim.status).toBe(200);
+    expect(claim.body.deviceKind).toBe('desktop');
   });
 
   it('claim-device binds slot; second machine needs another slot', async () => {
@@ -276,6 +277,30 @@ describe('HTTP: service-cloud seats', () => {
     expect(desk.status).toBe(403);
 
     // restore both for cleanliness
+    await api()
+      .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ clientAccessMode: 'both' });
+  });
+
+  it('browser-only mode allows web and rejects desktop app', async () => {
+    await api()
+      .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ clientAccessMode: 'browser' });
+
+    const desk = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: 'dddddddddddddddddddddddddddddddd' });
+    expect(desk.status).toBe(403);
+
+    const web = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'browser' })
+      .send({ machineId: MACHINE_C, client: 'web' });
+    expect(web.status).toBe(200);
+
     await api()
       .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
       .set({ Authorization: `Bearer ${saToken()}` })
