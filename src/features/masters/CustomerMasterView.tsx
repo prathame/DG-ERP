@@ -9,7 +9,7 @@ import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
-import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits } from '../../lib/billVoice';
+import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits, parseVoiceEmail } from '../../lib/billVoice';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { phoneValidationError } from '../../../shared/phone';
@@ -410,6 +410,7 @@ export function CustomerMasterView({
                     lang={lang}
                     disabled={submitting}
                     label="email"
+                    parse={parseVoiceEmail}
                     className="mt-1"
                     onFill={value => setForm(f => ({ ...f, email: value }))}
                   >

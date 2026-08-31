@@ -24,7 +24,7 @@ import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner, isBillFullyPaid, partyBillDue, PaidBadge } from '../../components/ui';
 import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
-import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits } from '../../lib/billVoice';
+import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits, parseVoiceEmail } from '../../lib/billVoice';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -1277,6 +1277,7 @@ export function VendorMasterView({
                         lang={lang}
                         disabled={submitting}
                         label="email"
+                        parse={parseVoiceEmail}
                         onFill={value => setForm(f => ({ ...f, email: value }))}
                       >
                         <input
@@ -1331,6 +1332,7 @@ export function VendorMasterView({
                         lang={lang}
                         disabled={submitting}
                         label="email"
+                        parse={parseVoiceEmail}
                         className="mt-1"
                         onFill={value => setForm(f => ({ ...f, email: value }))}
                       >
