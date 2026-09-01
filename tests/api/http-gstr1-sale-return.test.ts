@@ -4,6 +4,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { pool, createTestToken, cleanupTestData } from '../helpers';
 import { api, authHeaders } from '../http';
+import { calendarDateIST } from '../../shared/dateOnly';
+
+/** Return API dates the credit note today (IST); fixtures must sit in that tax period. */
+const SALE_DATE = calendarDateIST(new Date());
+const SALE_YEAR = Number(SALE_DATE.slice(0, 4));
+const SALE_MONTH = Number(SALE_DATE.slice(5, 7));
 
 const T = 'T-GSTR1-RET';
 const U = 'U-GSTR1-RET';
@@ -53,14 +59,14 @@ beforeAll(async () => {
     `INSERT INTO product_distribution
        (id, batch_id, tenant_id, product_id, barcode, vendor_id, distribution_date, status,
         net_price, billed_price, gst_applied)
-     VALUES ('PD-GSTR1-1', $1, $2, $3, 'BAR-GSTR1-1', $4, '2026-08-20', 'Sold', 1600, 1680, true)`,
-    [BATCH, T, P, V],
+     VALUES ('PD-GSTR1-1', $1, $2, $3, 'BAR-GSTR1-1', $4, $5, 'Sold', 1600, 1680, true)`,
+    [BATCH, T, P, V, SALE_DATE],
   );
   await pool.query(
     `INSERT INTO vendor_payments
        (id, tenant_id, vendor_id, amount, payment_date, payment_method, notes, batch_id)
-     VALUES ('VP-GSTR1-PAY', $1, $2, 1680, '2026-08-20', 'Cash', 'Cash against sale', $3)`,
-    [T, V, BATCH],
+     VALUES ('VP-GSTR1-PAY', $1, $2, 1680, $3, 'Cash', 'Cash against sale', $4)`,
+    [T, V, SALE_DATE, BATCH],
   );
 });
 
@@ -70,7 +76,7 @@ afterAll(async () => {
 
 describe('GSTR-1 after unregistered sales return', () => {
   it('drops B2CS and HSN for the returned bag and keeps invoice val rounded', async () => {
-    const before = await api().get('/api/reports/gstr1?month=8&year=2026').set(hdrs);
+    const before = await api().get(`/api/reports/gstr1?month=${SALE_MONTH}&year=${SALE_YEAR}`).set(hdrs);
     expect(before.status).toBe(200);
     expect(before.body.b2cs?.length).toBeGreaterThan(0);
 
@@ -80,7 +86,7 @@ describe('GSTR-1 after unregistered sales return', () => {
       .send({ items: [{ productId: P, quantity: 1 }] });
     expect(ret.status).toBe(201);
 
-    const after = await api().get('/api/reports/gstr1?month=8&year=2026').set(hdrs);
+    const after = await api().get(`/api/reports/gstr1?month=${SALE_MONTH}&year=${SALE_YEAR}`).set(hdrs);
     expect(after.status).toBe(200);
     expect(after.body.b2cs || []).toEqual([]);
     const wheat = (after.body.hsn?.data || []).find((h: { hsn_sc: string }) => h.hsn_sc === '1001');
