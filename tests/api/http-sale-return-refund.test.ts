@@ -5,6 +5,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { pool, createTestToken, cleanupTestData } from '../helpers';
 import { api, authHeaders } from '../http';
+import { calendarDateIST } from '../../shared/dateOnly';
+
+/** Return refund is dated today (IST); August fixtures would leave collections in August. */
+const SALE_DATE = calendarDateIST(new Date());
+const MONTH_START = `${SALE_DATE.slice(0, 7)}-01`;
+const MONTH_END = calendarDateIST(new Date(Number(SALE_DATE.slice(0, 4)), Number(SALE_DATE.slice(5, 7)), 0));
 
 const T = 'T-SALE-REFUND';
 const U = 'U-SALE-REFUND';
@@ -54,14 +60,14 @@ beforeAll(async () => {
     `INSERT INTO product_distribution
        (id, batch_id, tenant_id, product_id, barcode, vendor_id, distribution_date, status,
         net_price, billed_price, gst_applied)
-     VALUES ('PD-REFUND-1', $1, $2, $3, 'BAR-REFUND-1', $4, '2026-08-20', 'Sold', 1600, 1680, true)`,
-    [BATCH, T, P, V],
+     VALUES ('PD-REFUND-1', $1, $2, $3, 'BAR-REFUND-1', $4, $5, 'Sold', 1600, 1680, true)`,
+    [BATCH, T, P, V, SALE_DATE],
   );
   await pool.query(
     `INSERT INTO vendor_payments
        (id, tenant_id, vendor_id, amount, payment_date, payment_method, notes, batch_id)
-     VALUES ('VP-REFUND-PAY', $1, $2, 1680, '2026-08-20', 'Cash', 'Cash against sale', $3)`,
-    [T, V, BATCH],
+     VALUES ('VP-REFUND-PAY', $1, $2, 1680, $3, 'Cash', 'Cash against sale', $4)`,
+    [T, V, SALE_DATE, BATCH],
   );
 });
 
@@ -71,7 +77,7 @@ afterAll(async () => {
 
 describe('Sales return refunds a paid cash bill', () => {
   it('drops vendor_payments and Analytics collections to zero', async () => {
-    const before = await api().get('/api/analytics/overview?from=2026-08-01&to=2026-08-31').set(hdrs);
+    const before = await api().get(`/api/analytics/overview?from=${MONTH_START}&to=${MONTH_END}`).set(hdrs);
     expect(before.status).toBe(200);
     expect(Number(before.body.money.collections)).toBe(1680);
 
@@ -88,12 +94,12 @@ describe('Sales return refunds a paid cash bill', () => {
     );
     expect(Number(paid.rows[0].t)).toBe(0);
 
-    const after = await api().get('/api/analytics/overview?from=2026-08-01&to=2026-08-31').set(hdrs);
+    const after = await api().get(`/api/analytics/overview?from=${MONTH_START}&to=${MONTH_END}`).set(hdrs);
     expect(after.status).toBe(200);
     expect(Number(after.body.money.collections)).toBe(0);
     expect(Number(after.body.money.outstanding)).toBe(0);
 
-    const inv = await api().get('/api/invoices?includeSales=1&from=2026-08-01&to=2026-08-31').set(hdrs);
+    const inv = await api().get(`/api/invoices?includeSales=1&from=${MONTH_START}&to=${MONTH_END}`).set(hdrs);
     expect(inv.status).toBe(200);
     const sale = (inv.body as { id: string; paidAmount: number; outstanding: number; fullyReturned?: boolean }[]).find(
       r => r.id === `sale:${BATCH}`,

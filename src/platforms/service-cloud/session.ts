@@ -26,6 +26,8 @@ async function scFetch(path: string, init?: RequestInit): Promise<{ status: numb
     ...(init?.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
+  const tenantId = session.getTenantId();
+  if (tenantId) headers['X-Tenant-ID'] = tenantId;
   const client = serviceCloudClientHeader();
   if (client) headers['X-DG-Client'] = client;
 
