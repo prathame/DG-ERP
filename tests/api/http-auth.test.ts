@@ -89,6 +89,22 @@ describe('HTTP Auth', () => {
     expect(res.status).toBe(200);
   });
 
+  it('JWT without X-Tenant-ID still authenticates (desktop seat heartbeat)', async () => {
+    await pool.query(`DELETE FROM user_sessions WHERE user_id = $1 AND tenant_id = $2`, ['U-HTTP-AUTH-1', TEST_TENANT]);
+    const token = createTestToken({
+      userId: 'U-HTTP-AUTH-1',
+      tenantId: TEST_TENANT,
+      email: TEST_EMAIL,
+      role: 'Admin',
+      name: 'HTTP Auth User',
+    });
+    const res = await api()
+      .get('/api/service-cloud/session/status')
+      .set({ Authorization: `Bearer ${token}`, 'X-DG-Client': 'electron-cloud' });
+    expect(res.status).toBe(200);
+    expect(res.body.error).toBeUndefined();
+  });
+
   it('POST /api/auth/forgot-password does not enumerate users', async () => {
     const res = await api().post('/api/auth/forgot-password').send({ email: 'nobody-exists@example.com' });
     expect([200, 201]).toContain(res.status);

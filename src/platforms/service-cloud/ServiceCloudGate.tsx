@@ -119,7 +119,9 @@ export function ServiceCloudGate({ enabled, children }: Props) {
               <>
                 <p className="text-lg font-bold text-gray-900">Access blocked</p>
                 <p className="text-sm text-gray-600 mt-2">{state.message}</p>
-                <p className="text-xs text-gray-500 mt-3">Contact your Super Admin to adjust seats or access mode.</p>
+                {!/log in again/i.test(state.message) && (
+                  <p className="text-xs text-gray-500 mt-3">Contact your Super Admin to adjust seats or access mode.</p>
+                )}
               </>
             )}
           </div>

@@ -354,6 +354,10 @@ export function createApp(): express.Application {
       };
       if (decoded.tenantId && decoded.userId) {
         req.headers['x-tenant-id'] = decoded.tenantId;
+        // Seat heartbeat / claim omit X-Tenant-ID; FORCE RLS on `users` needs app.tenant_id
+        // before this lookup or the row is invisible → "User no longer exists".
+        const earlyStore = requestContext.getStore();
+        if (earlyStore) earlyStore.tenantId = decoded.tenantId;
 
         // Tenant ERP: Cap / Electron / browser / PWA. Impersonation + tests exempt.
         // Single-session (user_sessions) still kicks every other device on new login.
