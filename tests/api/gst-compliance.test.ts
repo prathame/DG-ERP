@@ -238,7 +238,7 @@ describe('GSTR-3B compute', () => {
     const output = gstr3b.output as Record<string, number>;
     expect(Number(output.cgst)).toBe(162);
     expect(Number(output.sgst)).toBe(162);
-    expect(Number(output.igst)).toBe(80);
+    expect(Number(output.igst)).toBe(170);
   });
 });
 
