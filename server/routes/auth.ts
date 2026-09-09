@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { pool, withTenantClient } from '../pg-db';
-import { uid, logAudit } from '../utils/helpers';
+import { pool, setTenantContext, withTenantClient } from '../pg-db';
+import { hashResetToken, uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
@@ -583,11 +583,12 @@ router.post('/api/auth/forgot-password', async (req, res) => {
       return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
 
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(token);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
 
     await pool.query(
       'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
-      [uid('PRT'), email, user.tenant_id, token, expiresAt],
+      [uid('PRT'), email, user.tenant_id, tokenHash, expiresAt],
     );
 
     await logAudit(
@@ -612,28 +613,38 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
 // Reset password using token
 router.post('/api/auth/reset-password', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
     if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
+    await client.query('BEGIN');
+    const tokenHash = hashResetToken(token);
     const resetToken = (
-      await pool.query(
-        'SELECT id, email, tenant_id FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()',
-        [token],
+      await client.query(
+        `SELECT id, email, tenant_id FROM password_reset_tokens
+         WHERE (token = $1 OR token = $2) AND used = false AND expires_at > NOW()
+         FOR UPDATE`,
+        [tokenHash, token],
       )
     ).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
 
-    if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
+    if (!resetToken) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+    await setTenantContext(client, resetToken.tenant_id);
 
     if (isSoftDeletedEmail(resetToken.email)) {
-      await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+      await client.query('DELETE FROM password_reset_tokens WHERE id = $1', [resetToken.id]);
+      await client.query('COMMIT');
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
     const newHash = bcrypt.hashSync(newPassword, 12);
     const resetUser = (
-      await pool.query(
+      await client.query(
         `UPDATE users SET password_hash = $1, password_changed_at = NOW()
          WHERE LOWER(email) = LOWER($2) AND tenant_id = $3 AND ${ACTIVE_USER_SQL}
          RETURNING id`,
@@ -641,18 +652,23 @@ router.post('/api/auth/reset-password', async (req, res) => {
       )
     ).rows[0] as { id: string } | undefined;
     if (!resetUser) {
-      await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+      await client.query('DELETE FROM password_reset_tokens WHERE id = $1', [resetToken.id]);
+      await client.query('COMMIT');
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
+    await client.query('DELETE FROM password_reset_tokens WHERE id = $1', [resetToken.id]);
+    await client.query('DELETE FROM password_reset_tokens WHERE used = true OR expires_at < NOW()');
+    await client.query('COMMIT');
     await clearUserSession(resetUser.id, resetToken.tenant_id as string);
-    await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
-    await pool.query('DELETE FROM password_reset_tokens WHERE used = true OR expires_at < NOW()');
 
     await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', undefined, 'Password reset completed');
 
     res.json({ ok: true, message: 'Password has been reset successfully' });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
     return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 

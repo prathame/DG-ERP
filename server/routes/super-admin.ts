@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { logger } from '../utils/logger';
 import { pool, ensureDefaultPlans, withTenantClient } from '../pg-db';
 import bcrypt from 'bcrypt';
-import { uid, logAudit } from '../utils/helpers';
+import { hashResetToken, uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { clearSuperAdminSession, clearUserSession, replaceSuperAdminSession } from '../utils/userSessions';
@@ -738,11 +738,12 @@ router.post('/api/super-admin/tenants/:id/reset-token', superAdminMiddleware, as
 
     const crypto = await import('crypto');
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(token);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
 
     await pool.query(
       'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
-      [uid('PRT'), email, id, token, expiresAt],
+      [uid('PRT'), email, id, tokenHash, expiresAt],
     );
 
     const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [id])).rows[0] as

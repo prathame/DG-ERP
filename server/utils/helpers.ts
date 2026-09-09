@@ -6,6 +6,10 @@ export function uid(prefix: string): string {
   return `${prefix}${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
+export function hashResetToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 export { isValidPhone, INVALID_PHONE_MESSAGE, phoneValidationError } from '../../shared/phone';
 
 export function isValidEmail(email: string): boolean {
