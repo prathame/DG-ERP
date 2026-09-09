@@ -168,4 +168,15 @@ export const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_job_orders_client ON job_orders(tenant_id, client_name);
     `,
   },
+
+  {
+    id: '0006_payroll_expense_source',
+    up: `
+      ALTER TABLE expenses ADD COLUMN IF NOT EXISTS source_type TEXT;
+      ALTER TABLE expenses ADD COLUMN IF NOT EXISTS source_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_expenses_tenant_source
+        ON expenses (tenant_id, source_type, source_id)
+        WHERE source_type IS NOT NULL AND source_id IS NOT NULL;
+    `,
+  },
 ];

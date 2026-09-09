@@ -1239,6 +1239,37 @@ export async function postSaleToBooks(
 }
 
 /** Staff payment → Dr Salary/Expense ledger, Cr Cash. */
+export function buildStaffPaymentBookPosting(
+  paymentType: string,
+  amount: number,
+  expenseLedgerId: string,
+  cashLedgerId: string,
+) {
+  const amt = round2(Math.abs(amount));
+  const isAdvanceRepayment = paymentType === 'advance_repay';
+  const category =
+    isAdvanceRepayment || paymentType === 'advance'
+      ? 'Staff Advance'
+      : paymentType === 'bonus'
+        ? 'Staff Bonus'
+        : 'Staff Salary';
+  return {
+    amount: amt,
+    category,
+    partyLedgerId: isAdvanceRepayment ? cashLedgerId : expenseLedgerId,
+    contraLedgerId: isAdvanceRepayment ? expenseLedgerId : cashLedgerId,
+    entries: isAdvanceRepayment
+      ? [
+          { ledgerId: cashLedgerId, debit: amt, credit: 0 },
+          { ledgerId: expenseLedgerId, debit: 0, credit: amt },
+        ]
+      : [
+          { ledgerId: expenseLedgerId, debit: amt, credit: 0 },
+          { ledgerId: cashLedgerId, debit: 0, credit: amt },
+        ],
+  };
+}
+
 export async function postStaffPaymentToBooks(
   client: PoolClient,
   tenantId: string,
@@ -1255,26 +1286,24 @@ export async function postStaffPaymentToBooks(
   const amt = round2(Math.abs(payment.amount));
   if (!(amt > 0)) return null;
   const category =
-    payment.paymentType === 'advance'
+    payment.paymentType === 'advance_repay' || payment.paymentType === 'advance'
       ? 'Staff Advance'
       : payment.paymentType === 'bonus'
         ? 'Staff Bonus'
         : 'Staff Salary';
   const expenseLedgerId = await resolveExpenseLedger(client, tenantId, category);
   const cashLedgerId = await resolveCashBankLedger(client, tenantId, payment.paymentMethod || 'Cash');
+  const posting = buildStaffPaymentBookPosting(payment.paymentType, amt, expenseLedgerId, cashLedgerId);
   return insertVoucher(client, tenantId, {
     voucherType: 'payment',
     voucherDate: payment.paymentDate,
     voucherNumber: null,
-    partyLedgerId: expenseLedgerId,
-    contraLedgerId: cashLedgerId,
+    partyLedgerId: posting.partyLedgerId,
+    contraLedgerId: posting.contraLedgerId,
     amount: amt,
-    narration: `${category} — ${payment.staffName}`,
+    narration: `${posting.category} — ${payment.staffName}`,
     externalRef: `ops:sp:${payment.id}`,
-    entries: [
-      { ledgerId: expenseLedgerId, debit: amt, credit: 0 },
-      { ledgerId: cashLedgerId, debit: 0, credit: amt },
-    ],
+    entries: posting.entries,
   });
 }
 

@@ -43,6 +43,7 @@ const BOOKS_SALARY_SQL = `
   ) exp_l ON TRUE
   WHERE v.tenant_id = $1
     AND v.voucher_type = 'payment'
+    AND COALESCE(v.external_ref, '') NOT LIKE 'ops:sp:%'
     AND exp_l.name IS NOT NULL
 `;
 
