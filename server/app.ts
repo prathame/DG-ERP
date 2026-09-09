@@ -10,14 +10,11 @@ import * as Sentry from '@sentry/node';
 
 import { pool } from './pg-db';
 import {
-  DEFAULT_SERVICE_CLOUD_APP_URL,
-  DEFAULT_SERVICE_CLOUD_IOS_URL,
   DEFAULT_SERVICE_MOBILE_APP_URL,
   DEFAULT_SERVICE_MOBILE_IOS_URL,
   DEFAULT_DESKTOP_MAC_ARM64_URL,
   DEFAULT_DESKTOP_MAC_X64_URL,
   DEFAULT_DESKTOP_WIN_URL,
-  DEFAULT_DESKTOP_APP_URL,
   DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
 } from './download-defaults';
 import { enforceModulePermissions, normalizePermissions } from './middleware/permissions';
@@ -667,8 +664,8 @@ export function createApp(): express.Application {
       const desktopMacX64 = cfg.desktop_mac_x64_url || legacyDesktop || DEFAULT_DESKTOP_MAC_X64_URL;
       const desktopWin = cfg.desktop_win_url || legacyDesktop || DEFAULT_DESKTOP_WIN_URL;
       res.json({
-        serviceCloudAppUrl: cfg.service_cloud_app_url || DEFAULT_SERVICE_CLOUD_APP_URL,
-        serviceCloudIosUrl: cfg.service_cloud_ios_url || DEFAULT_SERVICE_CLOUD_IOS_URL,
+        serviceCloudAppUrl: cfg.service_cloud_app_url || DEFAULT_SERVICE_MOBILE_APP_URL,
+        serviceCloudIosUrl: cfg.service_cloud_ios_url || DEFAULT_SERVICE_MOBILE_IOS_URL,
         serviceMobileAppUrl: cfg.service_mobile_app_url || DEFAULT_SERVICE_MOBILE_APP_URL,
         serviceMobileIosUrl: cfg.service_mobile_ios_url || DEFAULT_SERVICE_MOBILE_IOS_URL,
         serviceMobileTestflightUrl: cfg.service_mobile_testflight_url || DEFAULT_SERVICE_MOBILE_TESTFLIGHT_URL,
@@ -676,7 +673,7 @@ export function createApp(): express.Application {
         desktopMacX64Url: desktopMacX64,
         desktopWinUrl: desktopWin,
         /** @deprecated Prefer desktopMacArm64Url — kept for older clients. */
-        desktopAppUrl: legacyDesktop || desktopMacArm64 || DEFAULT_DESKTOP_APP_URL,
+        desktopAppUrl: legacyDesktop || desktopMacArm64 || DEFAULT_DESKTOP_MAC_ARM64_URL,
       });
     } catch (err) {
       logger.error('download-links failed', { error: err instanceof Error ? err.message : String(err) });

@@ -2,8 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { api } from '../http';
 import { pool } from '../helpers';
 import {
-  DEFAULT_SERVICE_CLOUD_APP_URL,
-  DEFAULT_SERVICE_CLOUD_IOS_URL,
   DEFAULT_SERVICE_MOBILE_APP_URL,
   DEFAULT_SERVICE_MOBILE_IOS_URL,
   DEFAULT_DESKTOP_MAC_ARM64_URL,
@@ -62,8 +60,8 @@ describe('GET /api/download-links', () => {
     expect(res.body.serviceMobileAppUrl).toBe(DEFAULT_SERVICE_MOBILE_APP_URL);
     expect(res.body.serviceMobileIosUrl).toBe(DEFAULT_SERVICE_MOBILE_IOS_URL);
     // Legacy cloud keys alias the same unified evergreen assets
-    expect(res.body.serviceCloudAppUrl).toBe(DEFAULT_SERVICE_CLOUD_APP_URL);
-    expect(res.body.serviceCloudIosUrl).toBe(DEFAULT_SERVICE_CLOUD_IOS_URL);
+    expect(res.body.serviceCloudAppUrl).toBe(DEFAULT_SERVICE_MOBILE_APP_URL);
+    expect(res.body.serviceCloudIosUrl).toBe(DEFAULT_SERVICE_MOBILE_IOS_URL);
     expect(res.body.serviceMobileAppUrl).toContain('/releases/download/dhandho-mobile/');
     expect(res.body.serviceMobileAppUrl).toContain('dhandho-mobile-debug.apk');
     expect(res.body.serviceMobileIosUrl).toContain('.app.zip');
@@ -87,7 +85,7 @@ describe('GET /api/download-links', () => {
     expect(res.status).toBe(200);
     expect(res.body.serviceMobileAppUrl).toBe(override);
     expect(res.body.serviceMobileIosUrl).toBe(DEFAULT_SERVICE_MOBILE_IOS_URL);
-    expect(res.body.serviceCloudAppUrl).toBe(DEFAULT_SERVICE_CLOUD_APP_URL);
+    expect(res.body.serviceCloudAppUrl).toBe(DEFAULT_SERVICE_MOBILE_APP_URL);
     await pool.query('DELETE FROM platform_config WHERE key = $1', [MOBILE_KEY]);
   });
 

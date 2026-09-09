@@ -1220,11 +1220,6 @@ function toastNotConnected() {
   }
 }
 
-/** @deprecated wa.me removed — kept only as emergency reference, not called */
-export function openPersonalWhatsApp(_phone: string, _message: string) {
-  toastNotConnected();
-}
-
 /**
  * Send WhatsApp message — priority order:
  *   1. Baileys (WhatsApp Web session) — direct, no popup

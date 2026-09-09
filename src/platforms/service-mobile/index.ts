@@ -13,7 +13,7 @@ export { ServiceMobileOnboarding } from './ServiceMobileOnboarding';
 export { runServiceMobileSync, startServiceMobileHeartbeat, stopServiceMobileHeartbeat } from './sync';
 export { getSyncState, subscribeSyncState, patchSyncState, type SyncConnectionStatus } from './syncState';
 export { serviceMobileOnlineStatusAdapter } from './serviceMobileOnlineStatusAdapter';
-export { restoreFromLocalBackupFile, restoreSameTenantBackup } from './restore';
+export { restoreFromLocalBackupFile } from './restore';
 export {
   exportLocalBackupNow,
   loadLocalBackupSettings,
