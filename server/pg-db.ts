@@ -2072,6 +2072,18 @@ export async function initSchema() {
       'tenant_notifications',
       'tenant_invoices',
       'tenant_stats',
+      'book_financial_years',
+      'book_settings',
+      'book_account_groups',
+      'book_ledgers',
+      'book_ledger_details',
+      'book_products',
+      'book_vouchers',
+      'book_voucher_entries',
+      'book_voucher_items',
+      'book_import_jobs',
+      'book_bank_recon_marks',
+      'book_bank_recon_sessions',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);

@@ -179,4 +179,22 @@ export const migrations: Migration[] = [
         WHERE source_type IS NOT NULL AND source_id IS NOT NULL;
     `,
   },
+
+  {
+    id: '0007_job_orders_rls',
+    up: `
+      ALTER TABLE job_orders ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE job_orders FORCE ROW LEVEL SECURITY;
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies
+          WHERE tablename = 'job_orders' AND policyname = 'job_orders_tenant_isolation'
+        ) THEN
+          CREATE POLICY job_orders_tenant_isolation ON job_orders
+            USING (tenant_id = current_setting('app.tenant_id', true))
+            WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+        END IF;
+      END $$;
+    `,
+  },
 ];
