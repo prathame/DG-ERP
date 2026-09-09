@@ -481,6 +481,9 @@ async function dualWriteSalesStock(
 
   if (voucherType === 'sales') {
     const { units, shortfall } = await upsertSaleStockOut(client, tenantId, `books:sal:${voucherId}`, resolved);
+    if (shortfall > 0) {
+      throw new BookVoucherValidationError(`Insufficient stock for ${shortfall} sale unit(s)`);
+    }
     return { dualWrite: 'sales', stockUnits: units, stockShortfall: shortfall };
   }
 
