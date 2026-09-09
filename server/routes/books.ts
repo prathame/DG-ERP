@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { handleApiError } from '../utils/http-error';
 import { uid, logAudit } from '../utils/helpers';
 import {
@@ -70,10 +70,21 @@ const router = Router();
 async function withNativeBooksDesk(tenantId: string): Promise<void> {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    await setTenantContext(client, tenantId);
     await ensureNativeBooksDesk(client, tenantId);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
   } finally {
     client.release();
   }
+}
+
+async function beginTenantTransaction(client: import('pg').PoolClient, tenantId: string): Promise<void> {
+  await client.query('BEGIN');
+  await setTenantContext(client, tenantId);
 }
 
 /** Admin: wipe ops business data (payments/invoices/expenses/quotes/…) then Books COA re-seed. Keeps users + OWNER. */
@@ -82,7 +93,7 @@ router.delete('/api/ops/wipe', requireAdmin, async (req: AuthRequest, res) => {
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const counts: Record<string, number> = {};
     const del = async (label: string, sql: string, params: unknown[] = [tenantId]) => {
       const r = await client.query(sql, params);
@@ -163,7 +174,7 @@ router.delete('/api/books/all', requireAdmin, async (req: AuthRequest, res) => {
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const { deleted } = await wipeNativeBooksDesk(client, tenantId);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Wiped', 'books', 'all', 'Books cleared and native COA re-seeded');
@@ -195,7 +206,7 @@ router.post('/api/books/resync-ops-invoices', requireAdmin, async (req: AuthRequ
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const result = await resyncOpsInvoiceBooks(client, tenantId);
     await client.query('COMMIT');
     await logAudit(
@@ -337,10 +348,13 @@ router.get('/api/books/groups', blockVendors, async (req: AuthRequest, res) => {
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await withNativeBooksDesk(tenantId);
+    await beginTenantTransaction(client, tenantId);
+    await ensureNativeBooksDesk(client, tenantId);
     const groups = await listBookGroups(client, tenantId);
+    await client.query('COMMIT');
     res.json(groups);
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
     return handleApiError(req, res, err);
   } finally {
     client.release();
@@ -352,11 +366,11 @@ router.post('/api/books/groups', blockVendors, async (req: AuthRequest, res) => 
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const id = await createBookGroup(client, tenantId, req.body || {});
+    const groups = await listBookGroups(client, tenantId);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Group Created', 'book_group', id, String(req.body?.name || ''));
-    const groups = await listBookGroups(client, tenantId);
     res.status(201).json(groups.find(g => g.id === id) || { id });
   } catch (err) {
     try {
@@ -378,11 +392,11 @@ router.put('/api/books/groups/:id', blockVendors, async (req: AuthRequest, res) 
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     await updateBookGroup(client, tenantId, req.params.id, req.body || {});
+    const groups = await listBookGroups(client, tenantId);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Group Updated', 'book_group', req.params.id, String(req.body?.name || ''));
-    const groups = await listBookGroups(client, tenantId);
     res.json(groups.find(g => g.id === req.params.id) || { id: req.params.id });
   } catch (err) {
     try {
@@ -404,7 +418,7 @@ router.delete('/api/books/groups/:id', blockVendors, async (req: AuthRequest, re
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     await deleteBookGroup(client, tenantId, req.params.id);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Group Deleted', 'book_group', req.params.id, '');
@@ -429,7 +443,7 @@ router.post('/api/books/ledgers', blockVendors, async (req: AuthRequest, res) =>
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const id = await createBookLedger(client, tenantId, req.body || {});
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Ledger Created', 'book_ledger', id, String(req.body?.name || ''));
@@ -454,7 +468,7 @@ router.put('/api/books/ledgers/:id', blockVendors, async (req: AuthRequest, res)
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     await updateBookLedger(client, tenantId, req.params.id, req.body || {});
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Ledger Updated', 'book_ledger', req.params.id, String(req.body?.name || ''));
@@ -479,7 +493,7 @@ router.put('/api/books/ledgers/:id/opening', blockVendors, async (req: AuthReque
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     await setBookLedgerOpening(
       client,
       tenantId,
@@ -510,7 +524,7 @@ router.delete('/api/books/ledgers/:id', blockVendors, async (req: AuthRequest, r
   if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     await deleteBookLedger(client, tenantId, req.params.id);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Ledger Deleted', 'book_ledger', req.params.id, '');
@@ -1074,7 +1088,7 @@ router.post('/api/books/bank-reconciliation/mark', blockVendors, async (req: Aut
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const updated = await markBankReconEntries(client, tenantId, ledgerId, entryIds, reconciled, asOf);
     await client.query('COMMIT');
     res.json({ updated, reconciled });
@@ -1102,7 +1116,7 @@ router.put('/api/books/bank-reconciliation/statement', blockVendors, async (req:
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     await saveBankReconStatement(
       client,
       tenantId,
@@ -1136,7 +1150,7 @@ router.post('/api/books/vouchers', blockVendors, async (req: AuthRequest, res) =
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const created = await createBookVoucher(client, tenantId, {
       voucherType,
       voucherDate: String(body.voucherDate || ''),
@@ -1210,7 +1224,7 @@ router.put('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, res
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const updated = await updateBookVoucher(client, tenantId, id, {
       voucherDate: body.voucherDate !== undefined ? String(body.voucherDate || '') : undefined,
       voucherNumber: body.voucherNumber !== undefined ? body.voucherNumber : undefined,
@@ -1256,7 +1270,7 @@ router.post('/api/books/vouchers/:id/realise', blockVendors, async (req: AuthReq
   const body = req.body || {};
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const result = await realisePdcVoucher(client, tenantId, id, {
       voucherDate: body.voucherDate ?? null,
       voucherNumber: body.voucherNumber ?? null,
@@ -1296,7 +1310,7 @@ router.post('/api/books/vouchers/:id/cancel-memo', blockVendors, async (req: Aut
   const { id } = req.params;
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const result = await cancelMemoVoucher(client, tenantId, id);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Memo Cancelled', 'book_voucher', result.id, result.voucherType);
@@ -1327,7 +1341,7 @@ router.delete('/api/books/vouchers/:id', blockVendors, async (req: AuthRequest, 
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const deleted = await deleteBookVoucher(client, tenantId, id);
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Books Voucher Deleted', 'book_voucher', deleted.id, deleted.voucherType);
@@ -1360,6 +1374,7 @@ router.post('/api/books/import/miracle', requireAdmin, upload.single('file'), as
   let extractRoot: string | null = null;
   const client = await pool.connect();
   try {
+    await beginTenantTransaction(client, tenantId);
     await client.query(
       `INSERT INTO book_import_jobs (id, tenant_id, source, status) VALUES ($1,$2,'miracle','pending')`,
       [jobId, tenantId],
@@ -1368,7 +1383,6 @@ router.post('/api/books/import/miracle', requireAdmin, upload.single('file'), as
     extractRoot = await extractArchive(req.file.path, req.file.originalname);
     const companyDir = locateCompanyDir(extractRoot);
 
-    await client.query('BEGIN');
     const { summary, errors, warnings } = await importMiracleCompany(client, tenantId, companyDir, jobId);
     await client.query('COMMIT');
 

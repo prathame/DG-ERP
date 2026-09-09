@@ -73,6 +73,7 @@ describe('syncBooksSalaryToStaff', () => {
 
     const result = await syncBooksSalaryToStaff(pool, 'T1');
     expect(result.synced).toBe(1);
+    expect(calls.find(c => c.sql.includes('book_vouchers'))?.sql).toContain("NOT LIKE 'ops:sp:%'");
     expect(calls.some(c => c.sql.includes('INSERT INTO staff_members'))).toBe(true);
     expect(calls.some(c => c.sql.includes('INSERT INTO staff_payments'))).toBe(true);
     const pay = calls.find(c => c.sql.includes('INSERT INTO staff_payments'))!;

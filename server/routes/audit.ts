@@ -346,6 +346,8 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'payment_method',
     'reference_number',
     'notes',
+    'source_type',
+    'source_id',
     'tenant_id',
     'created_at',
   ]),
@@ -581,7 +583,7 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
       for (const table of restoreTables) {
         const rows = data[table];
         if (!Array.isArray(rows) || rows.length === 0) continue;
-        for (const row of rows) {
+        for (const [rowIndex, row] of rows.entries()) {
           row.tenant_id = tenantId;
           const allowed = BACKUP_COLUMN_ALLOWLIST[table];
           if (!allowed) continue;
@@ -604,11 +606,13 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
             );
             restored++;
           } catch (rowErr) {
-            logger.warn('Backup restore row skipped', {
+            logger.error('Backup restore failed', {
               table,
+              rowIndex,
               tenantId,
               error: rowErr instanceof Error ? rowErr.message : String(rowErr),
             });
+            throw Object.assign(new Error(`Backup restore failed at ${table}[${rowIndex}]`), { status: 400 });
           }
         }
       }

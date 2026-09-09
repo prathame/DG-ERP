@@ -5,7 +5,7 @@ import { uid, logAudit, isValidPhone } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { syncBooksSalaryToStaff } from '../services/booksSalaryToStaff';
 import { postStaffPaymentToBooks } from '../services/opsToBooks';
-import { logger } from '../utils/logger';
+import { deleteBookVoucher } from '../services/bookVouchers';
 import { sendTextViaWeb } from '../services/whatsappWebSession';
 
 const router = Router();
@@ -453,52 +453,76 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
     const d = new Date(date);
     const m = month || String(d.getMonth() + 1).padStart(2, '0');
     const y = year || d.getFullYear();
-    await pool.query(
-      'INSERT INTO staff_payments (id, tenant_id, staff_name, amount, payment_date, payment_type, payment_method, reference_number, notes, month, year) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-      [
-        id,
-        tenantId,
-        staffName.trim(),
-        parsedAmount,
-        date,
-        pType,
-        paymentMethod || 'Cash',
-        referenceNumber || null,
-        notes || null,
-        m,
-        y,
-      ],
-    );
-    // Best-effort Books dual-write — never blocks the payment
-    if (pType !== 'deduction' && pType !== 'advance_repay') {
-      pool
-        .connect()
-        .then(async bClient => {
-          try {
-            await bClient.query('BEGIN');
-            await setTenantContext(bClient, tenantId);
-            await postStaffPaymentToBooks(bClient, tenantId, {
-              id,
-              amount: parsedAmount,
-              paymentDate: date,
-              staffName: staffName.trim(),
-              paymentType: pType,
-              paymentMethod: paymentMethod || 'Cash',
-            });
-            await bClient.query('COMMIT');
-          } catch (err) {
-            await bClient.query('ROLLBACK').catch(() => {});
-            logger.warn('Staff payment Books dual-write failed', {
-              alert: 'books_dual_write_failure',
-              paymentId: id,
-              tenantId,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          } finally {
-            bClient.release();
-          }
-        })
-        .catch(() => {});
+    const expenseId = `EXP-${id}`;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setTenantContext(client, tenantId);
+      await client.query(
+        'INSERT INTO staff_payments (id, tenant_id, staff_name, amount, payment_date, payment_type, payment_method, reference_number, notes, month, year) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+        [
+          id,
+          tenantId,
+          staffName.trim(),
+          parsedAmount,
+          date,
+          pType,
+          paymentMethod || 'Cash',
+          referenceNumber || null,
+          notes || null,
+          m,
+          y,
+        ],
+      );
+
+      if (pType !== 'deduction') {
+        await postStaffPaymentToBooks(client, tenantId, {
+          id,
+          amount: parsedAmount,
+          paymentDate: date,
+          staffName: staffName.trim(),
+          paymentType: pType,
+          paymentMethod: paymentMethod || 'Cash',
+        });
+      }
+
+      // Salary/bonus are P&L expenses. Advances are balance-sheet movements;
+      // advance repayment is handled in Books and must not hit P&L.
+      if (['salary', 'advance', 'bonus'].includes(pType)) {
+        const staffRow = (
+          await client.query(
+            `SELECT name, role FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+            [tenantId, staffName.trim()],
+          )
+        ).rows[0] as { name: string; role?: string } | undefined;
+        const verifiedName = staffRow?.name || staffName.trim();
+        const roleHint = staffRow?.role ? ` (${staffRow.role})` : '';
+        const typeLabel = { salary: 'Salary', advance: 'Advance Given', bonus: 'Bonus' }[pType] || pType;
+        await client.query(
+          `INSERT INTO expenses
+             (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes, source_type, source_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [
+            expenseId,
+            tenantId,
+            pType === 'advance' ? 'Staff Advance' : pType === 'bonus' ? 'Staff Bonus' : 'Staff Salary',
+            `${typeLabel} — ${verifiedName}${roleHint}`,
+            parsedAmount,
+            date,
+            paymentMethod || 'Cash',
+            referenceNumber || null,
+            notes || `${typeLabel} paid to ${verifiedName}${roleHint} via ${paymentMethod || 'Cash'}`,
+            'payroll',
+            id,
+          ],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
 
     const typeLabel =
@@ -517,49 +541,6 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
       id,
       `${typeLabel}: ₹${parsedAmount.toLocaleString('en-IN')} — ${staffName.trim()}`,
     );
-
-    // Sync to expenses — look up verified name + role from staff_members DB
-    if (pType !== 'deduction') {
-      const staffRow = (
-        await pool.query(
-          `SELECT name, role FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
-          [tenantId, staffName.trim()],
-        )
-      ).rows[0] as { name: string; role?: string } | undefined;
-
-      const verifiedName = staffRow?.name || staffName.trim();
-      const roleHint = staffRow?.role ? ` (${staffRow.role})` : '';
-      const expenseAmount = pType === 'advance_repay' ? -parsedAmount : parsedAmount;
-      const expCategory =
-        pType === 'advance_repay'
-          ? 'Staff Advance Repaid'
-          : pType === 'advance'
-            ? 'Staff Advance'
-            : pType === 'bonus'
-              ? 'Staff Bonus'
-              : 'Staff Salary';
-      const expDescription = `${typeLabel} — ${verifiedName}${roleHint}`;
-      // Use payment notes if provided, otherwise generate a clear note
-      const expNotes = notes || `${typeLabel} paid to ${verifiedName}${roleHint} via ${paymentMethod || 'Cash'}`;
-
-      await pool
-        .query(
-          `INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [
-            uid('EXP'),
-            tenantId,
-            expCategory,
-            expDescription,
-            expenseAmount,
-            date,
-            paymentMethod || 'Cash',
-            referenceNumber || null,
-            expNotes,
-          ],
-        )
-        .catch(() => {}); // best-effort — don't fail payment if expense insert fails
-    }
 
     // Auto-send WhatsApp salary slip if wa_auto_settings.salary is ON
     if (pType !== 'deduction') {
@@ -609,11 +590,41 @@ router.delete('/api/payroll/:id', blockVendors, async (req: AuthRequest, res) =>
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query('DELETE FROM staff_payments WHERE id = $1 AND tenant_id = $2', [
-      req.params.id,
-      tenantId,
-    ]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Payment not found' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setTenantContext(client, tenantId);
+      const payment = (
+        await client.query('SELECT id, payment_type FROM staff_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
+          req.params.id,
+          tenantId,
+        ])
+      ).rows[0] as { id: string; payment_type: string } | undefined;
+      if (!payment) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      const voucher = (
+        await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2 FOR UPDATE`, [
+          tenantId,
+          `ops:sp:${payment.id}`,
+        ])
+      ).rows[0] as { id: string } | undefined;
+      if (voucher) await deleteBookVoucher(client, tenantId, voucher.id);
+      await client.query('DELETE FROM expenses WHERE tenant_id = $1 AND source_type = $2 AND source_id = $3', [
+        tenantId,
+        'payroll',
+        payment.id,
+      ]);
+      await client.query('DELETE FROM staff_payments WHERE id = $1 AND tenant_id = $2', [payment.id, tenantId]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
     res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err);
