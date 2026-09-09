@@ -667,6 +667,27 @@ describe('bookVouchers', () => {
         [TENANT, `books:sal:${created.id}`],
       );
       expect(sold.rows[0].n).toBe(2);
+
+      const shortageClient = await pool.connect();
+      try {
+        await shortageClient.query('BEGIN');
+        await expect(
+          createBookVoucher(shortageClient, TENANT, {
+            voucherType: 'sales',
+            voucherDate: '2025-06-05',
+            partyLedgerId: party,
+            contraLedgerId: sales,
+            amount: 30,
+            items: [{ productId, qty: 3, rate: 10, amount: 30 }],
+          }),
+        ).rejects.toThrow(BookVoucherValidationError);
+        await shortageClient.query('ROLLBACK');
+      } catch (e) {
+        await shortageClient.query('ROLLBACK').catch(() => undefined);
+        throw e;
+      } finally {
+        shortageClient.release();
+      }
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
