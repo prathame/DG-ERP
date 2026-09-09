@@ -12,6 +12,7 @@ import { uid, parsePagination, applyDateFilter, logAudit, phoneValidationError }
 import { handleApiError } from '../utils/http-error';
 import { computeMetalSalePrice } from '../../shared/metal';
 import { postSaleToBooks } from '../services/opsToBooks';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -134,6 +135,7 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
     const phoneStore = phoneNorm || null;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
     const id = uid('S');
+    await assertBooksDatesUnlocked(pool, tenantId, [date]);
 
     // Case 1: Distributed to vendor
     const dist = (
