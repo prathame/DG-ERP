@@ -25,6 +25,7 @@ const U = 'U-GST-COMP-001';
 // Entities
 const VENDOR_B2B = 'VEND-GST-B2B';
 const VENDOR_B2C = 'VEND-GST-B2C';
+const VENDOR_INTER = 'VEND-GST-INTER';
 const PRODUCT = 'PROD-GST-001';
 const SUPPLIER = 'SUPP-GST-001';
 
@@ -75,9 +76,10 @@ beforeAll(async () => {
   await pool.query(
     `INSERT INTO vendors (id, tenant_id, name, gst_number) VALUES
      ($1,$2,'B2B Vendor',$3),
-     ($4,$2,'B2C Vendor',null)
+     ($4,$2,'B2C Vendor',null),
+     ($5,$2,'Interstate Vendor',$6)
      ON CONFLICT DO NOTHING`,
-    [VENDOR_B2B, T, BUYER_GSTIN_INTRA, VENDOR_B2C],
+    [VENDOR_B2B, T, BUYER_GSTIN_INTRA, VENDOR_B2C, VENDOR_INTER, BUYER_GSTIN_INTER],
   );
 
   // Product
@@ -108,14 +110,14 @@ beforeAll(async () => {
     );
   }
 
-  // Distribution 2: B2C, no GSTIN (net=500, billed=590, gst_applied=true)
+  // Distribution 2: interstate B2B (net=500, billed=590, gst_applied=true)
   for (let i = 3; i <= 4; i++) {
     await pool.query(
       `INSERT INTO product_distribution
        (id, tenant_id, product_id, barcode, vendor_id, distribution_date, status, gst_applied, net_price, billed_price, batch_id)
        VALUES ($1,$2,$3,$4,$5,$6,'Distributed',true,500,590,'BATCH-GST-B2C')
        ON CONFLICT DO NOTHING`,
-      [`DIST-GST-B2C-${i}`, T, PRODUCT, `GST-BC-00${i}`, VENDOR_B2C, DIST_DATE],
+      [`DIST-GST-B2C-${i}`, T, PRODUCT, `GST-BC-00${i}`, VENDOR_INTER, DIST_DATE],
     );
   }
 
@@ -142,6 +144,13 @@ beforeAll(async () => {
      VALUES ('CDN-GST-001',$1,'CN-0001','credit',$2,'[]',200,18,36,236)
      ON CONFLICT DO NOTHING`,
     [T, DIST_DATE],
+  );
+  await pool.query(
+    `INSERT INTO credit_debit_notes
+     (id, tenant_id, note_number, note_type, vendor_id, note_date, items, subtotal, gst_rate, gst_amount, total)
+     VALUES ('CDN-GST-INTER',$1,'CN-0002','credit',$2,$3,'[]',100,10,10,110)
+     ON CONFLICT DO NOTHING`,
+    [T, VENDOR_INTER, DIST_DATE],
   );
 
   // Bill settings with seller GSTIN
@@ -223,6 +232,13 @@ describe('GSTR-3B compute', () => {
     // At least some CGST/SGST from intrastate distributions
     expect(Number(output.cgst)).toBeGreaterThan(0);
     expect(Number(output.sgst)).toBeGreaterThan(0);
+  });
+
+  it('interstate credit note reduces IGST instead of CGST/SGST', () => {
+    const output = gstr3b.output as Record<string, number>;
+    expect(Number(output.cgst)).toBe(72);
+    expect(Number(output.sgst)).toBe(72);
+    expect(Number(output.igst)).toBe(80);
   });
 });
 

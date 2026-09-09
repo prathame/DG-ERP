@@ -1312,15 +1312,28 @@ router.get('/api/gstr3b/compute', async (req, res) => {
     const saleSplit = splitGst(saleTax, sellerGstin, sellerGstin);
 
     // Credit notes reduce output; debit notes increase ITC-side adjustment (as additional tax liability on purchases)
-    const cnTax =
-      Number(
-        (
-          await pool.query(
-            "SELECT COALESCE(SUM(gst_amount),0) as t FROM credit_debit_notes WHERE tenant_id=$1 AND note_date >= $2 AND note_date < $3 AND note_type='credit'",
-            [tenantId, startDate, endDate],
-          )
-        ).rows[0]?.t ?? 0,
-      ) || 0;
+    const cnRows = (
+      await pool.query(
+        `SELECT COALESCE(SUM(n.gst_amount),0) AS tax, v.gst_number
+         FROM credit_debit_notes n
+         LEFT JOIN vendors v ON v.id = n.vendor_id AND v.tenant_id = n.tenant_id
+         WHERE n.tenant_id = $1 AND n.note_date >= $2 AND n.note_date < $3 AND n.note_type = 'credit'
+         GROUP BY v.gst_number`,
+        [tenantId, startDate, endDate],
+      )
+    ).rows as { tax: string; gst_number: string | null }[];
+    let cnTax = 0,
+      cnCgst = 0,
+      cnSgst = 0,
+      cnIgst = 0;
+    for (const r of cnRows) {
+      const tax = Number(r.tax) || 0;
+      const split = splitGst(tax, sellerGstin, r.gst_number);
+      cnTax += tax;
+      cnCgst += split.cgst;
+      cnSgst += split.sgst;
+      cnIgst += split.igst;
+    }
     const dnTax =
       Number(
         (
@@ -1391,9 +1404,9 @@ router.get('/api/gstr3b/compute', async (req, res) => {
     const outputTaxable = baseOutputTaxable;
     const netPayable = Math.max(0, liabilityTax - totalItc);
 
-    const outCgst = Math.max(0, distCgst + invCgst + saleSplit.cgst - cnTax / 2);
-    const outSgst = Math.max(0, distSgst + invSgst + saleSplit.sgst - cnTax / 2);
-    const outIgst = Math.max(0, distIgst + invIgst + saleSplit.igst);
+    const outCgst = Math.max(0, distCgst + invCgst + saleSplit.cgst - cnCgst);
+    const outSgst = Math.max(0, distSgst + invSgst + saleSplit.sgst - cnSgst);
+    const outIgst = Math.max(0, distIgst + invIgst + saleSplit.igst - cnIgst);
     const itcCgst = Math.round((totalItc / 2) * 100) / 100;
     const itcSgst = Math.round((totalItc - itcCgst) * 100) / 100;
     const liabilityCgst = outCgst + rcmCgst;
