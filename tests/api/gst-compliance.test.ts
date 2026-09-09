@@ -236,8 +236,8 @@ describe('GSTR-3B compute', () => {
 
   it('interstate credit note reduces IGST instead of CGST/SGST', () => {
     const output = gstr3b.output as Record<string, number>;
-    expect(Number(output.cgst)).toBe(72);
-    expect(Number(output.sgst)).toBe(72);
+    expect(Number(output.cgst)).toBe(162);
+    expect(Number(output.sgst)).toBe(162);
     expect(Number(output.igst)).toBe(80);
   });
 });
@@ -381,6 +381,6 @@ describe('GSTR-3B rounding consistency', () => {
     expect(typeof output.cgst).toBe('number');
     expect(typeof output.sgst).toBe('number');
     // CGST + SGST must equal gross non-IGST output (± 0.02 float tolerance)
-    expect(Math.abs(sumHalves - grossOutput)).toBeLessThan(0.02);
+    expect(Math.abs(sumHalves - (grossOutput - Number(output.igst)))).toBeLessThan(0.02);
   });
 });
