@@ -19,6 +19,7 @@ import {
 } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared/billUnits';
+import { round2 } from '../../shared/gstRound';
 import { reconcileGstr2b } from '../services/gstr2bReconcile';
 import {
   extractGstr2bRtnprd,
@@ -1305,7 +1306,7 @@ router.get('/api/gstr3b/compute', async (req, res) => {
       saleTaxable = 0;
     for (const r of salesRows) {
       const taxable = Number(r.sale_price) || 0;
-      const tax = Math.round(taxable * (Number(r.gst_rate) || 18)) / 100;
+      const tax = round2((taxable * (Number(r.gst_rate) || 18)) / 100);
       saleTaxable += taxable;
       saleTax += tax;
     }
