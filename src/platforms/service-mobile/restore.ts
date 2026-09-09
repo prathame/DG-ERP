@@ -17,11 +17,3 @@ export async function restoreFromLocalBackupFile(
     return { ok: false, error: err instanceof Error ? err.message : 'Restore failed' };
   }
 }
-
-/** @deprecated Cloud backups removed — use restoreFromLocalBackupFile */
-export async function restoreSameTenantBackup(): Promise<{ ok: boolean; error?: string }> {
-  return {
-    ok: false,
-    error: 'Cloud backups are disabled. Restore from your backup file (Downloads / Gmail).',
-  };
-}

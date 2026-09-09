@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { booksSidebarTabIds, isNavItemActive, NAV_ARCHITECTURE } from '../../src/lib/navArchitecture';
+import { isNavItemActive, NAV_ARCHITECTURE } from '../../src/lib/navArchitecture';
 
 describe('navArchitecture', () => {
   it('keeps section order keys', () => {
@@ -18,12 +18,6 @@ describe('navArchitecture', () => {
     expect(NAV_ARCHITECTURE.transactions).toContain('finance');
     expect(NAV_ARCHITECTURE.reports).toEqual(['accounts']);
     expect(NAV_ARCHITECTURE.books).toEqual([]);
-  });
-
-  it('hides Books sidebar (capability lives under Accounts)', () => {
-    expect(booksSidebarTabIds(id => id === 'books' || id === 'book_import')).toEqual([]);
-    expect(booksSidebarTabIds(id => id === 'book_import')).toEqual([]);
-    expect(booksSidebarTabIds(() => false)).toEqual([]);
   });
 
   it('treats Books child tabs as active on the Books hub item (deep links)', () => {

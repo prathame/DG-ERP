@@ -127,25 +127,3 @@ export async function markNotificationsDelivered(input: {
   const { status } = await cloudPost('/api/service-mobile/mark-notifications-delivered', input);
   return status < 400;
 }
-
-/** @deprecated We do not store Offline Mobile ERP backups on our servers. */
-export async function uploadBackup(_input: {
-  licenseKey: string;
-  machineId: string;
-  ciphertext: string;
-  nonce: string;
-  wrap?: string;
-  appVersion?: string;
-}): Promise<boolean> {
-  return false;
-}
-
-/** @deprecated Restore from a local backup file instead. */
-export async function downloadLatestBackup(_input: { licenseKey: string; machineId: string }): Promise<{
-  ciphertext: string;
-  nonce: string;
-  wrap: string | null;
-  createdAt: string;
-} | null> {
-  return null;
-}

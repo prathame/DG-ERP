@@ -35,11 +35,6 @@ export const NAV_ARCHITECTURE: Record<NavArchitectureSectionId, readonly string[
  */
 export const BOOKS_SIDEBAR_CHILD_TAB_IDS = ['book_ledgers', 'book_vouchers', 'book_products'] as const;
 
-/** @deprecated Books sidebar removed — always empty. Kept for callers. */
-export function booksSidebarTabIds(_visible: (tabId: string) => boolean): string[] {
-  return [];
-}
-
 const BOOKS_FAMILY_TAB_IDS = new Set<string>(['books', 'book_import', ...BOOKS_SIDEBAR_CHILD_TAB_IDS]);
 
 /** Highlight the Books hub when any Books / Miracle child tab is active. */
