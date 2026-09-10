@@ -2019,7 +2019,7 @@ router.put('/api/distribution/batch/:batchId/dispatch', blockVendors, async (req
 });
 
 // Delete entire distribution batch (only if nothing sold/replaced/damaged)
-router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/distribution/batch/:batchId', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

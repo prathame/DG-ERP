@@ -102,6 +102,7 @@ router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
       ],
     );
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
+    await logAudit(pool, tenantId, 'CREATE', 'customer', id, `${name}`);
     res.status(201).json(mapCustomer(row));
   } catch (err) {
     return handleApiError(req, res, err);
@@ -154,6 +155,7 @@ router.put('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => 
       );
     }
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
+    await logAudit(pool, tenantId, 'UPDATE', 'customer', id, `${row.name}`);
     res.json(mapCustomer(row));
   } catch (err) {
     return handleApiError(req, res, err);
@@ -179,8 +181,11 @@ router.delete('/api/customers/:id', blockVendors, async (req: AuthRequest, res) 
     } catch {
       /* column may not exist */
     }
-    const result = await pool.query('DELETE FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
+    const cust = (await pool.query('SELECT name FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0];
+    if (!cust) return res.status(404).json({ error: 'Customer not found' });
+    await pool.query('DELETE FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+    await logAudit(pool, tenantId, 'DELETE', 'customer', id, `${cust.name}`);
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);

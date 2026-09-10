@@ -1296,7 +1296,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
 });
 
 // Delete a payment (locks invoice so concurrent pay/delete can't race)
-router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/invoice-finance/payments/:id', requireAdmin, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

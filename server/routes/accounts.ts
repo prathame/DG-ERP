@@ -973,7 +973,7 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
   }
 });
 
-router.delete('/api/accounts/notes/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/accounts/notes/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

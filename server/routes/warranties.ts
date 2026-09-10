@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
@@ -116,6 +116,7 @@ router.post('/api/warranties', blockVendors, async (req: AuthRequest, res) => {
     );
 
     const row = (await pool.query('SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
+    await logAudit(pool, tenantId, 'CREATE', 'warranty', id, `barcode=${barcode}`, req.user?.userId, req.user?.name);
     res.status(201).json({
       id: row.id,
       productId: row.product_id,
@@ -310,7 +311,7 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
   }
 });
 
-router.delete('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/warranties/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -318,6 +319,7 @@ router.delete('/api/warranties/:id', blockVendors, async (req: AuthRequest, res)
     const { id } = req.params;
     const result = await pool.query('DELETE FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Warranty not found' });
+    await logAudit(pool, tenantId, 'DELETE', 'warranty', id, '', req.user?.userId, req.user?.name);
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);

@@ -1044,6 +1044,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
         );
       }
       await client.query('COMMIT');
+      await logAudit(pool, tenantId, 'CREATE', 'product', id, `${name}`);
       const row = (await pool.query('SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1', [tenantId, id]))
         .rows[0] as Record<string, unknown>;
       res.status(201).json(mapProduct({ ...row, stock: invStock, remaining_inventory: invStock }));
@@ -1276,6 +1277,7 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
         tenantId,
       ]);
     }
+    await logAudit(pool, tenantId, 'UPDATE', 'product', id, `${name || row.name}`);
     const updated = (
       await pool.query(
         'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',
@@ -1322,9 +1324,9 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const exists = (await pool.query('SELECT 1 FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
-      .rows[0];
-    if (!exists) return res.status(404).json({ error: 'Product not found' });
+    const prodRow = (await pool.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as { name: string } | undefined;
+    if (!prodRow) return res.status(404).json({ error: 'Product not found' });
 
     const client = await pool.connect();
     try {
@@ -1363,6 +1365,7 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
       client.release();
     }
 
+    await logAudit(pool, tenantId, 'DELETE', 'product', id, `${prodRow.name}`);
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);

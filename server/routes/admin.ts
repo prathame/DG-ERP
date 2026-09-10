@@ -216,6 +216,7 @@ router.post('/api/admin/users', async (req, res) => {
       }
     }
 
+    await logAudit(pool, tenantId, 'CREATE', 'user', id, `role=${role ?? 'Staff'}`, jwtUser.userId, undefined);
     const row = (
       await pool.query(
         'SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id FROM users WHERE id = $1 AND tenant_id = $2',
@@ -304,6 +305,10 @@ router.put('/api/admin/users/:id', async (req, res) => {
     );
     // Drop stale JWT role/permissions cache immediately on demotion / permission edits
     invalidateAuthCache(id, tenantId);
+    const changes = [role !== undefined ? `role→${role}` : '', permissions !== undefined ? 'permissions changed' : '']
+      .filter(Boolean)
+      .join(', ');
+    await logAudit(pool, tenantId, 'UPDATE', 'user', id, changes, jwtUser.userId, undefined);
 
     const row = (
       await pool.query(

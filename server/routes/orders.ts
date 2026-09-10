@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { round2 } from '../../shared/gstRound';
 import { uid, logAudit } from '../utils/helpers';
@@ -411,15 +411,19 @@ router.post('/api/orders/:id/fulfill', blockVendors, async (req: AuthRequest, re
 });
 
 // Delete order
-router.delete('/api/orders/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/orders/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query(
-      "DELETE FROM orders WHERE id = $1 AND tenant_id = $2 AND status IN ('Pending', 'Cancelled')",
-      [req.params.id, tenantId],
-    );
-    if (result.rowCount === 0) return res.status(400).json({ error: 'Can only delete Pending or Cancelled orders' });
+    const orderRow = (
+      await pool.query(
+        "SELECT order_number FROM orders WHERE id = $1 AND tenant_id = $2 AND status IN ('Pending', 'Cancelled')",
+        [req.params.id, tenantId],
+      )
+    ).rows[0] as { order_number: string } | undefined;
+    if (!orderRow) return res.status(400).json({ error: 'Can only delete Pending or Cancelled orders' });
+    await pool.query('DELETE FROM orders WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    await logAudit(pool, tenantId, 'DELETE', 'order', req.params.id, `${orderRow.order_number}`);
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);
