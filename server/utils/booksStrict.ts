@@ -8,6 +8,7 @@
  *                   while its Books entry is missing.
  */
 import { logger } from './logger';
+import { BooksPeriodLockedError } from '../services/bookPeriodLock';
 
 /**
  * Execute a Books dual-write inside an open transaction.
@@ -44,6 +45,7 @@ export async function withBooks(fn: () => Promise<unknown>, context: string): Pr
     try {
       await fn();
     } catch (err) {
+      if (err instanceof BooksPeriodLockedError) throw err;
       logger.warn('Books dual-write failed — permissive mode (BOOKS_STRICT=0), ops will commit without Books entry', {
         alert: 'books_dual_write_failure_permissive',
         context,
