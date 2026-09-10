@@ -1,4 +1,8 @@
 import { Router } from 'express';
+import multer from 'multer';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
 import { round2, purchaseUnitPrices, normalizeGstRate } from '../../shared/gstRound';
@@ -1043,6 +1047,114 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
     return handleApiError(req, res, err);
   } finally {
     client.release();
+  }
+});
+
+// ─── AI settings (Gemini key per tenant) ────────────────────────────────────
+router.get('/api/settings/ai', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { rows } = await pool.query('SELECT gemini_api_key FROM bill_settings WHERE tenant_id = $1', [tenantId]);
+    res.json({ geminiApiKey: rows[0]?.gemini_api_key ? '••••' + (rows[0].gemini_api_key as string).slice(-4) : null });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.put('/api/settings/ai', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { geminiApiKey } = req.body as { geminiApiKey?: string };
+    await pool.query(
+      `INSERT INTO bill_settings (tenant_id, gemini_api_key) VALUES ($1, $2)
+       ON CONFLICT (tenant_id) DO UPDATE SET gemini_api_key = $2`,
+      [tenantId, geminiApiKey?.trim() || null],
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// ─── Bill scanning via Gemini Vision ────────────────────────────────────────
+const billUploadDir = path.join(os.tmpdir(), 'dg-bill-scans');
+fs.mkdirSync(billUploadDir, { recursive: true });
+const billUpload = multer({ dest: billUploadDir, limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post('/api/purchases/scan-bill', blockVendors, billUpload.single('bill'), async (req: AuthRequest, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    const { rows } = await pool.query('SELECT gemini_api_key FROM bill_settings WHERE tenant_id = $1', [tenantId]);
+    const apiKey = rows[0]?.gemini_api_key || process.env.GEMINI_API_KEY;
+    if (!apiKey)
+      return res.status(501).json({ error: 'No Gemini API key — set it in Settings → AI or use offline scan' });
+
+    const fileBuf = fs.readFileSync(req.file.path);
+    const base64 = fileBuf.toString('base64');
+    const mime = req.file.mimetype || 'image/jpeg';
+
+    const prompt = `You are a purchase bill / invoice data extractor for an Indian agro wholesale business.
+Extract ALL line items from this bill image. For each item return:
+- productName: the product name as printed
+- quantity: numeric quantity
+- unit: unit of measure (kg, L, ml, g, piece, bag, box, etc.)
+- rate: per-unit rate/price (cost price before tax)
+- amount: line total before tax
+- gstPercent: GST percentage if visible (5, 12, 18, 28), else null
+- hsnCode: HSN code if visible, else null
+
+Also extract these bill-level fields:
+- supplierName: seller/supplier name
+- supplierGstin: supplier GSTIN if visible
+- invoiceNumber: bill/invoice number
+- invoiceDate: date in YYYY-MM-DD format
+- totalAmount: grand total including tax
+
+Return ONLY valid JSON, no markdown, no explanation:
+{"supplierName":"...","supplierGstin":"...","invoiceNumber":"...","invoiceDate":"...","totalAmount":0,"items":[{"productName":"...","quantity":0,"unit":"...","rate":0,"amount":0,"gstPercent":null,"hsnCode":null}]}`;
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
+        }),
+      },
+    );
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      return res.status(502).json({ error: `Gemini API error: ${geminiRes.status}`, detail: errText });
+    }
+
+    const geminiJson = (await geminiRes.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const raw = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const cleaned = raw
+      .replace(/^```json\s*\n?/i, '')
+      .replace(/\n?```\s*$/i, '')
+      .trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return res.status(422).json({ error: 'Could not parse bill data', raw: cleaned });
+    }
+
+    res.json(parsed);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  } finally {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
   }
 });
 

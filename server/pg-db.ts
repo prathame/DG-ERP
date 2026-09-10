@@ -1044,6 +1044,7 @@ export async function initSchema() {
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_secret TEXT`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_seller_pin TEXT`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS whatsapp_invoice_template TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gemini_api_key TEXT`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS whatsapp_broadcasts (
         id TEXT NOT NULL,

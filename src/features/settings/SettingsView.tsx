@@ -27,7 +27,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
 import { BILL_UNIT_PRESETS, DEFAULT_BILL_UNITS, normalizeBillUnits } from '../../../shared/billUnits';
@@ -556,6 +556,75 @@ function GstApiSection() {
 
         <button type="button" onClick={handleSave} disabled={saving} className={settingsPrimaryBtn()}>
           {saving ? 'Saving…' : 'Save GST API Settings'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── AI Settings — Gemini API key for bill scanning ───────────────────────────
+function AiSettingsSection() {
+  const { toast } = useToast();
+  const [key, setKey] = useState('');
+  const [masked, setMasked] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchApi<{ geminiApiKey: string | null }>('/settings/ai')
+      .then(d => {
+        setMasked(d.geminiApiKey);
+      })
+      .catch(() => {});
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetchApi('/settings/ai', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geminiApiKey: key }),
+      });
+      setMasked(key ? '••••' + key.slice(-4) : null);
+      setKey('');
+      toast('AI settings saved', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={settingsPanel()}>
+      <div className={settingsPanelHead()}>
+        <h3 className="font-bold text-lg">AI — Bill Scanning</h3>
+      </div>
+      <div className="p-4 sm:p-6 space-y-4">
+        <p className="text-sm text-gray-600">
+          Upload a supplier bill image in Purchases and auto-fill items. Without a key, offline OCR (Tesseract) is used
+          as fallback.
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+          <input
+            type="password"
+            value={key}
+            onChange={e => setKey(e.target.value)}
+            placeholder={masked || 'Paste your Gemini API key'}
+            className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Free key from Google AI Studio. Enables high-accuracy bill scanning via Gemini Vision.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !key.trim()}
+          className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
     </div>
@@ -2683,8 +2752,9 @@ export function SettingsView({
 
               {/* GST API — cloud only (desktop: GST Settings tab) */}
               {isAdmin && !serviceMobile && (
-                <div className={cn(!showTab('gst') && 'hidden')}>
+                <div className={cn(!showTab('gst') && 'hidden', 'space-y-8')}>
                   <GstApiSection />
+                  <AiSettingsSection />
                 </div>
               )}
 
