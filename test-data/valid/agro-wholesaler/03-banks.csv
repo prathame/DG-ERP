@@ -1,0 +1,4 @@
+name,accountNumber,bankName,branch,ifscCode
+Main Business Account,1234567890123,State Bank of India,Ashram Road Ahmedabad,SBIN0001234
+Savings Account,9876543210987,Bank of Baroda,CG Road Ahmedabad,BARB0CGROAD
+UPI Collections,5555666677778,HDFC Bank,Satellite Ahmedabad,HDFC0001234

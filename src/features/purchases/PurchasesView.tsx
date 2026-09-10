@@ -13,6 +13,7 @@ import {
   UserPlus,
   Printer,
   Undo2,
+  Upload,
 } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel, openPrintWindow, printBillInWindow } from '../../lib/utils';
 import { generatePurchaseSelfInvoiceHtml, generatePurchaseBillHtml } from '../../lib/billTemplates';
@@ -29,6 +30,7 @@ import { localDateISO } from '../../lib/reportingPeriod';
 import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
 import { parseBillVoice, formatBillVoiceReply, formatBillVoiceUnknown } from '../../lib/billVoice';
 import { useTranslation } from '../../i18n';
+import { CsvImport } from '../../components/ui/CsvImport';
 
 function purchaseUnitCost(rowCost: string, product?: Product): number {
   if (rowCost) return parseFloat(rowCost) || 0;
@@ -170,6 +172,7 @@ export function PurchasesView({
   const [batchDetail, setBatchDetail] = useState<Record<string, unknown> | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [supplierModal, setSupplierModal] = useState(false);
+  const [supplierCsvOpen, setSupplierCsvOpen] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
   const [booksDeskReady, setBooksDeskReady] = useState(false);
   const emptySupplierForm = () => ({
@@ -298,6 +301,10 @@ export function PurchasesView({
   useEscapeKey(() => {
     if (paymentModal) {
       setPaymentModal(null);
+      return true;
+    }
+    if (supplierCsvOpen) {
+      setSupplierCsvOpen(false);
       return true;
     }
     if (supplierModal) {
@@ -619,6 +626,41 @@ export function PurchasesView({
         </form>
       </div>
     </div>
+  ) : null;
+
+  const supplierCsvNode = supplierCsvOpen ? (
+    <CsvImport
+      templateName="suppliers"
+      itemLabel="suppliers"
+      columns={[
+        { key: 'name', label: 'Supplier Name', required: true },
+        { key: 'contactPerson', label: 'Contact Person' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' },
+        { key: 'address', label: 'Address' },
+        { key: 'gstNumber', label: 'GSTIN' },
+      ]}
+      existingNames={suppliers.map(s => s.name)}
+      onClose={() => {
+        setSupplierCsvOpen(false);
+        load();
+      }}
+      onImport={async rows => {
+        const items = rows.map(r => ({
+          name: r.name,
+          contactPerson: r.contactPerson || undefined,
+          phone: r.phone || undefined,
+          email: r.email || undefined,
+          address: r.address || undefined,
+          gstNumber: r.gstNumber || undefined,
+        }));
+        const result = await fetchApi('/suppliers/bulk', {
+          method: 'POST',
+          body: JSON.stringify({ suppliers: items }),
+        });
+        return result as { success: number; errors: string[] };
+      }}
+    />
   ) : null;
 
   const handleCreatePurchase = async () => {
@@ -1284,6 +1326,7 @@ export function PurchasesView({
           </div>
         </div>
         {supplierModalNode}
+        {supplierCsvNode}
         {ConfirmRenderer}
       </motion.div>
     );
@@ -1314,6 +1357,7 @@ export function PurchasesView({
           suppliers={supplierStats}
           onSelectSupplier={setSelectedSupplierId}
           onAddSupplier={openAddSupplier}
+          onImportSupplierCsv={() => setSupplierCsvOpen(true)}
           onEditSupplier={s => {
             const full = suppliers.find(x => x.id === s.id);
             if (full) openEditSupplier(full);
@@ -1334,14 +1378,24 @@ export function PurchasesView({
               <p className="text-[11px] text-gray-500 mt-0.5">Suppliers, purchases & business expenses</p>
             </div>
             {section === 'purchases' && canEdit && (
-              <button
-                type="button"
-                onClick={openAddSupplier}
-                aria-label="Add supplier"
-                className="shrink-0 h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 active:bg-gray-50"
-              >
-                <UserPlus size={15} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSupplierCsvOpen(true)}
+                  aria-label="Import suppliers"
+                  className="shrink-0 h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 active:bg-gray-50"
+                >
+                  <Upload size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={openAddSupplier}
+                  aria-label="Add supplier"
+                  className="shrink-0 h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 active:bg-gray-50"
+                >
+                  <UserPlus size={15} />
+                </button>
+              </div>
             )}
           </div>
 
@@ -2350,6 +2404,7 @@ export function PurchasesView({
       </AnimatePresence>
 
       {supplierModalNode}
+      {supplierCsvNode}
       {quickAddProduct && (
         <QuickAddProductModal
           initialName={quickAddProduct.name}
