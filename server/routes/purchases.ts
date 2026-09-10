@@ -1078,6 +1078,42 @@ router.put('/api/settings/ai', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+router.post('/api/settings/ai/test', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { rows } = await pool.query('SELECT gemini_api_key FROM bill_settings WHERE tenant_id = $1', [tenantId]);
+    const apiKey = rows[0]?.gemini_api_key || process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(400).json({ ok: false, error: 'No API key saved' });
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 10 },
+        }),
+      },
+    );
+
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.text();
+      const isInvalidKey = geminiRes.status === 400 || geminiRes.status === 403;
+      return res.json({
+        ok: false,
+        error: isInvalidKey ? 'Invalid API key' : `Gemini error ${geminiRes.status}`,
+        detail: errBody,
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    return res.json({ ok: false, error: (err as Error).message });
+  }
+});
+
 // ─── Bill scanning via Gemini Vision ────────────────────────────────────────
 const billUploadDir = path.join(os.tmpdir(), 'dg-bill-scans');
 fs.mkdirSync(billUploadDir, { recursive: true });

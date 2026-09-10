@@ -568,6 +568,8 @@ function AiSettingsSection() {
   const [key, setKey] = useState('');
   const [masked, setMasked] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
   useEffect(() => {
     fetchApi<{ geminiApiKey: string | null }>('/settings/ai')
@@ -587,6 +589,7 @@ function AiSettingsSection() {
       });
       setMasked(key ? '••••' + key.slice(-4) : null);
       setKey('');
+      setTestResult(null);
       toast('AI settings saved', 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -595,37 +598,72 @@ function AiSettingsSection() {
     }
   };
 
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetchApi<{ ok: boolean; error?: string }>('/settings/ai/test', { method: 'POST' });
+      setTestResult(res);
+      toast(res.ok ? 'Connected to Gemini AI' : res.error || 'Connection failed', res.ok ? 'success' : 'error');
+    } catch (err) {
+      setTestResult({ ok: false, error: (err as Error).message });
+      toast((err as Error).message, 'error');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <div className={settingsPanel()}>
       <div className={settingsPanelHead()}>
-        <h3 className="font-bold text-lg">AI — Bill Scanning</h3>
+        <h3 className="font-bold text-lg">AI — Bill Scanning &amp; Product Recognition</h3>
       </div>
       <div className="p-4 sm:p-6 space-y-4">
         <p className="text-sm text-gray-600">
-          Upload a supplier bill image in Purchases and auto-fill items. Without a key, offline OCR (Tesseract) is used
-          as fallback.
+          Scan supplier bills and product photos with AI. Without a key, offline OCR (Tesseract) is used as fallback for
+          bill scanning.
         </p>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
           <input
             type="password"
             value={key}
-            onChange={e => setKey(e.target.value)}
+            onChange={e => {
+              setKey(e.target.value);
+              setTestResult(null);
+            }}
             placeholder={masked || 'Paste your Gemini API key'}
             className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Free key from Google AI Studio. Enables high-accuracy bill scanning via Gemini Vision.
+            Free key from Google AI Studio. Enables bill scanning + product photo auto-fill.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !key.trim()}
-          className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !key.trim()}
+            className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          {masked && (
+            <button
+              type="button"
+              onClick={testConnection}
+              disabled={testing}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              {testing ? 'Testing…' : 'Test Connection'}
+            </button>
+          )}
+          {testResult && (
+            <span className={`text-sm font-medium ${testResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+              {testResult.ok ? 'Connected' : testResult.error}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
