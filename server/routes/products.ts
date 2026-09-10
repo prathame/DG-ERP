@@ -13,6 +13,7 @@ import { withTenantClient } from '../pg-db';
 import { isQtyStockUnit, usesQtyStock } from '../../shared/qtyStock';
 import { postOpeningStockToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -1429,6 +1430,7 @@ Return ONLY valid JSON, no markdown:
 
       if (!geminiRes.ok) {
         const errText = await geminiRes.text();
+        logger.warn('Gemini product scan failed', { tenantId, status: geminiRes.status, errText });
         return res.status(502).json({ error: `Gemini API error: ${geminiRes.status}`, detail: errText });
       }
 
@@ -1445,11 +1447,17 @@ Return ONLY valid JSON, no markdown:
       try {
         parsed = JSON.parse(cleaned);
       } catch {
+        logger.warn('Gemini product scan: unparseable response', { tenantId, raw: cleaned.slice(0, 500) });
         return res.status(422).json({ error: 'Could not parse product data', raw: cleaned });
       }
 
+      logger.info('Gemini product scan: success', { tenantId });
       res.json(parsed);
     } catch (err) {
+      logger.error('Gemini product scan: exception', {
+        tenantId: req.headers['x-tenant-id'],
+        error: (err as Error).message,
+      });
       return handleApiError(req, res, err);
     } finally {
       if (req.file?.path) fs.unlink(req.file.path, () => {});

@@ -12,10 +12,12 @@ import {
   Pencil,
   Plus,
   Receipt,
+  ScanLine,
   Search,
   ShoppingBag,
   Smartphone,
   Trash2,
+  Upload,
   UserPlus,
 } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
@@ -65,6 +67,9 @@ type Props = {
   onEditSupplier: (s: DesktopSupplierCard) => void;
   onDeleteSupplier: (s: DesktopSupplierCard) => void;
   onNewPurchase: () => void;
+  onCsvImport?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBillScan?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  scanningBill?: boolean;
   /** When Books desk has imported/voucher data — explain Expenses vs Accounts. */
   showBooksExpensesHint?: boolean;
   onOpenProfitLoss?: () => void;
@@ -108,6 +113,9 @@ export function DesktopPurchasesModule({
   onEditSupplier,
   onDeleteSupplier,
   onNewPurchase,
+  onCsvImport,
+  onBillScan,
+  scanningBill = false,
   showBooksExpensesHint = false,
   onOpenProfitLoss,
   onOpenCashBook,
@@ -174,13 +182,35 @@ export function DesktopPurchasesModule({
                 />
               </div>
               {canEdit && (
-                <button
-                  type="button"
-                  onClick={onNewPurchase}
-                  className="flex items-center gap-2 px-5 py-2.5 dg-bg-primary rounded-lg text-sm font-bold shadow-sm hover:opacity-90 active:scale-95 transition-all"
-                >
-                  <Plus size={16} /> New Purchase
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={onNewPurchase}
+                    className="flex items-center gap-2 px-5 py-2.5 dg-bg-primary rounded-lg text-sm font-bold shadow-sm hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    <Plus size={16} /> New Purchase
+                  </button>
+                  {onCsvImport && (
+                    <label className="flex items-center gap-2 px-4 py-2.5 bg-[var(--dg-card)] border border-[var(--dg-card-border)] rounded-lg text-sm font-bold dg-ink hover:opacity-80 cursor-pointer transition-all">
+                      <Upload size={16} /> Import CSV
+                      <input type="file" accept=".csv" className="hidden" onChange={onCsvImport} />
+                    </label>
+                  )}
+                  {onBillScan && (
+                    <label
+                      className={cn(
+                        'flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-bold cursor-pointer transition-all',
+                        scanningBill
+                          ? 'bg-[var(--dg-primary)]/10 border-[var(--dg-primary)] text-[var(--dg-primary)] animate-pulse pointer-events-none'
+                          : 'bg-[var(--dg-card)] border-[var(--dg-card-border)] dg-ink hover:opacity-80',
+                      )}
+                    >
+                      <ScanLine size={16} />
+                      {scanningBill ? 'Scanning…' : 'Scan Bill'}
+                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={onBillScan} />
+                    </label>
+                  )}
+                </>
               )}
             </>
           )}
