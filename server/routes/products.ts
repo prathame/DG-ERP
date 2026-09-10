@@ -1416,7 +1416,7 @@ Return ONLY valid JSON, no markdown:
 {"name":"...","description":"...","mrp":null,"hsnCode":null,"gstRate":18,"packSize":1,"packName":"Piece","barcodeNumber":null,"expiryDate":null,"mfgDate":null,"batchNumber":null}`;
 
       const geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
