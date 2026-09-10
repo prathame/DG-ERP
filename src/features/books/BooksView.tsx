@@ -12,6 +12,7 @@ import { BooksReportsPanel } from './BooksReportsPanel';
 import { VoucherDeskForm } from './VoucherDeskForm';
 import { BooksOutstandingPanel } from './BooksOutstandingPanel';
 import { BooksPeriodLockPanel } from './BooksPeriodLockPanel';
+import { BooksFinancialYearsPanel } from './BooksFinancialYearsPanel';
 import { BooksLedgerMasterPanel } from './BooksLedgerMasterPanel';
 
 type BooksPanel = 'overview' | 'ledgers' | 'vouchers' | 'products' | 'import' | 'daybook' | 'reports' | 'outstanding';
@@ -215,6 +216,7 @@ export function BooksView({
             lockDate={summary?.lockDate}
             onChanged={d => setSummary(prev => (prev ? { ...prev, lockDate: d } : prev))}
           />
+          <BooksFinancialYearsPanel />
           <div className="grid gap-4 sm:grid-cols-3">
             {[
               { label: 'Ledgers', value: summary?.ledgers ?? 0 },

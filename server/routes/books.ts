@@ -25,7 +25,14 @@ import {
   type BookVoucherType,
 } from '../services/bookVouchers';
 import { BooksPeriodLockedError, getBooksLockDate, setBooksLockDate } from '../services/bookPeriodLock';
-import { buildStatementLines, formatBalanceLabel, signedOpeningBalance, splitDrCr } from '../services/bookReports';
+import {
+  buildStatementLines,
+  classifyLedger,
+  formatBalanceLabel,
+  round2,
+  signedOpeningBalance,
+  splitDrCr,
+} from '../services/bookReports';
 import {
   getBooksBalanceSheet,
   getBooksProfitLoss,
@@ -66,6 +73,12 @@ import {
 } from '../services/bookCoa';
 
 const router = Router();
+
+function pgDateStr(d: unknown): string | null {
+  if (d instanceof Date)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return typeof d === 'string' ? d.slice(0, 10) : null;
+}
 
 async function withNativeBooksDesk(tenantId: string): Promise<void> {
   const client = await pool.connect();
@@ -292,6 +305,244 @@ router.put('/api/books/period-lock', requireAdmin, async (req: AuthRequest, res)
     res.json({ lockDate });
   } catch (err) {
     return handleApiError(req, res, err);
+  }
+});
+
+// ── Financial Year management ────────────────────────────────────────
+
+router.get('/api/books/financial-years', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { rows } = await pool.query(
+      `SELECT id, code, label, start_date, end_date, is_active, created_at
+       FROM book_financial_years WHERE tenant_id = $1 ORDER BY code DESC`,
+      [tenantId],
+    );
+    res.json(
+      rows.map(r => ({
+        id: r.id,
+        code: r.code,
+        label: r.label,
+        startDate: pgDateStr(r.start_date),
+        endDate: pgDateStr(r.end_date),
+        isActive: r.is_active,
+        createdAt: r.created_at,
+      })),
+    );
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.post('/api/books/financial-years', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { startDate, endDate } = req.body ?? {};
+    if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
+    const sd = String(startDate).slice(0, 10);
+    const ed = String(endDate).slice(0, 10);
+    if (sd >= ed) return res.status(400).json({ error: 'startDate must be before endDate' });
+    const startYear = Number(sd.slice(0, 4));
+    const startMonth = Number(sd.slice(5, 7));
+    const fyStart = startMonth >= 4 ? startYear : startYear - 1;
+    const code = `YR${String(fyStart).slice(-2)}`;
+    const label = `FY ${fyStart}-${String(fyStart + 1).slice(-2)}`;
+    const id = uid('BF');
+    await pool.query(
+      `INSERT INTO book_financial_years (id, tenant_id, code, label, start_date, end_date, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       ON CONFLICT (tenant_id, code) DO UPDATE SET start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date`,
+      [id, tenantId, code, label, sd, ed],
+    );
+    const row = (
+      await pool.query(
+        `SELECT id, code, label, start_date, end_date, is_active, created_at
+         FROM book_financial_years WHERE tenant_id = $1 AND code = $2`,
+        [tenantId, code],
+      )
+    ).rows[0];
+    await logAudit(pool, tenantId, 'CREATE', 'financial_year', row.id, label);
+    res.status(201).json({
+      id: row.id,
+      code: row.code,
+      label: row.label,
+      startDate: pgDateStr(row.start_date),
+      endDate: pgDateStr(row.end_date),
+      isActive: row.is_active,
+      createdAt: row.created_at,
+    });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Close a financial year: carry forward balances, zero P&L, lock period, create next FY. */
+router.post('/api/books/financial-years/:id/close', requireAdmin, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = tenantOf(req);
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await beginTenantTransaction(client, tenantId);
+
+    const fy = (
+      await client.query(
+        `SELECT id, code, label, start_date, end_date, is_active
+         FROM book_financial_years WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        [req.params.id, tenantId],
+      )
+    ).rows[0];
+    if (!fy) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Financial year not found' });
+    }
+    if (!fy.is_active) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Financial year is already closed' });
+    }
+    if (!fy.start_date || !fy.end_date) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Financial year must have start and end dates' });
+    }
+
+    const endDate = pgDateStr(fy.end_date) ?? '';
+
+    // Closing balance for each ledger: opening + all voucher movements through end_date
+    const ledgers = (
+      await client.query(
+        `SELECT l.id, l.name, l.nature, l.ledger_type, l.opening_balance, l.opening_side,
+                g.name AS group_name,
+                COALESCE(SUM(e.debit), 0)::float AS total_debit,
+                COALESCE(SUM(e.credit), 0)::float AS total_credit
+         FROM book_ledgers l
+         LEFT JOIN book_account_groups g ON g.id = l.group_id AND g.tenant_id = l.tenant_id
+         LEFT JOIN book_voucher_entries e ON e.ledger_id = l.id AND e.tenant_id = l.tenant_id
+         LEFT JOIN book_vouchers v ON v.id = e.voucher_id AND v.tenant_id = l.tenant_id AND v.voucher_date <= $2
+         WHERE l.tenant_id = $1
+         GROUP BY l.id, l.name, l.nature, l.ledger_type, l.opening_balance, l.opening_side, g.name`,
+        [tenantId, endDate],
+      )
+    ).rows;
+
+    let netProfit = 0;
+    const updates: Array<{ id: string; openingBalance: number; openingSide: string }> = [];
+
+    for (const l of ledgers) {
+      const cls = classifyLedger(l.nature, l.ledger_type, l.group_name);
+      const openingSigned = signedOpeningBalance(Number(l.opening_balance) || 0, l.opening_side);
+      const closingBal = round2(openingSigned + (Number(l.total_debit) || 0) - (Number(l.total_credit) || 0));
+
+      if (cls === 'income' || cls === 'expense' || cls === 'trading') {
+        // P&L items reset to 0; net folds into profit
+        const netMovement = round2((Number(l.total_credit) || 0) - (Number(l.total_debit) || 0));
+        if (cls === 'income' || cls === 'trading') netProfit += netMovement;
+        else netProfit -= round2((Number(l.total_debit) || 0) - (Number(l.total_credit) || 0));
+        updates.push({ id: l.id, openingBalance: 0, openingSide: 'Dr' });
+      } else {
+        // Balance sheet items carry forward
+        updates.push({
+          id: l.id,
+          openingBalance: round2(Math.abs(closingBal)),
+          openingSide: closingBal >= 0 ? 'Dr' : 'Cr',
+        });
+      }
+    }
+
+    // Fold net profit into Profit & Loss A/c ledger
+    netProfit = round2(netProfit);
+    if (Math.abs(netProfit) >= 0.01) {
+      let plLedger = (
+        await client.query(`SELECT id FROM book_ledgers WHERE tenant_id = $1 AND LOWER(name) = 'profit & loss a/c'`, [
+          tenantId,
+        ])
+      ).rows[0] as { id: string } | undefined;
+      if (!plLedger) {
+        let capitalGroup = (
+          await client.query(
+            `SELECT id FROM book_account_groups WHERE tenant_id = $1 AND LOWER(nature) = 'capital' LIMIT 1`,
+            [tenantId],
+          )
+        ).rows[0] as { id: string } | undefined;
+        if (!capitalGroup) {
+          const gid = uid('BG');
+          await client.query(
+            `INSERT INTO book_account_groups (id, tenant_id, name, nature) VALUES ($1, $2, 'Capital Account', 'Capital')`,
+            [gid, tenantId],
+          );
+          capitalGroup = { id: gid };
+        }
+        const lid = uid('BL');
+        await client.query(
+          `INSERT INTO book_ledgers (id, tenant_id, name, group_id, nature, opening_balance, opening_side)
+           VALUES ($1, $2, 'Profit & Loss A/c', $3, 'Capital', 0, 'Cr')`,
+          [lid, tenantId, capitalGroup.id],
+        );
+        plLedger = { id: lid };
+      }
+      const existing = updates.find(u => u.id === plLedger!.id);
+      if (existing) {
+        const currentSigned = existing.openingSide === 'Cr' ? -existing.openingBalance : existing.openingBalance;
+        const newSigned = currentSigned - netProfit;
+        existing.openingBalance = round2(Math.abs(newSigned));
+        existing.openingSide = newSigned >= 0 ? 'Dr' : 'Cr';
+      } else {
+        updates.push({
+          id: plLedger.id,
+          openingBalance: round2(Math.abs(netProfit)),
+          openingSide: netProfit >= 0 ? 'Cr' : 'Dr',
+        });
+      }
+    }
+
+    for (const u of updates) {
+      await client.query(
+        `UPDATE book_ledgers SET opening_balance = $1, opening_side = $2 WHERE id = $3 AND tenant_id = $4`,
+        [u.openingBalance, u.openingSide, u.id, tenantId],
+      );
+    }
+
+    await client.query(`UPDATE book_financial_years SET is_active = false WHERE id = $1 AND tenant_id = $2`, [
+      req.params.id,
+      tenantId,
+    ]);
+
+    // Create next FY if it doesn't exist
+    const nextFyStart = Number(endDate.slice(0, 4)) + (Number(endDate.slice(5, 7)) >= 4 ? 1 : 0);
+    const nextCode = `YR${String(nextFyStart).slice(-2)}`;
+    const nextId = uid('BF');
+    await client.query(
+      `INSERT INTO book_financial_years (id, tenant_id, code, label, start_date, end_date, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       ON CONFLICT (tenant_id, code) DO NOTHING`,
+      [
+        nextId,
+        tenantId,
+        nextCode,
+        `FY ${nextFyStart}-${String(nextFyStart + 1).slice(-2)}`,
+        `${nextFyStart}-04-01`,
+        `${nextFyStart + 1}-03-31`,
+      ],
+    );
+
+    await client.query('COMMIT');
+
+    // Period lock + audit after commit (both use pool, not client)
+    await setBooksLockDate(pool, tenantId, endDate);
+    await logAudit(
+      pool,
+      tenantId,
+      'CLOSE',
+      'financial_year',
+      req.params.id,
+      `${fy.label} closed, net profit=${netProfit}`,
+    );
+    res.json({ closed: true, label: fy.label, netProfit, ledgersUpdated: updates.length });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
   }
 });
 
