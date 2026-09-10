@@ -76,7 +76,6 @@ import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsA
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
 import { CreateUnifiedBillModal } from './CreateUnifiedBillModal';
 
 /** Normalize list API payloads (array or { data: [] }) so party dropdowns never go empty on shape mismatch. */
@@ -307,7 +306,7 @@ export function InvoicesView({
 } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
-  const { t, lang } = useTranslation();
+  const { t } = useTranslation();
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
   const serviceProductUx = isServiceProductUx(cfg.type);
@@ -854,7 +853,6 @@ export function InvoicesView({
               className="w-full min-h-10 h-10 pl-8 pr-2.5 border border-gray-200 rounded-lg text-[13px] sm:text-sm bg-white focus:ring-2 focus:ring-brand focus:outline-none"
             />
           </label>
-          <VoiceSearchMic lang={lang} onQuery={setCustomerQuery} />
         </div>
         <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
       </div>

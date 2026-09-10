@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { X, Send, Mic, Square, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { useEscapeKey } from '../../lib/useEscapeKey';
@@ -10,7 +10,8 @@ import { NAV_POSITION_PREF_CHANGED_EVENT } from '../../lib/navPositionPref';
 interface Message {
   id: number;
   text: string;
-  sender: 'user' | 'bot';
+  role: 'user' | 'assistant';
+  action?: { type: string; params: Record<string, string> };
   timestamp: Date;
 }
 
@@ -18,34 +19,74 @@ interface Message {
 const Z_CHAT = 'z-[200]';
 const Z_TIP = 'z-[199]';
 
+// ponytail: reuse browser SpeechRecognition for voice input
+type SpeechRec = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript?: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+function speechCtor(): (new () => SpeechRec) | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRec;
+    webkitSpeechRecognition?: new () => SpeechRec;
+  };
+  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
+}
+
+function speak(text: string) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const clean = text.replace(/[*_#`]/g, '').slice(0, 500);
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = 'en-IN';
+  u.rate = 1.05;
+  const voices = window.speechSynthesis.getVoices();
+  const indian = voices.find(v => v.lang.startsWith('en-IN') || v.lang.startsWith('hi-IN'));
+  if (indian) u.voice = indian;
+  window.speechSynthesis.speak(u);
+}
+
+/** Global event for AI assistant actions (navigation, form pre-fill). */
+export const AI_ACTION_EVENT = 'dg-ai-action';
+
 export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 0,
-      text: 'Hello! I can look up live data and explain how to use Dhandho.\nTry:\n• "sales today"\n• "low stock"\n• "unpaid invoices"\n• "how to set sale units"\n• "help"',
-      sender: 'bot',
+      text: 'Hi! I\'m Dhandho AI — your business assistant.\n\nI can help you with anything:\n• "What are today\'s sales?"\n• "Create bill for Ramesh"\n• "Show low stock items"\n• "Add a new product"\n• "Go to purchases"\n\nJust type or tap the mic to speak.',
+      role: 'assistant',
       timestamp: new Date(),
     },
   ]);
   const [loading, setLoading] = useState(false);
-  const [quickActions, setQuickActions] = useState<string[]>([
-    'help',
-    'daily report',
-    'sales today',
-    'low stock',
-    'unpaid invoices',
-  ]);
+  const [listening, setListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recRef = useRef<SpeechRec | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, bx: 0, by: 0 });
   const [portalReady, setPortalReady] = useState(false);
 
+  const quickActions = ['sales today', 'low stock', 'unpaid invoices', 'daily report', 'help'];
+
   useEffect(() => {
     setPortalReady(true);
+    return () => {
+      recRef.current?.abort();
+      window.speechSynthesis?.cancel();
+    };
   }, []);
 
   useEffect(() => {
@@ -85,13 +126,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
   }, [messages]);
 
   useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-      api.chatbot
-        .quickActions()
-        .then(setQuickActions)
-        .catch(() => {});
-    }
+    if (open) inputRef.current?.focus();
   }, [open]);
 
   useEscapeKey(() => {
@@ -99,20 +134,36 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     return true;
   }, open);
 
+  const executeAction = useCallback((action: { type: string; params: Record<string, string> }) => {
+    window.dispatchEvent(new CustomEvent(AI_ACTION_EVENT, { detail: action }));
+  }, []);
+
   const sendChat = async (text: string) => {
     if (!text || loading) return;
-    const userMsg: Message = { id: Date.now(), text, sender: 'user', timestamp: new Date() };
+    const userMsg: Message = { id: Date.now(), text, role: 'user', timestamp: new Date() };
     setMessages(m => [...m, userMsg]);
     setLoading(true);
     try {
-      const data = await api.chatbot.send(text);
-      setMessages(m => [
-        ...m,
-        { id: Date.now() + 1, text: data.text || 'No response', sender: 'bot', timestamp: new Date() },
-      ]);
+      const history = messages
+        .filter(m => m.id > 0)
+        .slice(-10)
+        .map(m => ({ role: m.role, text: m.text }));
+      history.push({ role: 'user' as const, text });
+
+      const data = await api.chatbot.assistant(text, history);
+      const botMsg: Message = {
+        id: Date.now() + 1,
+        text: data.text || 'No response',
+        role: 'assistant',
+        action: data.action || undefined,
+        timestamp: new Date(),
+      };
+      setMessages(m => [...m, botMsg]);
+      speak(data.text || '');
+      if (data.action) executeAction(data.action);
     } catch (err) {
-      const msg = err instanceof Error && err.message ? err.message : 'Connection error. Is the server running?';
-      setMessages(m => [...m, { id: Date.now() + 1, text: msg, sender: 'bot', timestamp: new Date() }]);
+      const msg = err instanceof Error && err.message ? err.message : 'Connection error';
+      setMessages(m => [...m, { id: Date.now() + 1, text: msg, role: 'assistant', timestamp: new Date() }]);
     } finally {
       setLoading(false);
     }
@@ -123,6 +174,40 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     if (!text || loading) return;
     setInput('');
     await sendChat(text);
+  };
+
+  const toggleMic = () => {
+    if (listening) {
+      recRef.current?.stop();
+      recRef.current = null;
+      setListening(false);
+      return;
+    }
+    const Ctor = speechCtor();
+    if (!Ctor) return;
+    window.speechSynthesis?.cancel();
+    const rec = new Ctor();
+    // ponytail: en-IN covers Hinglish; browser picks up Hindi words too
+    rec.lang = 'en-IN';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.continuous = false;
+    rec.onresult = ev => {
+      const transcript = ev.results[0]?.[0]?.transcript?.trim();
+      if (transcript) void sendChat(transcript);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => {
+      recRef.current = null;
+      setListening(false);
+    };
+    recRef.current = rec;
+    setListening(true);
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+    }
   };
 
   const accent = desktopGlass ? 'var(--dg-primary)' : '#F27D26';
@@ -184,7 +269,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
               )
             : cn('shadow-2xl', open ? 'bg-gray-700' : 'bg-brand'),
         )}
-        aria-label={open ? 'Close chat' : 'Open chat assistant'}
+        aria-label={open ? 'Close Dhandho AI' : 'Open Dhandho AI'}
       >
         <AnimatePresence mode="wait">
           {open ? (
@@ -205,7 +290,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
               exit={{ scale: 0, opacity: 0 }}
               transition={{ duration: 0.15 }}
             >
-              <MessageCircle size={24} className="text-white" />
+              <Sparkles size={24} className="text-white" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -213,13 +298,13 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
           <span
             className={cn(
               'absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 animate-pulse',
-              desktopGlass ? 'bg-emerald-400 border-white' : 'bg-emerald-400 border-white',
+              'bg-emerald-400 border-white',
             )}
           />
         )}
       </motion.button>
 
-      {/* "May I help you?" tooltip */}
+      {/* Tooltip */}
       <AnimatePresence>
         {!open && (
           <motion.div
@@ -237,7 +322,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 : 'bg-white border border-gray-200 text-gray-700 shadow-lg',
             )}
           >
-            May I help you?
+            Ask Dhandho AI
             <span className="ml-1.5" style={{ color: accent }} aria-hidden>
               ✦
             </span>
@@ -254,7 +339,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
             exit={{ opacity: 0, y: 20, scale: 0.96 }}
             className={cn(
               Z_CHAT,
-              'fixed inset-0 lg:inset-auto dg-chat-panel-default lg:w-[400px] lg:h-[min(480px,calc(100vh-8rem))] lg:max-h-[calc(100vh-6rem)] lg:rounded-2xl overflow-hidden flex flex-col pt-[env(safe-area-inset-top,0px)] lg:pt-0',
+              'fixed inset-0 lg:inset-auto dg-chat-panel-default lg:w-[400px] lg:h-[min(520px,calc(100vh-8rem))] lg:max-h-[calc(100vh-6rem)] lg:rounded-2xl overflow-hidden flex flex-col pt-[env(safe-area-inset-top,0px)] lg:pt-0',
               desktopGlass
                 ? 'bg-[var(--dg-chat-panel)] lg:border lg:border-[var(--dg-card-border)] shadow-[0_16px_48px_rgba(25,28,30,0.18)]'
                 : 'bg-white lg:border lg:border-gray-200 shadow-2xl',
@@ -273,10 +358,10 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 <div
                   className={cn(
                     'w-10 h-10 rounded-xl flex items-center justify-center',
-                    desktopGlass ? 'dg-bg-primary text-white' : 'bg-brand text-xl',
+                    desktopGlass ? 'dg-bg-primary text-white' : 'bg-brand',
                   )}
                 >
-                  {desktopGlass ? <MessageCircle size={20} strokeWidth={2.25} className="text-white" /> : '🤖'}
+                  <Sparkles size={20} strokeWidth={2.25} className="text-white" />
                 </div>
                 <span
                   className={cn(
@@ -286,9 +371,9 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <p className={cn('font-bold', desktopGlass && 'dg-ink')}>ERP Assistant</p>
+                <p className={cn('font-bold', desktopGlass && 'dg-ink')}>Dhandho AI</p>
                 <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-400')}>
-                  Live data and how-to for your company
+                  Your business assistant — ask anything
                 </p>
               </div>
               <button
@@ -300,7 +385,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                     ? 'dg-muted hover:bg-[var(--dg-chat-messages)] hover:opacity-100'
                     : 'hover:bg-white/10 text-white/80 hover:text-white',
                 )}
-                aria-label="Close chat"
+                aria-label="Close"
               >
                 <X size={20} />
               </button>
@@ -319,19 +404,19 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className={cn('flex', msg.sender === 'user' ? 'justify-end' : 'justify-start')}
+                  className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}
                 >
                   <div
                     className={cn(
                       'max-w-[85%] px-4 py-2.5 rounded-2xl',
-                      msg.sender === 'user'
+                      msg.role === 'user'
                         ? cn('text-white rounded-br-md', desktopGlass ? 'dg-bg-primary' : 'bg-brand')
                         : desktopGlass
                           ? 'bg-[var(--dg-chat-surface)] border border-[var(--dg-card-border)] dg-ink rounded-bl-md shadow-sm'
                           : 'bg-white border border-gray-200 text-gray-700 rounded-bl-md shadow-sm',
                     )}
                   >
-                    {msg.sender === 'user' ? (
+                    {msg.role === 'user' ? (
                       <p className="text-sm text-white">{msg.text}</p>
                     ) : (
                       <div className="space-y-0.5">{formatText(msg.text)}</div>
@@ -339,7 +424,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                     <p
                       className={cn(
                         'text-[10px] mt-1',
-                        msg.sender === 'user' ? 'text-white/70' : desktopGlass ? 'dg-muted' : 'text-gray-400',
+                        msg.role === 'user' ? 'text-white/70' : desktopGlass ? 'dg-muted' : 'text-gray-400',
                       )}
                     >
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -390,9 +475,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 <button
                   key={cmd}
                   type="button"
-                  onClick={() => {
-                    void sendChat(cmd);
-                  }}
+                  onClick={() => void sendChat(cmd)}
                   className={cn(
                     'px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors',
                     desktopGlass
@@ -414,20 +497,37 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                   : 'border-gray-100 bg-white',
               )}
             >
+              {speechCtor() && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  className={cn(
+                    'p-2.5 rounded-xl transition-colors shrink-0',
+                    listening
+                      ? 'bg-rose-100 text-rose-600 animate-pulse'
+                      : desktopGlass
+                        ? 'bg-[var(--dg-chat-messages)] dg-muted hover:opacity-100'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+                  )}
+                  aria-label={listening ? 'Stop listening' : 'Speak'}
+                >
+                  {listening ? <Square size={18} /> : <Mic size={18} />}
+                </button>
+              )}
               <input
                 ref={inputRef}
                 type="text"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                placeholder="Ask: sales today, how to set sale units…"
+                placeholder={listening ? 'Listening…' : 'Ask anything…'}
                 className={cn(
                   'flex-1 min-w-0 px-4 py-2.5 border-none rounded-xl text-sm focus:outline-none',
                   desktopGlass
                     ? 'bg-[var(--dg-chat-messages)] dg-ink focus:ring-2 focus:ring-[var(--dg-primary)]/40'
                     : 'bg-gray-100 focus:ring-2 focus:ring-brand',
                 )}
-                disabled={loading}
+                disabled={loading || listening}
               />
               <button
                 type="button"

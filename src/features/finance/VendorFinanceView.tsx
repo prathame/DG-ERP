@@ -34,8 +34,6 @@ import {
   isBillFullyPaid,
   isBillPartiallyPaid,
 } from '../../components/ui';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
-import { useTranslation } from '../../i18n';
 import { useConfirm } from '../../hooks/useConfirm';
 import {
   DEFAULT_REMINDER_SETTINGS,
@@ -66,7 +64,6 @@ export function VendorFinanceView({
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
 }) {
   const { toast } = useToast();
-  const { lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
@@ -1590,7 +1587,6 @@ export function VendorFinanceView({
               className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
             />
           </div>
-          <VoiceSearchMic lang={lang} onQuery={setFinSearch} />
         </div>
       </div>
 

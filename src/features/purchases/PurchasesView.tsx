@@ -31,9 +31,6 @@ import { SearchSelect } from '../../components/ui/SearchSelect';
 import { QuickAddProductModal } from '../../components/ui/QuickAddProductModal';
 import { supplierMatchesPurchaseSearch } from '../../lib/purchaseSearch';
 import { localDateISO } from '../../lib/reportingPeriod';
-import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
-import { parseBillVoice, formatBillVoiceReply, formatBillVoiceUnknown } from '../../lib/billVoice';
-import { useTranslation } from '../../i18n';
 import { CsvImport } from '../../components/ui/CsvImport';
 
 function purchaseUnitCost(rowCost: string, product?: Product): number {
@@ -161,7 +158,6 @@ export function PurchasesView({
 } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
-  const { lang } = useTranslation();
   const cfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(cfg.type);
   const servicePhoneUx = isServicePhoneUx(cfg.type);
@@ -200,7 +196,6 @@ export function PurchasesView({
   const [supplierQuery, setSupplierQuery] = useState('');
   const [quickAddProduct, setQuickAddProduct] = useState<{ idx: number; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [voiceHeard, setVoiceHeard] = useState('');
   const [returnTarget, setReturnTarget] = useState<{
     batchId: string;
     title: string;
@@ -274,7 +269,6 @@ export function PurchasesView({
 
   const closePurchaseModal = () => {
     setSubmitting(false);
-    setVoiceHeard('');
     setModalOpen(false);
   };
 
@@ -922,56 +916,6 @@ export function PurchasesView({
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const applyVoiceTranscript = (transcript: string) => {
-    setVoiceHeard(transcript);
-    const fill = parseBillVoice(
-      transcript,
-      {
-        parties: suppliers.filter(s => s.id && s.name).map(s => ({ id: s.id, name: s.name })),
-        products: products.filter(p => p.id && p.name).map(p => ({ id: p.id, name: p.name, packSize: p.packSize })),
-      },
-      lang,
-    );
-    if (fill.partyId) {
-      const s = suppliers.find(x => x.id === fill.partyId);
-      setPurchaseForm(f => ({ ...f, supplierId: fill.partyId as string }));
-      setSupplierQuery(s?.name ?? fill.partyName ?? '');
-    }
-    const nextRows: PurchaseRow[] = [];
-    for (const line of fill.lines) {
-      const p = products.find(x => x.id === line.productId);
-      if (!p) continue;
-      const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
-      let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
-      if (ps > 1) {
-        row = { ...row, packs: line.packs || line.qty / ps, loosePieces: 0, quantity: line.qty };
-      } else {
-        row = { ...row, quantity: line.qty };
-      }
-      nextRows.push(row);
-    }
-    if (nextRows.length) setPurchaseRows(nextRows);
-    if (!fill.partyId && nextRows.length === 0) {
-      toast('Could not catch a supplier or product. Nothing was filled. Type it on the form.', 'error');
-      speakBillVoice(formatBillVoiceUnknown(lang), lang);
-      return;
-    }
-    speakBillVoice(formatBillVoiceReply(fill, lang), lang);
-    if (fill.partyId && nextRows.length === 0) {
-      toast('Supplier filled. No matching product. Type the product on the form.', 'error');
-      return;
-    }
-    if (!fill.partyId && nextRows.length > 0) {
-      toast('Product filled. No matching supplier. Type the supplier on the form.', 'error');
-      return;
-    }
-    if (fill.lines.some(l => !l.qtyHeard)) {
-      toast('Quantity was not heard. Check the form before recording the purchase.', 'error');
-      return;
-    }
-    toast('Check the form, then record the purchase.', 'success');
   };
 
   if (loading)
@@ -2196,12 +2140,6 @@ export function PurchasesView({
             }
           >
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
-                <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
-                <span className="min-w-0 flex-1">
-                  {voiceHeard ? `Heard: “${voiceHeard}”` : 'Speak a supplier and items, then check the form.'}
-                </span>
-              </div>
               <FormGrid className="sm:grid-cols-3">
                 <FormField label="Supplier" required className="sm:col-span-1">
                   <SearchSelect

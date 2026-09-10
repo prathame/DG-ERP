@@ -5,14 +5,6 @@ import { cn, exportToCsv } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Bank } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
-import {
-  parseVoiceGuideName,
-  parseVoiceGuideBank,
-  parseVoiceGuideAccount,
-  parseVoiceGuideIfsc,
-} from '../../lib/billVoice';
-import { useTranslation } from '../../i18n';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { canWriteAccess, type AccessLevel } from '../../lib/tabAccess';
@@ -28,7 +20,6 @@ export function BankMasterView({
 }) {
   const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
-  const { lang } = useTranslation();
   const [list, setList] = useState<Bank[]>([]);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
@@ -236,79 +227,45 @@ export function BankMasterView({
                       className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                       placeholder="e.g. Main Account"
                     />
-                    <VoiceFieldMic
-                      lang={lang}
-                      disabled={submitting}
-                      label="account name"
-                      parse={parseVoiceGuideName}
-                      onFill={value => setForm(f => ({ ...f, name: value }))}
-                    />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Account Number</label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1">
                     <input
                       value={form.accountNumber}
                       onChange={e => setForm({ ...form, accountNumber: e.target.value })}
-                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
-                    <VoiceFieldMic
-                      lang={lang}
-                      disabled={submitting}
-                      label="account number"
-                      parse={parseVoiceGuideAccount}
-                      onFill={value => setForm(f => ({ ...f, accountNumber: value }))}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Bank Name</label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1">
                     <input
                       value={form.bankName}
                       onChange={e => setForm({ ...form, bankName: e.target.value })}
-                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    />
-                    <VoiceFieldMic
-                      lang={lang}
-                      disabled={submitting}
-                      label="bank name"
-                      parse={parseVoiceGuideBank}
-                      onFill={value => setForm(f => ({ ...f, bankName: value }))}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Branch</label>
-                  <VoiceFieldRow
-                    lang={lang}
-                    disabled={submitting}
-                    label="branch"
-                    className="mt-1"
-                    onFill={value => setForm(f => ({ ...f, branch: value }))}
-                  >
+                  <div className="mt-1">
                     <input
                       value={form.branch}
                       onChange={e => setForm({ ...form, branch: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
-                  </VoiceFieldRow>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">IFSC Code</label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1">
                     <input
                       value={form.ifscCode}
                       onChange={e => setForm({ ...form, ifscCode: e.target.value })}
-                      className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
-                    />
-                    <VoiceFieldMic
-                      lang={lang}
-                      disabled={submitting}
-                      label="IFSC"
-                      parse={parseVoiceGuideIfsc}
-                      onFill={value => setForm(f => ({ ...f, ifscCode: value }))}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
                     />
                   </div>
                 </div>

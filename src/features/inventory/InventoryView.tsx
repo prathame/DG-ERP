@@ -23,7 +23,6 @@ import { appClientHeader } from '../../lib/deviceId';
 import { serviceCloudClientHeader, isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import type { Product } from '../../types';
 import { useToast, TableSkeleton } from '../../components/ui';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { BarcodeLabelPrinter } from '../../components/ui/BarcodeLabelPrinter';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -34,7 +33,6 @@ import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnP
 import { useConfirm } from '../../hooks/useConfirm';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
-import { useTranslation } from '../../i18n';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 
 import { MetalIntakeModal } from './MetalIntakeModal';
@@ -79,7 +77,6 @@ export function InventoryView({
   // Read (view) includes print — warehouse staff can print without write.
   const canPrint = accessLevel === 'view' || accessLevel === 'print' || accessLevel === 'full';
   const { toast } = useToast();
-  const { lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const bizCfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(bizCfg.type);
@@ -411,7 +408,6 @@ export function InventoryView({
                     autoComplete="off"
                   />
                 </div>
-                <VoiceSearchMic lang={lang} onQuery={setBarcodeSearch} />
               </div>
               {canEdit && (
                 <button

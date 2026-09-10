@@ -42,19 +42,10 @@ import { localDateISO } from '../../lib/reportingPeriod';
 import { expiredProductSaleError, isProductExpired } from '../../../shared/dateOnly';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 import { phoneValidationError } from '../../../shared/phone';
-import { BillVoiceMic, speakBillVoice } from '../../components/ui/BillVoiceMic';
 import { BillPrintPageToggle } from '../../components/ui/BillPrintPageToggle';
 import { CASH_ACCOUNT_NAME, ensureCashAccountVendor, isCashPartyName } from '../../lib/cashAccount';
 import type { BillPrintPage } from '../../lib/billTemplates';
-import {
-  parseBillVoice,
-  formatBillVoiceReply,
-  formatBillVoiceUnknown,
-  formatBillVoiceAskCustomer,
-  formatBillVoiceAskProduct,
-} from '../../lib/billVoice';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useTranslation } from '../../i18n';
 
 type Invoice = {
   id: string;
@@ -185,7 +176,6 @@ function classifyLines(rows: BillLine[], products: Product[]) {
  */
 export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { toast } = useToast();
-  const { lang } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const cfg = useBusinessConfig();
   const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
@@ -225,7 +215,6 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const [printing, setPrinting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [quickAdd, setQuickAdd] = useState<{ idx: number; name: string } | null>(null);
-  const [voiceHeard, setVoiceHeard] = useState('');
   const resolveTokenRef = useRef<Record<number, number>>({});
   const headerGstRef = useRef<HTMLInputElement>(null);
 
@@ -413,127 +402,6 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
       ),
     );
     resolveRowPrice(idx, p.id, vendorId || null, qty);
-  };
-
-  const applyVoiceTranscript = async (transcript: string) => {
-    setVoiceHeard(transcript);
-    const fill = parseBillVoice(
-      transcript,
-      {
-        parties: vendors.filter(v => v.id && v.id !== 'OWNER' && v.name).map(v => ({ id: v.id, name: v.name })),
-        products: products.filter(p => p.id && p.name).map(p => ({ id: p.id, name: p.name, packSize: p.packSize })),
-      },
-      lang,
-    );
-    const nextVendorId = fill.partyId || vendorId;
-    if (fill.partyId) {
-      const v = vendors.find(x => x.id === fill.partyId);
-      if (v) {
-        setVendorId(v.id);
-        setForm(f => ({
-          ...f,
-          customerName: v.name,
-          customerPhone: v.phone || f.customerPhone,
-          customerAddress: v.address || f.customerAddress,
-          customerGstin: v.gstNumber || (v as { gstin?: string }).gstin || f.customerGstin,
-        }));
-      }
-    }
-    const nextRows: BillLine[] = [];
-    for (const line of fill.lines) {
-      const p = products.find(x => x.id === line.productId);
-      if (!p) continue;
-      if (isProductExpired(p.expiryDate)) {
-        toast(expiredProductSaleError(p.name), 'error');
-        continue;
-      }
-      const catalog = resolveCatalogPrice(p, priceRules, nextVendorId || null, line.qty || 1);
-      const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
-      const withGst = gstBilling;
-      const gstPercent = withGst ? (p.gstRate ?? hint?.rate ?? 18) : 0;
-      nextRows.push({
-        productId: p.id,
-        description: p.name,
-        hsnSac: withGst ? p.hsnCode || '' : '',
-        qty: line.qty,
-        packs: line.packs,
-        loosePieces: 0,
-        unit: defaultBillUnit(billUnits),
-        rate: displayUnitPriceForGst(catalog, {
-          withGst,
-          priceIncludesGst: !!p.priceIncludesGst,
-          gstRate: p.gstRate || defaultGstRate,
-        }),
-        gstPercent,
-        discountPercent: 0,
-        withGst,
-      });
-    }
-    if (nextRows.length) {
-      setRows(nextRows);
-      nextRows.forEach((r, i) => {
-        if (r.productId) resolveRowPrice(i, r.productId, nextVendorId || null, r.qty || 1);
-      });
-    }
-
-    const hasKnown = !!(fill.partyId || nextRows.length);
-    const hasUnknown = !!(fill.unknownParty || fill.unknownProduct);
-    if (!hasKnown && !hasUnknown) {
-      toast('Could not catch a customer or product. Nothing was filled. Type it on the form.', 'error');
-      speakBillVoice(formatBillVoiceUnknown(lang), lang);
-      return;
-    }
-    if (hasKnown) {
-      speakBillVoice(formatBillVoiceReply(fill, lang), lang);
-      if (fill.partyId && nextRows.length === 0 && !fill.unknownProduct) {
-        toast('Customer filled. No matching product. Type the product on the form.', 'error');
-      } else if (!fill.partyId && nextRows.length > 0 && !fill.unknownParty) {
-        toast('Product filled. No matching customer. Type the customer on the form.', 'error');
-      } else if (fill.lines.some(l => !l.qtyHeard)) {
-        toast('Quantity was not heard. Check the form before creating the bill.', 'error');
-      } else if (!hasUnknown) {
-        toast('Check the form, then create the bill.', 'success');
-      }
-    }
-
-    if (fill.unknownParty) {
-      speakBillVoice(formatBillVoiceAskCustomer(fill.unknownParty, lang), lang);
-      const add = await confirm({
-        title: `${partyLabel} not found`,
-        message: `“${fill.unknownParty}” was not found. Would you like to add this ${partyLabel.toLowerCase()}?`,
-        confirmLabel: `Add ${partyLabel.toLowerCase()}`,
-        variant: 'info',
-      });
-      if (add) {
-        try {
-          const created = await api.vendors.create({ name: fill.unknownParty });
-          setVendors(prev => (prev.some(x => x.id === created.id) ? prev : [...prev, created]));
-          setVendorId(created.id);
-          setForm(f => ({ ...f, customerName: created.name }));
-          toast(`${partyLabel} added. Check the form.`, 'success');
-        } catch {
-          setForm(f => ({ ...f, customerName: fill.unknownParty as string }));
-          toast(`${partyLabel} name filled. Save from Masters if you want it on the list.`, 'success');
-        }
-      }
-    }
-
-    if (fill.unknownProduct) {
-      speakBillVoice(formatBillVoiceAskProduct(fill.unknownProduct, lang), lang);
-      const add = await confirm({
-        title: 'Product not found',
-        message: `“${fill.unknownProduct}” was not found. Would you like to add this product?`,
-        confirmLabel: 'Add product',
-        variant: 'info',
-      });
-      if (add) {
-        const idx = nextRows.length;
-        if (nextRows.length) {
-          setRows([...nextRows, emptyRow(gstBilling, defaultBillUnit(billUnits))]);
-        }
-        setQuickAdd({ idx, name: fill.unknownProduct });
-      }
-    }
   };
 
   const applyCatalogItem = (idx: number, productId: string) => {
@@ -1033,15 +901,6 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
             </div>
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
-                <BillVoiceMic lang={lang} disabled={submitting} onHeard={applyVoiceTranscript} />
-                <span className="min-w-0 flex-1">
-                  {voiceHeard
-                    ? `Heard: “${voiceHeard}”`
-                    : `Speak a ${partyLabel.toLowerCase()} and items, then check the form. ${routeHint}`}
-                </span>
-              </div>
-
               <FormSection title={partyLabel} description="Type to search — pick a match or keep as custom">
                 <FormGrid>
                   <FormField label={`${partyLabel} Name`} required={payMode === 'debit'} className="sm:col-span-2">

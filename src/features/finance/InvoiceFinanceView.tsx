@@ -30,7 +30,6 @@ import {
   MobileKpiCard,
   MobileListRow,
 } from '../../components/ui';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
 import {
@@ -67,7 +66,7 @@ function sumBillAllocations(map: Record<string, string>): number {
 
 export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
-  const { t, lang } = useTranslation();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const isService = cfg.type === 'service';
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -1205,7 +1204,6 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
           />
         </div>
-        <VoiceSearchMic lang={lang} onQuery={setSearch} />
       </div>
 
       {loading ? (

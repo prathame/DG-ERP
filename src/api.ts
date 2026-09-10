@@ -1204,6 +1204,11 @@ export const api = {
       fetchApi<{ text: string }>('/chatbot', { method: 'POST', body: JSON.stringify({ message }) }),
     quickActions: () =>
       fetchApi<string[]>('/chatbot/quick-actions').then(r => (r as unknown as { actions: string[] }).actions),
+    assistant: (message: string, history?: { role: 'user' | 'assistant'; text: string }[]) =>
+      fetchApi<{ text: string; action?: { type: string; params: Record<string, string> } }>('/ai/assistant', {
+        method: 'POST',
+        body: JSON.stringify({ message, history }),
+      }),
   },
   auditLog: {
     list: (params?: { page?: number; dateRange?: string; dateFrom?: string; dateTo?: string; entityType?: string }) => {

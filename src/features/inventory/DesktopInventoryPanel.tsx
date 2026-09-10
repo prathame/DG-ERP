@@ -21,8 +21,6 @@ import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { TableSkeleton } from '../../components/ui';
 import { ColumnPickerButton } from '../../components/ui/ColumnPicker';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
-import { useTranslation } from '../../i18n';
 import { ProductThumb } from './ProductThumb';
 import { packUnitWord, stockUnitLabel } from '../../../shared/qtyStock';
 
@@ -134,7 +132,6 @@ export function DesktopInventoryPanel({
   onDelete,
   onToggleGst,
 }: Props) {
-  const { lang } = useTranslation();
   const fieldInput =
     'w-full pl-10 pr-4 py-2.5 bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg text-sm dg-ink focus:ring-2 focus:ring-[var(--dg-primary)] focus:border-transparent';
 
@@ -210,7 +207,6 @@ export function DesktopInventoryPanel({
                 autoComplete="off"
               />
             </div>
-            <VoiceSearchMic lang={lang} onQuery={onBarcodeSearch} />
           </div>
           {canEdit && (
             <button
