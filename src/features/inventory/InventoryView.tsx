@@ -13,9 +13,14 @@ import {
   Upload,
   Printer,
   Scale,
+  ScanLine,
 } from 'lucide-react';
 import { cn, exportToCsv, formatDate, getTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
+import { resolveApiUrl } from '../../platforms/shared';
+import { ensureCorrelationId } from '../../lib/logger';
+import { appClientHeader } from '../../lib/deviceId';
+import { serviceCloudClientHeader, isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import type { Product } from '../../types';
 import { useToast, TableSkeleton } from '../../components/ui';
 import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
@@ -31,7 +36,7 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { useTranslation } from '../../i18n';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+
 import { MetalIntakeModal } from './MetalIntakeModal';
 import { DesktopInventoryPanel, type StockFilter } from './DesktopInventoryPanel';
 import { MobileInventoryPanel } from './MobileInventoryPanel';
@@ -131,6 +136,7 @@ export function InventoryView({
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [addForm, setAddForm] = useState(emptyAddForm);
   const [addSubmitting, setAddSubmitting] = useState(false);
+  const [scanningPhoto, setScanningPhoto] = useState(false);
 
   useEffect(() => {
     if (launchCreate !== 'product') return;
@@ -940,17 +946,89 @@ export function InventoryView({
                             .catch(err => toast((err as Error).message, 'error'));
                         }}
                       />
-                      {addForm.imageBase64 ? (
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-rose-500"
-                          onClick={() => setAddForm(f => ({ ...f, imageBase64: '' }))}
-                        >
-                          Remove photo
-                        </button>
-                      ) : (
-                        <p className="text-[11px] text-gray-400">Shown on the inventory product tile</p>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {addForm.imageBase64 ? (
+                          <>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-rose-500"
+                              onClick={() => setAddForm(f => ({ ...f, imageBase64: '' }))}
+                            >
+                              Remove photo
+                            </button>
+                            <button
+                              type="button"
+                              disabled={scanningPhoto}
+                              className={cn(
+                                'text-xs font-bold inline-flex items-center gap-1 px-2 py-1 rounded-lg',
+                                scanningPhoto
+                                  ? 'text-brand animate-pulse'
+                                  : 'text-gray-500 hover:text-brand hover:bg-gray-100',
+                              )}
+                              onClick={async () => {
+                                if (!addForm.imageBase64) return;
+                                setScanningPhoto(true);
+                                try {
+                                  const blob = await fetch(addForm.imageBase64).then(r => r.blob());
+                                  const formData = new FormData();
+                                  formData.append('photo', blob, 'product.jpg');
+                                  const headers: Record<string, string> = {
+                                    'X-Correlation-ID': ensureCorrelationId(),
+                                    'X-DG-Client': serviceCloudClientHeader() || appClientHeader(),
+                                  };
+                                  const token = session.getToken();
+                                  const tenantId = session.getTenantId();
+                                  if (token) headers.Authorization = `Bearer ${token}`;
+                                  if (tenantId) headers['X-Tenant-ID'] = tenantId;
+                                  const res = await fetch(resolveApiUrl('/api/products/scan-photo'), {
+                                    method: 'POST',
+                                    headers,
+                                    body: formData,
+                                  });
+                                  if (!res.ok) {
+                                    const err = await res.json().catch(() => ({}));
+                                    toast((err as { error?: string }).error || 'Scan failed', 'error');
+                                    return;
+                                  }
+                                  const data = (await res.json()) as {
+                                    name?: string;
+                                    description?: string;
+                                    mrp?: number;
+                                    hsnCode?: string;
+                                    gstRate?: number;
+                                    packSize?: number;
+                                    packName?: string;
+                                    barcodeNumber?: string;
+                                    expiryDate?: string;
+                                    batchNumber?: string;
+                                  };
+                                  setAddForm(f => ({
+                                    ...f,
+                                    name: data.name || f.name,
+                                    description: data.description || f.description,
+                                    price: data.mrp || f.price,
+                                    hsnCode: data.hsnCode || f.hsnCode,
+                                    gstRate: data.gstRate ?? f.gstRate,
+                                    packSize: data.packSize || f.packSize,
+                                    packName: data.packName || f.packName,
+                                    barcodePrefix: data.barcodeNumber || f.barcodePrefix,
+                                  }));
+                                  toast('Product details filled from photo', 'success');
+                                } catch (err) {
+                                  toast((err as Error).message || 'Scan failed', 'error');
+                                } finally {
+                                  setScanningPhoto(false);
+                                }
+                              }}
+                            >
+                              <ScanLine size={12} />
+                              {scanningPhoto ? 'Scanning…' : 'Auto-fill with AI'}
+                            </button>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-400">Upload photo → auto-fill product details with AI</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
