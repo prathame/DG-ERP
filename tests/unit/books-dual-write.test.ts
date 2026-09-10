@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { withBooks } from '../../server/utils/booksStrict';
+import { BooksPeriodLockedError } from '../../server/services/bookPeriodLock';
 
 // ─── withBooks in strict mode (BOOKS_STRICT=1) ──────────────────────────────
 
@@ -95,6 +96,14 @@ describe('withBooks — permissive mode (BOOKS_STRICT=0)', () => {
     // The withBooks function imported above was loaded with the original env.
     // In strict mode (default), it should still throw — this is correct.
     // The permissive behaviour is tested via the logic branch in booksStrict.ts.
+  });
+
+  it('never swallows a locked-period error', async () => {
+    await expect(
+      withBooks(async () => {
+        throw new BooksPeriodLockedError('Books are closed');
+      }, 'locked-period'),
+    ).rejects.toBeInstanceOf(BooksPeriodLockedError);
   });
 });
 
