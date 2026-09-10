@@ -175,7 +175,9 @@ export function MobileAccountsPanel({
           <div
             className={cn(
               'grid gap-2',
-              showDateRange || tab === 'gst' || tab === 'gstr3b' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
+              showDateRange || tab === 'gst' || tab === 'gstr3b' || tab === 'itc' || tab === 'ledger'
+                ? 'grid-cols-2'
+                : 'grid-cols-1',
             )}
           >
             {showDateRange && (
@@ -222,33 +224,45 @@ export function MobileAccountsPanel({
                 </select>
               </div>
             )}
-            {(tab === 'gst' || tab === 'gstr3b') && onGstMonth && onGstYear && gstMonth != null && gstYear != null && (
-              <>
-                <div className="min-w-0">
-                  <label className={fieldLabel}>Month</label>
-                  <select
-                    value={gstMonth}
-                    onChange={e => onGstMonth(parseInt(e.target.value, 10))}
-                    className={fieldInput}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-                      <option key={m} value={m}>
-                        {new Date(2000, m - 1).toLocaleString('en', { month: 'long' })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="min-w-0">
-                  <label className={fieldLabel}>Year</label>
-                  <input
-                    type="number"
-                    value={gstYear}
-                    onChange={e => onGstYear(parseInt(e.target.value, 10))}
-                    className={fieldInput}
-                  />
-                </div>
-              </>
-            )}
+            {(tab === 'gst' || tab === 'gstr3b' || tab === 'itc') &&
+              onGstMonth &&
+              onGstYear &&
+              gstMonth != null &&
+              gstYear != null && (
+                <>
+                  {tab !== 'itc' && (
+                    <div className="min-w-0">
+                      <label className={fieldLabel}>Month</label>
+                      <select
+                        value={gstMonth}
+                        onChange={e => onGstMonth(parseInt(e.target.value, 10))}
+                        className={fieldInput}
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                          <option key={m} value={m}>
+                            {new Date(2000, m - 1).toLocaleString('en', { month: 'long' })}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <label className={fieldLabel}>{tab === 'itc' ? 'FY Start Year' : 'Year'}</label>
+                    <input
+                      type="number"
+                      value={tab === 'itc' ? (gstMonth <= 3 ? gstYear - 1 : gstYear) : gstYear}
+                      onChange={e => {
+                        const v = parseInt(e.target.value, 10);
+                        if (tab === 'itc') {
+                          onGstYear(v);
+                          onGstMonth(4);
+                        } else onGstYear(v);
+                      }}
+                      className={fieldInput}
+                    />
+                  </div>
+                </>
+              )}
           </div>
           <button
             type="button"

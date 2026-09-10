@@ -109,7 +109,8 @@ type AccountTab =
   | 'fineledger'
   | 'gst'
   | 'gstr2b'
-  | 'gstr3b';
+  | 'gstr3b'
+  | 'itc';
 
 function fmtCurrency(n: number) {
   return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`;
@@ -259,6 +260,10 @@ export function AccountsView({
       else if (tab === 'fineledger') setData(await api.metal.fineLedger({ from, to }));
       else if (tab === 'gst') setData(await fetchApi(`/reports/gst-summary?month=${gstMonth}&year=${gstYear}`));
       else if (tab === 'gstr3b') setData(await fetchApi(`/gstr3b/compute?month=${gstMonth}&year=${gstYear}`));
+      else if (tab === 'itc') {
+        const itcFy = gstMonth <= 3 ? gstYear - 1 : gstYear;
+        setData(await fetchApi(`/itc/ledger?fy=${itcFy}`));
+      }
     } catch {
       toast('Failed to load', 'error');
     } finally {
@@ -478,13 +483,19 @@ export function AccountsView({
     { key: 'gst', label: 'GSTR-1', shortLabel: 'GSTR-1', icon: Receipt, group: 'reports' },
     { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
     { key: 'gstr3b', label: 'GSTR-3B Computation', shortLabel: '3B', icon: FileCheck, group: 'reports' },
+    { key: 'itc', label: 'ITC Ledger', shortLabel: 'ITC', icon: FileCheck, group: 'reports' },
   ];
   const TABS = ALL_TABS.filter(t => !t.hide);
 
   const accountTabs = TABS.filter(t => t.group === 'accounts');
   const reportTabs = TABS.filter(t => t.group === 'reports');
   const showDateRange =
-    !booksSelfContained && tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst';
+    !booksSelfContained &&
+    tab !== 'balance' &&
+    tab !== 'outstanding' &&
+    tab !== 'stock' &&
+    tab !== 'gst' &&
+    tab !== 'itc';
   const selectTab = (key: string) => {
     setTab(key as AccountTab);
     setData(null);
@@ -614,6 +625,9 @@ export function AccountsView({
 
       {tab === 'gstr2b' && <Gstr2bReconciliation />}
       {tab === 'gstr3b' && !loading && data && <Gstr3bView data={data as Record<string, unknown>} />}
+      {tab === 'itc' && !loading && data && (
+        <ItcLedgerView data={data as Record<string, unknown>} onRefresh={loadData} />
+      )}
     </>
   );
 
@@ -652,7 +666,7 @@ export function AccountsView({
           fyStartYear={fyStartYear}
           onFyYear={applyFyYear}
           fyLabel={t('common.financialYear')}
-          showDateRange={showDateRange && tab !== 'gstr3b'}
+          showDateRange={showDateRange && tab !== 'gstr3b' && tab !== 'itc'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={setLedgerFilter}
           gstMonth={gstMonth}
@@ -667,7 +681,7 @@ export function AccountsView({
           gstr1Slot={gstr1Button(
             'w-full h-10 rounded-xl text-[13px] font-bold text-white inline-flex items-center justify-center gap-1.5 bg-[var(--dg-success)]',
           )}
-          showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b'}
+          showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b' && tab !== 'itc'}
           hideToolbar={booksSelfContained}
           onHelp={() => setGuideOpen(true)}
         >
@@ -718,7 +732,7 @@ export function AccountsView({
           fyStartYear={fyStartYear}
           onFyYear={applyFyYear}
           fyLabel={t('common.financialYear')}
-          showDateRange={showDateRange && tab !== 'gstr3b'}
+          showDateRange={showDateRange && tab !== 'gstr3b' && tab !== 'itc'}
           ledgerFilter={ledgerFilter}
           onLedgerFilter={booksSelfContained ? undefined : setLedgerFilter}
           gstMonth={gstMonth}
@@ -732,7 +746,7 @@ export function AccountsView({
           gstr1Slot={gstr1Button(
             'col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg text-sm font-bold text-white bg-[var(--dg-success)] hover:opacity-90',
           )}
-          showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b'}
+          showEmpty={!booksSelfContained && !loading && !data && tab !== 'gstr2b' && tab !== 'itc'}
           hideToolbar={booksSelfContained}
           onHelp={() => setGuideOpen(true)}
         >
@@ -867,7 +881,7 @@ export function AccountsView({
           <div
             className={cn(
               'grid gap-2 sm:flex sm:items-end sm:gap-3 sm:flex-wrap',
-              showDateRange || tab === 'gst' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
+              showDateRange || tab === 'gst' || tab === 'itc' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
             )}
           >
             {showDateRange && (
@@ -923,32 +937,40 @@ export function AccountsView({
                 </select>
               </div>
             )}
-            {tab === 'gst' && (
+            {(tab === 'gst' || tab === 'itc') && (
               <>
+                {tab !== 'itc' && (
+                  <div className="min-w-0">
+                    <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                      Month
+                    </label>
+                    <select
+                      value={gstMonth}
+                      onChange={e => setGstMonth(parseInt(e.target.value))}
+                      className={dateControlClass}
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                        <option key={m} value={m}>
+                          {new Date(2000, m - 1).toLocaleString('en', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="min-w-0">
                   <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                    Month
-                  </label>
-                  <select
-                    value={gstMonth}
-                    onChange={e => setGstMonth(parseInt(e.target.value))}
-                    className={dateControlClass}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-                      <option key={m} value={m}>
-                        {new Date(2000, m - 1).toLocaleString('en', { month: 'long' })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="min-w-0">
-                  <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
-                    Year
+                    {tab === 'itc' ? 'FY Start Year' : 'Year'}
                   </label>
                   <input
                     type="number"
-                    value={gstYear}
-                    onChange={e => setGstYear(parseInt(e.target.value))}
+                    value={tab === 'itc' ? (gstMonth <= 3 ? gstYear - 1 : gstYear) : gstYear}
+                    onChange={e => {
+                      const v = parseInt(e.target.value);
+                      if (tab === 'itc') {
+                        setGstYear(v);
+                        setGstMonth(4);
+                      } else setGstYear(v);
+                    }}
                     className={dateControlClass}
                   />
                 </div>
@@ -982,7 +1004,7 @@ export function AccountsView({
 
       {reportBody}
 
-      {!booksSelfContained && !loading && !data && tab !== 'gstr2b' && (
+      {!booksSelfContained && !loading && !data && tab !== 'gstr2b' && tab !== 'itc' && (
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
           <BarChart3 size={40} className="mx-auto mb-2.5 opacity-30 sm:mb-3 sm:size-12" />
           <p className="font-medium text-sm sm:text-base">Select a statement and click Generate</p>
@@ -2602,6 +2624,261 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
           * Reverse charge increases liability and ITC equally when claimable. Verify with CA before filing.
         </p>
       </Section>
+    </div>
+  );
+}
+
+// ITC Ledger — period-wise Input Tax Credit register
+function ItcLedgerView({ data, onRefresh }: { data: Record<string, unknown>; onRefresh: () => void }) {
+  const { toast } = useToast();
+  const fy = Number(data.fy);
+  const ledger = (data.ledger ?? []) as {
+    period: string;
+    month: number;
+    year: number;
+    purchaseItc: number;
+    rcmItc: number;
+    debitNoteItc: number;
+    available: number;
+    claimed: number;
+    reversed: number;
+    reversalReason: string | null;
+    net: number;
+    balance: number;
+    status: string;
+    notes: string | null;
+  }[];
+  const [editPeriod, setEditPeriod] = useState<string | null>(null);
+  const [editClaimed, setEditClaimed] = useState('');
+  const [editReversed, setEditReversed] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [editStatus, setEditStatus] = useState('draft');
+  const [saving, setSaving] = useState(false);
+
+  const monthName = (m: number) => new Date(2000, m - 1).toLocaleString('en-IN', { month: 'short' });
+
+  const openEdit = (row: (typeof ledger)[0]) => {
+    setEditPeriod(row.period);
+    setEditClaimed(String(row.claimed || ''));
+    setEditReversed(String(row.reversed || ''));
+    setEditReason(row.reversalReason || '');
+    setEditStatus(row.status);
+  };
+
+  const saveEdit = async () => {
+    if (!editPeriod) return;
+    setSaving(true);
+    try {
+      await fetchApi(`/itc/claims/${editPeriod}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          claimedAmount: Number(editClaimed) || 0,
+          reversalAmount: Number(editReversed) || 0,
+          reversalReason: editReason || null,
+          status: editStatus,
+        }),
+      });
+      setEditPeriod(null);
+      onRefresh();
+    } catch {
+      toast('Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalAvailable = ledger.reduce((s, r) => s + r.available, 0);
+  const totalClaimed = ledger.reduce((s, r) => s + r.claimed, 0);
+  const totalReversed = ledger.reduce((s, r) => s + r.reversed, 0);
+
+  const statusBadge = (s: string) => {
+    const colors: Record<string, string> = {
+      filed: 'bg-blue-100 text-blue-700',
+      confirmed: 'bg-emerald-100 text-emerald-700',
+      draft: 'bg-gray-100 text-gray-500',
+    };
+    return (
+      <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-bold uppercase', colors[s] || colors.draft)}>
+        {s}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-brand/10 rounded-xl px-4 py-3">
+        <p className="text-sm font-bold text-brand">
+          ITC Ledger — FY {fy}-{String(fy + 1).slice(2)}
+        </p>
+        <p className="text-xs text-gray-600">
+          Input Tax Credit register computed from purchases, RCM, and debit notes. Mark claims after filing GSTR-3B.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Total Available', value: totalAvailable, color: 'text-emerald-600' },
+          { label: 'Total Claimed', value: totalClaimed, color: 'text-blue-600' },
+          { label: 'Total Reversed', value: totalReversed, color: 'text-rose-600' },
+        ].map(c => (
+          <div key={c.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
+            <p className="text-xs text-gray-400 font-bold uppercase">{c.label}</p>
+            <p className={cn('text-xl font-bold font-mono mt-1', c.color)}>{fmtCurrency(c.value)}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px]">
+            <thead>
+              <tr className="text-[10px] font-bold text-gray-400 uppercase border-b border-gray-200 bg-gray-50">
+                <th className="py-2 px-3 text-left">Period</th>
+                <th className="py-2 px-3 text-right">Purchase ITC</th>
+                <th className="py-2 px-3 text-right">RCM ITC</th>
+                <th className="py-2 px-3 text-right">DN Adj</th>
+                <th className="py-2 px-3 text-right">Available</th>
+                <th className="py-2 px-3 text-right">Reversed</th>
+                <th className="py-2 px-3 text-right">Net</th>
+                <th className="py-2 px-3 text-right">Claimed</th>
+                <th className="py-2 px-3 text-right">Balance</th>
+                <th className="py-2 px-3 text-center">Status</th>
+                <th className="py-2 px-3 text-center w-16"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map(row => (
+                <tr key={row.period} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <td className="py-2.5 px-3 text-sm font-medium">
+                    {monthName(row.month)} {row.year}
+                  </td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(row.purchaseItc)}</td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(row.rcmItc)}</td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(row.debitNoteItc)}</td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono font-semibold text-emerald-600">
+                    {fmtCurrency(row.available)}
+                  </td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono text-rose-500">
+                    {row.reversed ? fmtCurrency(row.reversed) : '-'}
+                  </td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(row.net)}</td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono text-blue-600">
+                    {row.claimed ? fmtCurrency(row.claimed) : '-'}
+                  </td>
+                  <td className="py-2.5 px-3 text-sm text-right font-mono font-bold">{fmtCurrency(row.balance)}</td>
+                  <td className="py-2.5 px-3 text-center">{statusBadge(row.status)}</td>
+                  <td className="py-2.5 px-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(row)}
+                      className="text-xs text-brand font-bold hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-300 font-bold bg-gray-50">
+                <td className="py-2.5 px-3 text-sm">Total</td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono">
+                  {fmtCurrency(ledger.reduce((s, r) => s + r.purchaseItc, 0))}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono">
+                  {fmtCurrency(ledger.reduce((s, r) => s + r.rcmItc, 0))}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono">
+                  {fmtCurrency(ledger.reduce((s, r) => s + r.debitNoteItc, 0))}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono text-emerald-600">
+                  {fmtCurrency(totalAvailable)}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono text-rose-500">{fmtCurrency(totalReversed)}</td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono">
+                  {fmtCurrency(totalAvailable - totalReversed)}
+                </td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono text-blue-600">{fmtCurrency(totalClaimed)}</td>
+                <td className="py-2.5 px-3 text-sm text-right font-mono font-bold">
+                  {fmtCurrency(ledger[ledger.length - 1]?.balance ?? 0)}
+                </td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {editPeriod && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEditPeriod(null)} aria-hidden="true" />
+          <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl p-5 space-y-4">
+            <h3 className="text-lg font-bold">
+              ITC Claim — {monthName(Number(editPeriod.slice(0, 2)))} {editPeriod.slice(2)}
+            </h3>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Claimed Amount</label>
+              <input
+                type="number"
+                value={editClaimed}
+                onChange={e => setEditClaimed(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                placeholder="Amount claimed in GSTR-3B"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reversal Amount</label>
+              <input
+                type="number"
+                value={editReversed}
+                onChange={e => setEditReversed(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                placeholder="ITC reversed (blocked/ineligible)"
+              />
+            </div>
+            {Number(editReversed) > 0 && (
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reversal Reason</label>
+                <input
+                  value={editReason}
+                  onChange={e => setEditReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  placeholder="e.g. Sec 17(5) blocked credit"
+                />
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Filing Status</label>
+              <select
+                value={editStatus}
+                onChange={e => setEditStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              >
+                <option value="draft">Draft</option>
+                <option value="filed">Filed</option>
+                <option value="confirmed">Confirmed</option>
+              </select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditPeriod(null)}
+                className="flex-1 py-2 border rounded-lg font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="flex-1 py-2 bg-brand text-white rounded-lg font-bold disabled:opacity-60"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
