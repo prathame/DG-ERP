@@ -49,7 +49,20 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
         .then(([r, b, rs]) => {
           setRewards(r);
           setBalance(b.balance);
-          setRewardsSummary(rs ?? null);
+          const vendors = (
+            rs as unknown as { vendors?: { name: string; productsSold: number; rewardPoints: number }[] }
+          )?.vendors;
+          setRewardsSummary(
+            vendors?.length
+              ? {
+                  vendorSummaries: vendors.map(v => ({
+                    vendorName: v.name,
+                    productsSold: v.productsSold,
+                    totalRewardPoints: v.rewardPoints,
+                  })),
+                }
+              : null,
+          );
         })
         .catch(() => setRewards([]))
         .finally(() => setLoading(false));
@@ -116,7 +129,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
 
   return (
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8">
-      {rewardsSummary && (
+      {rewardsSummary?.vendorSummaries?.length ? (
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
           <h3 className="font-bold text-lg mb-4">Vendor Reward Summary</h3>
           <div className="space-y-3 max-h-48 overflow-y-auto">
@@ -131,7 +144,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
             ))}
           </div>
         </div>
-      )}
+      ) : null}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-[#151619] text-white p-5 sm:p-8 rounded-3xl relative overflow-hidden shadow-2xl">
