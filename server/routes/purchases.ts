@@ -103,6 +103,78 @@ router.post('/api/suppliers', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
+router.post('/api/suppliers/bulk', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { suppliers } = req.body as {
+      suppliers?: {
+        name: string;
+        contactPerson?: string;
+        phone?: string;
+        email?: string;
+        address?: string;
+        gstNumber?: string;
+      }[];
+    };
+    if (!Array.isArray(suppliers) || suppliers.length === 0)
+      return res.status(400).json({ error: 'Provide an array of suppliers' });
+    const { assertBulkSize } = await import('../utils/pagination');
+    const bulkErr = assertBulkSize(suppliers, 500);
+    if (bulkErr) return res.status(400).json({ error: bulkErr });
+
+    for (let i = 0; i < suppliers.length; i++) {
+      if (!suppliers[i].name || !suppliers[i].name.trim())
+        return res.status(400).json({ error: `Row ${i + 2}: Name is required — no suppliers were imported` });
+    }
+
+    await client.query('BEGIN');
+    await setTenantContext(client, tenantId);
+    let success = 0;
+
+    for (const s of suppliers) {
+      const dup = (
+        await client.query('SELECT id FROM suppliers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [
+          tenantId,
+          s.name.trim(),
+        ])
+      ).rows[0];
+      if (dup) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `"${s.name}" already exists — no suppliers were imported` });
+      }
+      const id = uid('S');
+      await client.query(
+        'INSERT INTO suppliers (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [
+          id,
+          tenantId,
+          s.name.trim(),
+          s.contactPerson || null,
+          s.phone?.trim() || null,
+          s.email || null,
+          s.address || null,
+          s.gstNumber || null,
+        ],
+      );
+      success++;
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ success, errors: [] });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    return handleApiError(req, res, err);
+  } finally {
+    client.release();
+  }
+});
+
 router.put('/api/suppliers/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
