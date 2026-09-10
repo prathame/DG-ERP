@@ -10,6 +10,7 @@ import { clearUserSession, replaceUserSession, SESSION_REPLACED_BODY, touchUserS
 import { ACTIVE_USER_SQL, isSoftDeletedEmail } from '../utils/activeUsers';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 import { fillMissingTabPresetKeys, isStaleHotelQuotationsOff } from '../../shared/tabPresets';
+import { getTransporter } from './email';
 
 const router = Router();
 
@@ -543,7 +544,7 @@ router.post('/api/auth/session/heartbeat', authMiddleware, async (req: AuthReque
   }
 });
 
-// Forgot password — generate reset token (no email sent, returns token for admin to share)
+// Forgot password — generate reset token and email it when tenant SMTP is configured.
 router.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
@@ -584,11 +585,15 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashResetToken(token);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes
 
+    await pool.query('DELETE FROM password_reset_tokens WHERE tenant_id = $1 AND LOWER(email) = LOWER($2)', [
+      user.tenant_id,
+      user.email,
+    ]);
     await pool.query(
       'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
-      [uid('PRT'), email, user.tenant_id, tokenHash, expiresAt],
+      [uid('PRT'), user.email, user.tenant_id, tokenHash, expiresAt],
     );
 
     await logAudit(
@@ -602,9 +607,30 @@ router.post('/api/auth/forgot-password', async (req, res) => {
       user.name,
     );
 
-    // Token stored — retrievable by authenticated admin via GET /api/admin/reset-tokens
-    // or super-admin via GET /api/super-admin/reset-tokens.
-    // Same message as the not-found branch: prevents email enumeration.
+    const tenant = (await pool.query('SELECT slug, company_name FROM tenants WHERE id = $1', [user.tenant_id]))
+      .rows[0] as { slug?: string; company_name?: string } | undefined;
+    const resetLink = `${req.protocol}://${req.get('host')}/${tenant?.slug ?? ''}/reset-password?token=${token}`;
+    try {
+      const settings = (
+        await pool.query('SELECT from_email, from_name FROM email_settings WHERE tenant_id = $1', [user.tenant_id])
+      ).rows[0] as { from_email?: string; from_name?: string } | undefined;
+      if (settings?.from_email) {
+        const transporter = await getTransporter(user.tenant_id);
+        await transporter.sendMail({
+          from: settings.from_name ? `"${settings.from_name}" <${settings.from_email}>` : settings.from_email,
+          to: user.email,
+          subject: `Reset your Dhandho password — ${tenant?.company_name || 'Dhandho'}`,
+          text: `Hello ${user.name},\n\nReset your password using this link (valid for 30 minutes):\n${resetLink}\n\nIf you did not request this, you can ignore this email.`,
+        });
+      }
+    } catch (emailError) {
+      logger.warn('Password reset email could not be sent', {
+        tenantId: user.tenant_id,
+        error: emailError instanceof Error ? emailError.message : String(emailError),
+      });
+    }
+
+    // Token remains retrievable by an authenticated admin if SMTP is not configured.
     res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
   } catch (err) {
     return handleApiError(req, res, err);
