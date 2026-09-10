@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
@@ -368,7 +368,7 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
-router.delete('/api/expenses/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/expenses/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

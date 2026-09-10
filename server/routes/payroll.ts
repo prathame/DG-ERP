@@ -225,7 +225,7 @@ router.put('/api/staff/:id', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
-router.delete('/api/staff/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/staff/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -588,7 +588,7 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
-router.delete('/api/payroll/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/payroll/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

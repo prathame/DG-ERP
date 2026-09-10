@@ -604,12 +604,16 @@ router.delete('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) =>
         tenantId,
       ]);
       await client.query('UPDATE orders SET vendor_id = NULL WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
-      const result = await client.query('DELETE FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
-      if (result.rowCount === 0) {
+      const vendorRow = (
+        await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])
+      ).rows[0];
+      if (!vendorRow) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Vendor not found' });
       }
+      await client.query('DELETE FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('COMMIT');
+      await logAudit(pool, tenantId, 'DELETE', 'vendor', id, `${vendorRow.name}`);
       res.status(204).send();
     } catch (e) {
       await client.query('ROLLBACK');

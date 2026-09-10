@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool, setTenantContext } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
@@ -229,6 +229,16 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
 
     const row = (await pool.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
       .rows[0] as Record<string, unknown>;
+    await logAudit(
+      pool,
+      tenantId,
+      'CREATE',
+      'reward',
+      id,
+      `${type ?? 'Earned'} ${ptsToInsert} pts`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.status(201).json({
       id: row.id,
       userId: row.user_id,
@@ -312,7 +322,7 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
-router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/rewards/:id', requireAdmin, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -349,6 +359,7 @@ router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) =>
     }
 
     await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'DELETE', 'reward', id, `${rType} ${pts} pts`, req.user?.userId, req.user?.name);
     res.status(204).send();
   } catch (err) {
     await client.query('ROLLBACK');
@@ -408,6 +419,16 @@ router.post('/api/reward-rules', blockVendors, async (req: AuthRequest, res) => 
         [tenantId, id],
       )
     ).rows[0] as Record<string, unknown>;
+    await logAudit(
+      pool,
+      tenantId,
+      'CREATE',
+      'reward_rule',
+      id,
+      `threshold=${productsSoldThreshold ?? 0} pts=${rewardPoints ?? 0}`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.status(201).json({
       id: row.id,
       categoryId: row.category_id,
@@ -460,7 +481,7 @@ router.put('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, res) 
   }
 });
 
-router.delete('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/reward-rules/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -468,6 +489,7 @@ router.delete('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, re
     const { id } = req.params;
     const result = await pool.query('DELETE FROM reward_rules WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Reward rule not found' });
+    await logAudit(pool, tenantId, 'DELETE', 'reward_rule', id, '', req.user?.userId, req.user?.name);
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);
