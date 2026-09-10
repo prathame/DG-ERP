@@ -113,7 +113,7 @@ router.put('/api/email/settings', requireAdmin, async (req: AuthRequest, res) =>
 
 // ── Build transporter from saved settings ─────────────────────────────────────
 
-async function getTransporter(tenantId: string) {
+export async function getTransporter(tenantId: string) {
   const { rows } = await pool.query('SELECT * FROM email_settings WHERE tenant_id = $1', [tenantId]);
   const row = rows[0] as Record<string, unknown> | undefined;
   if (!row?.smtp_user || !row?.smtp_password)
