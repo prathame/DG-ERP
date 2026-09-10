@@ -1191,37 +1191,26 @@ router.post('/api/ai/assistant', blockVendors, async (req: AuthRequest, res) => 
       return res.json(fallback);
     }
 
-    // ponytail: fetch just enough context for Gemini — names only, capped at 50
-    const [productsRes, suppliersRes, customersRes, statsRes] = await Promise.all([
-      pool.query('SELECT name FROM products WHERE tenant_id = $1 ORDER BY name LIMIT 50', [tenantId]),
-      pool.query('SELECT name FROM suppliers WHERE tenant_id = $1 ORDER BY name LIMIT 50', [tenantId]),
-      pool.query('SELECT name FROM customers WHERE tenant_id = $1 ORDER BY name LIMIT 50', [tenantId]),
-      pool.query(
-        `SELECT
-          (SELECT count(*) FROM products WHERE tenant_id = $1) AS total_products,
-          (SELECT count(*) FROM products WHERE tenant_id = $1 AND stock < 10) AS low_stock,
-          (SELECT count(*) FROM product_sales WHERE tenant_id = $1 AND purchase_date = CURRENT_DATE) AS sales_today,
-          (SELECT COALESCE(sum(sale_price), 0) FROM product_sales WHERE tenant_id = $1 AND purchase_date = CURRENT_DATE) AS sales_amount`,
-        [tenantId],
-      ),
-    ]);
-
-    const ctx = {
-      products: productsRes.rows.map(r => r.name),
-      suppliers: suppliersRes.rows.map(r => r.name),
-      customers: customersRes.rows.map(r => r.name),
-      stats: statsRes.rows[0] || {},
-    };
+    // ponytail: single query for counts only — names bloat the prompt and slow Gemini down
+    const statsRes = await pool.query(
+      `SELECT
+        (SELECT count(*) FROM products WHERE tenant_id = $1) AS total_products,
+        (SELECT count(*) FROM products WHERE tenant_id = $1 AND stock < 10) AS low_stock,
+        (SELECT count(*) FROM product_sales WHERE tenant_id = $1 AND purchase_date = CURRENT_DATE) AS sales_today,
+        (SELECT COALESCE(sum(sale_price), 0) FROM product_sales WHERE tenant_id = $1 AND purchase_date = CURRENT_DATE) AS sales_amount,
+        (SELECT count(*) FROM suppliers WHERE tenant_id = $1) AS total_suppliers,
+        (SELECT count(*) FROM customers WHERE tenant_id = $1) AS total_customers`,
+      [tenantId],
+    );
+    const stats = statsRes.rows[0] || {};
 
     const userName = req.user?.name || '';
     const systemPrompt = `You are "Dhandho AI", an ERP assistant for an Indian business management app. You help users manage their business by answering questions and performing actions.
 ${userName ? `\nThe user's name is "${userName}". Greet them by name when appropriate.\n` : ''}
 BUSINESS CONTEXT:
-- Products (${ctx.stats.total_products || 0} total): ${ctx.products.join(', ') || 'none yet'}
-- Suppliers: ${ctx.suppliers.join(', ') || 'none yet'}
-- Customers: ${ctx.customers.join(', ') || 'none yet'}
-- Today's sales: ${ctx.stats.sales_today || 0} invoices, ₹${Number(ctx.stats.sales_amount || 0).toLocaleString('en-IN')}
-- Low stock items: ${ctx.stats.low_stock || 0}
+- Products: ${stats.total_products || 0} total, ${stats.low_stock || 0} low stock
+- Suppliers: ${stats.total_suppliers || 0} | Customers: ${stats.total_customers || 0}
+- Today's sales: ${stats.sales_today || 0} sales, ₹${Number(stats.sales_amount || 0).toLocaleString('en-IN')}
 
 IMPORTANT: You NEVER create, modify, or delete any data directly. You can only:
 1. Answer questions (read-only)
@@ -1234,14 +1223,16 @@ AVAILABLE ACTIONS (return ONE if the user wants to DO something, null if just as
 - create_invoice: Open new invoice/bill form. params: { "customerName": "optional" }
 - create_purchase: Open new purchase form. params: { "supplierName": "optional" }
 - add_product: Open add product form. params: { "name": "optional" }
+- add_customer: Open customers section to add a customer. params: { "name": "optional" }
+- add_supplier: Open suppliers section to add a supplier. params: { "name": "optional" }
 - search: Search for something. params: { "query": "search text" }
 
 RESPOND WITH VALID JSON ONLY — no markdown, no code fences:
-{ "text": "your natural response to the user", "action": { "type": "navigate|create_invoice|create_purchase|add_product|search", "params": { ... } } }
+{ "text": "your natural response", "action": { "type": "...", "params": { ... } } }
 If no action needed, set "action": null.
 
-Be concise, friendly, and use ₹ for currency. Speak like a helpful Indian business assistant.
-If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, reply in that same language. You are multilingual.`;
+Keep replies short (1-2 sentences). Be friendly, use ₹ for currency.
+If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, reply in that same language.`;
 
     // Build Gemini contents: system prompt as first user turn, then history, then current message
     const contents: { role: string; parts: { text: string }[] }[] = [
@@ -1268,7 +1259,7 @@ If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, repl
         headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
         body: JSON.stringify({
           contents,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
         }),
       },
     );

@@ -1117,6 +1117,8 @@ export default function App() {
         launchCreate('purchase');
       } else if (type === 'add_product') {
         if (canAccess('inventory')) setActiveTab('inventory');
+      } else if (type === 'add_customer' || type === 'add_supplier') {
+        if (canAccess('masters')) setActiveTab('masters');
       }
     };
     window.addEventListener('dg-ai-action', onAiAction);
