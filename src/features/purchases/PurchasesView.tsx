@@ -1493,6 +1493,9 @@ export function PurchasesView({
           }}
           onDeleteSupplier={s => deleteSupplier(s.id, s.name)}
           onNewPurchase={() => setModalOpen(true)}
+          onCsvImport={handleCsvImport}
+          onBillScan={handleBillScan}
+          scanningBill={scanningBill}
           showBooksExpensesHint={booksDeskReady}
           onOpenProfitLoss={onOpenAccountsStatement ? () => onOpenAccountsStatement('pnl') : undefined}
           onOpenCashBook={onOpenAccountsStatement ? () => onOpenAccountsStatement('cashbook') : undefined}

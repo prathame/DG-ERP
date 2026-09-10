@@ -1180,6 +1180,7 @@ Return ONLY valid JSON, no markdown, no explanation:
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
+      logger.warn('Gemini bill scan failed', { tenantId, status: geminiRes.status, errText });
       return res.status(502).json({ error: `Gemini API error: ${geminiRes.status}`, detail: errText });
     }
 
@@ -1196,11 +1197,17 @@ Return ONLY valid JSON, no markdown, no explanation:
     try {
       parsed = JSON.parse(cleaned);
     } catch {
+      logger.warn('Gemini bill scan: unparseable response', { tenantId, raw: cleaned.slice(0, 500) });
       return res.status(422).json({ error: 'Could not parse bill data', raw: cleaned });
     }
 
+    logger.info('Gemini bill scan: success', { tenantId });
     res.json(parsed);
   } catch (err) {
+    logger.error('Gemini bill scan: exception', {
+      tenantId: req.headers['x-tenant-id'],
+      error: (err as Error).message,
+    });
     return handleApiError(req, res, err);
   } finally {
     if (req.file?.path) fs.unlink(req.file.path, () => {});
