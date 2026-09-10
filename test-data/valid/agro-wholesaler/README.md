@@ -13,6 +13,7 @@ CSV pack for **Shree Kisan Agro Wholesale** (`business_type=dealer`): pesticides
 | 5 | `05-distribution.csv` | Sales → Create Batch → pick a client → Import CSV | 10 sale lines dispatched to a client. Product names must match step 1. |
 | 6 | `06-products-restock.csv` | Inventory → Import CSV (again) | Restock 8 products with new batch numbers. Same product names = adds stock. |
 | 7 | `07-suppliers.csv` | Purchases → Import CSV (upload icon) | 5 suppliers (companies you buy from) with GSTIN. These are your sellers. |
+| 8 | `08-purchases.csv` | Purchases → Record Purchase → Import CSV | 10 purchase items: quantities, cost prices, GST, lot/batch, expiry. Product names must match step 1. |
 
 ## Manual steps (no CSV import)
 
@@ -20,7 +21,7 @@ These steps are done in the UI after CSV uploads:
 
 | # | Step | Where | What to do |
 |---|------|-------|------------|
-| 8 | Record purchases | Purchases → Record Purchase | Pick supplier + product, enter qty/cost/billed price. GST auto-calculates. Creates inventory + Books voucher. |
+| 9 | Scan a bill (optional) | Purchases → Record Purchase → Scan Bill | Upload a supplier bill image/PDF to auto-fill items. Uses Gemini (online) or Tesseract OCR (offline). |
 | 9 | Create invoice | Invoices → New Invoice | Pick client, add items, GST auto-splits into CGST/SGST. Send/print. |
 | 10 | Record payment | Payments → Record | Against invoice or advance. Cash/cheque/UPI/bank transfer. |
 | 11 | Check GST | Accounts → GSTR-1 / GSTR-3B / ITC Ledger | Review output tax, input credit, file returns. |
@@ -35,7 +36,8 @@ Step 4:  Upload 04-staff.csv          → 7 staff members
 Step 5:  Upload 05-distribution.csv   → sell to a client (pick Patel Kirana)
 Step 6:  Upload 06-products-restock   → more stock from new batch
 Step 7:  Upload 07-suppliers.csv      → 5 suppliers ready for purchases
-Step 8:  Record purchase batch        → pick supplier + product, stock increases, ITC available
+Step 8:  Upload 08-purchases.csv     → 10 items into purchase form via CSV
+Step 8b: Or scan a bill image        → Gemini (online) / Tesseract (offline) auto-fill
 Step 9:  Create invoice for Patel     → GST invoice auto-generated
 Step 10: Record payment received      → books receipt voucher auto-posted
 Step 11: Accounts → GSTR-1            → verify outward supplies
