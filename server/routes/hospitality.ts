@@ -1,12 +1,17 @@
 import { Router } from 'express';
 import { AuthRequest, blockVendors } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { computeOrderDiscount, isMemberCurrentlyActive, resolveMemberUnitPrice } from '../../shared/hospPricing';
 import { hospAnalyticsPeriodStart, hospOrderPayable, parseHospAnalyticsPeriod } from '../../shared/hospAnalytics';
 
 const router = Router();
+
+async function beginTenantTransaction(client: import('pg').PoolClient, tenantId: string): Promise<void> {
+  await client.query('BEGIN');
+  await setTenantContext(client, tenantId);
+}
 
 async function requireHospitality(tenantId: string): Promise<string | null> {
   const row = (await pool.query(`SELECT business_type FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
@@ -1125,7 +1130,7 @@ router.post('/api/hospitality/queue/:id/seat', blockVendors, async (req: AuthReq
 
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginTenantTransaction(client, tenantId);
       await client.query(
         `UPDATE hosp_queue_entries SET status = 'seated', seated_at = NOW(), table_id = $1
          WHERE id = $2 AND tenant_id = $3`,

@@ -4,11 +4,16 @@
  */
 import { Router } from 'express';
 import { AuthRequest, blockVendors } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
 const router = Router();
+
+async function beginTenantTransaction(client: import('pg').PoolClient, tenantId: string): Promise<void> {
+  await client.query('BEGIN');
+  await setTenantContext(client, tenantId);
+}
 
 async function requireHospitality(tenantId: string): Promise<string | null> {
   const row = (await pool.query(`SELECT business_type FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
@@ -274,7 +279,7 @@ router.post('/api/hospitality/menu-items', blockVendors, async (req: AuthRequest
     const id = uid('HI');
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginTenantTransaction(client, tenantId);
       await client.query(
         `INSERT INTO hosp_menu_items (id, tenant_id, category_id, name, description, price, available, member_price)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -332,7 +337,7 @@ router.put('/api/hospitality/menu-items/:id', blockVendors, async (req: AuthRequ
     if (!cat) return res.status(400).json({ error: 'Category not found' });
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await beginTenantTransaction(client, tenantId);
       const result = await client.query(
         `UPDATE hosp_menu_items
          SET category_id = $1, name = $2, description = $3, price = $4, available = $5, member_price = $6
@@ -576,7 +581,7 @@ router.post('/api/hospitality/tables/batch', blockVendors, async (req: AuthReque
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     let count = 0;
     for (const r of items) {
       const name = String(r.name || '').trim();
@@ -620,7 +625,7 @@ router.post('/api/hospitality/modifiers/batch', blockVendors, async (req: AuthRe
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const groupCache = new Map<string, string>();
     let count = 0;
     for (const r of items) {
@@ -691,7 +696,7 @@ router.post('/api/hospitality/menu-items/batch', blockVendors, async (req: AuthR
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     const catCache = new Map<string, string>();
     const groupRows = (await client.query(`SELECT id, name FROM hosp_modifier_groups WHERE tenant_id = $1`, [tenantId]))
       .rows as Array<{ id: string; name: string }>;
