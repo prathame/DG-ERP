@@ -31,6 +31,7 @@ import {
   resolveHotelDatabaseUrl,
   resolveHotelDeployment,
 } from '../utils/hotelDeployment';
+import { provisionAgroWholesaleDemo } from '../services/agroDemo';
 
 const router = Router();
 
@@ -226,6 +227,17 @@ router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =>
 });
 
 // ============ CREATE TENANT ============
+router.post('/api/super-admin/tenants/demo/agro-wholesale', superAdminMiddleware, async (req, res) => {
+  try {
+    const demo = await provisionAgroWholesaleDemo();
+    res.status(201).json({ ok: true, ...demo });
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    if (e.code === 'DEMO_EXISTS') return res.status(409).json({ error: e.message });
+    return handleApiError(req, res, err, 'Demo tenant creation failed');
+  }
+});
+
 router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {
   try {
     const {

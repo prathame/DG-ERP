@@ -47,6 +47,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info' });
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [creatingDemo, setCreatingDemo] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{
     email: string;
     password: string;
@@ -97,6 +98,31 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
     }
   };
 
+  const createAgroDemo = async () => {
+    setCreatingDemo(true);
+    try {
+      const res = await fetch('/api/super-admin/tenants/demo/agro-wholesale', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.getToken()}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Demo tenant creation failed');
+      setCreatedCredentials({
+        email: data.adminEmail,
+        password: data.password,
+        companyName: data.companyName,
+        slug: data.slug,
+      });
+      setShowCreateModal(true);
+      fetchTenants();
+      toast('Agro wholesale demo is ready', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setCreatingDemo(false);
+    }
+  };
+
   const statusBadge = (status: string) => {
     const cls =
       status === 'active'
@@ -129,6 +155,15 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
           >
             <MessageCircle size={18} />
             Broadcast
+          </button>
+          <button
+            type="button"
+            onClick={createAgroDemo}
+            disabled={creatingDemo}
+            className="flex items-center gap-2 px-4 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-xl font-medium hover:bg-emerald-100 transition-colors disabled:opacity-60"
+          >
+            <Building2 size={18} />
+            {creatingDemo ? 'Preparing demo…' : 'Agro demo'}
           </button>
           <button
             type="button"
