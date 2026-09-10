@@ -139,12 +139,16 @@ async function resolveFinancialYearId(client: PoolClient, tenantId: string, vouc
   // Indian FY label: Apr–Mar
   const fyStart = month >= 4 ? year : year - 1;
   const code = `YR${String(fyStart).slice(-2)}`;
+  const startDate = `${fyStart}-04-01`;
+  const endDate = `${fyStart + 1}-03-31`;
   const id = uid('BF');
   await client.query(
-    `INSERT INTO book_financial_years (id, tenant_id, code, label, is_active, external_ref)
-     VALUES ($1,$2,$3,$4,true,$3)
-     ON CONFLICT (tenant_id, code) DO UPDATE SET is_active = true`,
-    [id, tenantId, code, `FY ${fyStart}-${String(fyStart + 1).slice(-2)}`],
+    `INSERT INTO book_financial_years (id, tenant_id, code, label, start_date, end_date, is_active, external_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,true,$3)
+     ON CONFLICT (tenant_id, code) DO UPDATE SET is_active = true,
+       start_date = COALESCE(book_financial_years.start_date, EXCLUDED.start_date),
+       end_date = COALESCE(book_financial_years.end_date, EXCLUDED.end_date)`,
+    [id, tenantId, code, `FY ${fyStart}-${String(fyStart + 1).slice(-2)}`, startDate, endDate],
   );
   const row = (
     await client.query(`SELECT id FROM book_financial_years WHERE tenant_id = $1 AND code = $2`, [tenantId, code])
