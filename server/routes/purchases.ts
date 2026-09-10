@@ -14,6 +14,7 @@ import { withBooks } from '../utils/booksStrict';
 import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { isQtyStockUnit, parseStockQty } from '../../shared/qtyStock';
 import { isBarcodeAddonOn } from '../utils/barcode';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -1084,32 +1085,44 @@ router.post('/api/settings/ai/test', requireAdmin, async (req: AuthRequest, res)
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { rows } = await pool.query('SELECT gemini_api_key FROM bill_settings WHERE tenant_id = $1', [tenantId]);
     const apiKey = rows[0]?.gemini_api_key || process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(400).json({ ok: false, error: 'No API key saved' });
+    if (!apiKey) {
+      logger.warn('Gemini test: no API key found', { tenantId });
+      return res.status(400).json({ ok: false, error: 'No API key saved' });
+    }
 
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 10 },
-        }),
-      },
-    );
+    const maskedKey = apiKey.slice(0, 4) + '...' + apiKey.slice(-4);
+    logger.info('Gemini test: calling API', { tenantId, maskedKey });
+
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    const geminiRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 10 },
+      }),
+    });
 
     if (!geminiRes.ok) {
       const errBody = await geminiRes.text();
-      const isInvalidKey = geminiRes.status === 400 || geminiRes.status === 403;
+      logger.warn('Gemini test failed', { tenantId, status: geminiRes.status, maskedKey, errBody });
+      let parsed: { error?: { message?: string } } = {};
+      try {
+        parsed = JSON.parse(errBody);
+      } catch {
+        /* not JSON */
+      }
+      const detail = parsed.error?.message || errBody;
       return res.json({
         ok: false,
-        error: isInvalidKey ? 'Invalid API key' : `Gemini error ${geminiRes.status}`,
-        detail: errBody,
+        error: `Gemini ${geminiRes.status}: ${detail}`,
       });
     }
 
+    logger.info('Gemini test: success', { tenantId, maskedKey });
     res.json({ ok: true });
   } catch (err) {
+    logger.error('Gemini test: exception', { error: (err as Error).message, stack: (err as Error).stack });
     return res.json({ ok: false, error: (err as Error).message });
   }
 });
