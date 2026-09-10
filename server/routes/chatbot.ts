@@ -1200,8 +1200,8 @@ router.post('/api/ai/assistant', blockVendors, async (req: AuthRequest, res) => 
         `SELECT
           (SELECT count(*) FROM products WHERE tenant_id = $1) AS total_products,
           (SELECT count(*) FROM products WHERE tenant_id = $1 AND stock < 10) AS low_stock,
-          (SELECT count(*) FROM invoices WHERE tenant_id = $1 AND date = CURRENT_DATE) AS sales_today,
-          (SELECT COALESCE(sum(total), 0) FROM invoices WHERE tenant_id = $1 AND date = CURRENT_DATE) AS sales_amount`,
+          (SELECT count(*) FROM product_sales WHERE tenant_id = $1 AND purchase_date = CURRENT_DATE) AS sales_today,
+          (SELECT COALESCE(sum(sale_price), 0) FROM product_sales WHERE tenant_id = $1 AND purchase_date = CURRENT_DATE) AS sales_amount`,
         [tenantId],
       ),
     ]);
