@@ -54,7 +54,6 @@ import { canChangeDesktopMode, requestChangeDesktopMode } from './platforms/desk
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { loadLicense } from './platforms/service-mobile/licenseStore';
 import { getTabVisiblePref, TAB_VISIBLE_PREF_CHANGED_EVENT } from './lib/tabVisibilityPrefs';
-import { getChatbotPref, CHATBOT_PREF_CHANGED_EVENT } from './lib/chatbotPref';
 import {
   getNavPositionPref,
   isNavHorizontal,
@@ -712,13 +711,6 @@ export default function App() {
     window.addEventListener(TAB_VISIBLE_PREF_CHANGED_EVENT, onPrefChange);
     return () => window.removeEventListener(TAB_VISIBLE_PREF_CHANGED_EVENT, onPrefChange);
   }, []);
-  // Bumped when Settings → Appearance chatbot toggle changes.
-  const [, setChatbotPrefTick] = useState(0);
-  useEffect(() => {
-    const onChatbotPref = () => setChatbotPrefTick(n => n + 1);
-    window.addEventListener(CHATBOT_PREF_CHANGED_EVENT, onChatbotPref);
-    return () => window.removeEventListener(CHATBOT_PREF_CHANGED_EVENT, onChatbotPref);
-  }, []);
   const [navPosTick, setNavPosTick] = useState(0);
   useEffect(() => {
     const onNavPos = () => setNavPosTick(n => n + 1);
@@ -1096,6 +1088,39 @@ export default function App() {
     };
     window.addEventListener('dg-os-notification-navigate', onOsNav);
     return () => window.removeEventListener('dg-os-notification-navigate', onOsNav);
+  }, []);
+
+  // Dhandho AI action handler — navigate, launch create forms
+  useEffect(() => {
+    const onAiAction = (e: Event) => {
+      const { type, params } = (e as CustomEvent<{ type: string; params: Record<string, string> }>).detail || {};
+      if (!type) return;
+      const sectionToTab: Record<string, Tab> = {
+        sales: 'sales',
+        inventory: 'inventory',
+        purchases: 'purchases',
+        invoices: 'invoices',
+        finance: 'finance',
+        settings: 'settings',
+        customers: 'masters',
+        suppliers: 'masters',
+        quotations: 'quotations',
+        dashboard: 'analytics',
+        analytics: 'analytics',
+      };
+      if (type === 'navigate' && params?.section) {
+        const tab = sectionToTab[params.section];
+        if (tab && canAccess(tab) && companionAllows(tab)) setActiveTab(tab);
+      } else if (type === 'create_invoice') {
+        launchCreate('invoice');
+      } else if (type === 'create_purchase') {
+        launchCreate('purchase');
+      } else if (type === 'add_product') {
+        if (canAccess('inventory')) setActiveTab('inventory');
+      }
+    };
+    window.addEventListener('dg-ai-action', onAiAction);
+    return () => window.removeEventListener('dg-ai-action', onAiAction);
   }, []);
 
   useEffect(() => {
@@ -1989,18 +2014,13 @@ export default function App() {
                 {navH && (
                   <div className="hidden lg:flex lg:items-center lg:min-w-0">{renderAppHeaderChrome('nav')}</div>
                 )}
-                {!serviceMobile &&
-                  tv('chatbot') &&
-                  getChatbotPref() &&
-                  // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
-                  // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
-                  (!companionFeatures || companionFeatures.chatbot) && (
-                    <div className={cn(navH && 'lg:hidden')}>
-                      <Suspense fallback={null}>
-                        <ChatWidget desktopGlass={desktopGlass} />
-                      </Suspense>
-                    </div>
-                  )}
+                {!serviceMobile && tv('chatbot') && (!companionFeatures || companionFeatures.chatbot) && (
+                  <div className={cn(navH && 'lg:hidden')}>
+                    <Suspense fallback={null}>
+                      <ChatWidget desktopGlass={desktopGlass} />
+                    </Suspense>
+                  </div>
+                )}
                 {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
                 {(serviceMobile ||
                   ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)

@@ -6,8 +6,6 @@ import React from 'react';
 import { Clock, FileSpreadsheet, IndianRupee, MessageCircle, Plus, Printer, Search, Send, X } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { LoadingSpinner, PaidBadge, PartialBadge, isBillFullyPaid, isBillPartiallyPaid } from '../../components/ui';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
-import { useTranslation } from '../../i18n';
 import { canSendPaymentReminder, type CompanyReminderSettings } from '../../lib/paymentReminders';
 
 export type DesktopVendorSummaryRow = {
@@ -111,7 +109,6 @@ export function DesktopVendorFinance({
   onRemindAll,
   remindAllCount,
 }: Props) {
-  const { lang } = useTranslation();
   const filtered = summaryData.filter(v => {
     if (isEmptyVendorFinanceRow(v)) return false;
     const isPaid = v.balance <= 0;
@@ -434,7 +431,6 @@ export function DesktopVendorFinance({
                   className={fieldInput}
                 />
               </div>
-              <VoiceSearchMic lang={lang} onQuery={onFinSearch} />
             </div>
           </div>
 

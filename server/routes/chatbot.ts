@@ -1161,6 +1161,163 @@ router.get('/api/chatbot/quick-actions', blockVendors, async (req: AuthRequest, 
   }
 });
 
+// ── Dhandho AI Assistant — Gemini-powered, falls back to regex chatbot ────────
+router.post('/api/ai/assistant', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const { message, history } = req.body as {
+      message?: string;
+      history?: { role: 'user' | 'assistant'; text: string }[];
+    };
+    if (!message || typeof message !== 'string') return res.status(400).json({ error: 'message required' });
+    const trimmed = message.trim();
+    if (!trimmed) return res.status(400).json({ error: 'message required' });
+    if (trimmed.length > 2000) return res.status(400).json({ error: 'message too long' });
+
+    // Get Gemini key
+    const keyRow = await pool.query('SELECT gemini_api_key FROM bill_settings WHERE tenant_id = $1', [tenantId]);
+    const apiKey = (keyRow.rows[0]?.gemini_api_key as string) || process.env.GEMINI_API_KEY;
+
+    // No Gemini key → fall back to regex chatbot
+    if (!apiKey) {
+      const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+        | {
+            tab_config: TabConfig | null;
+          }
+        | undefined;
+      const fallback = await query(trimmed, tenantId, tenantRow?.tab_config ?? null);
+      return res.json(fallback);
+    }
+
+    // ponytail: fetch just enough context for Gemini — names only, capped at 50
+    const [productsRes, suppliersRes, customersRes, statsRes] = await Promise.all([
+      pool.query('SELECT name FROM products WHERE tenant_id = $1 ORDER BY name LIMIT 50', [tenantId]),
+      pool.query('SELECT name FROM suppliers WHERE tenant_id = $1 ORDER BY name LIMIT 50', [tenantId]),
+      pool.query('SELECT name FROM customers WHERE tenant_id = $1 ORDER BY name LIMIT 50', [tenantId]),
+      pool.query(
+        `SELECT
+          (SELECT count(*) FROM products WHERE tenant_id = $1) AS total_products,
+          (SELECT count(*) FROM products WHERE tenant_id = $1 AND stock < 10) AS low_stock,
+          (SELECT count(*) FROM invoices WHERE tenant_id = $1 AND date = CURRENT_DATE) AS sales_today,
+          (SELECT COALESCE(sum(total), 0) FROM invoices WHERE tenant_id = $1 AND date = CURRENT_DATE) AS sales_amount`,
+        [tenantId],
+      ),
+    ]);
+
+    const ctx = {
+      products: productsRes.rows.map(r => r.name),
+      suppliers: suppliersRes.rows.map(r => r.name),
+      customers: customersRes.rows.map(r => r.name),
+      stats: statsRes.rows[0] || {},
+    };
+
+    const systemPrompt = `You are "Dhandho AI", an ERP assistant for an Indian business management app. You help users manage their business by answering questions and performing actions.
+
+BUSINESS CONTEXT:
+- Products (${ctx.stats.total_products || 0} total): ${ctx.products.join(', ') || 'none yet'}
+- Suppliers: ${ctx.suppliers.join(', ') || 'none yet'}
+- Customers: ${ctx.customers.join(', ') || 'none yet'}
+- Today's sales: ${ctx.stats.sales_today || 0} invoices, ₹${Number(ctx.stats.sales_amount || 0).toLocaleString('en-IN')}
+- Low stock items: ${ctx.stats.low_stock || 0}
+
+IMPORTANT: You NEVER create, modify, or delete any data directly. You can only:
+1. Answer questions (read-only)
+2. Navigate the user to the right screen
+3. Pre-fill forms for the user to review and submit themselves
+The user always has the final click — you never auto-submit anything.
+
+AVAILABLE ACTIONS (return ONE if the user wants to DO something, null if just asking):
+- navigate: Go to a section. params: { "section": "sales|inventory|purchases|invoices|finance|settings|customers|suppliers|quotations" }
+- create_invoice: Open new invoice/bill form. params: { "customerName": "optional" }
+- create_purchase: Open new purchase form. params: { "supplierName": "optional" }
+- add_product: Open add product form. params: { "name": "optional" }
+- search: Search for something. params: { "query": "search text" }
+
+RESPOND WITH VALID JSON ONLY — no markdown, no code fences:
+{ "text": "your natural response to the user", "action": { "type": "navigate|create_invoice|create_purchase|add_product|search", "params": { ... } } }
+If no action needed, set "action": null.
+
+Be concise, friendly, and use ₹ for currency. Speak like a helpful Indian business assistant.
+If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, reply in that same language. You are multilingual.`;
+
+    // Build Gemini contents: system prompt as first user turn, then history, then current message
+    const contents: { role: string; parts: { text: string }[] }[] = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      {
+        role: 'model',
+        parts: [{ text: '{"text": "Namaste! I\'m Dhandho AI. How can I help you today?", "action": null}' }],
+      },
+    ];
+    if (history?.length) {
+      for (const h of history.slice(-10)) {
+        contents.push({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: h.text }],
+        });
+      }
+    }
+    contents.push({ role: 'user', parts: [{ text: trimmed }] });
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+        }),
+      },
+    );
+
+    if (!geminiRes.ok) {
+      // ponytail: Gemini failed → fall back to regex chatbot
+      logger.warn('Gemini AI assistant call failed, falling back to regex chatbot', { status: geminiRes.status });
+      const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+        | {
+            tab_config: TabConfig | null;
+          }
+        | undefined;
+      const fallback = await query(trimmed, tenantId, tenantRow?.tab_config ?? null);
+      return res.json(fallback);
+    }
+
+    const geminiBody = (await geminiRes.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const rawText = geminiBody.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Parse JSON from Gemini — strip markdown fences if present
+    let parsed: { text: string; action?: { type: string; params: Record<string, string> } | null } | null = null;
+    try {
+      const cleaned = rawText
+        .replace(/^```(?:json)?\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // ponytail: if Gemini didn't return valid JSON, just use raw text
+      parsed = { text: rawText, action: null };
+    }
+
+    res.json({
+      text: parsed?.text || rawText || "I couldn't process that. Try again?",
+      ...(parsed?.action ? { action: parsed.action } : {}),
+    });
+  } catch (err) {
+    logger.exception('AI assistant request failed', err, {
+      method: req.method,
+      path: req.path,
+      correlationId: (req as { correlationId?: string }).correlationId,
+      tenantId: (req as AuthRequest).tenantId,
+      userId: (req as AuthRequest).user?.userId,
+    });
+    res.status(500).json({ text: 'Something went wrong. Please try again.' });
+  }
+});
+
 router.post('/api/chatbot', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

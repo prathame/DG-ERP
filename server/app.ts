@@ -506,16 +506,15 @@ export function createApp(): express.Application {
         legacyHeaders: false,
       }),
     );
-    app.use(
-      '/api/chatbot',
-      rateLimit({
-        windowMs: 60 * 1000,
-        max: 30,
-        message: { error: 'Too many chatbot requests, try again shortly' },
-        standardHeaders: true,
-        legacyHeaders: false,
-      }),
-    );
+    const chatAiLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 30,
+      message: { error: 'Too many chatbot requests, try again shortly' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    app.use('/api/chatbot', chatAiLimiter);
+    app.use('/api/ai/assistant', chatAiLimiter);
   }
 
   app.get('/manifest.json', async (req, res) => {

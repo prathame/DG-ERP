@@ -1,4 +1,8 @@
 import { Router } from 'express';
+import multer from 'multer';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import { pool, setTenantContext } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
@@ -1371,5 +1375,86 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
     return handleApiError(req, res, err);
   }
 });
+
+// ─── Product photo scanning via Gemini Vision ──────────────────────────────
+const productScanDir = path.join(os.tmpdir(), 'dg-product-scans');
+fs.mkdirSync(productScanDir, { recursive: true });
+const productScanUpload = multer({ dest: productScanDir, limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post(
+  '/api/products/scan-photo',
+  blockVendors,
+  productScanUpload.single('photo'),
+  async (req: AuthRequest, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    try {
+      const tenantId = req.headers['x-tenant-id'] as string;
+      const { rows } = await pool.query('SELECT gemini_api_key FROM bill_settings WHERE tenant_id = $1', [tenantId]);
+      const apiKey = rows[0]?.gemini_api_key || process.env.GEMINI_API_KEY;
+      if (!apiKey) return res.status(501).json({ error: 'No Gemini API key — set it in Settings → AI' });
+
+      const fileBuf = fs.readFileSync(req.file.path);
+      const base64 = fileBuf.toString('base64');
+      const mime = req.file.mimetype || 'image/jpeg';
+
+      const prompt = `You are a product data extractor for an Indian retail/wholesale business.
+Look at this product photo and extract:
+- name: full product name with brand, variant, and size/weight (e.g. "Syngenta Cruiser 350 FS (100ml)")
+- description: short 1-line description of what the product is
+- mrp: MRP printed on the package (number only, no ₹ symbol), null if not visible
+- hsnCode: HSN/SAC code if printed, null if not visible
+- gstRate: GST percentage (5, 12, 18, or 28) — infer from product type if not printed
+- packSize: how many units in a pack/box if visible, else 1
+- packName: unit name (Piece, Box, Bag, Bottle, Packet, etc.)
+- barcodeNumber: barcode number if visible, null otherwise
+- expiryDate: expiry date in YYYY-MM-DD format if visible, null otherwise
+- mfgDate: manufacturing date in YYYY-MM-DD format if visible, null otherwise
+- batchNumber: batch/lot number if visible, null otherwise
+
+Return ONLY valid JSON, no markdown:
+{"name":"...","description":"...","mrp":null,"hsnCode":null,"gstRate":18,"packSize":1,"packName":"Piece","barcodeNumber":null,"expiryDate":null,"mfgDate":null,"batchNumber":null}`;
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+          }),
+        },
+      );
+
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        return res.status(502).json({ error: `Gemini API error: ${geminiRes.status}`, detail: errText });
+      }
+
+      const geminiJson = (await geminiRes.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      const raw = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const cleaned = raw
+        .replace(/^```json\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        return res.status(422).json({ error: 'Could not parse product data', raw: cleaned });
+      }
+
+      res.json(parsed);
+    } catch (err) {
+      return handleApiError(req, res, err);
+    } finally {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+    }
+  },
+);
 
 export default router;

@@ -26,8 +26,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
-import { useTranslation } from '../../i18n';
 
 export type DesktopVerificationResult = {
   found: boolean;
@@ -188,7 +186,6 @@ export function DesktopSearchVerifyPanel({
   onClearStaff,
   onPrintParty,
 }: Props) {
-  const { lang } = useTranslation();
   const status = result ? statusConfig[result.currentStatus] || statusConfig.InStock : null;
   const StatusIcon = status?.icon || Package;
   const recentDistLabel =
@@ -228,7 +225,6 @@ export function DesktopSearchVerifyPanel({
               <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[var(--dg-primary)] border-t-transparent rounded-full animate-spin" />
             )}
           </div>
-          <VoiceSearchMic lang={lang} onQuery={onQueryChange} />
           {showScan && (
             <button
               type="button"

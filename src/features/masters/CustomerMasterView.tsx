@@ -8,8 +8,6 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useTranslation } from '../../i18n';
 import { tb } from '../../i18n/businessLabels';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { VoiceFieldMic, VoiceFieldRow } from '../../components/ui/BillVoiceMic';
-import { parseVoiceGuideName, parseVoiceGuidePhone, parseVoiceDigits, parseVoiceEmail } from '../../lib/billVoice';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { phoneValidationError } from '../../../shared/phone';
@@ -28,7 +26,7 @@ export function CustomerMasterView({
 }) {
   const canWrite = canWriteAccess(accessLevel);
   const { toast } = useToast();
-  const { t, lang } = useTranslation();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const linkedPartyLabel = tb(cfg.labels.vendors, t).replace(/s$/i, ''); // Vendor | Customer | Client
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
@@ -378,13 +376,6 @@ export function CustomerMasterView({
                       onChange={e => setForm({ ...form, name: e.target.value })}
                       className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
-                    <VoiceFieldMic
-                      lang={lang}
-                      disabled={submitting}
-                      label="name"
-                      parse={parseVoiceGuideName}
-                      onFill={value => setForm(f => ({ ...f, name: value }))}
-                    />
                   </div>
                 </div>
                 <div>
@@ -395,48 +386,28 @@ export function CustomerMasterView({
                       onChange={e => setForm({ ...form, phone: e.target.value })}
                       className="min-w-0 flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
-                    <VoiceFieldMic
-                      lang={lang}
-                      disabled={submitting}
-                      label="phone"
-                      parse={parseVoiceGuidePhone}
-                      onFill={value => setForm(f => ({ ...f, phone: value }))}
-                    />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Email</label>
-                  <VoiceFieldRow
-                    lang={lang}
-                    disabled={submitting}
-                    label="email"
-                    parse={parseVoiceEmail}
-                    className="mt-1"
-                    onFill={value => setForm(f => ({ ...f, email: value }))}
-                  >
+                  <div className="mt-1">
                     <input
                       type="email"
                       value={form.email}
                       onChange={e => setForm({ ...form, email: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
-                  </VoiceFieldRow>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Address</label>
-                  <VoiceFieldRow
-                    lang={lang}
-                    disabled={submitting}
-                    label="address"
-                    className="mt-1"
-                    onFill={value => setForm(f => ({ ...f, address: value }))}
-                  >
+                  <div className="mt-1">
                     <input
                       value={form.address}
                       onChange={e => setForm({ ...form, address: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     />
-                  </VoiceFieldRow>
+                  </div>
                 </div>
                 {!vendorId && (
                   <div>
@@ -458,14 +429,7 @@ export function CustomerMasterView({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">Credit period (days)</label>
-                    <VoiceFieldRow
-                      lang={lang}
-                      disabled={submitting}
-                      label="credit period"
-                      parse={parseVoiceDigits}
-                      className="mt-1"
-                      onFill={value => setForm(f => ({ ...f, creditPeriodDays: value }))}
-                    >
+                    <div className="mt-1">
                       <input
                         type="number"
                         min={0}
@@ -476,18 +440,11 @@ export function CustomerMasterView({
                         placeholder="e.g. 30"
                         className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                       />
-                    </VoiceFieldRow>
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">Credit limit (₹)</label>
-                    <VoiceFieldRow
-                      lang={lang}
-                      disabled={submitting}
-                      label="credit limit"
-                      parse={parseVoiceDigits}
-                      className="mt-1"
-                      onFill={value => setForm(f => ({ ...f, creditLimit: value }))}
-                    >
+                    <div className="mt-1">
                       <input
                         type="number"
                         min={0}
@@ -497,7 +454,7 @@ export function CustomerMasterView({
                         placeholder="Optional"
                         className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                       />
-                    </VoiceFieldRow>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">

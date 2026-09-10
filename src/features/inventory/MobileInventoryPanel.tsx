@@ -18,8 +18,6 @@ import {
 import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
-import { VoiceSearchMic } from '../../components/ui/BillVoiceMic';
-import { useTranslation } from '../../i18n';
 import type { StockFilter } from './DesktopInventoryPanel';
 import { ProductThumb } from './ProductThumb';
 import { packUnitWord, stockUnitLabel } from '../../../shared/qtyStock';
@@ -106,7 +104,6 @@ export function MobileInventoryPanel({
   onDelete,
   onToggleGst,
 }: Props) {
-  const { lang } = useTranslation();
   const filtered = products.filter(p => {
     if (!inventoryTrackingEnabled) return true;
     const rem = remainingOf(p);
@@ -185,7 +182,6 @@ export function MobileInventoryPanel({
             className="w-full h-10 pl-9 pr-9 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
           />
         </div>
-        <VoiceSearchMic lang={lang} onQuery={onBarcodeSearch} />
       </div>
 
       {inventoryTrackingEnabled && (
