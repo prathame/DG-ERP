@@ -1093,7 +1093,7 @@ router.post('/api/settings/ai/test', requireAdmin, async (req: AuthRequest, res)
     const maskedKey = apiKey.slice(0, 4) + '...' + apiKey.slice(-4);
     logger.info('Gemini test: calling API', { tenantId, maskedKey });
 
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
     const geminiRes = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
@@ -1167,7 +1167,7 @@ Return ONLY valid JSON, no markdown, no explanation:
 {"supplierName":"...","supplierGstin":"...","invoiceNumber":"...","invoiceDate":"...","totalAmount":0,"items":[{"productName":"...","quantity":0,"unit":"...","rate":0,"amount":0,"gstPercent":null,"hsnCode":null}]}`;
 
     const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
