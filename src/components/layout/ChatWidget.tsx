@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, Mic, Square, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { NAV_POSITION_PREF_CHANGED_EVENT } from '../../lib/navPositionPref';
 
@@ -78,6 +78,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
   const dragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, bx: 0, by: 0 });
   const [portalReady, setPortalReady] = useState(false);
+  const [geminiConnected, setGeminiConnected] = useState<boolean | null>(null);
 
   const quickActions = ['sales today', 'low stock', 'unpaid invoices', 'daily report', 'help'];
 
@@ -126,8 +127,15 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
   }, [messages]);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
+    if (open) {
+      inputRef.current?.focus();
+      if (geminiConnected === null) {
+        fetchApi<{ geminiApiKey: string | null }>('/settings/ai')
+          .then(r => setGeminiConnected(!!r.geminiApiKey))
+          .catch(() => setGeminiConnected(false));
+      }
+    }
+  }, [open, geminiConnected]);
 
   useEscapeKey(() => {
     setOpen(false);
@@ -365,7 +373,8 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 </div>
                 <span
                   className={cn(
-                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2',
+                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2',
+                    geminiConnected === false ? 'bg-gray-400' : 'bg-emerald-400',
                     desktopGlass ? 'border-[var(--dg-chat-surface)]' : 'border-[#151619]',
                   )}
                 />
@@ -373,7 +382,11 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
               <div className="min-w-0 flex-1">
                 <p className={cn('font-bold', desktopGlass && 'dg-ink')}>Dhandho AI</p>
                 <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-400')}>
-                  Your business assistant — ask anything
+                  {geminiConnected === null
+                    ? 'Checking connection…'
+                    : geminiConnected
+                      ? 'Powered by Gemini ✓'
+                      : 'Offline mode'}
                 </p>
               </div>
               <button
