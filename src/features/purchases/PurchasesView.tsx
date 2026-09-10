@@ -14,6 +14,7 @@ import {
   Printer,
   Undo2,
   Upload,
+  ScanLine,
 } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel, openPrintWindow, printBillInWindow } from '../../lib/utils';
 import { generatePurchaseSelfInvoiceHtml, generatePurchaseBillHtml } from '../../lib/billTemplates';
@@ -21,6 +22,10 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
+import { resolveApiUrl } from '../../platforms/shared';
+import { ensureCorrelationId } from '../../lib/logger';
+import { appClientHeader } from '../../lib/deviceId';
+import { serviceCloudClientHeader } from '../../platforms/service-cloud/mode';
 import type { Product } from '../../types';
 import { purchaseUnitPrices } from '../../lib/gstInclusivePrice';
 import { SearchSelect } from '../../components/ui/SearchSelect';
@@ -173,6 +178,7 @@ export function PurchasesView({
   const [modalOpen, setModalOpen] = useState(false);
   const [supplierModal, setSupplierModal] = useState(false);
   const [supplierCsvOpen, setSupplierCsvOpen] = useState(false);
+  const [scanningBill, setScanningBill] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
   const [booksDeskReady, setBooksDeskReady] = useState(false);
   const emptySupplierForm = () => ({
@@ -2364,13 +2370,187 @@ export function PurchasesView({
                 </table>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setPurchaseRows([...purchaseRows, emptyPurchaseRow()])}
-                className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
-              >
-                + Add Product
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseRows([...purchaseRows, emptyPurchaseRow()])}
+                  className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
+                >
+                  + Add Product
+                </button>
+                <label className="text-sm font-bold text-gray-500 min-h-11 inline-flex items-center gap-1 cursor-pointer hover:text-brand">
+                  <Upload size={14} />
+                  Import CSV
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const text = reader.result as string;
+                        const lines = text.split(/\r?\n/).filter(l => l.trim());
+                        if (lines.length < 2) {
+                          toast('CSV needs a header row + data rows', 'error');
+                          return;
+                        }
+                        const headers = lines[0].split(',').map(h =>
+                          h
+                            .trim()
+                            .replace(/^\uFEFF/, '')
+                            .replace(/^"|"$/g, '')
+                            .toLowerCase(),
+                        );
+                        const nameIdx = headers.findIndex(h => h.includes('product') || h === 'name');
+                        const qtyIdx = headers.findIndex(h => h.includes('quantity') || h === 'qty');
+                        const costIdx = headers.findIndex(h => h.includes('cost') || h.includes('price'));
+                        const gstIdx = headers.findIndex(h => h.includes('gst') || h.includes('withgst'));
+                        const lotIdx = headers.findIndex(h => h.includes('lot') || h.includes('batch'));
+                        const expiryIdx = headers.findIndex(h => h.includes('expiry'));
+                        if (nameIdx < 0) {
+                          toast('CSV needs a "productName" or "name" column', 'error');
+                          return;
+                        }
+                        const rows: PurchaseRow[] = [];
+                        let skipped = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                          const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                          const pName = vals[nameIdx]?.trim();
+                          if (!pName) continue;
+                          const p = products.find(x => x.name.toLowerCase() === pName.toLowerCase());
+                          if (!p) {
+                            skipped++;
+                            continue;
+                          }
+                          let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
+                          const qty = qtyIdx >= 0 ? Number(vals[qtyIdx]) || 1 : 1;
+                          const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
+                          if (ps > 1) {
+                            row = { ...row, packs: Math.floor(qty / ps), loosePieces: qty % ps };
+                          } else {
+                            row = { ...row, quantity: qty };
+                          }
+                          if (costIdx >= 0 && vals[costIdx]) row = { ...row, costPrice: vals[costIdx] };
+                          if (gstIdx >= 0) row = { ...row, withGst: vals[gstIdx]?.toUpperCase() !== 'N' };
+                          if (lotIdx >= 0 && vals[lotIdx]) row = { ...row, lotNumber: vals[lotIdx] };
+                          if (expiryIdx >= 0 && vals[expiryIdx]) row = { ...row, expiryDate: vals[expiryIdx] };
+                          rows.push(row);
+                        }
+                        if (rows.length > 0) {
+                          setPurchaseRows(rows);
+                          toast(`${rows.length} products loaded${skipped ? `, ${skipped} not found` : ''}`, 'success');
+                        } else {
+                          toast(`No matching products found (${skipped} skipped)`, 'error');
+                        }
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <label
+                  className={cn(
+                    'text-sm font-bold min-h-11 inline-flex items-center gap-1 cursor-pointer hover:text-brand',
+                    scanningBill ? 'text-brand animate-pulse pointer-events-none' : 'text-gray-500',
+                  )}
+                >
+                  <ScanLine size={14} />
+                  {scanningBill ? 'Scanning…' : 'Scan Bill'}
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      e.target.value = '';
+                      setScanningBill(true);
+                      try {
+                        const form = new FormData();
+                        form.append('bill', file);
+                        const headers: Record<string, string> = {
+                          'X-Correlation-ID': ensureCorrelationId(),
+                          'X-DG-Client': serviceCloudClientHeader() || appClientHeader(),
+                        };
+                        const token = session.getToken();
+                        const tenantId = session.getTenantId();
+                        if (token) headers.Authorization = `Bearer ${token}`;
+                        if (tenantId) headers['X-Tenant-ID'] = tenantId;
+                        const res = await fetch(resolveApiUrl('/api/purchases/scan-bill'), {
+                          method: 'POST',
+                          headers,
+                          body: form,
+                        });
+                        const data = (await res.json()) as {
+                          error?: string;
+                          supplierName?: string;
+                          invoiceNumber?: string;
+                          invoiceDate?: string;
+                          items?: {
+                            productName: string;
+                            quantity: number;
+                            rate: number;
+                            gstPercent?: number | null;
+                            hsnCode?: string | null;
+                          }[];
+                        };
+                        if (!res.ok) {
+                          toast(data.error || 'Scan failed', 'error');
+                          return;
+                        }
+                        if (!data.items?.length) {
+                          toast('No items found in bill', 'error');
+                          return;
+                        }
+                        const rows: PurchaseRow[] = [];
+                        let matched = 0;
+                        let unmatched = 0;
+                        for (const item of data.items) {
+                          const p = products.find(x => x.name.toLowerCase() === item.productName.toLowerCase());
+                          if (!p) {
+                            unmatched++;
+                            continue;
+                          }
+                          let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
+                          const qty = item.quantity || 1;
+                          const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
+                          if (ps > 1) {
+                            row = { ...row, packs: Math.floor(qty / ps), loosePieces: qty % ps };
+                          } else {
+                            row = { ...row, quantity: qty };
+                          }
+                          if (item.rate) row = { ...row, costPrice: String(item.rate) };
+                          if (item.gstPercent != null) row = { ...row, withGst: true };
+                          rows.push(row);
+                          matched++;
+                        }
+                        if (rows.length > 0) {
+                          setPurchaseRows(rows);
+                          toast(
+                            `Scanned ${matched} items${unmatched ? `, ${unmatched} not found in inventory` : ''}`,
+                            'success',
+                          );
+                        } else {
+                          toast(`None of the ${data.items.length} bill items matched your inventory`, 'error');
+                        }
+                        if (data.invoiceNumber) {
+                          setPurchaseForm(f => ({ ...f, invoiceNumber: data.invoiceNumber! }));
+                        }
+                        if (data.supplierName) {
+                          const sup = suppliers.find(s => s.name.toLowerCase() === data.supplierName!.toLowerCase());
+                          if (sup) setPurchaseForm(f => ({ ...f, supplierId: sup.id }));
+                        }
+                      } catch (err) {
+                        toast((err as Error).message || 'Bill scan failed', 'error');
+                      } finally {
+                        setScanningBill(false);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs sm:text-sm text-gray-600">
                   {purchaseTotals.items} items · Gross ₹{purchaseTotals.gross.toLocaleString('en-IN')} · GST ₹
