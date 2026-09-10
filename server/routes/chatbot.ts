@@ -1261,10 +1261,10 @@ If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, repl
     contents.push({ role: 'user', parts: [{ text: trimmed }] });
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
         body: JSON.stringify({
           contents,
           generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
