@@ -278,6 +278,186 @@ export function PurchasesView({
     setModalOpen(false);
   };
 
+  const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) {
+        toast('CSV needs a header row + data rows', 'error');
+        return;
+      }
+      const hdrs = lines[0].split(',').map(h =>
+        h
+          .trim()
+          .replace(/^\uFEFF/, '')
+          .replace(/^"|"$/g, '')
+          .toLowerCase(),
+      );
+      const nameIdx = hdrs.findIndex(h => h.includes('product') || h === 'name');
+      const qtyIdx = hdrs.findIndex(h => h.includes('quantity') || h === 'qty');
+      const costIdx = hdrs.findIndex(h => h.includes('cost') || h.includes('price'));
+      const gstIdx = hdrs.findIndex(h => h.includes('gst') || h.includes('withgst'));
+      const lotIdx = hdrs.findIndex(h => h.includes('lot') || h.includes('batch'));
+      const expiryIdx = hdrs.findIndex(h => h.includes('expiry'));
+      if (nameIdx < 0) {
+        toast('CSV needs a "productName" or "name" column', 'error');
+        return;
+      }
+      const rows: PurchaseRow[] = [];
+      let skipped = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        const pName = vals[nameIdx]?.trim();
+        if (!pName) continue;
+        const p = products.find(x => x.name.toLowerCase() === pName.toLowerCase());
+        if (!p) {
+          skipped++;
+          continue;
+        }
+        let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
+        const qty = qtyIdx >= 0 ? Number(vals[qtyIdx]) || 1 : 1;
+        const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
+        if (ps > 1) {
+          row = { ...row, packs: Math.floor(qty / ps), loosePieces: qty % ps };
+        } else {
+          row = { ...row, quantity: qty };
+        }
+        if (costIdx >= 0 && vals[costIdx]) row = { ...row, costPrice: vals[costIdx] };
+        if (gstIdx >= 0) row = { ...row, withGst: vals[gstIdx]?.toUpperCase() !== 'N' };
+        if (lotIdx >= 0 && vals[lotIdx]) row = { ...row, lotNumber: vals[lotIdx] };
+        if (expiryIdx >= 0 && vals[expiryIdx]) row = { ...row, expiryDate: vals[expiryIdx] };
+        rows.push(row);
+      }
+      if (rows.length > 0) {
+        setPurchaseRows(rows);
+        setModalOpen(true);
+        toast(`${rows.length} products loaded${skipped ? `, ${skipped} not found` : ''}`, 'success');
+      } else {
+        toast(`No matching products found (${skipped} skipped)`, 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleBillScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setScanningBill(true);
+    try {
+      const applyScannedItems = (data: {
+        supplierName?: string;
+        invoiceNumber?: string;
+        items?: { productName: string; quantity: number; rate: number; gstPercent?: number | null }[];
+      }) => {
+        if (!data.items?.length) {
+          toast('No items found in bill', 'error');
+          return;
+        }
+        const rows: PurchaseRow[] = [];
+        let matched = 0,
+          unmatched = 0;
+        for (const item of data.items) {
+          const p = products.find(x => x.name.toLowerCase() === item.productName.toLowerCase());
+          if (!p) {
+            unmatched++;
+            continue;
+          }
+          let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
+          const qty = item.quantity || 1;
+          const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
+          if (ps > 1) {
+            row = { ...row, packs: Math.floor(qty / ps), loosePieces: qty % ps };
+          } else {
+            row = { ...row, quantity: qty };
+          }
+          if (item.rate) row = { ...row, costPrice: String(item.rate) };
+          if (item.gstPercent != null) row = { ...row, withGst: true };
+          rows.push(row);
+          matched++;
+        }
+        if (rows.length > 0) {
+          setPurchaseRows(rows);
+          setModalOpen(true);
+          toast(`Scanned ${matched} items${unmatched ? `, ${unmatched} not found in inventory` : ''}`, 'success');
+        } else {
+          toast(`None of the ${data.items.length} bill items matched your inventory`, 'error');
+        }
+        if (data.invoiceNumber) setPurchaseForm(f => ({ ...f, invoiceNumber: data.invoiceNumber! }));
+        if (data.supplierName) {
+          const sup = suppliers.find(s => s.name.toLowerCase() === data.supplierName!.toLowerCase());
+          if (sup) setPurchaseForm(f => ({ ...f, supplierId: sup.id }));
+        }
+      };
+
+      const form = new FormData();
+      form.append('bill', file);
+      const headers: Record<string, string> = {
+        'X-Correlation-ID': ensureCorrelationId(),
+        'X-DG-Client': serviceCloudClientHeader() || appClientHeader(),
+      };
+      const token = session.getToken();
+      const tenantId = session.getTenantId();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (tenantId) headers['X-Tenant-ID'] = tenantId;
+
+      let serverOk = false;
+      try {
+        const res = await fetch(resolveApiUrl('/api/purchases/scan-bill'), {
+          method: 'POST',
+          headers,
+          body: form,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          applyScannedItems(data as Parameters<typeof applyScannedItems>[0]);
+          serverOk = true;
+        }
+      } catch {
+        /* offline */
+      }
+
+      if (!serverOk) {
+        toast('Using offline scan (Tesseract OCR)...', 'info');
+        const { createWorker } = await import('tesseract.js');
+        const worker = await createWorker('eng');
+        const imgUrl = URL.createObjectURL(file);
+        const {
+          data: { text },
+        } = await worker.recognize(imgUrl);
+        URL.revokeObjectURL(imgUrl);
+        await worker.terminate();
+        const ocrLines = text
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean);
+        const items: { productName: string; quantity: number; rate: number }[] = [];
+        for (const line of ocrLines) {
+          for (const p of products) {
+            if (line.toLowerCase().includes(p.name.toLowerCase().slice(0, 15))) {
+              const nums =
+                line
+                  .match(/[\d,]+\.?\d*/g)
+                  ?.map(n => parseFloat(n.replace(/,/g, '')))
+                  .filter(n => n > 0) || [];
+              items.push({ productName: p.name, quantity: nums[0] || 1, rate: nums[1] || 0 });
+              break;
+            }
+          }
+        }
+        applyScannedItems({ items });
+      }
+    } catch (err) {
+      toast((err as Error).message || 'Bill scan failed', 'error');
+    } finally {
+      setScanningBill(false);
+    }
+  };
+
   const closeSupplierModal = () => {
     setSupplierModal(false);
     setEditingSupplierId(null);
@@ -1579,6 +1759,25 @@ export function PurchasesView({
             </>
           )}
 
+          {canEdit && section === 'purchases' && (
+            <div className="fixed bottom-20 right-4 z-30 flex flex-col gap-2 items-end">
+              <label className="h-10 w-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 active:bg-gray-50 cursor-pointer">
+                <Upload size={18} />
+                <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+              </label>
+              <label
+                className={cn(
+                  'h-10 w-10 rounded-full border shadow-sm flex items-center justify-center cursor-pointer',
+                  scanningBill
+                    ? 'bg-brand/10 border-brand text-brand animate-pulse pointer-events-none'
+                    : 'bg-white border-gray-200 text-gray-600 active:bg-gray-50',
+                )}
+              >
+                <ScanLine size={18} />
+                <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleBillScan} />
+              </label>
+            </div>
+          )}
           {canEdit && (
             <MobileFab
               label={section === 'purchases' ? 'New Purchase' : 'Add Expense'}
@@ -1613,6 +1812,23 @@ export function PurchasesView({
                   >
                     <ShoppingBag size={16} /> New Purchase
                   </button>
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 cursor-pointer">
+                    <Upload size={16} />
+                    Import CSV
+                    <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+                  </label>
+                  <label
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-bold cursor-pointer',
+                      scanningBill
+                        ? 'bg-brand/10 border-brand text-brand animate-pulse pointer-events-none'
+                        : 'bg-white border-gray-200 hover:bg-gray-50',
+                    )}
+                  >
+                    <ScanLine size={16} />
+                    {scanningBill ? 'Scanning\u2026' : 'Scan Bill'}
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleBillScan} />
+                  </label>
                 </>
               )}
               {section === 'expenses' && canEdit && (
@@ -2369,221 +2585,13 @@ export function PurchasesView({
                 </table>
               </div>
 
-              <div className="flex items-center gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setPurchaseRows([...purchaseRows, emptyPurchaseRow()])}
-                  className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
-                >
-                  + Add Product
-                </button>
-                <label className="text-sm font-bold text-gray-500 min-h-11 inline-flex items-center gap-1 cursor-pointer hover:text-brand">
-                  <Upload size={14} />
-                  Import CSV
-                  <input
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        const text = reader.result as string;
-                        const lines = text.split(/\r?\n/).filter(l => l.trim());
-                        if (lines.length < 2) {
-                          toast('CSV needs a header row + data rows', 'error');
-                          return;
-                        }
-                        const headers = lines[0].split(',').map(h =>
-                          h
-                            .trim()
-                            .replace(/^\uFEFF/, '')
-                            .replace(/^"|"$/g, '')
-                            .toLowerCase(),
-                        );
-                        const nameIdx = headers.findIndex(h => h.includes('product') || h === 'name');
-                        const qtyIdx = headers.findIndex(h => h.includes('quantity') || h === 'qty');
-                        const costIdx = headers.findIndex(h => h.includes('cost') || h.includes('price'));
-                        const gstIdx = headers.findIndex(h => h.includes('gst') || h.includes('withgst'));
-                        const lotIdx = headers.findIndex(h => h.includes('lot') || h.includes('batch'));
-                        const expiryIdx = headers.findIndex(h => h.includes('expiry'));
-                        if (nameIdx < 0) {
-                          toast('CSV needs a "productName" or "name" column', 'error');
-                          return;
-                        }
-                        const rows: PurchaseRow[] = [];
-                        let skipped = 0;
-                        for (let i = 1; i < lines.length; i++) {
-                          const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-                          const pName = vals[nameIdx]?.trim();
-                          if (!pName) continue;
-                          const p = products.find(x => x.name.toLowerCase() === pName.toLowerCase());
-                          if (!p) {
-                            skipped++;
-                            continue;
-                          }
-                          let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
-                          const qty = qtyIdx >= 0 ? Number(vals[qtyIdx]) || 1 : 1;
-                          const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
-                          if (ps > 1) {
-                            row = { ...row, packs: Math.floor(qty / ps), loosePieces: qty % ps };
-                          } else {
-                            row = { ...row, quantity: qty };
-                          }
-                          if (costIdx >= 0 && vals[costIdx]) row = { ...row, costPrice: vals[costIdx] };
-                          if (gstIdx >= 0) row = { ...row, withGst: vals[gstIdx]?.toUpperCase() !== 'N' };
-                          if (lotIdx >= 0 && vals[lotIdx]) row = { ...row, lotNumber: vals[lotIdx] };
-                          if (expiryIdx >= 0 && vals[expiryIdx]) row = { ...row, expiryDate: vals[expiryIdx] };
-                          rows.push(row);
-                        }
-                        if (rows.length > 0) {
-                          setPurchaseRows(rows);
-                          toast(`${rows.length} products loaded${skipped ? `, ${skipped} not found` : ''}`, 'success');
-                        } else {
-                          toast(`No matching products found (${skipped} skipped)`, 'error');
-                        }
-                      };
-                      reader.readAsText(file);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-                <label
-                  className={cn(
-                    'text-sm font-bold min-h-11 inline-flex items-center gap-1 cursor-pointer hover:text-brand',
-                    scanningBill ? 'text-brand animate-pulse pointer-events-none' : 'text-gray-500',
-                  )}
-                >
-                  <ScanLine size={14} />
-                  {scanningBill ? 'Scanning…' : 'Scan Bill'}
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={async e => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      e.target.value = '';
-                      setScanningBill(true);
-                      try {
-                        const applyScannedItems = (data: {
-                          supplierName?: string;
-                          invoiceNumber?: string;
-                          items?: { productName: string; quantity: number; rate: number; gstPercent?: number | null }[];
-                        }) => {
-                          if (!data.items?.length) {
-                            toast('No items found in bill', 'error');
-                            return;
-                          }
-                          const rows: PurchaseRow[] = [];
-                          let matched = 0,
-                            unmatched = 0;
-                          for (const item of data.items) {
-                            const p = products.find(x => x.name.toLowerCase() === item.productName.toLowerCase());
-                            if (!p) {
-                              unmatched++;
-                              continue;
-                            }
-                            let row = applyProductToRow(emptyPurchaseRow(), p.id, products);
-                            const qty = item.quantity || 1;
-                            const ps = p.packSize && p.packSize > 1 ? p.packSize : 1;
-                            if (ps > 1) {
-                              row = { ...row, packs: Math.floor(qty / ps), loosePieces: qty % ps };
-                            } else {
-                              row = { ...row, quantity: qty };
-                            }
-                            if (item.rate) row = { ...row, costPrice: String(item.rate) };
-                            if (item.gstPercent != null) row = { ...row, withGst: true };
-                            rows.push(row);
-                            matched++;
-                          }
-                          if (rows.length > 0) {
-                            setPurchaseRows(rows);
-                            toast(
-                              `Scanned ${matched} items${unmatched ? `, ${unmatched} not found in inventory` : ''}`,
-                              'success',
-                            );
-                          } else {
-                            toast(`None of the ${data.items.length} bill items matched your inventory`, 'error');
-                          }
-                          if (data.invoiceNumber) setPurchaseForm(f => ({ ...f, invoiceNumber: data.invoiceNumber! }));
-                          if (data.supplierName) {
-                            const sup = suppliers.find(s => s.name.toLowerCase() === data.supplierName!.toLowerCase());
-                            if (sup) setPurchaseForm(f => ({ ...f, supplierId: sup.id }));
-                          }
-                        };
-
-                        // Try server (Gemini) first, fall back to client-side Tesseract
-                        const form = new FormData();
-                        form.append('bill', file);
-                        const headers: Record<string, string> = {
-                          'X-Correlation-ID': ensureCorrelationId(),
-                          'X-DG-Client': serviceCloudClientHeader() || appClientHeader(),
-                        };
-                        const token = session.getToken();
-                        const tenantId = session.getTenantId();
-                        if (token) headers.Authorization = `Bearer ${token}`;
-                        if (tenantId) headers['X-Tenant-ID'] = tenantId;
-
-                        let serverOk = false;
-                        try {
-                          const res = await fetch(resolveApiUrl('/api/purchases/scan-bill'), {
-                            method: 'POST',
-                            headers,
-                            body: form,
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            applyScannedItems(data as Parameters<typeof applyScannedItems>[0]);
-                            serverOk = true;
-                          }
-                        } catch {
-                          /* network error — offline, fall through */
-                        }
-
-                        if (!serverOk) {
-                          // Offline fallback: Tesseract.js OCR
-                          toast('Using offline scan (Tesseract OCR)...', 'info');
-                          const { createWorker } = await import('tesseract.js');
-                          const worker = await createWorker('eng');
-                          const imgUrl = URL.createObjectURL(file);
-                          const {
-                            data: { text },
-                          } = await worker.recognize(imgUrl);
-                          URL.revokeObjectURL(imgUrl);
-                          await worker.terminate();
-
-                          // ponytail: best-effort line parsing — match product names from inventory
-                          const ocrLines = text
-                            .split('\n')
-                            .map(l => l.trim())
-                            .filter(Boolean);
-                          const items: { productName: string; quantity: number; rate: number }[] = [];
-                          for (const line of ocrLines) {
-                            for (const p of products) {
-                              if (line.toLowerCase().includes(p.name.toLowerCase().slice(0, 15))) {
-                                const nums =
-                                  line
-                                    .match(/[\d,]+\.?\d*/g)
-                                    ?.map(n => parseFloat(n.replace(/,/g, '')))
-                                    .filter(n => n > 0) || [];
-                                items.push({ productName: p.name, quantity: nums[0] || 1, rate: nums[1] || 0 });
-                                break;
-                              }
-                            }
-                          }
-                          applyScannedItems({ items });
-                        }
-                      } catch (err) {
-                        toast((err as Error).message || 'Bill scan failed', 'error');
-                      } finally {
-                        setScanningBill(false);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
+              <button
+                type="button"
+                onClick={() => setPurchaseRows([...purchaseRows, emptyPurchaseRow()])}
+                className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
+              >
+                + Add Product
+              </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs sm:text-sm text-gray-600">
                   {purchaseTotals.items} items · Gross ₹{purchaseTotals.gross.toLocaleString('en-IN')} · GST ₹
