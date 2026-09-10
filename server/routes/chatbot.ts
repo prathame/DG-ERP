@@ -1213,8 +1213,9 @@ router.post('/api/ai/assistant', blockVendors, async (req: AuthRequest, res) => 
       stats: statsRes.rows[0] || {},
     };
 
+    const userName = req.user?.name || '';
     const systemPrompt = `You are "Dhandho AI", an ERP assistant for an Indian business management app. You help users manage their business by answering questions and performing actions.
-
+${userName ? `\nThe user's name is "${userName}". Greet them by name when appropriate.\n` : ''}
 BUSINESS CONTEXT:
 - Products (${ctx.stats.total_products || 0} total): ${ctx.products.join(', ') || 'none yet'}
 - Suppliers: ${ctx.suppliers.join(', ') || 'none yet'}
