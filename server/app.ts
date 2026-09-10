@@ -360,7 +360,15 @@ export function createApp(): express.Application {
         // Single-session (user_sessions) still kicks every other device on new login.
         if (!decoded.impersonatedBy && !isTest) {
           const dgClient = String(req.headers['x-dg-client'] || '');
-          const allowed = new Set(['electron-cloud', 'electron-onprem', 'capacitor', 'capacitor-cloud', 'pwa', 'web']);
+          const allowed = new Set([
+            'electron-cloud',
+            'electron-onprem',
+            'capacitor',
+            'capacitor-cloud',
+            'pwa',
+            'web',
+            'browser',
+          ]);
           if (!allowed.has(dgClient)) {
             return res.status(403).json({
               error: 'Dhandho ERP requires the desktop app, mobile app, PWA, or browser login.',
