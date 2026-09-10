@@ -2084,6 +2084,14 @@ export async function initSchema() {
       'book_import_jobs',
       'book_bank_recon_marks',
       'book_bank_recon_sessions',
+      'hosp_dining_tables',
+      'hosp_menu_categories',
+      'hosp_menu_items',
+      'hosp_modifier_groups',
+      'hosp_orders',
+      'hosp_queue_entries',
+      'hosp_membership_plans',
+      'hosp_members',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
@@ -2099,6 +2107,42 @@ export async function initSchema() {
             CREATE POLICY ${table}_tenant_isolation ON ${table}
               USING (tenant_id = current_setting('app.tenant_id', true))
               WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+          END IF;
+        END $$
+      `);
+    }
+    const hospitalityChildPolicies = [
+      [
+        'hosp_modifiers',
+        `EXISTS (SELECT 1 FROM hosp_modifier_groups g WHERE g.id = group_id AND g.tenant_id = current_setting('app.tenant_id', true))`,
+      ],
+      [
+        'hosp_item_modifier_groups',
+        `EXISTS (SELECT 1 FROM hosp_menu_items i WHERE i.id = menu_item_id AND i.tenant_id = current_setting('app.tenant_id', true))
+         AND EXISTS (SELECT 1 FROM hosp_modifier_groups g WHERE g.id = group_id AND g.tenant_id = current_setting('app.tenant_id', true))`,
+      ],
+      [
+        'hosp_order_items',
+        `EXISTS (SELECT 1 FROM hosp_orders o WHERE o.id = order_id AND o.tenant_id = current_setting('app.tenant_id', true))`,
+      ],
+      [
+        'hosp_order_item_modifiers',
+        `EXISTS (
+           SELECT 1 FROM hosp_order_items oi
+           JOIN hosp_orders o ON o.id = oi.order_id
+           WHERE oi.id = order_item_id AND o.tenant_id = current_setting('app.tenant_id', true)
+         )`,
+      ],
+    ] as const;
+    for (const [table, predicate] of hospitalityChildPolicies) {
+      await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      await client.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+      await client.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = '${table}' AND policyname = '${table}_tenant_isolation') THEN
+            CREATE POLICY ${table}_tenant_isolation ON ${table}
+              USING (${predicate})
+              WITH CHECK (${predicate});
           END IF;
         END $$
       `);

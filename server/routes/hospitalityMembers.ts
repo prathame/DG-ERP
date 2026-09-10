@@ -4,12 +4,17 @@
  */
 import { Router } from 'express';
 import { AuthRequest, blockVendors } from '../middleware/auth';
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { evaluateMembershipValidity, isMemberCurrentlyActive } from '../../shared/hospPricing';
 
 const router = Router();
+
+async function beginTenantTransaction(client: import('pg').PoolClient, tenantId: string): Promise<void> {
+  await client.query('BEGIN');
+  await setTenantContext(client, tenantId);
+}
 
 async function requireHospitality(tenantId: string): Promise<string | null> {
   const row = (await pool.query(`SELECT business_type FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
@@ -195,7 +200,7 @@ router.post('/api/hospitality/membership-plans/batch', blockVendors, async (req:
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await beginTenantTransaction(client, tenantId);
     let count = 0;
     for (const r of items) {
       const name = String(r.name || '').trim();
