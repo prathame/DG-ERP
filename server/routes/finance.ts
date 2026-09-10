@@ -5,6 +5,7 @@ import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postVendorPaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { listRemindersDue, markReminderSentDate, runAutoWhatsAppReminders } from '../services/paymentReminderOps';
 import { sendTextViaWeb, isConnected } from '../services/whatsappWebSession';
 
@@ -263,6 +264,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
 
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
     const pMethod = paymentMethod || 'Cash';
+    await assertBooksDatesUnlocked(pool, tenantId, [pDate]);
 
     await client.query('BEGIN');
 
@@ -815,6 +817,7 @@ router.post('/api/vendor-finance/bank-statement/apply', blockVendors, async (req
       }
       const id = uid('VP');
       const payDate = p.date || new Date().toISOString().slice(0, 10);
+      await assertBooksDatesUnlocked(client, tenantId, [payDate]);
       const payNotes = `[${importBatchId}] ${p.note || 'Bank statement import'}`;
       await client.query(
         'INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',

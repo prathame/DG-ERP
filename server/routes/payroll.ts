@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { syncBooksSalaryToStaff } from '../services/booksSalaryToStaff';
 import { postStaffPaymentToBooks } from '../services/opsToBooks';
 import { deleteBookVoucher } from '../services/bookVouchers';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { sendTextViaWeb } from '../services/whatsappWebSession';
 
 const router = Router();
@@ -450,6 +451,7 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
     const pType = validTypes.includes(paymentType) ? paymentType : 'salary';
     const id = uid('SP');
     const date = paymentDate || new Date().toISOString().slice(0, 10);
+    await assertBooksDatesUnlocked(pool, tenantId, [date]);
     const d = new Date(date);
     const m = month || String(d.getMonth() + 1).padStart(2, '0');
     const y = year || d.getFullYear();
@@ -595,15 +597,16 @@ router.delete('/api/payroll/:id', blockVendors, async (req: AuthRequest, res) =>
       await client.query('BEGIN');
       await setTenantContext(client, tenantId);
       const payment = (
-        await client.query('SELECT id, payment_type FROM staff_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
-          req.params.id,
-          tenantId,
-        ])
-      ).rows[0] as { id: string; payment_type: string } | undefined;
+        await client.query(
+          'SELECT id, payment_type, payment_date FROM staff_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+          [req.params.id, tenantId],
+        )
+      ).rows[0] as { id: string; payment_type: string; payment_date: string } | undefined;
       if (!payment) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Payment not found' });
       }
+      await assertBooksDatesUnlocked(client, tenantId, [payment.payment_date]);
 
       const voucher = (
         await client.query(`SELECT id FROM book_vouchers WHERE tenant_id = $1 AND external_ref = $2 FOR UPDATE`, [

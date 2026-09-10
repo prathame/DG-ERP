@@ -20,6 +20,7 @@ import { DEFAULT_BILL_UNIT, normalizeLineUnit, parseBillQty } from '../../shared
 import { calendarDateIST } from '../../shared/dateOnly';
 import { saleChallanNumber } from '../../shared/saleChallanNumber';
 import { round2 } from '../../shared/gstRound';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 
 const router = Router();
 
@@ -579,6 +580,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       typeof invoiceDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(invoiceDate)
         ? invoiceDate.slice(0, 10)
         : new Date().toISOString().slice(0, 10);
+    await assertBooksDatesUnlocked(pool, tenantId, [invDate]);
     let resolvedDueDate: string | null =
       typeof dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dueDate) ? dueDate.slice(0, 10) : null;
     if (!resolvedDueDate && resolvedPartyType && resolvedPartyId) {
@@ -814,6 +816,7 @@ router.put('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
         : typeof current.invoice_date === 'string'
           ? String(current.invoice_date).slice(0, 10)
           : new Date().toISOString().slice(0, 10);
+    await assertBooksDatesUnlocked(pool, tenantId, [String(current.invoice_date), invDate]);
     let resolvedDueDate: string | null =
       typeof dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dueDate) ? dueDate.slice(0, 10) : null;
     if (dueDate === undefined) {
@@ -934,14 +937,15 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
     await setTenantContext(client, tenantId);
     const inv = (
       await client.query(
-        'SELECT id, grand_total, status FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        'SELECT id, grand_total, status, invoice_date FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
         [req.params.id, tenantId],
       )
-    ).rows[0] as { id: string; grand_total: number; status: string } | undefined;
+    ).rows[0] as { id: string; grand_total: number; status: string; invoice_date: string } | undefined;
     if (!inv) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
     }
+    await assertBooksDatesUnlocked(client, tenantId, [inv.invoice_date]);
 
     if (status === 'paid') {
       const paid = Number(
@@ -1040,14 +1044,15 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
     await setTenantContext(client, tenantId);
     const inv = (
       await client.query(
-        'SELECT id, status, invoice_number FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        'SELECT id, status, invoice_number, invoice_date FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
         [req.params.id, tenantId],
       )
-    ).rows[0] as { id: string; status: string; invoice_number: string } | undefined;
+    ).rows[0] as { id: string; status: string; invoice_number: string; invoice_date: string } | undefined;
     if (!inv) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
     }
+    await assertBooksDatesUnlocked(client, tenantId, [inv.invoice_date]);
     if (inv.status === 'cancelled') {
       await withBooks(() => removeOpsBooksByExternalRef(client, tenantId, `ops:si:${inv.id}`), 'invoice-cancel');
       await client.query('COMMIT');

@@ -5,6 +5,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { postCashIncomeToBooks, postInvoicePaymentToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import type { PoolClient } from 'pg';
 
 async function booksPostPayment(
@@ -534,6 +535,7 @@ router.post('/api/invoice-finance/cash-income', blockVendors, async (req: AuthRe
     typeof body.incomeDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.incomeDate)
       ? body.incomeDate
       : new Date().toISOString().slice(0, 10);
+  await assertBooksDatesUnlocked(pool, tenantId, [incomeDate]);
   const paymentMethod = String(body.paymentMethod || 'Cash').trim() || 'Cash';
   const referenceNumber =
     typeof body.referenceNumber === 'string' && body.referenceNumber.trim()
@@ -944,6 +946,7 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     }
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
     const pMethod = paymentMethod || 'Cash';
+    await assertBooksDatesUnlocked(pool, tenantId, [pDate]);
 
     await client.query('BEGIN');
     if (idemKey) {
@@ -1302,22 +1305,24 @@ router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: Aut
     await client.query('BEGIN');
     const payment = (
       await client.query(
-        'SELECT id, invoice_id, amount FROM invoice_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        'SELECT id, invoice_id, amount, payment_date FROM invoice_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
         [req.params.id, tenantId],
       )
-    ).rows[0] as { id: string; invoice_id: string; amount: number } | undefined;
+    ).rows[0] as { id: string; invoice_id: string; amount: number; payment_date: string } | undefined;
+    if (payment) await assertBooksDatesUnlocked(client, tenantId, [payment.payment_date]);
     if (!payment) {
       // Service: Miracle unallocated cash is in vendor_payments (shown as advances)
       const biz = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
         { business_type?: string } | undefined;
       if (biz?.business_type === 'service') {
         const vp = (
-          await client.query('SELECT id, amount FROM vendor_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
-            req.params.id,
-            tenantId,
-          ])
-        ).rows[0] as { id: string; amount: number } | undefined;
+          await client.query(
+            'SELECT id, amount, payment_date FROM vendor_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+            [req.params.id, tenantId],
+          )
+        ).rows[0] as { id: string; amount: number; payment_date: string } | undefined;
         if (vp) {
+          await assertBooksDatesUnlocked(client, tenantId, [vp.payment_date]);
           await client.query('DELETE FROM vendor_payments WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
           await client.query('COMMIT');
           await logAudit(

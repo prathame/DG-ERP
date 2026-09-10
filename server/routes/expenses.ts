@@ -6,6 +6,7 @@ import { handleApiError } from '../utils/http-error';
 import { parsePagination } from '../utils/pagination';
 import { postExpenseToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { deleteBookVoucher, BookVoucherNotFoundError, BookVoucherValidationError } from '../services/bookVouchers';
 import {
   BOOKS_EXPENSE_SQL,
@@ -300,6 +301,7 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     if (parsedAmount > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
     const id = uid('EXP');
     const date = expenseDate || new Date().toISOString().slice(0, 10);
+    await assertBooksDatesUnlocked(pool, tenantId, [date]);
     let booksVoucherId: string | null = null;
     const client = await pool.connect();
     try {
@@ -379,8 +381,10 @@ router.delete('/api/expenses/:id', blockVendors, async (req: AuthRequest, res) =
       await setTenantContext(client, tenantId);
 
       // Ops row (id = EXP…) and/or Books voucher (id = BV… or linked via ops:ex:)
-      const ops = (await client.query(`SELECT id FROM expenses WHERE id = $1 AND tenant_id = $2`, [id, tenantId]))
-        .rows[0] as { id: string } | undefined;
+      const ops = (
+        await client.query(`SELECT id, expense_date FROM expenses WHERE id = $1 AND tenant_id = $2`, [id, tenantId])
+      ).rows[0] as { id: string; expense_date: string } | undefined;
+      if (ops) await assertBooksDatesUnlocked(client, tenantId, [ops.expense_date]);
 
       let voucherId: string | null = null;
       const byId = (await client.query(`SELECT id FROM book_vouchers WHERE id = $1 AND tenant_id = $2`, [id, tenantId]))

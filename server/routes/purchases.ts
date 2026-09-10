@@ -7,6 +7,7 @@ import { handleApiError } from '../utils/http-error';
 import { postPurchaseBatchToBooks, postSupplierPaymentToBooks } from '../services/opsToBooks';
 import { deleteBookVoucher } from '../services/bookVouchers';
 import { withBooks } from '../utils/booksStrict';
+import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { isQtyStockUnit, parseStockQty } from '../../shared/qtyStock';
 import { isBarcodeAddonOn } from '../utils/barcode';
 
@@ -158,6 +159,19 @@ router.delete('/api/suppliers/:id', blockVendors, async (req: AuthRequest, res) 
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Supplier not found' });
     }
+    const datedRows = (
+      await client.query(
+        `SELECT purchase_date AS operation_date FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2
+         UNION ALL
+         SELECT payment_date AS operation_date FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      )
+    ).rows as { operation_date: string }[];
+    await assertBooksDatesUnlocked(
+      client,
+      tenantId,
+      datedRows.map(row => row.operation_date),
+    );
 
     const sold = (
       await client.query(
@@ -291,6 +305,7 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
 
     const gstRate = Number(reqGstRate) || 18;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
+    await assertBooksDatesUnlocked(pool, tenantId, [date]);
     const batchId = uid('PB');
     const paidAmount = amountPaid ? Math.max(0, Number(amountPaid)) : 0;
     let resolvedInvoiceNumber = typeof invoiceNumber === 'string' ? invoiceNumber.trim() : '';
@@ -848,6 +863,8 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { supplierId } = req.params;
     const { amount, paymentDate, paymentMethod, referenceNumber, notes, batchId } = req.body;
+    const pDate = paymentDate || new Date().toISOString().slice(0, 10);
+    await assertBooksDatesUnlocked(pool, tenantId, [pDate]);
     const parsedAmount = Number(amount);
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0)
       return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
@@ -919,7 +936,7 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
         tenantId,
         supplierId,
         parsedAmount,
-        paymentDate || new Date().toISOString().slice(0, 10),
+        pDate,
         paymentMethod || 'Cash',
         referenceNumber || null,
         notes || null,
@@ -931,7 +948,7 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
         postSupplierPaymentToBooks(client, tenantId, {
           id,
           amount: parsedAmount,
-          paymentDate: paymentDate || new Date().toISOString().slice(0, 10),
+          paymentDate: pDate,
           paymentMethod: paymentMethod || 'Cash',
           referenceNumber: referenceNumber || null,
           notes: notes || null,
