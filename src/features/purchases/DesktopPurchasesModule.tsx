@@ -61,6 +61,7 @@ type Props = {
   suppliers: DesktopSupplierCard[];
   onSelectSupplier: (id: string) => void;
   onAddSupplier: () => void;
+  onImportSupplierCsv?: () => void;
   onEditSupplier: (s: DesktopSupplierCard) => void;
   onDeleteSupplier: (s: DesktopSupplierCard) => void;
   onNewPurchase: () => void;
@@ -103,6 +104,7 @@ export function DesktopPurchasesModule({
   suppliers,
   onSelectSupplier,
   onAddSupplier,
+  onImportSupplierCsv,
   onEditSupplier,
   onDeleteSupplier,
   onNewPurchase,
@@ -333,19 +335,23 @@ export function DesktopPurchasesModule({
               })}
 
               {canEdit && (
-                <button
-                  type="button"
-                  onClick={onAddSupplier}
-                  className="rounded-2xl border-2 border-dashed border-[var(--dg-card-border)] flex flex-col items-center justify-center p-6 min-h-[300px] hover:border-[var(--dg-primary)] hover:bg-[var(--dg-input)] transition-all group"
-                >
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)] group-hover:scale-110 transition-transform">
-                    <UserPlus size={28} />
-                  </div>
-                  <h3 className="font-bold dg-ink">Add Supplier</h3>
-                  <p className="text-sm dg-muted text-center mt-2 max-w-[200px] leading-relaxed">
-                    Register a new vendor and manage procurement
-                  </p>
-                </button>
+                <div className="rounded-2xl border-2 border-dashed border-[var(--dg-card-border)] flex flex-col items-center justify-center p-6 min-h-[300px] gap-4">
+                  <button type="button" onClick={onAddSupplier} className="flex flex-col items-center group">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mb-2 bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)] group-hover:scale-110 transition-transform">
+                      <UserPlus size={28} />
+                    </div>
+                    <h3 className="font-bold dg-ink">Add Supplier</h3>
+                  </button>
+                  {onImportSupplierCsv && (
+                    <button
+                      type="button"
+                      onClick={onImportSupplierCsv}
+                      className="text-sm font-medium text-[var(--dg-primary)] hover:underline"
+                    >
+                      or Import CSV
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
