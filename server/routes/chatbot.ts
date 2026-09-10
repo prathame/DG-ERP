@@ -1273,8 +1273,12 @@ If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, repl
     );
 
     if (!geminiRes.ok) {
-      // ponytail: Gemini failed → fall back to regex chatbot
-      logger.warn('Gemini AI assistant call failed, falling back to regex chatbot', { status: geminiRes.status });
+      const errText = await geminiRes.text();
+      logger.warn('Gemini AI assistant failed, falling back to regex chatbot', {
+        tenantId,
+        status: geminiRes.status,
+        errText,
+      });
       const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
         | {
             tab_config: TabConfig | null;
