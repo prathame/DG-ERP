@@ -1392,6 +1392,21 @@ export async function initSchema() {
       'CREATE INDEX IF NOT EXISTS idx_gstr2b_ims_tenant_period ON gstr2b_ims_actions(tenant_id, rtnprd)',
     );
 
+    // ITC claims/adjustments per return period
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS itc_claims (
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        period TEXT NOT NULL,
+        claimed_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        reversal_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        reversal_reason TEXT,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','filed','confirmed')),
+        notes TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, period)
+      )
+    `);
+
     // Business type
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'manufacturer'");
 
@@ -2084,6 +2099,7 @@ export async function initSchema() {
       'book_import_jobs',
       'book_bank_recon_marks',
       'book_bank_recon_sessions',
+      'itc_claims',
       'hosp_dining_tables',
       'hosp_menu_categories',
       'hosp_menu_items',

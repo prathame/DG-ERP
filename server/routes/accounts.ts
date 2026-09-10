@@ -1500,6 +1500,165 @@ router.get('/api/gstr3b/compute', async (req, res) => {
   }
 });
 
+// ITC Ledger — period-wise register computed from purchases + RCM, overlaid with claim/reversal status
+router.get('/api/itc/ledger', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const fy = Number(req.query.fy) || new Date().getFullYear();
+    // Indian FY: April fy to March fy+1
+    const months: { m: number; y: number; period: string }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const m = ((3 + i) % 12) + 1; // Apr=4 .. Mar=3
+      const y = i < 9 ? fy : fy + 1;
+      months.push({ m, y, period: `${String(m).padStart(2, '0')}${y}` });
+    }
+
+    const rows = [];
+    for (const { m, y, period } of months) {
+      const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+      const endDate = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
+      // Forward-charge purchase ITC
+      const purchItc = Number(
+        (
+          await pool.query(
+            `SELECT COALESCE(SUM(${PURCHASE_TAX_SQL}),0) as v
+             FROM product_purchases pp WHERE pp.tenant_id = $1 AND pp.purchase_date >= $2 AND pp.purchase_date < $3`,
+            [tenantId, startDate, endDate],
+          )
+        ).rows[0]?.v ?? 0,
+      );
+
+      // RCM ITC
+      const rcmItc = Number(
+        (
+          await pool.query(
+            `SELECT COALESCE(SUM(${PURCHASE_RCM_TAX_SQL}),0) as v
+             FROM product_purchases pp WHERE pp.tenant_id = $1 AND pp.purchase_date >= $2 AND pp.purchase_date < $3`,
+            [tenantId, startDate, endDate],
+          )
+        ).rows[0]?.v ?? 0,
+      );
+
+      // Debit notes (increase ITC)
+      const dnItc = Number(
+        (
+          await pool.query(
+            `SELECT COALESCE(SUM(gst_amount),0) as v FROM credit_debit_notes
+             WHERE tenant_id=$1 AND note_date >= $2 AND note_date < $3 AND note_type='debit'`,
+            [tenantId, startDate, endDate],
+          )
+        ).rows[0]?.v ?? 0,
+      );
+
+      const available = round2(purchItc + rcmItc + dnItc);
+      rows.push({
+        period,
+        month: m,
+        year: y,
+        purchaseItc: round2(purchItc),
+        rcmItc: round2(rcmItc),
+        debitNoteItc: round2(dnItc),
+        available,
+      });
+    }
+
+    // Overlay claim/reversal data
+    const { rows: claims } = await pool.query(
+      `SELECT period, claimed_amount, reversal_amount, reversal_reason, status, notes, updated_at
+       FROM itc_claims WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const claimMap = new Map(claims.map((c: Record<string, unknown>) => [String(c.period), c]));
+
+    let cumBalance = 0;
+    const ledger = rows.map(r => {
+      const claim = claimMap.get(r.period) as Record<string, unknown> | undefined;
+      const claimed = Number(claim?.claimed_amount ?? 0);
+      const reversed = Number(claim?.reversal_amount ?? 0);
+      const status = String(claim?.status ?? 'draft');
+      const net = round2(r.available - reversed);
+      cumBalance = round2(cumBalance + net - claimed);
+      return {
+        ...r,
+        claimed: round2(claimed),
+        reversed: round2(reversed),
+        reversalReason: claim?.reversal_reason ?? null,
+        net: round2(net),
+        balance: cumBalance,
+        status,
+        notes: claim?.notes ?? null,
+      };
+    });
+
+    res.json({ fy, ledger });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// ITC claim/reversal for a period — admin only
+router.put('/api/itc/claims/:period', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const period = String(req.params.period)
+      .trim()
+      .replace(/[^0-9]/g, '')
+      .slice(0, 6);
+    if (period.length < 5) return res.status(400).json({ error: 'Invalid period (MMYYYY)' });
+
+    const { claimedAmount, reversalAmount, reversalReason, status, notes } = req.body as {
+      claimedAmount?: number;
+      reversalAmount?: number;
+      reversalReason?: string;
+      status?: string;
+      notes?: string;
+    };
+
+    const validStatuses = ['draft', 'filed', 'confirmed'];
+    if (status && !validStatuses.includes(status))
+      return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
+
+    const { rows } = await pool.query(
+      `INSERT INTO itc_claims (tenant_id, period, claimed_amount, reversal_amount, reversal_reason, status, notes, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT (tenant_id, period)
+       DO UPDATE SET
+         claimed_amount = COALESCE($3, itc_claims.claimed_amount),
+         reversal_amount = COALESCE($4, itc_claims.reversal_amount),
+         reversal_reason = COALESCE($5, itc_claims.reversal_reason),
+         status = COALESCE($6, itc_claims.status),
+         notes = COALESCE($7, itc_claims.notes),
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        tenantId,
+        period,
+        claimedAmount ?? 0,
+        reversalAmount ?? 0,
+        reversalReason ?? null,
+        status ?? 'draft',
+        notes ?? null,
+      ],
+    );
+
+    await logAudit(
+      pool,
+      tenantId,
+      'ITC Claim Updated',
+      'itc_claim',
+      period,
+      `status=${status ?? 'draft'}, claimed=${claimedAmount ?? 0}`,
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 // GSTR-2B Reconciliation — upload JSON → match ops + Books purchases (+ local IMS actions)
 router.post('/api/gstr2b/reconcile', blockVendors, async (req: AuthRequest, res) => {
   try {
