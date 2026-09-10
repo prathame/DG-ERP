@@ -93,6 +93,8 @@ describe('Backup export', () => {
     expect(r.status).toBe(200);
     expect(r.body._meta).toBeDefined();
     expect(r.body._meta.tenantId).toBe(T_BACKUP);
+    expect(r.body._meta.scope).toBe('operations-only');
+    expect(r.body.book_vouchers).toBeUndefined();
     backupData = r.body;
   });
 
@@ -138,6 +140,15 @@ describe('Restore security', () => {
       .set(hdrs)
       .send({ _meta: { version: 999, tenant_id: T_BACKUP } });
     expect(r.status).toBe(400);
+  });
+
+  it('POST /api/backup/restore rejects a misleading full-accounting scope', async () => {
+    const r = await api()
+      .post('/api/backup/restore')
+      .set(hdrs)
+      .send({ _meta: { version: '1.0', tenantId: T_BACKUP, scope: 'full' } });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/scope/i);
   });
 
   it('Staff cannot restore backup (Admin only)', async () => {

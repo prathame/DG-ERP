@@ -122,6 +122,7 @@ router.get('/api/backup', requireAdmin, async (req: AuthRequest, res) => {
     const data = {
       _meta: {
         version: '1.0',
+        scope: BACKUP_SCOPE,
         exportedAt: new Date().toISOString(),
         tenantId,
         companyName: tenant?.company_name || '',
@@ -517,6 +518,8 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
   ]),
 };
 
+const BACKUP_SCOPE = 'operations-only';
+
 router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -526,6 +529,8 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
     if (!data || !data._meta) return res.status(400).json({ error: 'Invalid backup file — missing _meta header' });
     if (data._meta.version !== '1.0')
       return res.status(400).json({ error: `Unsupported backup version: ${data._meta.version}` });
+    if (data._meta.scope && data._meta.scope !== BACKUP_SCOPE)
+      return res.status(400).json({ error: 'Unsupported backup scope' });
 
     // Tenant safety: backup must belong to the authenticated tenant.
     // Restoring another tenant's backup would overwrite this tenant's data with foreign records.
@@ -629,6 +634,7 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
       res.json({
         ok: true,
         restored,
+        scope: BACKUP_SCOPE,
         source: { exportedAt: data._meta.exportedAt, companyName: data._meta.companyName },
       });
     } catch (e) {
@@ -964,6 +970,7 @@ export async function generateBackupJson(
   const data = {
     _meta: {
       version: '1.0',
+      scope: BACKUP_SCOPE,
       exportedAt: new Date().toISOString(),
       tenantId,
       companyName: tenant?.company_name || '',
@@ -1003,7 +1010,7 @@ export async function sendBackupEmail(tenantId: string, toEmail: string): Promis
       : String(emailRow.from_email || emailRow.smtp_user),
     to: toEmail,
     subject: `Dhandho Backup — ${tenant?.company_name || tenantId} — ${new Date().toLocaleDateString('en-IN')}`,
-    text: `Please find your Dhandho data backup attached.\n\nRecords: ${totalRecords}\nDate: ${new Date().toLocaleString('en-IN')}\n\nKeep this file safe — it can be used to restore your data.`,
+    text: `Please find your Dhandho operations-only data backup attached. Books/accounting data is not included.\n\nRecords: ${totalRecords}\nDate: ${new Date().toLocaleString('en-IN')}\n\nKeep this file safe — it can be used to restore your data.`,
     attachments: [{ filename, content: Buffer.from(json, 'utf-8'), contentType: 'application/json' }],
   });
   await pool.query('UPDATE tenants SET backup_last_at = NOW() WHERE id = $1', [tenantId]);
