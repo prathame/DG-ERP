@@ -1252,17 +1252,31 @@ If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, repl
     }
     contents.push({ role: 'user', parts: [{ text: trimmed }] });
 
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
-        }),
-      },
-    );
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 15_000);
+    let geminiRes: globalThis.Response;
+    try {
+      geminiRes = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
+          body: JSON.stringify({
+            contents,
+            generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+          }),
+          signal: abort.signal,
+        },
+      );
+    } catch (err) {
+      clearTimeout(timer);
+      logger.warn('Gemini timeout/network error, falling back to regex chatbot', { tenantId });
+      const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+        { tab_config: TabConfig | null } | undefined;
+      const fallback = await query(trimmed, tenantId, tenantRow?.tab_config ?? null);
+      return res.json(fallback);
+    }
+    clearTimeout(timer);
 
     if (!geminiRes.ok) {
       // ponytail: Gemini failed → fall back to regex chatbot
