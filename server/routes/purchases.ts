@@ -1087,10 +1087,10 @@ router.post('/api/settings/ai/test', requireAdmin, async (req: AuthRequest, res)
     if (!apiKey) return res.status(400).json({ ok: false, error: 'No API key saved' });
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }],
           generationConfig: { temperature: 0, maxOutputTokens: 10 },
@@ -1154,10 +1154,10 @@ Return ONLY valid JSON, no markdown, no explanation:
 {"supplierName":"...","supplierGstin":"...","invoiceNumber":"...","invoiceDate":"...","totalAmount":0,"items":[{"productName":"...","quantity":0,"unit":"...","rate":0,"amount":0,"gstPercent":null,"hsnCode":null}]}`;
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
           generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
