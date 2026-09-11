@@ -1237,15 +1237,32 @@ If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, repl
 
     const contents = buildAssistantContents(history, trimmed);
 
-    const geminiRes = await fetch(GEMINI_GENERATE_URL, {
-      method: 'POST',
-      headers: geminiHeaders(apiKey),
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: geminiGenerationConfig({ temperature: 0.7, maxOutputTokens: 512 }),
-      }),
-    });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 15_000);
+    let geminiRes: globalThis.Response;
+    try {
+      geminiRes = await fetch(GEMINI_GENERATE_URL, {
+        method: 'POST',
+        headers: geminiHeaders(apiKey),
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: geminiGenerationConfig({ temperature: 0.7, maxOutputTokens: 512 }),
+        }),
+        signal: abort.signal,
+      });
+    } catch {
+      clearTimeout(timer);
+      logger.warn('Gemini timeout/network error, falling back to regex chatbot', { tenantId });
+      const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+        | {
+            tab_config: TabConfig | null;
+          }
+        | undefined;
+      const fallback = await query(trimmed, tenantId, tenantRow?.tab_config ?? null);
+      return res.json(fallback);
+    }
+    clearTimeout(timer);
 
     if (!geminiRes.ok) {
       // ponytail: Gemini failed → fall back to regex chatbot

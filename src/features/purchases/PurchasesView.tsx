@@ -557,6 +557,19 @@ export function PurchasesView({
         .catch(() => {});
   }, [section]);
 
+  // Auto-open purchase detail when supplier has exactly 1 batch
+  useEffect(() => {
+    if (!selectedSupplierId || selectedBatchId) return;
+    const supplierBatches = batches.filter(b => b.supplierId === selectedSupplierId);
+    if (supplierBatches.length === 1) {
+      const batch = supplierBatches[0]!;
+      setSelectedBatchId(batch.batchId);
+      fetchApi(`/purchases/batch/${batch.batchId}`)
+        .then(d => setBatchDetail(d as Record<string, unknown>))
+        .catch(() => {});
+    }
+  }, [selectedSupplierId, batches, selectedBatchId]);
+
   const booksExpensesHint =
     booksDeskReady && section === 'expenses' ? (
       <BooksExpensesHint
@@ -1040,6 +1053,7 @@ export function PurchasesView({
                   onClick={() => {
                     setSelectedBatchId(null);
                     setBatchDetail(null);
+                    if (supplierBatches.length <= 1) setSelectedSupplierId(null);
                   }}
                   className="p-2 hover:bg-gray-200 rounded-lg"
                 >
