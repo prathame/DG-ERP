@@ -1,6 +1,6 @@
 /** Shared Gemini generateContent helpers (chat, bill scan, product scan, key test). */
 
-export const GEMINI_MODEL = 'gemini-3.6-flash';
+export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 export const GEMINI_GENERATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 /** Last N conversation turns sent to Gemini (current user message is added separately). */
