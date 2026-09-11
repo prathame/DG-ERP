@@ -14,6 +14,7 @@ import { isQtyStockUnit, usesQtyStock } from '../../shared/qtyStock';
 import { postOpeningStockToBooks } from '../services/opsToBooks';
 import { withBooks } from '../utils/booksStrict';
 import { logger } from '../utils/logger';
+import { GEMINI_GENERATE_URL, geminiGenerationConfig, geminiHeaders, geminiInlineImage } from '../utils/gemini';
 
 const router = Router();
 
@@ -1396,8 +1397,7 @@ router.post(
       if (!apiKey) return res.status(501).json({ error: 'No Gemini API key — set it in Settings → AI' });
 
       const fileBuf = fs.readFileSync(req.file.path);
-      const base64 = fileBuf.toString('base64');
-      const mime = req.file.mimetype || 'image/jpeg';
+      const inline = await geminiInlineImage(fileBuf, req.file.mimetype || 'image/jpeg');
 
       const prompt = `You are a product data extractor for an Indian retail/wholesale business.
 Look at this product photo and extract:
@@ -1416,17 +1416,14 @@ Look at this product photo and extract:
 Return ONLY valid JSON, no markdown:
 {"name":"...","description":"...","mrp":null,"hsnCode":null,"gstRate":18,"packSize":1,"packName":"Piece","barcodeNumber":null,"expiryDate":null,"mfgDate":null,"batchNumber":null}`;
 
-      const geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-          }),
-        },
-      );
+      const geminiRes = await fetch(GEMINI_GENERATE_URL, {
+        method: 'POST',
+        headers: geminiHeaders(apiKey),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inlineData: inline }] }],
+          generationConfig: geminiGenerationConfig({ temperature: 0.1, maxOutputTokens: 2048 }),
+        }),
+      });
 
       if (!geminiRes.ok) {
         const errText = await geminiRes.text();

@@ -4,6 +4,7 @@ import { pool } from '../pg-db';
 import { logger } from '../utils/logger';
 import { handleApiError } from '../utils/http-error';
 import { blockVendors, AuthRequest } from '../middleware/auth';
+import { GEMINI_GENERATE_URL, buildAssistantContents, geminiGenerationConfig, geminiHeaders } from '../utils/gemini';
 
 const router = Router();
 
@@ -1234,45 +1235,30 @@ If no action needed, set "action": null.
 Keep replies short (1-2 sentences). Be friendly, use ₹ for currency.
 If the user writes in Hindi, Marathi, Tamil, Telugu, or any other language, reply in that same language.`;
 
-    // Build Gemini contents: system prompt as first user turn, then history, then current message
-    const contents: { role: string; parts: { text: string }[] }[] = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      {
-        role: 'model',
-        parts: [{ text: '{"text": "Namaste! I\'m Dhandho AI. How can I help you today?", "action": null}' }],
-      },
-    ];
-    if (history?.length) {
-      for (const h of history.slice(-10)) {
-        contents.push({
-          role: h.role === 'user' ? 'user' : 'model',
-          parts: [{ text: h.text }],
-        });
-      }
-    }
-    contents.push({ role: 'user', parts: [{ text: trimmed }] });
+    const contents = buildAssistantContents(history, trimmed);
 
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 15_000);
     let geminiRes: globalThis.Response;
     try {
-      geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
-          body: JSON.stringify({
-            contents,
-            generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
-          }),
-          signal: abort.signal,
-        },
-      );
-    } catch (err) {
+      geminiRes = await fetch(GEMINI_GENERATE_URL, {
+        method: 'POST',
+        headers: geminiHeaders(apiKey),
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: geminiGenerationConfig({ temperature: 0.7, maxOutputTokens: 512 }),
+        }),
+        signal: abort.signal,
+      });
+    } catch {
       clearTimeout(timer);
       logger.warn('Gemini timeout/network error, falling back to regex chatbot', { tenantId });
       const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as
-        { tab_config: TabConfig | null } | undefined;
+        | {
+            tab_config: TabConfig | null;
+          }
+        | undefined;
       const fallback = await query(trimmed, tenantId, tenantRow?.tab_config ?? null);
       return res.json(fallback);
     }

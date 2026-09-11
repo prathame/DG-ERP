@@ -15,6 +15,7 @@ import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import { isQtyStockUnit, parseStockQty } from '../../shared/qtyStock';
 import { isBarcodeAddonOn } from '../utils/barcode';
 import { logger } from '../utils/logger';
+import { GEMINI_GENERATE_URL, geminiGenerationConfig, geminiHeaders, geminiInlineImage } from '../utils/gemini';
 
 const router = Router();
 
@@ -1093,13 +1094,12 @@ router.post('/api/settings/ai/test', requireAdmin, async (req: AuthRequest, res)
     const maskedKey = apiKey.slice(0, 4) + '...' + apiKey.slice(-4);
     logger.info('Gemini test: calling API', { tenantId, maskedKey });
 
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
-    const geminiRes = await fetch(url, {
+    const geminiRes = await fetch(GEMINI_GENERATE_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
+      headers: geminiHeaders(apiKey),
       body: JSON.stringify({
         contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 10 },
+        generationConfig: geminiGenerationConfig({ temperature: 0, maxOutputTokens: 10 }),
       }),
     });
 
@@ -1143,8 +1143,7 @@ router.post('/api/purchases/scan-bill', blockVendors, billUpload.single('bill'),
       return res.status(501).json({ error: 'No Gemini API key — set it in Settings → AI or use offline scan' });
 
     const fileBuf = fs.readFileSync(req.file.path);
-    const base64 = fileBuf.toString('base64');
-    const mime = req.file.mimetype || 'image/jpeg';
+    const inline = await geminiInlineImage(fileBuf, req.file.mimetype || 'image/jpeg');
 
     const prompt = `You are a purchase bill / invoice data extractor for an Indian agro wholesale business.
 Extract ALL line items from this bill image. For each item return:
@@ -1166,17 +1165,14 @@ Also extract these bill-level fields:
 Return ONLY valid JSON, no markdown, no explanation:
 {"supplierName":"...","supplierGstin":"...","invoiceNumber":"...","invoiceDate":"...","totalAmount":0,"items":[{"productName":"...","quantity":0,"unit":"...","rate":0,"amount":0,"gstPercent":null,"hsnCode":null}]}`;
 
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
-        }),
-      },
-    );
+    const geminiRes = await fetch(GEMINI_GENERATE_URL, {
+      method: 'POST',
+      headers: geminiHeaders(apiKey),
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inlineData: inline }] }],
+        generationConfig: geminiGenerationConfig({ temperature: 0.1, maxOutputTokens: 4096 }),
+      }),
+    });
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
