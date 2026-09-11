@@ -61,6 +61,7 @@ export async function cleanupTestData(tenantId: string) {
     'job_orders',
     // payments before invoices — FK ON DELETE RESTRICT
     'invoice_payments',
+    'pending_ai_actions',
     'standalone_invoices',
     'tenant_notifications',
     'whatsapp_broadcasts',

@@ -29,7 +29,10 @@ describe('parsePrefillQty', () => {
 });
 
 describe('matchByName', () => {
-  const items = [{ name: 'Falcon Battery (16L sprayer)' }, { name: 'Urea 50kg' }];
+  const items = [
+    { id: 'p1', name: 'Falcon Battery (16L sprayer)' },
+    { id: 'p2', name: 'Urea 50kg' },
+  ];
 
   it('matches tokens in a longer catalog name', () => {
     expect(matchByName(items, 'falcon battery 16')?.name).toContain('Falcon');

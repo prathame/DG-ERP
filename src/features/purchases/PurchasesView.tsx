@@ -224,12 +224,12 @@ export function PurchasesView({
     const pname = prefillProductName(purchasePrefill);
     const qty = parsePrefillQty(purchasePrefill.qty);
     if (sname) {
-      const sup = matchByName(suppliers, sname);
+      const sup = matchByName<Supplier>(suppliers, sname);
       if (sup) setPurchaseForm(f => ({ ...f, supplierId: sup.id }));
       setSupplierQuery(sname);
     }
     if (pname) {
-      const p = matchByName(products, pname);
+      const p = matchByName<Product>(products, pname);
       setPurchaseRows([
         p
           ? applyProductToRow({ ...emptyPurchaseRow(), quantity: qty }, p.id, products)

@@ -514,7 +514,7 @@ export function createApp(): express.Application {
       legacyHeaders: false,
     });
     app.use('/api/chatbot', chatAiLimiter);
-    app.use('/api/ai/assistant', chatAiLimiter);
+    app.use('/api/ai', chatAiLimiter);
   }
 
   app.get('/manifest.json', async (req, res) => {
