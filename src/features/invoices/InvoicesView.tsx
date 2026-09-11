@@ -66,6 +66,7 @@ import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionF
 import { session } from '../../lib/session';
 import { api } from '../../api';
 import type { CreateLaunch } from '../../lib/quickAdd';
+import { matchByName, parsePrefillQty, prefillCustomerName, prefillProductName } from '../../lib/aiFormPrefill';
 import {
   defaultDateRangeFromReportingPeriod,
   resolveReportingRange,
@@ -292,6 +293,7 @@ export function InvoicesView({
   onEditSale,
   onCreatePurchase,
   launchCreate,
+  launchPrefill,
   onLaunchConsumed,
   accessLevel = 'full',
 }: {
@@ -301,6 +303,7 @@ export function InvoicesView({
   /** Jump to Purchases and open New Purchase (sale bills stay on this tab). */
   onCreatePurchase?: () => void;
   launchCreate?: CreateLaunch | null;
+  launchPrefill?: Record<string, string> | null;
   onLaunchConsumed?: () => void;
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
 } = {}) {
@@ -315,6 +318,7 @@ export function InvoicesView({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [openPrefill, setOpenPrefill] = useState<Record<string, string> | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [billSettings, setBillSettings] = useState<Record<string, unknown>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -346,9 +350,11 @@ export function InvoicesView({
 
   useEffect(() => {
     if (!canEdit || launchCreate !== 'invoice') return;
+    setEditingInvoice(null);
+    setOpenPrefill(launchPrefill ?? null);
     setCreateOpen(true);
     onLaunchConsumed?.();
-  }, [canEdit, launchCreate, onLaunchConsumed]);
+  }, [canEdit, launchCreate, launchPrefill, onLaunchConsumed]);
 
   useEscapeKey(() => {
     if (returnTarget) {
@@ -513,6 +519,7 @@ export function InvoicesView({
   const closeCreate = () => {
     setCreateOpen(false);
     setEditingInvoice(null);
+    setOpenPrefill(null);
   };
 
   const openEdit = (inv: Invoice) => {
@@ -1165,6 +1172,8 @@ export function InvoicesView({
           (editingInvoice || !useUnifiedCreate ? (
             <CreateInvoiceModal
               editingInvoice={editingInvoice}
+              initialParty={openPrefill ? { customerName: prefillCustomerName(openPrefill) } : undefined}
+              initialPrefill={openPrefill}
               onClose={closeCreate}
               onCreated={() => {
                 closeCreate();
@@ -1173,6 +1182,7 @@ export function InvoicesView({
             />
           ) : (
             <CreateUnifiedBillModal
+              initialPrefill={openPrefill}
               onClose={closeCreate}
               onCreated={() => {
                 closeCreate();
@@ -1569,11 +1579,13 @@ export function CreateInvoiceModal({
   onClose,
   onCreated,
   initialParty,
+  initialPrefill,
   editingInvoice,
 }: {
   onClose: () => void;
   onCreated: () => void;
   initialParty?: InvoicePartyPrefill | null;
+  initialPrefill?: Record<string, string> | null;
   editingInvoice?: Invoice | null;
 }) {
   const { toast } = useToast();
@@ -1585,7 +1597,8 @@ export function CreateInvoiceModal({
   const [invoiceNumber, setInvoiceNumber] = useState(() => editingInvoice?.invoiceNumber || '');
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
-    customerName: editingInvoice?.customerName || initialParty?.customerName || '',
+    customerName:
+      editingInvoice?.customerName || initialParty?.customerName || prefillCustomerName(initialPrefill) || '',
     customerGstin: editingInvoice?.customerGstin || initialParty?.customerGstin || '',
     customerAddress: editingInvoice?.customerAddress || initialParty?.customerAddress || '',
     customerPhone: editingInvoice?.customerPhone || initialParty?.customerPhone || '',
@@ -1613,7 +1626,11 @@ export function CreateInvoiceModal({
         productId: it.productId || '',
       }));
     }
-    return [emptyRow(isGstBillingEnabled(null))];
+    const gstOn = isGstBillingEnabled(null);
+    const pname = prefillProductName(initialPrefill);
+    const qty = parsePrefillQty(initialPrefill?.qty);
+    if (!pname) return [emptyRow(gstOn)];
+    return [{ ...emptyRow(gstOn), description: pname, qty }];
   });
   const [submitting, setSubmitting] = useState(false);
   const [parties, setParties] = useState<InvoiceParty[]>([]);
@@ -1755,6 +1772,44 @@ export function CreateInvoiceModal({
               customerAddress: party.address || f.customerAddress,
               customerGstin: party.gstin || f.customerGstin,
             }));
+          }
+        } else {
+          const cname = prefillCustomerName(initialPrefill) || initialParty?.customerName;
+          const party = matchByName(list, cname);
+          if (party) {
+            setPartyKey(party.key);
+            setForm(f => ({
+              ...f,
+              customerName: party.name || f.customerName,
+              customerPhone: party.phone || f.customerPhone,
+              customerAddress: party.address || f.customerAddress,
+              customerGstin: party.gstin || f.customerGstin,
+            }));
+          }
+        }
+        const pname = prefillProductName(initialPrefill);
+        if (pname && !editingInvoice) {
+          const p = matchByName(productList, pname);
+          if (p) {
+            const qty = parsePrefillQty(initialPrefill?.qty);
+            const gstOn = isGstBillingEnabled(null);
+            const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
+            setRows([
+              {
+                ...emptyRow(gstOn),
+                productId: p.id,
+                description: p.name,
+                hsnSac: gstOn ? p.hsnCode || '' : '',
+                qty,
+                rate: resolveCatalogPrice(
+                  p,
+                  rules.filter(r => r && r.isActive !== false),
+                  null,
+                  qty,
+                ),
+                gstPercent: gstOn ? (p.gstRate ?? hint?.rate ?? 18) : 0,
+              },
+            ]);
           }
         }
       } catch {

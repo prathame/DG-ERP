@@ -48,6 +48,7 @@ import { isPwaStandalone } from './lib/deviceId';
 import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
 import { CREATE_LAUNCH_TABS, visibleCreateLaunches, type CreateLaunch } from './lib/quickAdd';
+import { pickPrefill } from './lib/aiFormPrefill';
 import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
 import { canChangeDesktopMode, requestChangeDesktopMode } from './platforms/desktop/changeDesktopMode';
@@ -625,8 +626,10 @@ export default function App() {
     vendorId?: string;
     staffId?: string;
     staffName?: string;
+    name?: string;
   } | null>(null);
   const [createLaunch, setCreateLaunch] = useState<CreateLaunch | null>(null);
+  const [createPrefill, setCreatePrefill] = useState<Record<string, string> | null>(null);
   const [editSaleBatchId, setEditSaleBatchId] = useState<string | null>(null);
   const setActiveTab = (tab: Tab) => {
     const bookToAccounts: Record<string, string> = {
@@ -679,8 +682,12 @@ export default function App() {
     }
     setActiveTab(nav.tab);
   };
-  const consumeCreateLaunch = () => setCreateLaunch(null);
-  const launchCreate = (id: CreateLaunch) => {
+  const consumeCreateLaunch = () => {
+    setCreateLaunch(null);
+    setCreatePrefill(null);
+  };
+  const launchCreate = (id: CreateLaunch, params?: Record<string, string>) => {
+    setCreatePrefill(pickPrefill(params ?? null));
     setCreateLaunch(id);
     setActiveTab(CREATE_LAUNCH_TABS[id]);
   };
@@ -1112,19 +1119,19 @@ export default function App() {
         const tab = sectionToTab[params.section];
         if (tab && canAccess(tab) && companionAllows(tab)) setActiveTab(tab);
       } else if (type === 'create_invoice') {
-        launchCreate('invoice');
+        launchCreate('invoice', params);
       } else if (type === 'create_purchase') {
-        launchCreate('purchase');
+        launchCreate('purchase', params);
       } else if (type === 'add_product') {
-        if (canAccess('inventory')) setActiveTab('inventory');
+        launchCreate('product', params);
       } else if (type === 'add_customer') {
         if (canAccess('masters')) {
-          setMastersLaunch({ master: 'customer' });
+          setMastersLaunch({ master: 'customer', name: params?.name });
           setActiveTab('masters');
         }
       } else if (type === 'add_supplier') {
         if (canAccess('masters')) {
-          setMastersLaunch({ master: 'vendor' });
+          setMastersLaunch({ master: 'vendor', name: params?.name });
           setActiveTab('masters');
         }
       }
@@ -2169,6 +2176,7 @@ export default function App() {
                           accessLevel={getAccess('purchases')}
                           onOpenAccountsStatement={openAccountsStatement}
                           launchCreate={createLaunch}
+                          launchPrefill={createPrefill}
                           onLaunchConsumed={consumeCreateLaunch}
                         />
                       )}
@@ -2190,6 +2198,7 @@ export default function App() {
                         <InventoryView
                           accessLevel={getAccess('inventory')}
                           launchCreate={createLaunch}
+                          launchPrefill={createPrefill}
                           onLaunchConsumed={consumeCreateLaunch}
                         />
                       )}
@@ -2208,6 +2217,7 @@ export default function App() {
                             getAccess('purchases') === 'full' ? () => launchCreate('purchase') : undefined
                           }
                           launchCreate={createLaunch}
+                          launchPrefill={createPrefill}
                           onLaunchConsumed={consumeCreateLaunch}
                           accessLevel={getAccess('invoices')}
                         />

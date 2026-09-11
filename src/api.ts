@@ -1205,9 +1205,48 @@ export const api = {
     quickActions: () =>
       fetchApi<string[]>('/chatbot/quick-actions').then(r => (r as unknown as { actions: string[] }).actions),
     assistant: (message: string, history?: { role: 'user' | 'assistant'; text: string }[]) =>
-      fetchApi<{ text: string; action?: { type: string; params: Record<string, string> } }>('/ai/assistant', {
+      fetchApi<{
+        text: string;
+        action?: { type: string; params: Record<string, string> };
+        pendingAction?: {
+          id: string;
+          type: 'create_invoice';
+          preview: {
+            kind: string;
+            stockNote: string;
+            customerName: string;
+            items: Array<{
+              description: string;
+              qty: number;
+              unit: string;
+              rate: number;
+              gstPercent: number;
+              taxable: number;
+              tax: number;
+              total: number;
+              stock: number;
+              stockWarning: string | null;
+            }>;
+            subtotal: number;
+            taxTotal: number;
+            grandTotal: number;
+          };
+          expiresAt: string;
+        };
+        toolsUsed?: string[];
+      }>('/ai/assistant', {
         method: 'POST',
         body: JSON.stringify({ message, history }),
+      }),
+    confirmAction: (actionId: string) =>
+      fetchApi<{
+        text: string;
+        invoice?: { invoiceNumber: string; grandTotal: number; id: string };
+        created?: boolean;
+      }>(`/ai/actions/${encodeURIComponent(actionId)}/confirm`, { method: 'POST' }),
+    cancelAction: (actionId: string) =>
+      fetchApi<{ text: string; cancelled?: boolean }>(`/ai/actions/${encodeURIComponent(actionId)}/cancel`, {
+        method: 'POST',
       }),
   },
   auditLog: {

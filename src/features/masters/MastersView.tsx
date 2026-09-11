@@ -86,6 +86,7 @@ export function MastersView({
     vendorId?: string;
     staffId?: string;
     staffName?: string;
+    name?: string;
   } | null;
   onLaunchConsumed?: () => void;
   accessLevel?: AccessLevel;

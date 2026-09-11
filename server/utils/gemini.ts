@@ -4,7 +4,7 @@ export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 export const GEMINI_GENERATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 /** Last N conversation turns sent to Gemini (current user message is added separately). */
-export const GEMINI_CHAT_HISTORY_TURNS = 4;
+export const GEMINI_CHAT_HISTORY_TURNS = 8;
 
 const IMAGE_MIMES = new Set([
   'image/jpeg',

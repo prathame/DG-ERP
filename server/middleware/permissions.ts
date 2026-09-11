@@ -127,6 +127,7 @@ const PATH_MODULE: [string, string][] = [
   // Covers /settings/bill, /settings/profile, etc. (not Cap seat APIs)
   ['/settings', 'settings'],
   ['/chatbot', 'dashboard'],
+  ['/ai', 'dashboard'],
   ['/price-lists', 'inventory'],
   ['/invoices', 'sales'],
   ['/customers', 'sales'],

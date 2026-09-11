@@ -7,12 +7,36 @@ import { api, fetchApi } from '../../api';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { NAV_POSITION_PREF_CHANGED_EVENT } from '../../lib/navPositionPref';
 
+interface InvoicePreview {
+  kind: string;
+  stockNote: string;
+  customerName: string;
+  items: Array<{
+    description: string;
+    qty: number;
+    unit: string;
+    rate: number;
+    gstPercent: number;
+    taxable: number;
+    tax: number;
+    total: number;
+    stock: number;
+    stockWarning: string | null;
+  }>;
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+}
+
 interface Message {
   id: number;
   text: string;
   role: 'user' | 'assistant';
   action?: { type: string; params: Record<string, string> };
+  pendingAction?: { id: string; type: string; preview: InvoicePreview; expiresAt: string };
+  toolsUsed?: string[];
   timestamp: Date;
+  confirming?: boolean;
 }
 
 /** Above feature modals (~100–120); below command palette (300). */
@@ -74,6 +98,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recRef = useRef<SpeechRec | null>(null);
+  const confirmLockRef = useRef(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, bx: 0, by: 0 });
@@ -146,15 +171,76 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     window.dispatchEvent(new CustomEvent(AI_ACTION_EVENT, { detail: action }));
   }, []);
 
+  const rupee = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
+  const lastPending = () => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant' && m.pendingAction && !m.confirming) return m;
+    }
+    return null;
+  };
+
+  const confirmPending = async (msg: Message) => {
+    if (!msg.pendingAction || msg.confirming || confirmLockRef.current) return;
+    confirmLockRef.current = true;
+    setMessages(m => m.map(x => (x.id === msg.id ? { ...x, confirming: true } : x)));
+    try {
+      const data = await api.chatbot.confirmAction(msg.pendingAction.id);
+      setMessages(m =>
+        m.map(x =>
+          x.id === msg.id ? { ...x, text: data.text || x.text, pendingAction: undefined, confirming: false } : x,
+        ),
+      );
+      speak(data.text || '');
+    } catch (err) {
+      const fail = err instanceof Error && err.message ? err.message : 'Confirm failed';
+      setMessages(m => m.map(x => (x.id === msg.id ? { ...x, confirming: false } : x)));
+      setMessages(m => [...m, { id: Date.now() + 1, text: fail, role: 'assistant', timestamp: new Date() }]);
+    } finally {
+      confirmLockRef.current = false;
+    }
+  };
+
+  const cancelPending = async (msg: Message) => {
+    if (!msg.pendingAction || msg.confirming) return;
+    setMessages(m => m.map(x => (x.id === msg.id ? { ...x, confirming: true } : x)));
+    try {
+      const data = await api.chatbot.cancelAction(msg.pendingAction.id);
+      setMessages(m =>
+        m.map(x =>
+          x.id === msg.id ? { ...x, text: data.text || 'Cancelled.', pendingAction: undefined, confirming: false } : x,
+        ),
+      );
+    } catch (err) {
+      const fail = err instanceof Error && err.message ? err.message : 'Cancel failed';
+      setMessages(m => m.map(x => (x.id === msg.id ? { ...x, confirming: false } : x)));
+      setMessages(m => [...m, { id: Date.now() + 1, text: fail, role: 'assistant', timestamp: new Date() }]);
+    }
+  };
+
   const sendChat = async (text: string) => {
     if (!text || loading) return;
+    const pendingMsg = lastPending();
+    if (pendingMsg?.pendingAction && /^(yes|y|ok|okay|confirm|haan|ha|ho|karo|haanji|हाँ|હા)$/i.test(text.trim())) {
+      const userMsg: Message = { id: Date.now(), text, role: 'user', timestamp: new Date() };
+      setMessages(m => [...m, userMsg]);
+      await confirmPending(pendingMsg);
+      return;
+    }
+    if (pendingMsg?.pendingAction && /^(no|n|cancel|nahi|nahin|नहीं|ના)$/i.test(text.trim())) {
+      const userMsg: Message = { id: Date.now(), text, role: 'user', timestamp: new Date() };
+      setMessages(m => [...m, userMsg]);
+      await cancelPending(pendingMsg);
+      return;
+    }
     const userMsg: Message = { id: Date.now(), text, role: 'user', timestamp: new Date() };
     setMessages(m => [...m, userMsg]);
     setLoading(true);
     try {
       const history = messages
         .filter(m => m.id > 0)
-        .slice(-4)
+        .slice(-8)
         .map(m => ({ role: m.role, text: m.text }));
 
       const data = await api.chatbot.assistant(text, history);
@@ -163,11 +249,13 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
         text: data.text || 'No response',
         role: 'assistant',
         action: data.action || undefined,
+        pendingAction: data.pendingAction || undefined,
+        toolsUsed: data.toolsUsed,
         timestamp: new Date(),
       };
       setMessages(m => [...m, botMsg]);
       speak(data.text || '');
-      if (data.action) executeAction(data.action);
+      if (data.action && !data.pendingAction) executeAction(data.action);
     } catch (err) {
       const msg = err instanceof Error && err.message ? err.message : 'Connection error';
       setMessages(m => [...m, { id: Date.now() + 1, text: msg, role: 'assistant', timestamp: new Date() }]);
@@ -431,7 +519,75 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                     {msg.role === 'user' ? (
                       <p className="text-sm text-white">{msg.text}</p>
                     ) : (
-                      <div className="space-y-0.5">{formatText(msg.text)}</div>
+                      <div className="space-y-0.5">
+                        {msg.toolsUsed?.length ? (
+                          <p className={cn('text-[11px] mb-1', desktopGlass ? 'dg-muted' : 'text-gray-400')}>
+                            Looked up {msg.toolsUsed.filter((t, i, a) => a.indexOf(t) === i).join(', ')}
+                          </p>
+                        ) : null}
+                        {formatText(msg.text)}
+                        {msg.pendingAction?.preview ? (
+                          <div
+                            className={cn(
+                              'mt-2 pt-2 border-t text-sm space-y-1',
+                              desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                            )}
+                            data-ai-invoice-preview=""
+                          >
+                            <p className="font-semibold text-xs tracking-wide">CREATE INVOICE</p>
+                            <p>
+                              Customer: <strong>{msg.pendingAction.preview.customerName}</strong>
+                            </p>
+                            {msg.pendingAction.preview.items.map(it => (
+                              <p key={`${it.description}-${it.qty}`}>
+                                {it.description} — {it.qty} {it.unit} × {rupee(it.rate)}
+                                {it.gstPercent ? ` (GST ${it.gstPercent}%)` : ''}
+                              </p>
+                            ))}
+                            <p>Subtotal: {rupee(msg.pendingAction.preview.subtotal)}</p>
+                            <p>GST: {rupee(msg.pendingAction.preview.taxTotal)}</p>
+                            <p>
+                              <strong>Total: {rupee(msg.pendingAction.preview.grandTotal)}</strong>
+                            </p>
+                            <p className={cn('text-[11px]', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
+                              {msg.pendingAction.preview.stockNote}
+                            </p>
+                            {msg.pendingAction.preview.items
+                              .filter(it => it.stockWarning)
+                              .map(it => (
+                                <p key={`w-${it.description}`} className="text-[11px] text-amber-700">
+                                  {it.stockWarning}
+                                </p>
+                              ))}
+                            <div className="flex gap-2 pt-2">
+                              <button
+                                type="button"
+                                disabled={msg.confirming}
+                                onClick={() => void cancelPending(msg)}
+                                className={cn(
+                                  'px-3 py-1.5 text-xs rounded-lg border',
+                                  desktopGlass
+                                    ? 'border-[var(--dg-card-border)] dg-muted'
+                                    : 'border-gray-200 text-gray-600',
+                                )}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                disabled={msg.confirming}
+                                onClick={() => void confirmPending(msg)}
+                                className={cn(
+                                  'px-3 py-1.5 text-xs rounded-lg text-white',
+                                  desktopGlass ? 'dg-bg-primary' : 'bg-brand',
+                                )}
+                              >
+                                {msg.confirming ? 'Working…' : 'Confirm & Create'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                     <p
                       className={cn(

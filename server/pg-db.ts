@@ -1213,6 +1213,31 @@ export async function initSchema() {
       ON standalone_invoices (tenant_id, external_ref)
       WHERE external_ref IS NOT NULL
     `);
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_standalone_invoices_idempotency
+      ON standalone_invoices (tenant_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pending_ai_actions (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        payload JSONB NOT NULL,
+        preview JSONB,
+        status TEXT NOT NULL DEFAULT 'pending',
+        idempotency_key TEXT NOT NULL,
+        result_invoice_id TEXT,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        confirmed_at TIMESTAMPTZ
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_pending_ai_actions_tenant ON pending_ai_actions(tenant_id, user_id, status)',
+    );
     // E-invoice / E-way on standalone (Miracle-imported + ops desk) invoices
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS irn TEXT');
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS irn_ack_no TEXT');
