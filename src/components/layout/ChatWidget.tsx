@@ -154,7 +154,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     try {
       const history = messages
         .filter(m => m.id > 0)
-        .slice(-4)
+        .slice(-8)
         .map(m => ({ role: m.role, text: m.text }));
 
       const data = await api.chatbot.assistant(text, history);

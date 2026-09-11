@@ -119,6 +119,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { DesktopPurchasesModule } from './DesktopPurchasesModule';
 import { BooksExpensesHint } from './BooksExpensesHint';
 import type { CreateLaunch } from '../../lib/quickAdd';
+import { matchByName, parsePrefillQty, prefillProductName, prefillSupplierName } from '../../lib/aiFormPrefill';
 import { session } from '../../lib/session';
 
 interface Supplier {
@@ -148,12 +149,14 @@ export function PurchasesView({
   accessLevel = 'full',
   onOpenAccountsStatement,
   launchCreate,
+  launchPrefill,
   onLaunchConsumed,
 }: {
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
   /** Deep-link into Accounts (e.g. pnl, cashbook) when Books expenses live there. */
   onOpenAccountsStatement?: (tab: string) => void;
   launchCreate?: CreateLaunch | null;
+  launchPrefill?: Record<string, string> | null;
   onLaunchConsumed?: () => void;
 } = {}) {
   const canEdit = accessLevel === 'full';
@@ -171,6 +174,7 @@ export function PurchasesView({
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [batchDetail, setBatchDetail] = useState<Record<string, unknown> | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [purchasePrefill, setPurchasePrefill] = useState<Record<string, string> | null>(null);
   const [supplierModal, setSupplierModal] = useState(false);
   const [supplierCsvOpen, setSupplierCsvOpen] = useState(false);
   const [scanningBill, setScanningBill] = useState(false);
@@ -209,9 +213,30 @@ export function PurchasesView({
   useEffect(() => {
     if (launchCreate !== 'purchase') return;
     setSection('purchases');
+    setPurchasePrefill(launchPrefill ?? null);
     setModalOpen(true);
     onLaunchConsumed?.();
-  }, [launchCreate, onLaunchConsumed]);
+  }, [launchCreate, launchPrefill, onLaunchConsumed]);
+
+  useEffect(() => {
+    if (!modalOpen || !purchasePrefill) return;
+    const sname = prefillSupplierName(purchasePrefill);
+    const pname = prefillProductName(purchasePrefill);
+    const qty = parsePrefillQty(purchasePrefill.qty);
+    if (sname) {
+      const sup = matchByName(suppliers, sname);
+      if (sup) setPurchaseForm(f => ({ ...f, supplierId: sup.id }));
+      setSupplierQuery(sname);
+    }
+    if (pname) {
+      const p = matchByName(products, pname);
+      setPurchaseRows([
+        p
+          ? applyProductToRow({ ...emptyPurchaseRow(), quantity: qty }, p.id, products)
+          : { ...emptyPurchaseRow(), productQuery: pname, quantity: qty },
+      ]);
+    }
+  }, [modalOpen, purchasePrefill, suppliers, products]);
 
   const [expenses, setExpenses] = useState<
     {
@@ -270,6 +295,7 @@ export function PurchasesView({
   const closePurchaseModal = () => {
     setSubmitting(false);
     setModalOpen(false);
+    setPurchasePrefill(null);
   };
 
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {

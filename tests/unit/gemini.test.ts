@@ -26,17 +26,13 @@ describe('GEMINI_GENERATE_URL', () => {
 });
 
 describe('buildAssistantContents', () => {
-  it('sends only the last 4 history turns plus current message', () => {
-    const history = [
-      { role: 'user', text: '1' },
-      { role: 'assistant', text: 'a' },
-      { role: 'user', text: '2' },
-      { role: 'assistant', text: 'b' },
-      { role: 'user', text: '3' },
-      { role: 'assistant', text: 'c' },
-    ];
+  it('sends only the last 8 history turns plus current message', () => {
+    const history = Array.from({ length: 10 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      text: String(i),
+    }));
     const contents = buildAssistantContents(history, 'now');
-    expect(contents.map(c => c.parts[0].text)).toEqual(['2', 'b', '3', 'c', 'now']);
+    expect(contents.map(c => c.parts[0].text)).toEqual(['2', '3', '4', '5', '6', '7', '8', '9', 'now']);
   });
 
   it('does not duplicate the current user message when it is already in history', () => {

@@ -46,6 +46,7 @@ import { BillPrintPageToggle } from '../../components/ui/BillPrintPageToggle';
 import { CASH_ACCOUNT_NAME, ensureCashAccountVendor, isCashPartyName } from '../../lib/cashAccount';
 import type { BillPrintPage } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
+import { matchByName, parsePrefillQty, prefillCustomerName, prefillProductName } from '../../lib/aiFormPrefill';
 
 type Invoice = {
   id: string;
@@ -174,7 +175,15 @@ function classifyLines(rows: BillLine[], products: Product[]) {
  * Inventory + party → sale (stock + books) and the bill also appears on Invoices.
  * Custom lines → standalone invoice. Mixed → split dialog.
  */
-export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateUnifiedBillModal({
+  onClose,
+  onCreated,
+  initialPrefill,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  initialPrefill?: Record<string, string> | null;
+}) {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const cfg = useBusinessConfig();
@@ -186,7 +195,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
-    customerName: '',
+    customerName: prefillCustomerName(initialPrefill),
     customerGstin: '',
     customerAddress: '',
     customerPhone: '',
@@ -197,7 +206,13 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const [vendorId, setVendorId] = useState('');
   const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
   const [billUnits, setBillUnits] = useState<string[]>(() => normalizeBillUnits(undefined));
-  const [rows, setRows] = useState<BillLine[]>(() => [emptyRow(isGstBillingEnabled(null))]);
+  const [rows, setRows] = useState<BillLine[]>(() => {
+    const gstOn = isGstBillingEnabled(null);
+    const name = prefillProductName(initialPrefill);
+    const qty = parsePrefillQty(initialPrefill?.qty);
+    if (!name) return [emptyRow(gstOn)];
+    return [{ ...emptyRow(gstOn), description: name, qty }];
+  });
   const [amountPaid, setAmountPaid] = useState('');
   const [payMode, setPayMode] = useState<'debit' | 'cash'>('debit');
   const [printPage, setPrintPage] = useState<BillPrintPage>('full');
@@ -258,10 +273,58 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     Promise.allSettled([api.vendors.list(), api.products.list(), fetchApi<PriceRule[]>('/price-lists')]).then(
       results => {
         if (cancelled) return;
-        setVendors(asApiList<Vendor>(results[0].status === 'fulfilled' ? results[0].value : []));
-        setProducts(asApiList<Product>(results[1].status === 'fulfilled' ? results[1].value : []));
-        const rules = asApiList<PriceRule>(results[2].status === 'fulfilled' ? results[2].value : []);
-        setPriceRules(rules.filter(r => r && r.isActive !== false));
+        const vendorList = asApiList<Vendor>(results[0].status === 'fulfilled' ? results[0].value : []);
+        const productList = asApiList<Product>(results[1].status === 'fulfilled' ? results[1].value : []);
+        const rules = asApiList<PriceRule>(results[2].status === 'fulfilled' ? results[2].value : []).filter(
+          r => r && r.isActive !== false,
+        );
+        setVendors(vendorList);
+        setProducts(productList);
+        setPriceRules(rules);
+
+        if (!initialPrefill) return;
+        const cname = prefillCustomerName(initialPrefill);
+        const v = matchByName(vendorList, cname);
+        if (v) {
+          setVendorId(v.id);
+          setForm(f => ({
+            ...f,
+            customerName: v.name,
+            customerPhone: v.phone || f.customerPhone,
+            customerAddress: v.address || f.customerAddress,
+            customerGstin: v.gstNumber || (v as { gstin?: string }).gstin || f.customerGstin,
+          }));
+        }
+        const pname = prefillProductName(initialPrefill);
+        if (!pname) return;
+        const p = matchByName(productList, pname);
+        if (!p || isProductExpired(p.expiryDate)) return;
+        const qtyWanted = parsePrefillQty(initialPrefill.qty);
+        const ps = packSizeOf(p);
+        const qty = ps > 1 ? ps : qtyWanted;
+        const catalog = resolveCatalogPrice(p, rules, v?.id || null, qty);
+        const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
+        const withGst = isGstBillingEnabled(null);
+        const gstPercent = withGst ? (p.gstRate ?? hint?.rate ?? 18) : 0;
+        const rate = displayUnitPriceForGst(catalog, {
+          withGst,
+          priceIncludesGst: !!p.priceIncludesGst,
+          gstRate: p.gstRate || 18,
+        });
+        setRows([
+          {
+            ...emptyRow(withGst),
+            productId: p.id,
+            description: p.name,
+            hsnSac: withGst ? p.hsnCode || '' : '',
+            qty,
+            packs: ps > 1 ? 1 : 0,
+            loosePieces: 0,
+            rate,
+            withGst,
+            gstPercent,
+          },
+        ]);
       },
     );
     return () => {

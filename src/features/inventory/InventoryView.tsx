@@ -67,10 +67,12 @@ const emptyAddForm = () => ({
 export function InventoryView({
   accessLevel = 'full',
   launchCreate,
+  launchPrefill,
   onLaunchConsumed,
 }: {
   accessLevel?: 'hidden' | 'view' | 'print' | 'full';
   launchCreate?: CreateLaunch | null;
+  launchPrefill?: Record<string, string> | null;
   onLaunchConsumed?: () => void;
 } = {}) {
   const canEdit = accessLevel === 'full';
@@ -138,10 +140,11 @@ export function InventoryView({
   useEffect(() => {
     if (launchCreate !== 'product') return;
     setEditingProductId(null);
-    setAddForm(emptyAddForm());
+    const name = (launchPrefill?.name || launchPrefill?.productName || '').trim();
+    setAddForm({ ...emptyAddForm(), name });
     setAddModalOpen(true);
     onLaunchConsumed?.();
-  }, [launchCreate, onLaunchConsumed]);
+  }, [launchCreate, launchPrefill, onLaunchConsumed]);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
   const [barcodeDetailsModal, setBarcodeDetailsModal] = useState<{
