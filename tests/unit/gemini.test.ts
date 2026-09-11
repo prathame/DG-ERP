@@ -19,9 +19,9 @@ describe('geminiGenerationConfig', () => {
 });
 
 describe('GEMINI_GENERATE_URL', () => {
-  it('points at 3.6 flash generateContent', () => {
-    expect(GEMINI_MODEL).toBe('gemini-3.6-flash');
-    expect(GEMINI_GENERATE_URL).toContain('gemini-3.6-flash:generateContent');
+  it('points at 3.5 flash-lite generateContent', () => {
+    expect(GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
+    expect(GEMINI_GENERATE_URL).toContain('gemini-3.5-flash-lite:generateContent');
   });
 });
 
