@@ -110,7 +110,7 @@
     "@capacitor/cli": "^8.4.2",
     "@capacitor/ios": "^8.5.0",
     "@eslint/js": "^9.39.2",
-    "@playwright/test": "^1.51.0",
+    "@playwright/test": "^1.63.0",
     "@types/adm-zip": "^0.5.8",
     "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^3.0.0",
