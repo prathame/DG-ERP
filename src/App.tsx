@@ -1799,9 +1799,9 @@ export default function App() {
                     : cn(
                         'bg-white shadow-xl lg:shadow-none',
                         drawerRight ? 'border-l border-gray-200' : 'border-r border-gray-200',
-                        navH && 'lg:border-l-0 lg:border-r-0',
-                        navPos === 'top' && 'lg:border-b lg:border-gray-200',
-                        navPos === 'bottom' && 'lg:border-t lg:border-gray-200',
+                        navH && 'lg:border-l-0 lg:border-r-0 lg:shadow-[0_1px_4px_rgba(0,0,0,0.06)]',
+                        navPos === 'top' && 'lg:border-b lg:border-gray-100',
+                        navPos === 'bottom' && 'lg:border-t lg:border-gray-100',
                       ),
                 'relative shrink-0',
                 'h-[100dvh] max-h-[100dvh]',
@@ -1890,14 +1890,14 @@ export default function App() {
                               setHorizontalMenuAnchor(shellDropdownAnchor(e.currentTarget));
                             }}
                             className={cn(
-                              'flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors min-h-[36px]',
+                              'flex items-center gap-1 rounded-full px-4 py-1.5 text-xs font-semibold transition-all min-h-[32px]',
                               groupActive || menuOpen
                                 ? desktopGlass
                                   ? 'dg-bg-primary shadow-sm'
-                                  : 'bg-brand text-white shadow-sm'
+                                  : 'bg-gray-900 text-white shadow-sm'
                                 : desktopGlass
                                   ? 'dg-muted hover:opacity-100'
-                                  : 'text-gray-600 hover:bg-gray-100',
+                                  : 'text-gray-500 hover:bg-black/8 hover:text-gray-900',
                             )}
                             aria-expanded={menuOpen}
                           >
@@ -1951,7 +1951,7 @@ export default function App() {
                           </button>
                         )}
                         {navH && section.label ? (
-                          <div className="hidden lg:block w-px self-stretch min-h-6 bg-gray-200 mx-1 shrink-0" />
+                          <div className="hidden lg:block w-px self-stretch min-h-5 bg-gray-200/60 mx-2 shrink-0" />
                         ) : null}
                         {!isSidebarOpen && section.label && (
                           <div className={cn('my-1.5 mx-2 border-t border-gray-100', navH && 'lg:hidden')} />
@@ -1972,19 +1972,19 @@ export default function App() {
                                   if (window.innerWidth < 1024) setIsSidebarOpen(false);
                                 }}
                                 className={cn(
-                                  'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
+                                  'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-xl transition-all text-[13px] group relative',
                                   navH ? 'w-full lg:w-auto lg:shrink-0 lg:min-h-0 lg:py-1.5' : 'w-full',
                                   isNavItemActive(item.id, activeTab)
                                     ? desktopGlass
                                       ? 'dg-nav-active font-semibold pl-[7px]'
                                       : navH
-                                        ? 'bg-brand/10 text-brand font-semibold'
+                                        ? 'bg-gray-900 text-white font-semibold'
                                         : drawerRight
                                           ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
                                           : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
                                     : desktopGlass
                                       ? 'dg-muted hover:opacity-100'
-                                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                      : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900',
                                 )}
                               >
                                 <item.icon
@@ -2068,19 +2068,19 @@ export default function App() {
                         if (window.innerWidth < 1024) setIsSidebarOpen(false);
                       }}
                       className={cn(
-                        'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
+                        'flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-xl transition-all text-[13px]',
                         navH ? 'w-full lg:w-auto lg:min-h-0 lg:py-1.5' : 'w-full',
                         activeTab === 'settings'
                           ? desktopGlass
                             ? 'dg-nav-active font-semibold pl-[7px]'
                             : navH
-                              ? 'bg-brand/10 text-brand font-semibold'
+                              ? 'bg-gray-900 text-white font-semibold'
                               : drawerRight
                                 ? 'bg-brand/10 text-brand font-semibold border-r-[3px] border-r-brand pr-[7px]'
                                 : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
                           : desktopGlass
                             ? 'dg-muted hover:opacity-100'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                            : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900',
                       )}
                     >
                       <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />

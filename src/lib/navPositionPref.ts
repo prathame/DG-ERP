@@ -25,13 +25,13 @@ export function isNavHorizontal(pos: NavPosition): boolean {
   return pos === 'top' || pos === 'bottom';
 }
 
-/** Default left — same as the current sidebar. */
+/** Default top — horizontal nav bar. */
 export function getNavPositionPref(): NavPosition {
   try {
     const v = localStorage.getItem(navPositionStorageKey());
-    return isNavPosition(v) ? v : 'left';
+    return isNavPosition(v) ? v : 'top';
   } catch {
-    return 'left';
+    return 'top';
   }
 }
 
