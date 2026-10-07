@@ -12,7 +12,7 @@
 :root {
   --primary: #F27D26;
   --ink: #151619;
-  --bg: #F8F9FA;
+  --bg: #ECEEF2;
   /*
    * Capacitor SystemBars injects --safe-area-inset-* as CSS vars (reliable on Android).
    * env(safe-area-inset-*) is often 0 in older Android WebViews — always prefer the var.
@@ -47,7 +47,8 @@ html.dark body {
 
 /* Backgrounds */
 html.dark .bg-white { background-color: #1a1c1e !important; }
-html.dark [class*="bg-[#F8F9FA]"] { background-color: #0f1113 !important; }
+html.dark [class*="bg-[#F8F9FA]"],
+html.dark [class*="bg-[#ECEEF2]"] { background-color: #0f1113 !important; }
 html.dark .bg-gray-50, html.dark .bg-gray-50\/50, html.dark .bg-gray-50\/40 { background-color: #141618 !important; }
 html.dark .bg-gray-100 { background-color: #25282c !important; }
 html.dark .bg-white\/80 { background-color: rgba(26, 28, 30, 0.88) !important; }
@@ -147,7 +148,8 @@ html.dark .border.rounded-lg, html.dark .border.rounded-xl { border-color: rgba(
 
 /* Specific component overrides */
 html.dark [class*="bg-[#151619]"] { background-color: #0f1113 !important; }
-html.dark [class*="bg-[#F8F9FA]"] { background-color: #0f1113 !important; }
+html.dark [class*="bg-[#F8F9FA]"],
+html.dark [class*="bg-[#ECEEF2]"] { background-color: #0f1113 !important; }
 html.dark .rounded-2xl.border { border-color: rgba(255, 255, 255, 0.1); }
 html.dark .rounded-xl.border { border-color: rgba(255, 255, 255, 0.1); }
 
@@ -187,6 +189,13 @@ html.dark ::-webkit-scrollbar-thumb:hover { background: #3f444c; }
 
 button {
   cursor: pointer;
+}
+
+/* ── Redesign 2025: elevated white cards on blue-gray bg ── */
+/* Cards with border already look good; add gentle shadow when no border */
+.bg-white.rounded-2xl:not([class*="border"]),
+.bg-white.rounded-3xl:not([class*="border"]) {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
 }
 
 /* Hide number input spinners and disable scroll changing values */

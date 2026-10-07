@@ -39,8 +39,8 @@ describe('nav position pref', () => {
     for (const k of Object.keys(store)) delete store[k];
   });
 
-  it('defaults to left', () => {
-    expect(getNavPositionPref()).toBe('left');
+  it('defaults to top', () => {
+    expect(getNavPositionPref()).toBe('top');
   });
 
   it('persists each edge', () => {
@@ -52,7 +52,7 @@ describe('nav position pref', () => {
 
   it('ignores junk in storage', () => {
     store[navPositionStorageKey()] = 'diagonal';
-    expect(getNavPositionPref()).toBe('left');
+    expect(getNavPositionPref()).toBe('top');
   });
 
   it('treats top and bottom as a horizontal bar', () => {
