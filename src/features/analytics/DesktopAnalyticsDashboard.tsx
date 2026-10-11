@@ -169,7 +169,7 @@ export function DesktopAnalyticsDashboard({
                 <TrendingUp size={14} />
                 {t('dashboard.moneyOverview')}
               </div>
-              <span className="text-2xl font-black dg-ink tabular-nums">{fmt(revenueHighlight)}</span>
+              <span className="text-xl font-black dg-ink tabular-nums">{fmt(revenueHighlight)}</span>
             </div>
             <TransactionCalendar variant="desktop" activityLabel={activityLabel} />
           </div>

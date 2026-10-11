@@ -31,7 +31,7 @@ describe('dayActivity', () => {
     expect(isActivityOutflow({ type: 'payment', amount: 10 })).toBe(false);
   });
 
-  it('builds a Sunday-start grid with adjacent-month padding', () => {
+  it('builds a Monday-start grid with adjacent-month padding', () => {
     // April 2026 starts on Wednesday
     const cells = buildMonthCalendarCells(2026, 4, {
       '2026-04-07': {
@@ -46,7 +46,8 @@ describe('dayActivity', () => {
     expect(cells.length % 7).toBe(0);
     expect(cells.length).toBeGreaterThanOrEqual(35);
     const leading = cells.filter(c => !c.inMonth && c.date && c.date.startsWith('2026-03'));
-    expect(leading.length).toBe(3); // Sun Mon Tue before Wed Apr 1
+    expect(leading.length).toBe(2); // Mon Tue before Wed Apr 1
+    expect(leading.map(c => c.date)).toEqual(['2026-03-30', '2026-03-31']);
     const apr7 = cells.find(c => c.date === '2026-04-07');
     expect(apr7?.inMonth).toBe(true);
     expect(apr7?.summary?.count).toBe(1);

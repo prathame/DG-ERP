@@ -1,9 +1,9 @@
 /**
- * Month grid of real transactions (invoices, payments, sales, expenses, dispatches).
- * Fetches its own month window so Analytics range pills stay independent.
+ * Compact month grid of real transactions (invoices, payments, sales, expenses, dispatches).
+ * Desktop: calendar + day list side-by-side (reference fiscal-calendar density).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
@@ -19,7 +19,7 @@ import {
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
+const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as const;
 
 const TYPE_DOT: Record<string, string> = {
   payment: 'bg-[color:var(--dg-success)]',
@@ -34,8 +34,8 @@ type Props = {
   activityLabel: (type: string) => string;
 };
 
-function monthTitle(year: number, month: number): string {
-  return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+function monthShort(year: number, month: number): string {
+  return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }).toUpperCase();
 }
 
 export function TransactionCalendar({ variant = 'desktop', activityLabel }: Props) {
@@ -93,45 +93,74 @@ export function TransactionCalendar({ variant = 'desktop', activityLabel }: Prop
   const success = mobile ? 'dg-m-success' : 'dg-success';
   const error = mobile ? 'dg-m-error' : 'dg-error';
 
-  return (
-    <div className={cn(card, mobile ? 'rounded-2xl p-3.5' : 'rounded-3xl p-8')}>
-      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div>
-          <h3 className={cn(mobile ? 'text-[13px]' : 'text-lg', 'font-bold', ink)}>{t('dashboard.dayTransactions')}</h3>
-          <p className={cn('text-xs mt-0.5', faint)}>{t('dashboard.dayTransactionsHint')}</p>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => moveMonth(-1)}
-            className={cn('p-2 rounded-lg', muted, 'hover:opacity-80')}
-            aria-label="Previous month"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className={cn('text-sm font-bold tabular-nums min-w-[8.5rem] text-center', ink)}>
-            {monthTitle(cursor.year, cursor.month)}
-          </span>
-          <button
-            type="button"
-            onClick={() => moveMonth(1)}
-            className={cn('p-2 rounded-lg', muted, 'hover:opacity-80')}
-            aria-label="Next month"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
+  const dayList = (
+    <div className={cn('flex flex-col min-h-0', mobile ? 'mt-3' : '')}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className={cn('text-[11px] font-bold uppercase tracking-wider', faint)}>{formatDate(selected)}</p>
+        {daySummary ? (
+          <p className={cn('text-[10px] font-bold tabular-nums', muted)}>
+            <span className={success}>+{fmt(daySummary.inflow)}</span>
+            {daySummary.outflow > 0 ? (
+              <>
+                {' · '}
+                <span className={error}>-{fmt(daySummary.outflow)}</span>
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-1">
+      {loading ? (
+        <div className="space-y-1.5">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className={cn('h-8 rounded-lg animate-pulse', 'bg-[var(--dg-input)]')} />
+          ))}
+        </div>
+      ) : !daySummary?.items.length ? (
+        <p className={cn('text-xs text-center py-4', muted)}>{t('dashboard.noDayActivity')}</p>
+      ) : (
+        <div className={cn('space-y-1 overflow-y-auto', mobile ? 'max-h-40' : 'max-h-44')}>
+          {daySummary.items.map(a => {
+            const outflow = isActivityOutflow(a);
+            return (
+              <div
+                key={`${a.type}-${a.id}`}
+                className="flex items-start gap-2 rounded-lg px-2 py-1.5 bg-[var(--dg-input)]"
+              >
+                <span
+                  className={cn(
+                    'w-1.5 h-1.5 rounded-full mt-1.5 shrink-0',
+                    TYPE_DOT[a.type] || 'bg-[color:var(--dg-primary)]',
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={cn('text-[12px] font-semibold truncate', ink)}>{a.label}</p>
+                    <span className={cn('text-[11px] font-bold tabular-nums shrink-0', outflow ? error : success)}>
+                      {outflow ? '-' : '+'}
+                      {fmt(a.amount)}
+                    </span>
+                  </div>
+                  <p className={cn('text-[10px] tabular-nums', faint)}>{activityLabel(a.type)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const calendarGrid = (
+    <div className={cn(mobile ? '' : 'rounded-xl bg-[var(--dg-input)]/60 p-2')}>
+      <div className="grid grid-cols-7 text-center mb-1">
         {WEEKDAYS.map(d => (
-          <div key={d} className={cn('text-center text-[10px] font-bold uppercase tracking-wider py-1', faint)}>
+          <div key={d} className={cn('text-[10px] font-bold uppercase tracking-wider py-0.5', faint)}>
             {d}
           </div>
         ))}
       </div>
-
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5 text-center">
         {cells.map((cell, i) => {
           if (!cell.date) return <div key={i} />;
           const isSelected = cell.date === selected;
@@ -144,95 +173,84 @@ export function TransactionCalendar({ variant = 'desktop', activityLabel }: Prop
               type="button"
               onClick={() => setSelected(cell.date!)}
               className={cn(
-                'relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all',
-                !cell.inMonth && 'opacity-35',
+                'relative py-1 rounded-lg text-[11px] font-semibold tabular-nums transition-all',
+                !cell.inMonth && 'opacity-40',
                 isSelected
-                  ? 'dg-bg-primary shadow-md'
+                  ? 'dg-bg-primary text-white shadow-sm'
                   : has
-                    ? 'bg-[var(--dg-input)] hover:opacity-90'
+                    ? 'bg-[var(--dg-card-bg,var(--dg-input))] hover:opacity-90'
                     : 'hover:bg-[var(--dg-input)]',
                 isToday && !isSelected && 'ring-1 ring-[color:var(--dg-primary)]',
+                !isSelected && ink,
               )}
             >
-              <span
-                className={cn(
-                  'text-xs font-bold tabular-nums',
-                  isSelected ? 'text-white' : ink,
-                  !cell.inMonth && !isSelected && faint,
-                )}
-              >
-                {dayNum}
-              </span>
+              {dayNum}
               {has ? (
-                <span className="flex gap-0.5 max-w-full px-0.5 justify-center flex-wrap">
-                  {(cell.summary?.types || []).slice(0, 3).map(type => (
-                    <span
-                      key={type}
-                      className={cn(
-                        'w-1 h-1 rounded-full',
-                        isSelected ? 'bg-white/90' : TYPE_DOT[type] || 'bg-[color:var(--dg-primary)]',
-                      )}
-                    />
-                  ))}
-                </span>
-              ) : (
-                <span className="h-1" />
-              )}
+                <span
+                  className={cn(
+                    'absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full',
+                    isSelected ? 'bg-white/90' : TYPE_DOT[cell.summary!.types[0]] || 'bg-[color:var(--dg-primary)]',
+                  )}
+                />
+              ) : null}
             </button>
           );
         })}
       </div>
+    </div>
+  );
 
-      <div className={cn('mt-5 pt-4 border-t border-[var(--dg-card-border)]')}>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <p className={cn('text-sm font-bold', ink)}>{formatDate(selected)}</p>
-          {daySummary ? (
-            <p className={cn('text-[11px] font-bold tabular-nums', muted)}>
-              <span className={success}>+{fmt(daySummary.inflow)}</span>
-              {daySummary.outflow > 0 ? (
-                <>
-                  {' · '}
-                  <span className={error}>-{fmt(daySummary.outflow)}</span>
-                </>
-              ) : null}
-            </p>
-          ) : null}
+  return (
+    <div className={cn(card, mobile ? 'rounded-2xl p-3.5' : 'rounded-2xl p-5')}>
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+              mobile ? 'bg-[var(--dg-input)]' : 'bg-[var(--dg-input)]',
+            )}
+          >
+            <CalendarDays size={16} className={mobile ? 'dg-m-bright' : 'dg-primary'} />
+          </div>
+          <div className="min-w-0">
+            <h3 className={cn('text-[13px] font-bold', ink)}>{t('dashboard.dayTransactions')}</h3>
+            <p className={cn('text-[11px] truncate', faint)}>{t('dashboard.dayTransactionsHint')}</p>
+          </div>
         </div>
-
-        {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className={cn('h-10 rounded-xl animate-pulse', mobile ? 'dg-m-glass-card' : 'bg-[var(--dg-input)]')}
-              />
-            ))}
-          </div>
-        ) : !daySummary?.items.length ? (
-          <p className={cn('text-sm text-center py-6', muted)}>{t('dashboard.noDayActivity')}</p>
-        ) : (
-          <div className="space-y-2 max-h-56 overflow-y-auto">
-            {daySummary.items.map(a => {
-              const outflow = isActivityOutflow(a);
-              return (
-                <div
-                  key={`${a.type}-${a.id}`}
-                  className="flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 bg-[var(--dg-input)]"
-                >
-                  <div className="min-w-0">
-                    <p className={cn('text-[13px] font-bold truncate', ink)}>{a.label}</p>
-                    <p className={cn('text-[11px]', muted)}>{activityLabel(a.type)}</p>
-                  </div>
-                  <span className={cn('text-[13px] font-bold tabular-nums shrink-0', outflow ? error : success)}>
-                    {outflow ? '-' : '+'}
-                    {fmt(a.amount)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="flex items-center rounded-xl bg-[var(--dg-input)] p-0.5">
+          <button
+            type="button"
+            onClick={() => moveMonth(-1)}
+            className={cn('p-1 rounded-lg', muted, 'hover:opacity-80')}
+            aria-label="Previous month"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className={cn('px-2 text-[11px] font-bold tabular-nums select-none', ink)}>
+            {monthShort(cursor.year, cursor.month)}
+          </span>
+          <button
+            type="button"
+            onClick={() => moveMonth(1)}
+            className={cn('p-1 rounded-lg', muted, 'hover:opacity-80')}
+            aria-label="Next month"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
+
+      {mobile ? (
+        <>
+          {calendarGrid}
+          {dayList}
+        </>
+      ) : (
+        <div className="grid grid-cols-12 gap-3 items-start">
+          <div className="col-span-7">{calendarGrid}</div>
+          <div className="col-span-5">{dayList}</div>
+        </div>
+      )}
     </div>
   );
 }
