@@ -108,10 +108,13 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
     }
   });
 
-  it('standaloneInvoicePdfBasename is ClientName-datetime', async () => {
+  it('standaloneInvoicePdfBasename is ClientName-InvoiceNo-datetime', async () => {
     const { standaloneInvoicePdfBasename } = await import('../../src/lib/printStandaloneInvoice');
     const when = new Date(2026, 6, 20, 13, 45, 7);
     expect(standaloneInvoicePdfBasename('Acme Corp', when)).toBe('Acme Corp-2026-07-20_13-45-07');
+    expect(standaloneInvoicePdfBasename('Acme Corp', when, 'INV/2026-27/0001')).toBe(
+      'Acme Corp-INV-2026-27-0001-2026-07-20_13-45-07',
+    );
   });
 
   it('whatsAppInvoiceShareToast covers pdf_fallback with error hint', async () => {

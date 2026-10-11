@@ -47,8 +47,16 @@ export async function printDistributionDocs(
         ewbNumber: bill.ewbNumber,
       };
       const { billForPrint, opts } = await buildGstPrintOptions(slice, which === 'gst', fullyPaid);
+      const party =
+        (bill.vendorName || 'Party')
+          .trim()
+          .replace(/[^\p{L}\p{M}\p{N}.\- ()#]+/gu, '_')
+          .replace(/_+/g, '_')
+          .replace(/^[_.\s]+|[_.\s]+$/g, '')
+          .slice(0, 40) || 'Party';
+      const kindLabel = which === 'gst' ? 'Tax-Invoice' : 'Bill-of-Supply';
       writePrintHtml(w, generateDistributionChallanHtml(billForPrint, { ...opts, printPage }), {
-        filename: which === 'gst' ? `Tax-Invoice-${docNo}` : `Bill-of-Supply-${docNo}`,
+        filename: `${party}-${kindLabel}-${docNo}`,
       });
     } catch (err) {
       try {

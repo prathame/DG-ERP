@@ -721,7 +721,7 @@ export function InvoicesView({
         },
         { qrDataUrl: upiQrDataUrl || undefined, hasGst: !!(inv as unknown as { taxTotal?: number }).taxTotal },
       );
-      const filename = standaloneInvoicePdfBasename(inv.customerName) + '.pdf';
+      const filename = standaloneInvoicePdfBasename(inv.customerName, undefined, inv.invoiceNumber) + '.pdf';
       const pdfBase64 = await htmlToBase64Pdf(html, filename);
       if (!pdfBase64) throw new Error('Could not generate PDF');
       const { fetchApi } = await import('../../api');

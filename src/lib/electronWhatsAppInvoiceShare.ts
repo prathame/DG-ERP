@@ -213,7 +213,7 @@ export async function shareElectronInvoiceWhatsApp(
   waLog('info', 'WhatsApp share yield UI', baseCtx);
   await yieldToUi();
 
-  const filename = standaloneInvoicePdfBasename(inv.customerName);
+  const filename = standaloneInvoicePdfBasename(inv.customerName, undefined, inv.invoiceNumber);
   const safeName = safePdfFilename(filename);
   const user = (session.getUser() || {}) as {
     companyName?: string;
