@@ -637,14 +637,22 @@ export const api = {
       fetchApi<{
         vendorSummaries: { vendorId: string; vendorName: string; productsSold: number; totalRewardPoints: number }[];
       }>('/dashboard/rewards-summary'),
-    recentActivity: (from?: string, to?: string) => {
+    recentActivity: (from?: string, to?: string, limit?: number) => {
       const qp = new URLSearchParams();
       const range = globalReportingRange();
       if (from || range.from) qp.set('from', from || range.from);
       if (to || range.to) qp.set('to', to || range.to);
+      if (limit != null) qp.set('limit', String(limit));
       const qs = qp.toString();
       return fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>(
         `/analytics/recent-activity${qs ? `?${qs}` : ''}`,
+      );
+    },
+    /** Month activity for Analytics day calendar (high limit, explicit from/to). */
+    calendarActivity: (from: string, to: string) => {
+      const qp = new URLSearchParams({ from, to, limit: '500' });
+      return fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>(
+        `/analytics/recent-activity?${qp}`,
       );
     },
     overview: (from?: string, to?: string) => {

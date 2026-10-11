@@ -68,6 +68,17 @@ function activityQueryParamsWithVendor(tenantId: string, vendorId: string, from?
   return [tenantId, vendorId];
 }
 
+/** Cap calendar / recent-activity row count (default 15, max 500). */
+function parseActivityLimit(raw: unknown, fallback = 15): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(Math.floor(n), 500);
+}
+
+function withActivityLimit(params: unknown[], limit: number): { params: unknown[]; clause: string } {
+  return { params: [...params, limit], clause: ` LIMIT $${params.length + 1}` };
+}
+
 router.get('/api/dashboard/stats', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -314,16 +325,19 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
 
     const from = typeof req.query.from === 'string' ? req.query.from : undefined;
     const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+    const limit = parseActivityLimit(req.query.limit, 15);
 
     const vid = vendorScopeId(req);
     if (req.user?.role === 'Vendor' && !vid) {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
     }
 
-    const rows = vid
-      ? ((
-          await pool.query(
-            `
+    let rows: { type: string; id: string; label: string; amount: number; date: string }[];
+    if (vid) {
+      const limited = withActivityLimit(activityQueryParamsWithVendor(tenantId, vid, from, to), limit);
+      rows = (
+        await pool.query(
+          `
           SELECT type, id, label, amount, date FROM (
             SELECT 'sale' as type, id, COALESCE(customer_name, 'Customer') as label, sale_price as amount, purchase_date::text as date
               FROM product_sales WHERE tenant_id = $1 AND vendor_id = $2
@@ -335,29 +349,45 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
               SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date
               FROM product_distribution WHERE tenant_id = $1 AND vendor_id = $2
               GROUP BY COALESCE(batch_id, id), vendor_id
-          ) t WHERE 1=1${activityDateClause(from, to, 3)} ORDER BY date DESC LIMIT 15
+          ) t WHERE 1=1${activityDateClause(from, to, 3)} ORDER BY date DESC${limited.clause}
         `,
-            activityQueryParamsWithVendor(tenantId, vid, from, to),
-          )
-        ).rows as { type: string; id: string; label: string; amount: number; date: string }[])
-      : ((
-          await pool.query(
-            `
+          limited.params,
+        )
+      ).rows as typeof rows;
+    } else {
+      const limited = withActivityLimit(activityQueryParams(tenantId, from, to), limit);
+      rows = (
+        await pool.query(
+          `
           SELECT type, id, label, amount, date FROM (
             SELECT 'sale' as type, id, COALESCE(customer_name, 'Customer') as label, sale_price as amount, purchase_date::text as date FROM product_sales WHERE tenant_id = $1
             UNION ALL
-            SELECT 'invoice', id, COALESCE(customer_name, 'Customer') as label, grand_total as amount, invoice_date::text as date FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'
+            SELECT 'invoice', id,
+              CASE WHEN COALESCE(invoice_kind,'sale') = 'cash_income'
+                THEN COALESCE(customer_name,'Cash income') || ' (cash)'
+                ELSE COALESCE(customer_name, 'Customer')
+              END as label,
+              grand_total as amount, invoice_date::text as date
+              FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'
             UNION ALL
             SELECT 'payment', id, vendor_id as label, amount, payment_date::text FROM vendor_payments WHERE tenant_id = $1
+            UNION ALL
+            SELECT 'payment', ip.id,
+              COALESCE(si.customer_name, 'Payment') as label,
+              ip.amount, ip.payment_date::text as date
+              FROM invoice_payments ip
+              LEFT JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+              WHERE ip.tenant_id = $1
             UNION ALL
             SELECT 'distribution', COALESCE(batch_id, id), vendor_id as label, SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date FROM product_distribution WHERE tenant_id = $1 GROUP BY COALESCE(batch_id, id), vendor_id
             UNION ALL
             SELECT 'expense', id, category as label, amount, expense_date::text FROM expenses WHERE tenant_id = $1
-          ) t WHERE 1=1${activityDateClause(from, to, 2)} ORDER BY date DESC LIMIT 15
+          ) t WHERE 1=1${activityDateClause(from, to, 2)} ORDER BY date DESC${limited.clause}
         `,
-            activityQueryParams(tenantId, from, to),
-          )
-        ).rows as { type: string; id: string; label: string; amount: number; date: string }[]);
+          limited.params,
+        )
+      ).rows as typeof rows;
+    }
 
     const vendorIds = [
       ...new Set(rows.filter(r => r.type === 'payment' || r.type === 'distribution').map(r => r.label)),
