@@ -138,7 +138,7 @@
     "collected": "Collected",
     "recentActivity": "Recent Activity",
     "dayTransactions": "Day transactions",
-    "dayTransactionsHint": "Tap a day to see invoices, payments, sales, and expenses",
+    "dayTransactionsHint": "Invoices, payments, sales & expenses by day",
     "noDayActivity": "No transactions on this day",
     "noOutstanding": "No outstanding balances",
     "noActivity": "No recent activity",

@@ -76,7 +76,7 @@ export function groupActivitiesByDay(items: DayActivityItem[]): Record<string, D
 }
 
 /**
- * Build a Sun–Sat grid for the month. Leading/trailing cells from adjacent months
+ * Build a Mon–Sun grid for the month. Leading/trailing cells from adjacent months
  * have `inMonth: false` and still carry summaries when activity exists.
  */
 export function buildMonthCalendarCells(
@@ -85,7 +85,7 @@ export function buildMonthCalendarCells(
   byDay: Record<string, DayActivitySummary>,
 ): CalendarCell[] {
   const first = new Date(year, month - 1, 1);
-  const startPad = first.getDay(); // 0 = Sunday
+  const startPad = (first.getDay() + 6) % 7; // Mon=0 … Sun=6
   const daysInMonth = new Date(year, month, 0).getDate();
   const cells: CalendarCell[] = [];
 
