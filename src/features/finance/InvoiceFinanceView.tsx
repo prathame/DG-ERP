@@ -12,7 +12,7 @@ import {
   MessageCircle,
   Users,
 } from 'lucide-react';
-import { cn, formatDate } from '../../lib/utils';
+import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useTranslation } from '../../i18n';
@@ -40,6 +40,11 @@ import {
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { defaultDateRangeFromReportingPeriod, readReportingPeriod } from '../../lib/reportingPeriod';
+import {
+  partyStatementFilename,
+  renderPartyStatementHtml,
+  type PartyStatementDisplay,
+} from '../../../shared/partyStatement';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
@@ -254,6 +259,30 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       await printStandaloneInvoiceById(invoiceId, { businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    }
+  };
+
+  const [statementBusy, setStatementBusy] = useState(false);
+
+  const printPartyStatement = async () => {
+    if (!selected) return;
+    setStatementBusy(true);
+    try {
+      const { from, to } = defaultDateRangeFromReportingPeriod();
+      const stmt = await api.invoiceFinance.partyStatement(selected, from, to);
+      const display = stmt as PartyStatementDisplay;
+      const html = renderPartyStatementHtml(display);
+      const filename = partyStatementFilename(display.partyName, display.partyPhone, display.from, display.to);
+      const w = openPrintWindow('Preparing party statement…');
+      if (!w) {
+        toast(PRINT_POPUP_BLOCKED, 'error');
+        return;
+      }
+      printBillInWindow(w, html, filename);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not load party statement', 'error');
+    } finally {
+      setStatementBusy(false);
     }
   };
 
@@ -621,24 +650,35 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   : `Could not load ${clientsLabel.replace(/s$/, '').toLowerCase()}`}
             </p>
           </div>
-          {!isReadOnly && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={openRecordPayment}
-                className="flex items-center gap-1.5 px-3 py-2.5 border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50"
-              >
-                <IndianRupee size={16} /> {t('finance.recordPayment')}
-              </button>
-              <button
-                type="button"
-                onClick={openNewInvoice}
-                className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
-              >
-                <Plus size={18} /> {t('invoices.newInvoice')}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => void printPartyStatement()}
+              disabled={statementBusy || detailLoading}
+              className="flex items-center gap-1.5 px-3 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 disabled:opacity-50"
+              title="Download party account statement (PDF)"
+            >
+              <FileText size={16} /> {statementBusy ? '…' : 'Statement'}
+            </button>
+            {!isReadOnly && (
+              <>
+                <button
+                  type="button"
+                  onClick={openRecordPayment}
+                  className="flex items-center gap-1.5 px-3 py-2.5 border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50"
+                >
+                  <IndianRupee size={16} /> {t('finance.recordPayment')}
+                </button>
+                <button
+                  type="button"
+                  onClick={openNewInvoice}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
+                >
+                  <Plus size={18} /> {t('invoices.newInvoice')}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {detailLoading && !detail ? (

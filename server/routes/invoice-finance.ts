@@ -7,6 +7,11 @@ import { postCashIncomeToBooks, postInvoicePaymentToBooks } from '../services/op
 import { withBooks } from '../utils/booksStrict';
 import { assertBooksDatesUnlocked } from '../services/bookPeriodLock';
 import type { PoolClient } from 'pg';
+import {
+  buildPartyStatementDisplay,
+  type PartyStatementLine,
+  type PartyStatementModel,
+} from '../../shared/partyStatement';
 
 async function booksPostPayment(
   client: PoolClient,
@@ -901,6 +906,241 @@ router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: 
         notes: r.notes,
       })),
       payments: mergedPayments,
+    });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/**
+ * Miracle-style party account statement for a date range (opening + sales + receipts + closing).
+ * GET /api/invoice-finance/client/:clientName/statement?from=&to=
+ */
+router.get('/api/invoice-finance/client/:clientName/statement', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    let { from, to } = parseQueryDateRange(req);
+    if (!from || !to) {
+      const y = new Date().getFullYear();
+      const m = new Date().getMonth();
+      const startYear = m >= 3 ? y : y - 1;
+      from = from || `${startYear}-04-01`;
+      to = to || `${startYear + 1}-03-31`;
+    }
+
+    const { partyType, partyId, clientName, partyKey } = parsePartyKey(req.params.clientName);
+    const businessType = await tenantBusinessType(tenantId);
+
+    const companyRow = (await pool.query('SELECT company_name, address, phone FROM tenants WHERE id = $1', [tenantId]))
+      .rows[0] as { company_name?: string; address?: string | null; phone?: string | null } | undefined;
+    const companyName = companyRow?.company_name || 'Company';
+
+    type PartyFilter = { sql: string; params: unknown[] };
+    const partyFilter = (alias: string, startIdx: number): PartyFilter => {
+      if (partyType && partyId) {
+        return {
+          sql: ` AND ${alias}.party_type = $${startIdx} AND ${alias}.party_id = $${startIdx + 1}`,
+          params: [partyType, partyId],
+        };
+      }
+      return {
+        sql: ` AND (
+            ${alias}.customer_name = $${startIdx}
+            OR (${alias}.party_type = 'vendor' AND ${alias}.party_id IN (
+              SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($${startIdx})
+            ))
+            OR (${alias}.party_type = 'customer' AND ${alias}.party_id IN (
+              SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($${startIdx})
+            ))
+          )`,
+        params: [clientName],
+      };
+    };
+
+    const invParty = partyFilter('si', 2);
+    const openingInvParams = [tenantId, ...invParty.params, from];
+    const openingInvoiced = Number(
+      (
+        await pool.query(
+          `SELECT COALESCE(SUM(si.grand_total), 0) AS v
+           FROM standalone_invoices si
+           WHERE si.tenant_id = $1
+             AND si.status IS DISTINCT FROM 'cancelled'
+             AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+             ${invParty.sql}
+             AND si.invoice_date < $${openingInvParams.length}`,
+          openingInvParams,
+        )
+      ).rows[0]?.v,
+    );
+
+    const openingPayParams = [tenantId, ...invParty.params, from];
+    const openingPaid = Number(
+      (
+        await pool.query(
+          `SELECT COALESCE(SUM(ip.amount), 0) AS v
+           FROM invoice_payments ip
+           JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
+           WHERE ip.tenant_id = $1
+             AND si.status IS DISTINCT FROM 'cancelled'
+             AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+             ${invParty.sql}
+             AND ip.payment_date < $${openingPayParams.length}`,
+          openingPayParams,
+        )
+      ).rows[0]?.v,
+    );
+
+    let openingAdvances = 0;
+    if (businessType === 'service' && partyType === 'vendor' && partyId) {
+      openingAdvances = Number(
+        (
+          await pool.query(
+            `SELECT COALESCE(SUM(amount), 0) AS v FROM vendor_payments
+             WHERE tenant_id = $1 AND vendor_id = $2 AND payment_date < $3`,
+            [tenantId, partyId, from],
+          )
+        ).rows[0]?.v,
+      );
+    }
+
+    const openingSigned = Math.round((openingInvoiced - openingPaid - openingAdvances) * 100) / 100;
+
+    const periodInvParams = [tenantId, ...invParty.params, from, to];
+    const saleRows = (
+      await pool.query(
+        `SELECT si.invoice_number, si.invoice_date, si.grand_total, si.customer_name, si.customer_phone, si.customer_address
+         FROM standalone_invoices si
+         WHERE si.tenant_id = $1
+           AND si.status IS DISTINCT FROM 'cancelled'
+           AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+           ${invParty.sql}
+           AND si.invoice_date >= $${periodInvParams.length - 1}
+           AND si.invoice_date <= $${periodInvParams.length}
+         ORDER BY si.invoice_date ASC, si.invoice_number ASC`,
+        periodInvParams,
+      )
+    ).rows as {
+      invoice_number: string;
+      invoice_date: string;
+      grand_total: number;
+      customer_name: string;
+      customer_phone: string | null;
+      customer_address: string | null;
+    }[];
+
+    const periodPayParams = [tenantId, ...invParty.params, from, to];
+    const receiptRows = (
+      await pool.query(
+        `SELECT ip.amount, ip.payment_date, ip.payment_method, ip.notes, si.invoice_number
+         FROM invoice_payments ip
+         JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
+         WHERE ip.tenant_id = $1
+           AND si.status IS DISTINCT FROM 'cancelled'
+           AND COALESCE(si.invoice_kind, 'sale') = 'sale'
+           ${invParty.sql}
+           AND ip.payment_date >= $${periodPayParams.length - 1}
+           AND ip.payment_date <= $${periodPayParams.length}
+         ORDER BY ip.payment_date ASC, ip.created_at ASC`,
+        periodPayParams,
+      )
+    ).rows as {
+      amount: number;
+      payment_date: string;
+      payment_method: string | null;
+      notes: string | null;
+      invoice_number: string | null;
+    }[];
+
+    const debitLines: PartyStatementLine[] = saleRows.map(r => ({
+      date: String(r.invoice_date).slice(0, 10),
+      particular: 'Sale',
+      amount: Number(r.grand_total) || 0,
+      billNo: r.invoice_number,
+    }));
+
+    const creditLines: PartyStatementLine[] = receiptRows.map(r => ({
+      date: String(r.payment_date).slice(0, 10),
+      particular: 'CRct',
+      amount: Number(r.amount) || 0,
+      billNo: r.invoice_number,
+      note: r.notes,
+    }));
+
+    if (businessType === 'service' && partyType === 'vendor' && partyId) {
+      const advRows = (
+        await pool.query(
+          `SELECT amount, payment_date, notes FROM vendor_payments
+           WHERE tenant_id = $1 AND vendor_id = $2
+             AND payment_date >= $3 AND payment_date <= $4
+           ORDER BY payment_date ASC, created_at ASC`,
+          [tenantId, partyId, from, to],
+        )
+      ).rows as { amount: number; payment_date: string; notes: string | null }[];
+      for (const a of advRows) {
+        creditLines.push({
+          date: String(a.payment_date).slice(0, 10),
+          particular: 'CRct',
+          amount: Number(a.amount) || 0,
+          billNo: 'Advance',
+          note: a.notes,
+        });
+      }
+      creditLines.sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    let partyName = saleRows[0]?.customer_name || clientName || 'Client';
+    let partyPhone = saleRows[0]?.customer_phone || null;
+    let partyAddress = saleRows[0]?.customer_address || null;
+    if (partyType && partyId) {
+      if (partyType === 'vendor') {
+        const v = (
+          await pool.query('SELECT name, phone, address FROM vendors WHERE id = $1 AND tenant_id = $2', [
+            partyId,
+            tenantId,
+          ])
+        ).rows[0] as { name: string; phone: string | null; address: string | null } | undefined;
+        if (v) {
+          partyName = v.name || partyName;
+          partyPhone = partyPhone || v.phone;
+          partyAddress = partyAddress || v.address;
+        }
+      } else {
+        const c = (
+          await pool.query('SELECT name, phone, address FROM customers WHERE id = $1 AND tenant_id = $2', [
+            partyId,
+            tenantId,
+          ])
+        ).rows[0] as { name: string; phone: string | null; address: string | null } | undefined;
+        if (c) {
+          partyName = c.name || partyName;
+          partyPhone = partyPhone || c.phone;
+          partyAddress = partyAddress || c.address;
+        }
+      }
+    }
+
+    const model: PartyStatementModel = {
+      companyName,
+      partyName,
+      partyPhone,
+      partyAddress,
+      from,
+      to,
+      openingSigned,
+      debitLines,
+      creditLines,
+      closingSigned: 0,
+    };
+    const display = buildPartyStatementDisplay(model);
+
+    res.json({
+      partyKey,
+      partyType,
+      partyId,
+      ...display,
     });
   } catch (err) {
     return handleApiError(req, res, err);

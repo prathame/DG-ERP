@@ -183,12 +183,16 @@ async function buildStandaloneInvoiceHtml(
       printPage: options?.printPage,
     },
   );
-  const filename = standaloneInvoicePdfBasename(inv.customerName);
+  const filename = standaloneInvoicePdfBasename(inv.customerName, undefined, inv.invoiceNumber);
   return { html, filename, hasGst };
 }
 
-/** PDF basename: `{ClientName}-{YYYY-MM-DD_HH-mm-ss}` (sanitized; keeps Unicode letters). */
-export function standaloneInvoicePdfBasename(customerName?: string, when = new Date()): string {
+/**
+ * PDF basename for standalone invoices / WhatsApp shares.
+ * `{ClientName}-{InvoiceNo}-{YYYY-MM-DD_HH-mm-ss}` (sanitized; keeps Unicode letters).
+ * Party name is always first so Print → Save as PDF suggests who the bill is for.
+ */
+export function standaloneInvoicePdfBasename(customerName?: string, when = new Date(), invoiceNumber?: string): string {
   const name =
     (customerName || 'Client')
       .trim()
@@ -196,9 +200,16 @@ export function standaloneInvoicePdfBasename(customerName?: string, when = new D
       .replace(/_+/g, '_')
       .replace(/^[_.\s]+|[_.\s]+$/g, '')
       .slice(0, 40) || 'Client';
+  const invNo = (invoiceNumber || '')
+    .trim()
+    .replace(/[^\p{L}\p{M}\p{N}.\-\/]+/gu, '_')
+    .replace(/_+/g, '_')
+    .replace(/^[_.\s]+|[_.\s]+$/g, '')
+    .replace(/\//g, '-')
+    .slice(0, 24);
   const pad = (n: number) => String(n).padStart(2, '0');
   const dt = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}_${pad(when.getHours())}-${pad(when.getMinutes())}-${pad(when.getSeconds())}`;
-  return `${name}-${dt}`;
+  return invNo ? `${name}-${invNo}-${dt}` : `${name}-${dt}`;
 }
 
 /** Open print/PDF preview for a standalone invoice (customer or vendor/client party). */
@@ -250,7 +261,7 @@ async function shareCapInvoicePdfWithFallback(
   waLog('info', 'WhatsApp share yield UI', baseCtx);
   await yieldToUi();
 
-  const filename = standaloneInvoicePdfBasename(inv.customerName);
+  const filename = standaloneInvoicePdfBasename(inv.customerName, undefined, inv.invoiceNumber);
   const user = (session.getUser() || {}) as {
     companyName?: string;
     address?: string;
@@ -406,7 +417,7 @@ export async function shareStandaloneInvoiceWhatsApp(
   };
   const billSettings =
     options?.billSettings || ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>);
-  const filename = standaloneInvoicePdfBasename(shareInv.customerName);
+  const filename = standaloneInvoicePdfBasename(shareInv.customerName, undefined, shareInv.invoiceNumber);
 
   // Fetch QR codes in parallel — use invoice IRN/QR when present (same as print path).
   const irnQrPayload =

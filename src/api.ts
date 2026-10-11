@@ -1085,6 +1085,27 @@ export const api = {
           isAdvance?: boolean;
         }[];
       }>(`/invoice-finance/client/${encodeURIComponent(partyKey)}${reportingRangeQuery(from, to)}`),
+    /** Miracle-style party statement (opening / sales / receipts / closing) for PDF print. */
+    partyStatement: (partyKey: string, from?: string, to?: string) =>
+      fetchApi<{
+        partyKey: string;
+        companyName: string;
+        partyName: string;
+        partyPhone?: string | null;
+        partyAddress?: string | null;
+        from: string;
+        to: string;
+        openingSigned: number;
+        closingSigned: number;
+        opening: { amount: number; side: 'debit' | 'credit' | 'nil' };
+        closing: { amount: number; side: 'debit' | 'credit' | 'nil' };
+        debitLines: { date: string; particular: string; amount: number; billNo?: string | null }[];
+        creditLines: { date: string; particular: string; amount: number; billNo?: string | null }[];
+        debitColumn: { amount: number; label: string; date?: string; billNo?: string | null }[];
+        creditColumn: { amount: number; label: string; date?: string; billNo?: string | null }[];
+        debitTotal: number;
+        creditTotal: number;
+      }>(`/invoice-finance/client/${encodeURIComponent(partyKey)}/statement${reportingRangeQuery(from, to)}`),
     recordPayment: (data: {
       /** Apply to a specific invoice (must have remaining balance). */
       invoiceId?: string;

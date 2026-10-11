@@ -3048,8 +3048,13 @@ export function DistributionView({
                               ewbNumber: fresh.ewbNumber,
                             };
                             const { billForPrint, opts } = await buildGstPrintOptions(slice, true, paidOpts.fullyPaid);
+                            const partyName = (fresh.vendorName || 'Party')
+                              .trim()
+                              .replace(/[^\p{L}\p{M}\p{N}.\- ()#]+/gu, '_')
+                              .replace(/_+/g, '_')
+                              .slice(0, 40);
                             writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `Tax-Invoice-${docNo}`,
+                              filename: `${partyName || 'Party'}-Tax-Invoice-${docNo}`,
                             });
                           } catch (err) {
                             try {
@@ -3090,8 +3095,13 @@ export function DistributionView({
                               ewbNumber: fresh.ewbNumber,
                             };
                             const { billForPrint, opts } = await buildGstPrintOptions(slice, false, paidOpts.fullyPaid);
+                            const partyName = (fresh.vendorName || 'Party')
+                              .trim()
+                              .replace(/[^\p{L}\p{M}\p{N}.\- ()#]+/gu, '_')
+                              .replace(/_+/g, '_')
+                              .slice(0, 40);
                             writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `Bill-of-Supply-${docNo}`,
+                              filename: `${partyName || 'Party'}-Bill-of-Supply-${docNo}`,
                             });
                           } catch (err) {
                             try {

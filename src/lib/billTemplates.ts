@@ -689,7 +689,7 @@ export function generateStandaloneInvoiceHtml(
     )
     .join('');
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(docTitle)} — ${esc(invPrefix)}${esc(inv.invoiceNumber)}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(inv.customerName)} — ${esc(docTitle)} — ${esc(invPrefix)}${esc(inv.invoiceNumber)}</title>
 <style>${billDocCss(color, options?.printPage)}</style></head><body>
 ${billBackgroundLayerHtml(billSettings)}
 <div class="page-frame bill-content">
