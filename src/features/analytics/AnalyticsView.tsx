@@ -34,6 +34,7 @@ import {
 import { DesktopAnalyticsDashboard } from './DesktopAnalyticsDashboard';
 import { MobileAnalyticsDashboard } from './MobileAnalyticsDashboard';
 import { MetricInfoTip } from './MetricInfoTip';
+import { TransactionCalendar } from './TransactionCalendar';
 import {
   resolveReportingRange,
   writeReportingPeriod,
@@ -525,6 +526,11 @@ export function AnalyticsView({
           <div className="h-16 flex items-center justify-center text-gray-400 text-sm">{t('common.loading')}</div>
         )}
       </div>
+
+      <TransactionCalendar
+        variant={servicePhoneUx ? 'mobile' : 'desktop'}
+        activityLabel={type => t(ACTIVITY_META[type]?.labelKey ?? 'dashboard.sale')}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Client / vendor outstanding — service: invoice dues; View All → Invoice Finance */}

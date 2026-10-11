@@ -21,6 +21,7 @@ import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
 import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 import { MetricInfoTip } from './MetricInfoTip';
+import { TransactionCalendar } from './TransactionCalendar';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
@@ -160,6 +161,8 @@ export function MobileAnalyticsDashboard({
               </div>
             ))}
       </div>
+
+      <TransactionCalendar variant="mobile" activityLabel={activityLabel} />
 
       <div className="dg-m-glass-card rounded-2xl p-3.5">
         <div className="flex items-center justify-between mb-3">

@@ -20,6 +20,7 @@ import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
 import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 import { MetricInfoTip } from './MetricInfoTip';
+import { TransactionCalendar } from './TransactionCalendar';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
@@ -162,72 +163,15 @@ export function DesktopAnalyticsDashboard({
 
       <div className="grid grid-cols-12 gap-8">
         <div className="col-span-12 lg:col-span-8 space-y-8">
-          <div className="dg-glass-card p-8 rounded-3xl">
-            <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
-              <div>
-                <h3 className="text-lg font-bold dg-ink mb-1">Revenue Performance</h3>
-                <p className="dg-faint text-xs">Actual data trends from Unified Dashboard</p>
+          <div className="space-y-3">
+            <div className="flex justify-between items-end flex-wrap gap-2 px-1">
+              <div className="flex items-center gap-1.5 dg-success text-[11px] font-bold">
+                <TrendingUp size={14} />
+                {t('dashboard.moneyOverview')}
               </div>
-              <div className="text-right">
-                <span className="text-3xl font-black dg-ink tabular-nums">{fmt(revenueHighlight)}</span>
-                <div className="flex items-center justify-end gap-1 dg-success text-[11px] font-bold mt-1">
-                  <TrendingUp size={14} />
-                  {t('dashboard.moneyOverview')}
-                </div>
-              </div>
+              <span className="text-2xl font-black dg-ink tabular-nums">{fmt(revenueHighlight)}</span>
             </div>
-            <div className="h-64 relative">
-              <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
-                <defs>
-                  <linearGradient id="dgChartFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="var(--dg-primary)" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="var(--dg-primary)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <line x1="0" y1="50" x2="1000" y2="50" stroke="currentColor" strokeOpacity="0.08" strokeDasharray="4" />
-                <line
-                  x1="0"
-                  y1="150"
-                  x2="1000"
-                  y2="150"
-                  stroke="currentColor"
-                  strokeOpacity="0.08"
-                  strokeDasharray="4"
-                />
-                <line
-                  x1="0"
-                  y1="250"
-                  x2="1000"
-                  y2="250"
-                  stroke="currentColor"
-                  strokeOpacity="0.08"
-                  strokeDasharray="4"
-                />
-                <path
-                  d="M0,280 C100,270 200,265 300,275 C400,285 500,240 600,210 C700,180 850,120 1000,40"
-                  fill="none"
-                  stroke="var(--dg-primary)"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M0,280 C100,270 200,265 300,275 C400,285 500,240 600,210 C700,180 850,120 1000,40 V300 H0 Z"
-                  fill="url(#dgChartFill)"
-                />
-                <circle cx="300" cy="275" r="5" fill="var(--dg-bg)" stroke="var(--dg-primary)" strokeWidth="2" />
-                <circle cx="600" cy="210" r="5" fill="var(--dg-bg)" stroke="var(--dg-primary)" strokeWidth="2" />
-                <circle cx="1000" cy="40" r="6" fill="var(--dg-primary)" stroke="#fff" strokeWidth="2" />
-              </svg>
-              <div className="flex justify-between mt-4 text-[10px] dg-faint font-bold uppercase tracking-widest px-1">
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
-                <span>Sun</span>
-              </div>
-            </div>
+            <TransactionCalendar variant="desktop" activityLabel={activityLabel} />
           </div>
 
           {payroll && (
