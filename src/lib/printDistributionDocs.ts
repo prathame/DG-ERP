@@ -48,7 +48,7 @@ export async function printDistributionDocs(
       };
       const { billForPrint, opts } = await buildGstPrintOptions(slice, which === 'gst', fullyPaid);
       const party =
-        (bill.vendorName || 'Party')
+        (bill.vendor?.name || 'Party')
           .trim()
           .replace(/[^\p{L}\p{M}\p{N}.\- ()#]+/gu, '_')
           .replace(/_+/g, '_')
