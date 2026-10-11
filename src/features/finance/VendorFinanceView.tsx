@@ -47,6 +47,7 @@ import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { DesktopVendorFinance } from './DesktopVendorFinance';
 import { MobileVendorFinance, type MobileFinanceChip } from './MobileVendorFinance';
+import { consumeAnalyticsDeepLink } from '../../lib/analyticsDeepLink';
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -217,6 +218,16 @@ export function VendorFinanceView({
       )
       .catch(() => setDetail(null));
   };
+
+  useEffect(() => {
+    if (isVendor) return;
+    const link = consumeAnalyticsDeepLink();
+    if (link?.kind === 'vendorFinance') {
+      setSelectedVendorId(link.vendorId);
+      loadDetail(link.vendorId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot deep-link on mount
+  }, []);
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();

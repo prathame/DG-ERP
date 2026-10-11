@@ -135,6 +135,8 @@
     "expenses": "Expenses",
     "netIn": "Net In",
     "outstanding": "Outstanding",
+    "partySpotlight": "Party spotlight",
+    "toCollect": "To collect",
     "collected": "Collected",
     "recentActivity": "Recent Activity",
     "dayTransactions": "Day transactions",

@@ -44,6 +44,7 @@ import {
   isIndianFyClosed,
   type ReportingPeriodPreset,
 } from '../../lib/reportingPeriod';
+import { stashAnalyticsDeepLink, tabForActivityType } from '../../lib/analyticsDeepLink';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString('en-IN');
 
@@ -358,6 +359,22 @@ export function AnalyticsView({
     else setActiveTab(nav.tab);
   };
 
+  const openOutstandingParty = (party: { vendorId: string; vendorName: string; balance: number }) => {
+    if (serviceProductUx) {
+      stashAnalyticsDeepLink({ kind: 'financeParty', partyKey: party.vendorId });
+    } else {
+      stashAnalyticsDeepLink({ kind: 'vendorFinance', vendorId: party.vendorId });
+    }
+    setActiveTab('finance');
+  };
+
+  const openActivity = (a: { type: string; id: string; label: string; amount: number; date: string }) => {
+    if (a.type === 'invoice' && a.id) {
+      stashAnalyticsDeepLink({ kind: 'invoice', invoiceId: a.id });
+    }
+    setActiveTab(tabForActivityType(a.type));
+  };
+
   if (desktopGlass) {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -391,6 +408,10 @@ export function AnalyticsView({
           activity={activity}
           relativeTime={d => relativeTime(d, t)}
           activityLabel={type => t(ACTIVITY_META[type]?.labelKey ?? 'dashboard.sale')}
+          vendors={vendors}
+          outstandingLabel={tb(cfg.analytics.outstandingLabel, t) || outstandingLabel}
+          onOpenOutstandingParty={openOutstandingParty}
+          onOpenActivity={openActivity}
           payroll={payroll}
           counts={counts}
           setActiveTab={setActiveTab}
@@ -420,6 +441,8 @@ export function AnalyticsView({
           activity={activity}
           relativeTime={d => relativeTime(d, t)}
           activityLabel={type => t(ACTIVITY_META[type]?.labelKey ?? 'dashboard.sale')}
+          onOpenOutstandingParty={openOutstandingParty}
+          onOpenActivity={openActivity}
           payroll={payroll}
           counts={counts}
           setActiveTab={setActiveTab}
@@ -530,6 +553,7 @@ export function AnalyticsView({
       <TransactionCalendar
         variant={servicePhoneUx ? 'mobile' : 'desktop'}
         activityLabel={type => t(ACTIVITY_META[type]?.labelKey ?? 'dashboard.sale')}
+        onOpenActivity={openActivity}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

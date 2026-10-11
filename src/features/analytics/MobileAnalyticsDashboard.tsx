@@ -48,6 +48,8 @@ type Props = {
   activity: Activity[];
   relativeTime: (dateStr: string) => string;
   activityLabel: (type: string) => string;
+  onOpenOutstandingParty?: (party: { vendorId: string; vendorName: string; balance: number }) => void;
+  onOpenActivity?: (activity: Activity) => void;
   payroll: {
     grandTotal: number;
     advanceOutstanding: number;
@@ -101,6 +103,8 @@ export function MobileAnalyticsDashboard({
   activity,
   relativeTime,
   activityLabel,
+  onOpenOutstandingParty,
+  onOpenActivity,
   payroll,
   counts,
   setActiveTab,
@@ -162,7 +166,7 @@ export function MobileAnalyticsDashboard({
             ))}
       </div>
 
-      <TransactionCalendar variant="mobile" activityLabel={activityLabel} />
+      <TransactionCalendar variant="mobile" activityLabel={activityLabel} onOpenActivity={onOpenActivity} />
 
       <div className="dg-m-glass-card rounded-2xl p-3.5">
         <div className="flex items-center justify-between mb-3">
@@ -187,16 +191,18 @@ export function MobileAnalyticsDashboard({
         ) : (
           <div className="space-y-1.5">
             {vendors.map((v, i) => (
-              <div
+              <button
                 key={v.vendorId}
-                className="flex items-center justify-between rounded-xl px-2.5 py-2 bg-[var(--dg-input)]"
+                type="button"
+                onClick={() => (onOpenOutstandingParty ? onOpenOutstandingParty(v) : setActiveTab('finance'))}
+                className="w-full flex items-center justify-between rounded-xl px-2.5 py-2 bg-[var(--dg-input)] text-left hover:opacity-90"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[10px] font-bold dg-m-faint w-5 shrink-0">#{i + 1}</span>
                   <span className="text-[13px] font-medium truncate dg-m-ink">{v.vendorName}</span>
                 </div>
                 <span className="text-[13px] font-bold dg-m-error tabular-nums shrink-0">{fmt(v.balance)}</span>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -214,7 +220,12 @@ export function MobileAnalyticsDashboard({
               const Icon = activityIcon(a.type);
               const outflow = a.type === 'expense' || a.amount < 0;
               return (
-                <div key={a.id + a.type} className="flex items-center gap-2.5">
+                <button
+                  key={a.id + a.type}
+                  type="button"
+                  onClick={() => onOpenActivity?.(a)}
+                  className="flex items-center gap-2.5 w-full text-left hover:opacity-90"
+                >
                   <div
                     className={cn(
                       'w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-[var(--dg-input)]',
@@ -238,7 +249,7 @@ export function MobileAnalyticsDashboard({
                     {outflow ? '-' : '+'}
                     {fmt(a.amount)}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
