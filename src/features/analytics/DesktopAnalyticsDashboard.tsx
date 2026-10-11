@@ -35,6 +35,8 @@ type MoneyTile = {
 
 type Activity = { type: string; id: string; label: string; amount: number; date: string };
 
+type OutstandingParty = { vendorId: string; vendorName: string; balance: number };
+
 type Props = {
   range: string;
   rangePresets: { id: string; label: string }[];
@@ -45,6 +47,10 @@ type Props = {
   activity: Activity[];
   relativeTime: (dateStr: string) => string;
   activityLabel: (type: string) => string;
+  vendors: OutstandingParty[];
+  outstandingLabel: string;
+  onOpenOutstandingParty: (party: OutstandingParty) => void;
+  onOpenActivity: (activity: Activity) => void;
   payroll: {
     grandTotal: number;
     advanceOutstanding: number;
@@ -99,6 +105,10 @@ export function DesktopAnalyticsDashboard({
   activity,
   relativeTime,
   activityLabel,
+  vendors,
+  outstandingLabel,
+  onOpenOutstandingParty,
+  onOpenActivity,
   payroll,
   counts,
   setActiveTab,
@@ -109,6 +119,7 @@ export function DesktopAnalyticsDashboard({
   hideCustomerMaster,
 }: Props) {
   const { t } = useTranslation();
+  const spotlight = vendors[0] || null;
 
   return (
     <div className="space-y-8 w-full max-w-none">
@@ -171,7 +182,7 @@ export function DesktopAnalyticsDashboard({
               </div>
               <span className="text-xl font-black dg-ink tabular-nums">{fmt(revenueHighlight)}</span>
             </div>
-            <TransactionCalendar variant="desktop" activityLabel={activityLabel} />
+            <TransactionCalendar variant="desktop" activityLabel={activityLabel} onOpenActivity={onOpenActivity} />
           </div>
 
           {payroll && (
@@ -242,10 +253,82 @@ export function DesktopAnalyticsDashboard({
           )}
         </div>
 
-        <div className="col-span-12 lg:col-span-4 space-y-8">
-          <div className="dg-glass-card p-8 rounded-3xl flex flex-col min-h-[28rem]">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-lg font-bold dg-ink">{t('dashboard.recentActivity')}</h3>
+        <div className="col-span-12 lg:col-span-4 space-y-6">
+          <div className="dg-glass-card p-6 rounded-3xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider dg-faint">
+                  {outstandingLabel} {vendorsLabel}
+                </p>
+                <h3 className="text-base font-bold dg-ink mt-0.5">{t('dashboard.partySpotlight')}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('finance')}
+                className="text-xs font-bold dg-primary hover:underline flex items-center gap-0.5"
+              >
+                {t('common.viewAll')} <ArrowUpRight size={14} />
+              </button>
+            </div>
+            {!spotlight ? (
+              <div className="text-center py-6">
+                <Wallet size={28} className="mx-auto dg-faint mb-2" />
+                <p className="text-sm font-bold dg-ink">{t('dashboard.noOutstanding')}</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-[var(--dg-input)] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => onOpenOutstandingParty(spotlight)}
+                  className="w-full text-left p-4 hover:opacity-90 transition-all"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[color-mix(in_srgb,var(--dg-primary)_18%,transparent)] flex items-center justify-center text-sm font-bold dg-primary shrink-0">
+                      {spotlight.vendorName
+                        .split(/\s+/)
+                        .map(p => p[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold dg-ink truncate">{spotlight.vendorName}</p>
+                      <p className="text-[11px] dg-muted">#1 · {t('dashboard.toCollect')}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-end justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider dg-faint">
+                      {t('dashboard.outstanding')}
+                    </span>
+                    <span className="text-xl font-black dg-error tabular-nums">{fmt(spotlight.balance)}</span>
+                  </div>
+                </button>
+                {vendors.length > 1 ? (
+                  <ul className="px-3 pb-3 space-y-1 border-t border-[var(--dg-card-border)] pt-2">
+                    {vendors.slice(1, 4).map((v, i) => (
+                      <li key={v.vendorId}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenOutstandingParty(v)}
+                          className="w-full flex items-center justify-between gap-2 text-left rounded-lg px-1 py-1.5 hover:bg-[var(--dg-card-bg)]"
+                        >
+                          <span className="text-[12px] dg-ink truncate">
+                            <span className="dg-faint font-bold mr-1">#{i + 2}</span>
+                            {v.vendorName}
+                          </span>
+                          <span className="text-[12px] font-bold dg-error tabular-nums shrink-0">{fmt(v.balance)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="dg-glass-card p-6 rounded-3xl flex flex-col min-h-[22rem]">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-base font-bold dg-ink">{t('dashboard.recentActivity')}</h3>
               <button
                 type="button"
                 onClick={() => setActiveTab('finance')}
@@ -258,20 +341,25 @@ export function DesktopAnalyticsDashboard({
             {activity.length === 0 ? (
               <p className="text-sm dg-muted text-center py-10">{t('dashboard.noActivity')}</p>
             ) : (
-              <div className="space-y-6 relative">
-                <div className="absolute left-[19px] top-4 bottom-4 w-px bg-[var(--dg-card-border)]" />
+              <div className="space-y-3 relative">
+                <div className="absolute left-[17px] top-3 bottom-3 w-px bg-[var(--dg-card-border)]" />
                 {activity.slice(0, 8).map(a => {
                   const Icon = activityIcon(a.type);
                   const outflow = a.type === 'expense' || a.amount < 0;
                   return (
-                    <div key={a.id + a.type} className="relative flex items-start gap-4">
+                    <button
+                      key={a.id + a.type}
+                      type="button"
+                      onClick={() => onOpenActivity(a)}
+                      className="relative flex items-start gap-3 w-full text-left rounded-xl hover:bg-[var(--dg-input)]/60 px-1 py-1 transition-colors"
+                    >
                       <div
                         className={cn(
-                          'w-10 h-10 rounded-full dg-glass-card flex items-center justify-center z-10 shrink-0',
+                          'w-9 h-9 rounded-full dg-glass-card flex items-center justify-center z-10 shrink-0',
                           outflow ? 'dg-error' : 'dg-success',
                         )}
                       >
-                        <Icon size={16} />
+                        <Icon size={15} />
                       </div>
                       <div className="flex-grow min-w-0">
                         <div className="flex justify-between items-start gap-2">
@@ -286,21 +374,21 @@ export function DesktopAnalyticsDashboard({
                             {fmt(a.amount)}
                           </span>
                         </div>
-                        <p className="text-xs dg-muted mt-1">{activityLabel(a.type)}</p>
-                        <p className="text-[10px] dg-faint mt-2 font-bold uppercase tracking-tighter">
+                        <p className="text-xs dg-muted mt-0.5">{activityLabel(a.type)}</p>
+                        <p className="text-[10px] dg-faint mt-1 font-bold uppercase tracking-tighter">
                           {relativeTime(a.date)}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             )}
-            <div className="mt-auto pt-8">
+            <div className="mt-auto pt-6">
               <button
                 type="button"
                 onClick={() => setActiveTab('accounts')}
-                className="w-full py-4 dg-glass-card rounded-2xl dg-ink font-bold text-xs hover:opacity-90 transition-all"
+                className="w-full py-3 dg-glass-card rounded-2xl dg-ink font-bold text-xs hover:opacity-90 transition-all"
               >
                 View Full Audit Ledger
               </button>

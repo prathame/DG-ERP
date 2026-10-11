@@ -40,6 +40,7 @@ import {
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { defaultDateRangeFromReportingPeriod, readReportingPeriod } from '../../lib/reportingPeriod';
+import { consumeAnalyticsDeepLink } from '../../lib/analyticsDeepLink';
 import {
   partyStatementFilename,
   renderPartyStatementHtml,
@@ -244,6 +245,12 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setDetail(null);
     loadDetail(partyKey);
   };
+
+  useEffect(() => {
+    const link = consumeAnalyticsDeepLink();
+    if (link?.kind === 'financeParty') openClient(link.partyKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot deep-link on mount
+  }, []);
 
   const closeClient = () => {
     setSelected(null);

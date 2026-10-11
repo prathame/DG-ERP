@@ -19,6 +19,7 @@ import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServiceProductUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
+import { consumeAnalyticsDeepLink } from '../../lib/analyticsDeepLink';
 import {
   useToast,
   LoadingSpinner,
@@ -355,6 +356,16 @@ export function InvoicesView({
     setCreateOpen(true);
     onLaunchConsumed?.();
   }, [canEdit, launchCreate, launchPrefill, onLaunchConsumed]);
+
+  useEffect(() => {
+    const link = consumeAnalyticsDeepLink();
+    if (link?.kind !== 'invoice') return;
+    fetchApi<Invoice>(`/invoices/${encodeURIComponent(link.invoiceId)}`)
+      .then(inv => {
+        if (inv?.id) setSelectedInvoice(inv);
+      })
+      .catch(() => {});
+  }, []);
 
   useEscapeKey(() => {
     if (returnTarget) {

@@ -32,13 +32,14 @@ const TYPE_DOT: Record<string, string> = {
 type Props = {
   variant?: 'desktop' | 'mobile';
   activityLabel: (type: string) => string;
+  onOpenActivity?: (activity: DayActivityItem) => void;
 };
 
 function monthShort(year: number, month: number): string {
   return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }).toUpperCase();
 }
 
-export function TransactionCalendar({ variant = 'desktop', activityLabel }: Props) {
+export function TransactionCalendar({ variant = 'desktop', activityLabel, onOpenActivity }: Props) {
   const { t } = useTranslation();
   const mobile = variant === 'mobile';
   const today = calendarDateIST(new Date());
@@ -122,11 +123,8 @@ export function TransactionCalendar({ variant = 'desktop', activityLabel }: Prop
         <div className={cn('space-y-1 overflow-y-auto', mobile ? 'max-h-40' : 'max-h-44')}>
           {daySummary.items.map(a => {
             const outflow = isActivityOutflow(a);
-            return (
-              <div
-                key={`${a.type}-${a.id}`}
-                className="flex items-start gap-2 rounded-lg px-2 py-1.5 bg-[var(--dg-input)]"
-              >
+            const body = (
+              <>
                 <span
                   className={cn(
                     'w-1.5 h-1.5 rounded-full mt-1.5 shrink-0',
@@ -143,6 +141,21 @@ export function TransactionCalendar({ variant = 'desktop', activityLabel }: Prop
                   </div>
                   <p className={cn('text-[10px] tabular-nums', faint)}>{activityLabel(a.type)}</p>
                 </div>
+              </>
+            );
+            const rowClass = 'flex items-start gap-2 rounded-lg px-2 py-1.5 bg-[var(--dg-input)] w-full text-left';
+            return onOpenActivity ? (
+              <button
+                key={`${a.type}-${a.id}`}
+                type="button"
+                onClick={() => onOpenActivity(a)}
+                className={cn(rowClass, 'hover:opacity-90 transition-opacity')}
+              >
+                {body}
+              </button>
+            ) : (
+              <div key={`${a.type}-${a.id}`} className={rowClass}>
+                {body}
               </div>
             );
           })}
