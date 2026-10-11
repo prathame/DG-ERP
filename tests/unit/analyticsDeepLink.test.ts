@@ -1,9 +1,31 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { consumeAnalyticsDeepLink, stashAnalyticsDeepLink, tabForActivityType } from '../../src/lib/analyticsDeepLink';
 
+/** Vitest node env has no sessionStorage — stub a minimal one for these helpers. */
+function installMemorySessionStorage() {
+  const map = new Map<string, string>();
+  const store = {
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      map.delete(k);
+    },
+    clear: () => {
+      map.clear();
+    },
+    key: (i: number) => [...map.keys()][i] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
+  Object.defineProperty(globalThis, 'sessionStorage', { value: store, configurable: true });
+}
+
 describe('analyticsDeepLink', () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    installMemorySessionStorage();
   });
 
   it('stashes and consumes once', () => {
